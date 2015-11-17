@@ -23,7 +23,7 @@
   
   <path id="classpath.base">
     <pathelement location="${build.dir}"/>
-    <pathelement location="${build.classes.dor}"/>
+    <pathelement location="${build.classes.dir}"/>
 <!--    <pathelement location="${conf.dir}"/>-->
     <fileset dir="${lib.dir}">
       <include name="*.jar"/>
