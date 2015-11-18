@@ -356,6 +356,38 @@ public class JSONArray {
   }
 
   /**
+   * A version of toString that limits the output length.
+   * Obviously this can't be used to read things back in.
+   * See {@link JSONObject.reasonableFieldSize}.
+   * 
+   * @return a string
+   */
+  public String toReasonableString() {
+    try {
+      return '[' + joinReasonable(",") + ']';
+    } catch (Exception e) {
+      return null;
+    }
+  }
+  
+  private String joinReasonable(String separator) throws JSONException {
+    int len = length();
+    StringBuilder sb = new StringBuilder();
+
+    for (int i = 0; i < len; i += 1) {
+      if (i > 100) {
+        sb.append(" [" + (len - i) + " more elements] ...");
+        return sb.toString();
+      }
+      if (i > 0) {
+        sb.append(separator);
+      }
+      sb.append(JSONObject.valueToReasonableString(this.myArrayList.get(i)));
+    }
+    return sb.toString();
+  }
+
+  /**
    * Get the number of elements in the JSONArray, included nulls.
    *
    * @return The length (or size).
