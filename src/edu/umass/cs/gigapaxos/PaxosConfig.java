@@ -108,7 +108,9 @@ public class PaxosConfig {
 	private static Class<?> getClassSuppressExceptions(String className) {
 		Class<?> clazz = null;
 		try {
+                  if (className != null && !"null".equals(className)) {
 			clazz = Class.forName(className);
+                  }
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 		}
