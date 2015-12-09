@@ -108,7 +108,9 @@ public class PaxosConfig {
 	private static Class<?> getClassSuppressExceptions(String className) {
 		Class<?> clazz = null;
 		try {
+                  if (className != null && !"null".equals(className)) {
 			clazz = Class.forName(className);
+                  }
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 		}
@@ -382,7 +384,7 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		JSON_LIBRARY("json.smart"),
+		JSON_LIBRARY("org.json"),
 
 		/**
 		 * Default location for paxos logs when an embedded DB is used.

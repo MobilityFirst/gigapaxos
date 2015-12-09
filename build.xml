@@ -23,7 +23,7 @@
   
   <path id="classpath.base">
     <pathelement location="${build.dir}"/>
-    <pathelement location="${build.classes.dor}"/>
+    <pathelement location="${build.classes.dir}"/>
 <!--    <pathelement location="${conf.dir}"/>-->
     <fileset dir="${lib.dir}">
       <include name="*.jar"/>
@@ -43,6 +43,24 @@
       <classpath refid="classpath.base"/>
     </javac>
   </target>
+  
+  <target name="gigapaxos_jarbuild" depends="compile" description="generate jar files">
+    <mkdir dir="${build.jar.dir}"/>
+    <jar destfile="${build.jar.dir}/gigapaxos-1.0.jar" filesetmanifest="mergewithoutmain">
+      <manifest>
+        <attribute name="Built-By" value="${user.name}"/>
+        <attribute name="Implementation-Vendor"
+                   value="University of Massachusetts" />
+        <attribute name="Implementation-Title" value="GNS Gigapaxos Library" />
+        <attribute name="Implementation-Version"
+                   value="${VERSION}-${RELEASE}" />
+        <attribute name="Class-Path" value="."/>
+        <attribute name="Build-Version" value="${version.code}" />
+      </manifest>
+      <fileset dir="${build.classes.dir}" includes="**/*.class" />
+      <zipgroupfileset dir="${lib.dir}" includes="**/*.jar" />
+    </jar>
+  </target>
     
   <target name="nio_jarbuild" depends="compile" description="generate jar files">
     <mkdir dir="${build.jar.dir}"/>
@@ -56,8 +74,7 @@
                    value="${VERSION}-${RELEASE}" />
         <attribute name="Build-Version" value="${version.code}" />
       </manifest>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/nio/*.class"/>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/nio/nioutils/*.class"/>
+      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/nio/**/*.class"/>
       <fileset dir="${build.classes.dir}" includes="edu/umass/cs/utils/*.class"/>
       <fileset dir="${build.classes.dir}" includes="org/json/*.class"/>
       <!-- interesting special cases here added because of one use of ReconfigurableClient in NIOInstrumenter -->
@@ -69,30 +86,7 @@
     </jar>
   </target>
   
-  <target name="gigapaxos_jarbuild" depends="compile" description="generate jar files">
-    <mkdir dir="${build.jar.dir}"/>
-    <jar destfile="${build.jar.dir}/gigapaxos-1.0.jar" filesetmanifest="mergewithoutmain">
-      <manifest>
-        <attribute name="Built-By" value="${user.name}"/>
-        <attribute name="Implementation-Vendor"
-                   value="University of Massachusetts" />
-        <attribute name="Implementation-Title" value="GNS Gigapaxos Library" />
-        <attribute name="Implementation-Version"
-                   value="${VERSION}-${RELEASE}" />
-        <attribute name="Build-Version" value="${version.code}" />
-      </manifest>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/nio/*.class"/>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/nio/nioutils/*.class"/>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/utils/*.class"/>
-      <fileset dir="${build.classes.dir}" includes="org/json/*.class"/>
-      <!-- interesting special cases here added because of one use of ReconfigurableClient in NIOInstrumenter -->
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/reconfiguration/**/*.class"/>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/gigapaxos/**/*.class"/>
-      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/protocoltask/**/*.class"/>
-      
-<!--      <fileset dir="${conf.dir}" includes="trustStore/**, keystore/**" />-->
-    </jar>
-  </target>
+  
 
   <target name="clean" description="remove generated files">
     <delete dir="${build.dir}"/>
@@ -115,17 +109,11 @@
     </copy> 
   </target>
     
-  <target name="jar" depends="nio_jarbuild, gigapaxos_jarbuild">
-    <!-- copy jars into dist/jars -->
+  <target name="jar" depends=" gigapaxos_jarbuild, nio_jarbuild">
     <mkdir dir="${dist.dir}"/>
     <copy todir="${dist.dir}">
       <fileset dir="${build.jar.dir}" includes="*.jar"/>
     </copy>  
-<!--    <mkdir dir="${jars.dir}"/>
-    <copy todir="${jars.dir}">
-      <fileset dir="${build.jar.dir}" includes="*.jar"/>
-    </copy>-->
-   
   </target>
   
   <path id="classpath.test">

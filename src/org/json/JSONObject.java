@@ -1585,4 +1585,92 @@ public class JSONObject {
     }
   }
 
+  /**
+   * Limits the size of fields printed by toReasonableString.
+   */
+  public static int reasonableFieldSize = 500;
+
+  /**
+   * A version of toString that limits the output length.
+   * Obviously this can't be used to read things back in.
+   * See {@link reasonableFieldSize}.
+   * 
+   * @return a string
+   */
+  public String toReasonableString() {
+    try {
+      Iterator keys = this.keys();
+      StringBuilder sb = new StringBuilder("{");
+
+      while (keys.hasNext()) {
+        if (sb.length() > 1) {
+          sb.append(',');
+        }
+        Object o = keys.next();
+        sb.append(quote(o.toString()));
+        sb.append(':');
+        sb.append(ellipsize(valueToReasonableString(this.map.get(o)), reasonableFieldSize));
+      }
+      sb.append('}');
+      return sb.toString();
+    } catch (Exception e) {
+      return null;
+    }
+  }
+  
+  public static String valueToReasonableString(Object value) throws JSONException {
+    if (value == null || value.equals(null)) {
+      return "null";
+    }
+    if (value instanceof JSONString) {
+      Object object;
+      try {
+        object = ((JSONString) value).toString();
+      } catch (Exception e) {
+        throw new JSONException(e);
+      }
+      if (object instanceof String) {
+        return (String) object;
+      }
+      throw new JSONException("Bad value from toJSONString: " + object);
+    }
+    if (value instanceof Number) {
+      return numberToString((Number) value);
+    }
+    if (value instanceof Boolean) {
+      return value.toString();
+    }
+    if (value instanceof JSONObject) {
+      return ((JSONObject)value).toReasonableString();
+    }
+    if (value instanceof JSONArray) {
+      return ((JSONArray)value).toReasonableString();
+    }
+    if (value instanceof Map) {
+      return new JSONObject((Map) value).toReasonableString();
+    }
+    if (value instanceof Collection) {
+      return new JSONArray((Collection) value).toReasonableString();
+    }
+    if (value.getClass().isArray()) {
+      return new JSONArray(value).toReasonableString();
+    }
+    return quote(value.toString());
+  }
+  
+   private static String sampleExplanation = " [555000 more chars] ...";
+  private static int explanationSize = sampleExplanation.length();
+
+  /**
+   * Clips the text at length.
+   * Max should be more than 20 or so or you'll have issues. You've been warned.
+   * 
+   * @param text
+   * @param max
+   * @return 
+   */
+  public static String ellipsize(String text, int max) {
+    return text.substring(0, max - explanationSize) + " [" + (text.length() - max) + " more chars] ...";
+  }
+
 }
