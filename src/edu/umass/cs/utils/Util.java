@@ -448,6 +448,11 @@ public class Util {
 			throws UnsupportedEncodingException {
 		return Util.bytesToLong(str.getBytes(CHARSET));
 	}
+	
+	public static long toLong(Object obj) {
+		if(obj instanceof Long) return (long)obj;
+		return (int)obj;
+	}
 
 	private static void testToBytesAndBack() throws UnknownHostException,
 			UnsupportedEncodingException {

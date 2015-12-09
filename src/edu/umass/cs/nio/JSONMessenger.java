@@ -180,7 +180,7 @@ public class JSONMessenger<NodeIDType> implements
 	public void stop() {
 		this.execpool.shutdown();
 		this.nioTransport.stop();
-		if (this.clientMessenger != null
+		if (this.clientMessenger != null && this.clientMessenger != this
 				&& this.clientMessenger instanceof InterfaceNIOTransport)
 			((InterfaceNIOTransport<?, ?>) this.clientMessenger).stop();
 		int stopped = 0;
@@ -188,7 +188,6 @@ public class JSONMessenger<NodeIDType> implements
 			this.workers[i].stop();
 			stopped++;
 		}
-		log.info(this + " stoppped self + " + stopped + " workers");
 	}
 
 	@SuppressWarnings("unchecked")

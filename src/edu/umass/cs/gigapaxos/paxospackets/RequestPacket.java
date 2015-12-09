@@ -475,12 +475,12 @@ public class RequestPacket extends PaxosPacket implements Request,
 		assert (PaxosPacket.getPaxosPacketType(json) != PaxosPacketType.ACCEPT || json.containsKey(Keys.STRINGIFIED.toString()));
 		this.packetType = PaxosPacketType.REQUEST;
 		this.stop = json.containsKey(Keys.STOP.toString()) ?  (Boolean) json.get(Keys.STOP.toString()) : false;
-		this.requestID = (long)(Long)(json.get(Keys.QID.toString()));
+		this.requestID = Util.toLong(json.get(Keys.QID.toString()));
 		this.requestValue = (String) json.get(Keys.QV.toString());
 
 		this.responseValue = json.containsKey(Keys.RV.toString()) ? (String) json
 				.get(Keys.RV.toString()) : null;
-		this.entryTime = (Long) json.get(Keys.ET.toString());
+		this.entryTime = Util.toLong( json.get(Keys.ET.toString()));
 		this.forwardCount = (json.containsKey(Keys.NFWDS.toString()) ? (Integer) json
 				.get(Keys.NFWDS.toString()) : 0);
 		this.forwarderID = (json
