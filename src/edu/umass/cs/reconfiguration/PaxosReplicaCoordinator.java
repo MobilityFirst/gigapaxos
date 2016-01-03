@@ -138,7 +138,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	public boolean coordinateRequest(String paxosGroupID,
 			Request request) throws RequestParseException {
 		String proposee = this.propose(paxosGroupID, request);
-		log.log(Level.INFO,
+		log.log(Level.FINE,
 				"{0} {1} request {2}:{3} [{4}] {5} to {6}",
 				new Object[] {
 						this,

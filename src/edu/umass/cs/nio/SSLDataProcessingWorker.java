@@ -178,7 +178,7 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		if (this.sslMode.equals(SSLDataProcessingWorker.SSL_MODES.MUTUAL_AUTH))
 			engine.setNeedClientAuth(true);
 		engine.beginHandshake();
-		log.log(Level.INFO,
+		log.log(Level.FINE,
 				"{0} registered {1} socket channel {2}",
 				new Object[] { this, (isClient ? "client" : "server"),
 						key.channel() });
@@ -239,14 +239,14 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		@Override
 		public void onHandshakeSuccess() {
 			this.setHandshakeComplete();
-			log.log(Level.INFO,
+			log.log(Level.FINE,
 					"{0} conducted successful SSL handshake for channel {1}",
 					new Object[] { this, key.channel() });
 		}
 
 		@Override
 		public void onClosed() {
-			log.log(Level.INFO, "{0} cleaning up closed SSL channel {1}",
+			log.log(Level.FINE, "{0} cleaning up closed SSL channel {1}",
 					new Object[] { this, key.channel() });
 			cleanup(key);
 		}
