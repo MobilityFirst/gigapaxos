@@ -120,7 +120,10 @@ public class HotRestoreInfo {
 	}
 	
 	public boolean isCreateHRI() {
-		return this.accSlot == 1 && this.version == 0 && this.accGCSlot == -1
+                // PART OF FIX FOR MOB-554
+                return this.accSlot == 0 && this.version == 0 && this.accGCSlot == -1
+                // original
+		//return this.accSlot == 1 && this.version == 0 && this.accGCSlot == -1
 				&& this.coordBallot.ballotNumber == 0
 				&& this.nextProposalSlot == 1;
 	}
@@ -128,7 +131,10 @@ public class HotRestoreInfo {
 	public static HotRestoreInfo createHRI(String paxosID, int[] members,
 			int coordinator) {
 		assert(Util.contains(coordinator, members));
-		return new HotRestoreInfo(paxosID, 0, members, 1, new Ballot(0,
+                // PART OF FIX FOR MOB-554
+                return new HotRestoreInfo(paxosID, 0, members, 0, new Ballot(0,
+                // Original
+		//return new HotRestoreInfo(paxosID, 0, members, 1, new Ballot(0,
 				coordinator), -1, new Ballot(0, coordinator), 1,
 				new int[members.length]);
 	}
