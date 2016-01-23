@@ -1284,6 +1284,13 @@ public class Reconfigurator<NodeIDType> implements
 		for (String name : pending) {
 			ReconfigurationRecord<NodeIDType> record = this.DB
 					.getReconfigurationRecord(name);
+
+			// FIXME: when can this happen?
+			if(record==null) {
+				this.DB.removePending(name);
+				continue;
+			}
+			
 			/*
 			 * Note; The fact that the RC record request is an intent is
 			 * immaterial. It is really only used to construct the corresponding

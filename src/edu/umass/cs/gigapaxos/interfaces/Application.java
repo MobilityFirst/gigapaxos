@@ -25,7 +25,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 /**
  * @author V. Arun
  */
-public interface Application {
+public interface Application extends AppRequestParser {
 	/**
 	 * @param request
 	 * @return True if the request is executed successfully. 
@@ -43,10 +43,10 @@ public interface Application {
 	 * @return InterfaceRequest corresponding to {@code stringified}.
 	 * @throws RequestParseException
 	 */
-	public Request getRequest(String stringified) throws RequestParseException;
+	//public Request getRequest(String stringified) throws RequestParseException;
 	
 	/**
 	 * @return The set of request types that the application expects to process.
 	 */
-	public Set<IntegerPacketType> getRequestTypes();
+	//public Set<IntegerPacketType> getRequestTypes();
 }

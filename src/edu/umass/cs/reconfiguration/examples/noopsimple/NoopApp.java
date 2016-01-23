@@ -161,24 +161,36 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	@Override
 	public Request getRequest(String stringified)
 			throws RequestParseException {
-		AppRequest request = null;
-		if (stringified.equals(Request.NO_OP)) {
-			return this.getNoopRequest();
-		}
 		try {
-			request = new AppRequest(new JSONObject(stringified));
+			return staticGetRequest(stringified);
 		} catch (JSONException je) {
 			Reconfigurator.getLogger().fine("App-" + 
 					myID + " unable to parse request " + stringified);
 			throw new RequestParseException(je);
 		}
-		return request;
+	}
+
+	/**
+	 * We need this method also at the client, so it is static.
+	 * 
+	 * @param stringified
+	 * @return App request
+	 * @throws RequestParseException
+	 * @throws JSONException
+	 */
+	public static Request staticGetRequest(String stringified)
+			throws RequestParseException, JSONException {
+		AppRequest request = null;
+		if (stringified.equals(Request.NO_OP)) {
+			return getNoopRequest();
+		}
+		return new AppRequest(new JSONObject(stringified));
 	}
 
 	/*
 	 * This is a special no-op request unlike any other NoopAppRequest.
 	 */
-	private Request getNoopRequest() {
+	private static Request getNoopRequest() {
 		return new AppRequest(null, 0, 0, Request.NO_OP,
 				AppRequest.PacketType.DEFAULT_APP_REQUEST, false);
 	}
@@ -189,8 +201,17 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
+		return staticGetRequestTypes();
+	}
+	/**
+	 * We need this method also at the client, so it is static.
+	 * 
+	 * @return App request types.
+	 */
+	public static Set<IntegerPacketType> staticGetRequestTypes() {
 		return new HashSet<IntegerPacketType>(Arrays.asList(types));
 	}
+
 
 	@Override
 	public boolean execute(Request request) {

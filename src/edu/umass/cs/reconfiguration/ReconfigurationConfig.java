@@ -222,6 +222,16 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		USE_DISK_MAP_RCDB (true),
+		
+		/**
+		 * 
+		 */
+		DEFAULT_NUM_REPLICAS (3),
+		
+		/**
+		 * 
+		 */
+		REPLICATE_ALL (true),
 				
 		;
 

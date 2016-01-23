@@ -125,6 +125,11 @@ public interface ReconfiguratorDB<NodeIDType> {
 	 * @return Array of names.
 	 */
 	public String[] getPendingReconfigurations();
+	
+	/**
+	 * @param name
+	 */
+	public void removePending(String name);
 
 	/**
 	 * Get current RC group names from the DB
