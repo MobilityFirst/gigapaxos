@@ -39,10 +39,10 @@ import edu.umass.cs.nio.nioutils.NIOHeader;
  *
  */
 public class PaxosClientAsync {
-
-	final MessageNIOTransport<String, JSONObject> niot;
-	final InetSocketAddress[] servers;
-	final ConcurrentHashMap<Long, RequestCallback> callbacks = new ConcurrentHashMap<Long, RequestCallback>();
+	
+	protected final InetSocketAddress[] servers;
+	private final MessageNIOTransport<String, JSONObject> niot;
+	private final ConcurrentHashMap<Long, RequestCallback> callbacks = new ConcurrentHashMap<Long, RequestCallback>();
 	private RequestCallback defaultCallback = null;
 
 	// FIXME: eventually garbage collect old requests
