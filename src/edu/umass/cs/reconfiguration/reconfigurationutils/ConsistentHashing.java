@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -41,7 +43,7 @@ import edu.umass.cs.utils.Util;
  */
 public class ConsistentHashing<NodeIDType> {
 
-	private static final int DEFAULT_NUM_REPLICAS = 3;
+	private static final int DEFAULT_NUM_REPLICAS = Config.getGlobalInt(RC.DEFAULT_NUM_REPLICAS);
 	
 	private static MessageDigest md;
 	static {

@@ -893,6 +893,29 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 		return pending.toArray(new String[0]);
 	}
+	
+	@Override
+	public void removePending(String name) {
+		PreparedStatement pstmt = null;
+		ResultSet recordRS = null;
+		Connection conn = null;
+		Set<String> pending = new HashSet<String>();
+		try {
+			conn = this.getDefaultConn();
+			pstmt = conn.prepareStatement("delete from " + getPendingTable()
+					+ " where " + Columns.SERVICE_NAME.toString() + "='"
+					+ name+"'");
+			pstmt.execute();
+		} catch (SQLException e) {
+			log.severe("Node"
+					+ this.myID
+					+ " SQLException while removing unnecessary pending reconfiguration entries");
+			e.printStackTrace();
+		} finally {
+			cleanup(pstmt, recordRS);
+			cleanup(conn);
+		}
+	}
 
 	/******************** End of overridden methods *********************/
 

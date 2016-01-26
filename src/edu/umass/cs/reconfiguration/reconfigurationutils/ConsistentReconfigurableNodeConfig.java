@@ -29,9 +29,12 @@ import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
+import edu.umass.cs.utils.Config;
 
 /**
  * @author arun
@@ -84,7 +87,7 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		 * chosen initially will be the set of all active replicas at that time.
 		 */
 		this.CH_AR = new ConsistentHashing<NodeIDType>(this.activeReplicas,
-				true);
+				Config.getGlobalBoolean(RC.REPLICATE_ALL));
 	}
 
 	@Override

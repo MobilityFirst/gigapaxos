@@ -543,4 +543,11 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return name.equals(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
 				.toString());
 	}
+
+	/**
+	 * @param name
+	 */
+	public void removePending(String name) {
+		this.app.removePending(name);
+	}
 }
