@@ -2211,6 +2211,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				ReconfigurationRecord<NodeIDType> record = this.rcRecords.get(name);
 				assert(record!=null);
 				record.setState(name, epoch, state);
+                                record.setActivesToNewActives();
 			}
 			return true;
 		}
