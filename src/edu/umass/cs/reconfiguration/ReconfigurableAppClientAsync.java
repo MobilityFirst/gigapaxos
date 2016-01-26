@@ -363,7 +363,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		return queued;
 	}
 	private synchronized boolean enqueue(RequestAndCallback rc) {
-		if(this.requestsPendingActives.containsKey(rc.request.getServiceName()))
+		//if(!this.requestsPendingActives.containsKey(rc.request.getServiceName()))
 			this.requestsPendingActives.putIfAbsent(rc.request.getServiceName(),
 				new LinkedBlockingQueue<RequestAndCallback>());
 		LinkedBlockingQueue<RequestAndCallback> pending = this.requestsPendingActives

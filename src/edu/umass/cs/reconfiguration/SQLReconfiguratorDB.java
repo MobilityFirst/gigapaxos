@@ -899,7 +899,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		PreparedStatement pstmt = null;
 		ResultSet recordRS = null;
 		Connection conn = null;
-		Set<String> pending = new HashSet<String>();
 		try {
 			conn = this.getDefaultConn();
 			pstmt = conn.prepareStatement("delete from " + getPendingTable()

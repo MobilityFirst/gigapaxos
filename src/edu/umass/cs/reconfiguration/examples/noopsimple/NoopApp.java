@@ -180,7 +180,6 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	 */
 	public static Request staticGetRequest(String stringified)
 			throws RequestParseException, JSONException {
-		AppRequest request = null;
 		if (stringified.equals(Request.NO_OP)) {
 			return getNoopRequest();
 		}
