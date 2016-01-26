@@ -1,2 +1,5 @@
 /build/
 /dist/
+/derby.log
+/paxos_logs/
+/reconfiguration_DB/
