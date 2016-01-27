@@ -12,13 +12,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
-import edu.umass.cs.gigapaxos.interfaces.Application;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.MessageNIOTransport;
+import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.NIOHeader;
@@ -30,6 +30,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.GCConcurrentHashMap;
 import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 import edu.umass.cs.utils.Util;
@@ -84,7 +85,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators)
 			throws IOException {
 		this.niot = (new MessageNIOTransport<String, String>(null, null,
-				(new ClientPacketDemultiplexer(getRequestTypes())), true));
+				(new ClientPacketDemultiplexer(getRequestTypes())), true,
+                   // This will be set in the gigapaxos.properties file that we invoke the client using.
+                   SSLDataProcessingWorker.SSL_MODES.valueOf(Config
+                       .getGlobal(ReconfigurationConfig.RC.CLIENT_SSL_MODE).toString())));
 		this.reconfigurators = reconfigurators
 				.toArray(new InetSocketAddress[0]);
 	}
