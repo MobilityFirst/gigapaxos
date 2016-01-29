@@ -448,9 +448,12 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		if (state.equals(RCStates.READY))
 			this.numPossiblyUncleanReconfigurations += (epoch - this.epoch);
 		// READY to READY_READY => clean
-		else if (state.equals(RCStates.READY_READY)
-				&& ((epoch == this.epoch && !this.state
-						.equals(RCStates.READY_READY)) || (epoch - this.epoch == 1 && this.state
+		else if (state.equals(RCStates.READY_READY) &&
+		// same epoch, change state to READY_READY
+				((epoch == this.epoch && !this.state
+						.equals(RCStates.READY_READY)) ||
+				// FIXME: needed if !TWO_PAXOS_RC?
+				(epoch - this.epoch == 1 && this.state
 						.equals(RCStates.READY_READY))))
 			this.numPossiblyUncleanReconfigurations--;
 

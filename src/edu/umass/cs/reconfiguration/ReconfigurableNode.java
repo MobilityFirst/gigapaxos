@@ -63,7 +63,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	public ReconfigurableNode(NodeIDType id,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig)
 			throws IOException {
-		this(id, nodeConfig, false);
+		this(id, nodeConfig, null, false);
 	}
 
 	/**
@@ -76,9 +76,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			this.reconfigurator.close();
 	}
 
-	private AbstractReplicaCoordinator<NodeIDType> createApp() {
+	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args) {
 		if (ReconfigurationConfig.application != null) {
-			Replicable app = ReconfigurationConfig.createApp();
+			Replicable app = ReconfigurationConfig.createApp(args);
 			if (app instanceof ClientMessenger)
 				((ClientMessenger) app).setClientMessenger(messenger);
 			else
@@ -97,8 +97,19 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			prc.createDefaultGroup(app.getClass().getSimpleName() + "0",
 					PaxosConfig.getActives().keySet(), nodeConfig);
 			return prc;
-		} else
-			return this.createAppCoordinator();
+		} else {
+			AbstractReplicaCoordinator<NodeIDType> appCoordinator = this
+					.createAppCoordinator();
+			if (appCoordinator instanceof PaxosReplicaCoordinator)
+				Reconfigurator
+						.getLogger()
+						.warning(
+								"Using createAppCoordinator() is discouraged for "
+										+ "applications simply using paxos as the coordiantion protocol. Implement "
+										+ "Application.createApp(String[]) or Application.createApp() to construct "
+										+ "the application instance instead.");
+			return appCoordinator;
+		}
 	}
 
 	/**
@@ -107,6 +118,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @param nodeConfig
 	 *            Maps node IDs of active replicas and reconfigurators to their
 	 *            socket addresses.
+	 * @param args 
 	 * @param startCleanSlate
 	 *            Used to join newly added nodes.
 	 * 
@@ -119,7 +131,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 *             not present at all in the supplied 'nodeConfig' argument.
 	 */
 	public ReconfigurableNode(NodeIDType id,
-			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
+			ReconfigurableNodeConfig<NodeIDType> nodeConfig, String[] args,
 			boolean startCleanSlate) throws IOException {
 		this.myID = id;
 		this.nodeConfig = nodeConfig;
@@ -143,7 +155,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			// create active
 			ActiveReplica<NodeIDType> activeReplica = new ActiveReplica<NodeIDType>(
 			// createAppCoordinator(),
-					createApp(), nodeConfig, messenger);
+					createApp(args), nodeConfig, messenger);
 			// getPacketTypes includes app's packets
 			pd.register(activeReplica.getPacketTypes(), activeReplica);
 		} else if (nodeConfig.getReconfigurators().contains(id)) {
@@ -166,14 +178,14 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	static class DefaultReconfigurableNode extends ReconfigurableNode<String> {
 
 		public DefaultReconfigurableNode(String id,
-				ReconfigurableNodeConfig<String> nodeConfig,
+				ReconfigurableNodeConfig<String> nodeConfig, String[] args,
 				boolean startCleanSlate) throws IOException {
-			super(id, nodeConfig, startCleanSlate);
+			super(id, nodeConfig, args, startCleanSlate);
 		}
 
 		@Override
 		protected AbstractReplicaCoordinator<String> createAppCoordinator() {
-			return super.createApp();
+			return super.createApp(null);
 		}
 	}
 
@@ -205,7 +217,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 						// must use a different nodeConfig for each
 						new DefaultNodeConfig<String>(
 						PaxosConfig.getActives(),
-						ReconfigurationConfig.getReconfigurators()), false);
+						ReconfigurationConfig.getReconfigurators()), args, false);
 			}
 		System.out.println("]");
 	}

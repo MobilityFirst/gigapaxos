@@ -45,7 +45,7 @@ public class NoopReconfigurableNode extends ReconfigurableNode<String> {
 	public NoopReconfigurableNode(String id,
 			ReconfigurableNodeConfig<String> nc, boolean cleanSlate)
 			throws IOException {
-		super(id, nc, cleanSlate);
+		super(id, nc, null, cleanSlate);
 	}
 
 	/**

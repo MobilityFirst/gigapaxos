@@ -445,17 +445,38 @@ public class ReconfigurationConfig {
 		return new HashSet<String>(getReconfigurators().keySet());
 	}
 
-	protected static Replicable createApp() {
+	/**
+	 * 
+	 * @param args
+	 * @return Replicable app created via reflection.
+	 */
+	protected static Replicable createApp(String[] args) {
 		if (ReconfigurationConfig.application != null) {
 			try {
 				return (Replicable) ReconfigurationConfig.application
-						.getConstructor().newInstance();
+						.getConstructor(String[].class).newInstance(
+								new Object[] { args });
 			} catch (InstantiationException | IllegalAccessException
 					| IllegalArgumentException | InvocationTargetException
 					| NoSuchMethodException | SecurityException e) {
-				Reconfigurator.getLogger().severe(
-						"App must support a constructor with no arguments");
-				System.exit(1);
+				Reconfigurator.getLogger().fine(
+						ReconfigurationConfig.application
+								+ " does not support (String[]) constructor;"
+								+ " trying default constructor instead");
+			} finally {
+				// if exception, try default constructor
+				try {
+					return (Replicable) ReconfigurationConfig.application
+							.getConstructor().newInstance();
+				} catch (InstantiationException | IllegalAccessException
+						| IllegalArgumentException | InvocationTargetException
+						| NoSuchMethodException | SecurityException e) {
+					Reconfigurator
+							.getLogger()
+							.severe("App must support a constructor with a single String[] argument"
+									+ " or the default constructor (with no arguments).");
+					System.exit(1);
+				}
 			}
 		}
 		return null;

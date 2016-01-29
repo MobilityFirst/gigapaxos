@@ -411,9 +411,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				.getReconfigurationRecord(name);
 		if (record == null)
 			return false;
-		if (record.isReady() && state.equals(RCStates.READY_READY)
-				&& record.getUnclean() != 1)
-			return false;
+		assert (!(record.getState().equals(state) && epoch == record.getEpoch()));
 
 		log.log(Level.INFO,
 				"==============================> {0} {1} {2}:{3} -> {4}:{5} {6} {7} {8}",
@@ -2203,21 +2201,27 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return true;
 	}
 
+	// Used only by batch creation
 	@Override
 	public boolean setStateMerge(Map<String, String> nameStates, int epoch,
 			RCStates state, Set<NodeIDType> newActives) {
 		if(USE_DISK_MAP) {
 			for(String name : nameStates.keySet()) {
 				ReconfigurationRecord<NodeIDType> record = this.rcRecords.get(name);
-				assert(record!=null);
-				record.setState(name, epoch, state);
-                                record.setActivesToNewActives();
+				assert(record!=null && record.getUnclean()==0);
+				/* setStateMerge will print INFO logs and invoke the setPending
+				 * DB call that is unnecessary overhead for batch creates.
+				 */
+				//this.setStateMerge(name, epoch, state, null); 
+				record.setState(name, epoch, state).setActivesToNewActives();
+				this.putReconfigurationRecord(record);
 			}
 			return true;
 		}
 		else return this.setStateMergeDB(nameStates, epoch, state, newActives);
 	}
 	
+	// used only by batch creation
 	private boolean setStateMergeDB(Map<String, String> nameStates, int epoch,
 			RCStates state, Set<NodeIDType> newActives) {
 		String updateCmd = "update " + getRCRecordTable() + " set "
@@ -2242,7 +2246,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			for (String name : nameStates.keySet()) {
 				ReconfigurationRecord<NodeIDType> record = new ReconfigurationRecord<NodeIDType>(
 						name, 0, newActives);
-				record.setState(name, 0, RCStates.READY_READY);
+				record.setState(name, 0, state/*RCStates.READY_READY*/).setActivesToNewActives();;
 				updateRC.setString(1, rcGroupName);
 				if (RC_RECORD_CLOB_OPTION)
 					updateRC.setClob(2, new StringReader(record.toString()));

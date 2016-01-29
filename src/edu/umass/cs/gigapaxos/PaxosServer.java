@@ -42,12 +42,12 @@ import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 public class PaxosServer {
 	private final SSLMessenger<String, JSONObject> messenger;
 
-	PaxosServer(String myID, NodeConfig<String> nodeConfig)
+	PaxosServer(String myID, NodeConfig<String> nodeConfig, String[] args)
 			throws IOException {
 		this.messenger = (new JSONMessenger<String>(
 				(new MessageNIOTransport<String, JSONObject>(myID, nodeConfig,
 						ReconfigurationConfig.getServerSSLMode()))));
-		Replicable app = this.createApp();
+		Replicable app = this.createApp(args);
 		PaxosManager<String> pm = startPaxosManager(this.messenger, app,
 				new InetSocketAddress(nodeConfig.getNodeAddress(myID),
 						nodeConfig.getNodePort(myID)));
@@ -75,19 +75,28 @@ public class PaxosServer {
 		return servers;
 	}
 
-	private Replicable createApp() {
+	private Replicable createApp(String[] args) {
 		Replicable curApp = null;
 		if (PaxosConfig.application != null) {
 			try {
-
-				curApp = (Replicable) PaxosConfig.application
-						.getConstructor().newInstance();
+				curApp = (Replicable) PaxosConfig.application.getConstructor(
+						String[].class).newInstance(new Object[] { args });
 			} catch (InstantiationException | IllegalAccessException
 					| IllegalArgumentException | InvocationTargetException
-					| NoSuchMethodException | SecurityException e) {
-				PaxosManager.getLogger().severe(
-						"App must support a constructor with no arguments");
-				System.exit(1);
+					| NoSuchMethodException | SecurityException e1) {
+				try {
+
+					curApp = (Replicable) PaxosConfig.application
+							.getConstructor().newInstance();
+				} catch (InstantiationException | IllegalAccessException
+						| IllegalArgumentException | InvocationTargetException
+						| NoSuchMethodException | SecurityException e) {
+					PaxosManager
+							.getLogger()
+							.severe("App must support a constructor with a single (String[]) argument"
+									+ " or the default constructor (with no arguments)");
+					System.exit(1);
+				}
 			}
 		} else {
 			PaxosManager.getLogger().severe(
@@ -96,7 +105,7 @@ public class PaxosServer {
 		}
 		if (curApp instanceof ClientMessenger) {
 			((ClientMessenger) curApp).setClientMessenger(messenger);
-		} 
+		}
 		return curApp;
 	}
 
@@ -128,7 +137,7 @@ public class PaxosServer {
 				.getDefaultNodeConfig();
 		System.out.print("Starting paxos servers [ ");
 		for (String server : processArgs(args, nodeConfig)) {
-			new PaxosServer(server, nodeConfig);
+			new PaxosServer(server, nodeConfig, args);
 			System.out.print(server + " ");
 		}
 		System.out.println("] done");

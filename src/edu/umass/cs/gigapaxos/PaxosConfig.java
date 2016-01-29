@@ -384,7 +384,7 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		JSON_LIBRARY("org.json"),
+		JSON_LIBRARY("json.smart"),
 
 		/**
 		 * Default location for paxos logs when an embedded DB is used.

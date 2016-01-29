@@ -73,9 +73,13 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	private SSLMessenger<?, JSONObject> messenger;
 
 	/**
-	 * Default constructor used to create app replica via reflection.
+	 * Constructor used to create app replica via reflection. A 
+	 * reconfigurable app must support a constructor with a single
+	 * String[] as an argument.
+	 * 
+	 * @param args 
 	 */
-	public NoopApp() {
+	public NoopApp(String[] args) {
 	}
 
 	// Need a messenger mainly to send back responses to the client.

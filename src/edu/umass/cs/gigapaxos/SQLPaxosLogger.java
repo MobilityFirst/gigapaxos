@@ -339,7 +339,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					|| (logIndex.version - version < 0)) {
 				LogIndex prev = this.put(paxosID,
 						logIndex = new LogIndex(paxosID, version));
-				log.log(Level.INFO, "{0} created logIndex {1}:{2} {3}",
+				log.log(Level.FINE, "{0} created logIndex {1}:{2} {3}",
 						new Object[] {
 								this.disk,
 								paxosID,
