@@ -271,6 +271,9 @@ public class Util {
 	}
 
 	public static InetSocketAddress getInetSocketAddressFromString(String s) {
+                // remove anything upto and including the first slash
+                // handles this: "10.0.1.50/10.0.1.50:24404"
+                s = s.replaceAll(".*/", "");
 		s = s.replaceAll("[^0-9.:]", "");
 		String[] tokens = s.split(":");
 		if (tokens.length < 2) {
@@ -453,8 +456,19 @@ public class Util {
 		if(obj instanceof Long) return (long)obj;
 		return (int)obj;
 	}
-
-	private static void testToBytesAndBack() throws UnknownHostException,
+        
+	public static Set<Integer> toIntSet(int i) {
+		Set<Integer> set = new HashSet<Integer>();
+		set.add(i);
+		return set;
+	}
+        
+        // TEST CODE
+        
+        private static void testGetInetSocketAddressFromString() {
+          System.out.println(getInetSocketAddressFromString("10.0.1.50/10.0.1.50:24404"));
+        }
+        private static void testToBytesAndBack() throws UnknownHostException,
 			UnsupportedEncodingException {
 		InetSocketAddress isa = new InetSocketAddress("128.119.235.43", 23451);
 		assert (Util.encodedStringToInetSocketAddress(Util
@@ -484,14 +498,9 @@ public class Util {
 
 	public static void main(String[] args) throws UnsupportedEncodingException,
 			UnknownHostException {
-		Util.assertAssertionsEnabled();
-		testToBytesAndBack();
+          testGetInetSocketAddressFromString();
+//		Util.assertAssertionsEnabled();
+//		testToBytesAndBack();
 
-	}
-
-	public static Set<Integer> toIntSet(int i) {
-		Set<Integer> set = new HashSet<Integer>();
-		set.add(i);
-		return set;
 	}
 }
