@@ -206,7 +206,9 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		
 		ReconfigurationRecord<NodeIDType> record = this
 				.getReconfigurationRecord(rcRecReq.getServiceName());
-		assert (record != null || rcRecReq.isReconfigurationPrevDropComplete()) : rcRecReq;
+
+		assert (record != null || rcRecReq.isReconfigurationPrevDropComplete()) : this
+				.getMyID() + " : " + rcRecReq;
 		if (record == null)
 			return false;
 

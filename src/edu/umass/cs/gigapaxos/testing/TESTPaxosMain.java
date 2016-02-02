@@ -146,7 +146,7 @@ public class TESTPaxosMain {
 
 	private static void processArgs(String[] args) {
 		// Only useful for local testing
-		TESTPaxosConfig.setSingleNodeTest(TESTPaxosConfig.getConfDirArg(args));
+		TESTPaxosConfig.setSingleNodeTest();
 		PaxosManager.startWithCleanDB(TESTPaxosConfig.shouldCleanDB(args));
 	}
 

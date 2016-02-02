@@ -587,13 +587,12 @@ public class TESTPaxosClient {
 		try {
 			TESTPaxosConfig.setConsoleHandler();
 			NIOTransport.setUseSenderTask(Config.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));
-			TESTPaxosConfig.setDistribtedTest(args.length > 0 ? args[0] : null);
+			TESTPaxosConfig.setDistribtedTest();
 
 			TESTPaxosClient[] clients = TESTPaxosClient.setupClients(TESTPaxosConfig.getFromPaxosConfig(true));
 			System.out.println(TESTPaxosConfig.getFromPaxosConfig(true));
 			int numReqs = Config.getGlobalInt(TC.NUM_REQUESTS);
 
-			
 			// begin warmup run
 			long t1 = System.currentTimeMillis();
 			sendTestRequests(Math.min(numReqs, 10*NUM_CLIENTS), clients, true);

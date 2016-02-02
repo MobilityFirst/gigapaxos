@@ -411,7 +411,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				.getReconfigurationRecord(name);
 		if (record == null)
 			return false;
-		assert (!(record.getState().equals(state) && epoch == record.getEpoch()));
+		//assert (!(record.getState().equals(state) && epoch == record.getEpoch()));
 
 		log.log(Level.INFO,
 				"==============================> {0} {1} {2}:{3} -> {4}:{5} {6} {7} {8}",
@@ -440,6 +440,15 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			 * information like the fact that an intent has to be followed by
 			 * complete. So if the node crashes after an intent but before the
 			 * corresponding complete, the app has to redo just that last step.
+			 * 
+			 * FIXME: setPending is invoked twice during each reconfiguration,
+			 * which touches the DB and slows down reconfiguration. But we can
+			 * not simply use DiskMap like for the main records table because
+			 * the pending table is not backed up by paxos. One fix is to use
+			 * DiskMap and also include the pending table information in paxos
+			 * checkpoints so that paxos can restore it upon recovery. Then,
+			 * reconfiguration can proceed essentially at half of paxos
+			 * throughput.
 			 */
 			if (record.isReconfigurationReady())
 				this.setPending(name, false);
@@ -507,7 +516,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				new Object[] { this, record.getName(), record.getEpoch(),
 						record.getState(), epoch, state, newActives });
 		record.setState(name, epoch, state, newActives);
-		this.setPending(name, true);
+		// during recovery, we can already have the reconfiguration pending
+		this.setPending(name, true, true);
 		this.putReconfigurationRecord(record);
 
 		record = this.getReconfigurationRecord(name);

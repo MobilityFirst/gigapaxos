@@ -581,7 +581,7 @@ public class PaxosManager<NodeIDType> {
 
 		// keepalives only if needed
 		this.FD.sendKeepAlive(gms);
-		//this.integerMap.put(gms);
+		this.integerMap.put(gms);
 		this.addServers(gms);
 		return pism;
 	}
@@ -1531,8 +1531,9 @@ public class PaxosManager<NodeIDType> {
 					@Override
 					protected PaxosPacket stringToPaxosPacket(String str) {
 						try {
-							return PaxosPacket.getPaxosPacket(PaxosManager.this
-									.fixNodeStringToInt(new JSONObject(str)));
+							return PaxosPacket.getPaxosPacket(
+									PaxosManager.this.fixNodeStringToInt
+									(new JSONObject(str)));
 						} catch (JSONException e) {
 							e.printStackTrace();
 						}

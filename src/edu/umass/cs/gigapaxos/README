@@ -3,15 +3,19 @@ This README explains the following:
 (2) Testing gigapaxos in a distributed setting; 
 (3) Writing a simple application using gigapaxos. 
 
-For all of the steps below, you first need to either check out the GNS code from the 
-repository and compile it using "ant" in the top-level directory so as to create "GNS.jar"
-(in the dist/ subdirectory by default) or otherwise obtain a copy of GNS.jar.
+For all of the steps below, you first need the gigapaxos binaries. To compile form source, 
+follow these steps:
+$ git clone git://github.com/MobilityFirst/gigapaxos
+$ cd gigapaxos
+$ ant 
+At this point, a file gigapaxos-*.*.jar should be created in the dist/ subdirectory. Below,
+all references to /path/to/gigapaxos.jar should be replaced with the path to this jar.
 
 (1) Testing gigapaxos on a single machine
 
 Run the following command: 
 
-$ java -ea -Xms4096M -cp /path/to/GNS.jar edu.umass.cs.gigapaxos.testing.TESTPaxosMain -c 2>/tmp/run1
+$ java -ea -Xms4096M -cp /path/to/gigapaxos.jar edu.umass.cs.gigapaxos.testing.TESTPaxosMain -c 2>/tmp/run1
 
 The above command will try to create a sub-directory called 'paxos_logs' from wherever it
 is run, so you need to have write permissions in that directory. Running it again without 
@@ -92,8 +96,10 @@ to a server across a network. For the co-located case, each application node mus
 start PaxosManager and then create the corresponding paxos instances, as exemplified in
 TESTPaxosNode.java.
 
-The application itself must be an instance of InterfaceReplicable. See NoopPaxosApp.java for a
-simple example that simply echoes back the request. The application can delegate messaging 
-of responses back to clients to gigapaxos if it also implements InterfaceClientMessenger
-and its requests implement InterfaceClientRequest. Again, see NooPaxosApp for an example.
+The application itself must be an instance of InterfaceReplicable and should either support the
+default constructor (with no arguments) or a constructor with a single String[] argument if it
+needs command-line arguments. See NoopPaxosApp.java for a simple example that simply echoes 
+back the request. The application can delegate messaging  of responses back to clients to 
+gigapaxos if it also implements InterfaceClientMessenger and its requests implement 
+InterfaceClientRequest. Again, see NooPaxosApp for an example.
 

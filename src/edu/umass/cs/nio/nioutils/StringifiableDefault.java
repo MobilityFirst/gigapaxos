@@ -28,6 +28,7 @@ import org.json.JSONException;
 
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author arun
@@ -62,7 +63,7 @@ public class StringifiableDefault<ObjectType> implements
 		else if (seedObj instanceof String)
 			return (ObjectType) strValue;
 		else if (seedObj instanceof InetSocketAddress)
-			return (ObjectType) toInetSocketAddress(strValue);
+			return (ObjectType) Util.getInetSocketAddressFromString(strValue);
 		else if (seedObj instanceof Stringifiable<?>)
 			return (ObjectType) ((Stringifiable<?>) seedObj).valueOf(strValue);
 		else
@@ -84,30 +85,6 @@ public class StringifiableDefault<ObjectType> implements
 		for (int i = 0; i < array.length(); i++)
 			set.add(valueOf(array.getString(i)));
 		return set;
-	}
-
-	private InetSocketAddress toInetSocketAddress(String string) {
-		String[] tokens = string.split(":");
-		if (tokens.length != 2)
-			return null;
-		String addressPart = tokens[0];
-		// deals with ec2-23-21-160-80.compute-1.amazonaws.com/10.154.130.201
-		if (addressPart.indexOf("/") != -1)
-			addressPart = addressPart.substring(addressPart.indexOf("/") + 1);
-
-		InetAddress IP = null;
-		int port = -1;
-		try {
-			IP = InetAddress.getByName(addressPart.replaceAll("[^0-9.]*", ""));
-			port = Integer.valueOf(tokens[1]);
-		} catch (UnknownHostException | NumberFormatException e) {
-			NIOTransport.getLogger().severe(
-					"StringifiableDefault:: Error while converting " + string
-							+ " to InetSocketAddress: " + e);
-			e.printStackTrace();
-			return null;
-		}
-		return new InetSocketAddress(IP, port);
 	}
 
 	static class Main {

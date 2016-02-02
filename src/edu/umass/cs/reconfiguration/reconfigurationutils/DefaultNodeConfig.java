@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
 
@@ -67,9 +68,14 @@ public class DefaultNodeConfig<NodeIDType> implements
 
 	@Override
 	public int getNodePort(NodeIDType id) {
-		return this.actives.containsKey(id) ? this.actives.get(id).getPort()
+		int port = this.actives.containsKey(id) ? this.actives.get(id)
+				.getPort()
 				: this.reconfigurators.containsKey(id) ? this.reconfigurators
-						.get(id).getPort() : null;
+						.get(id).getPort() : -1;
+		if (port == -1)
+			Reconfigurator.getLogger()
+					.warning("No port found for nodeID " + id);
+		return port;
 	}
 
 	@Override

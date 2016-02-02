@@ -598,15 +598,20 @@ public class ActiveReplica<NodeIDType> implements
 	}
 
 	private boolean isAppRequest(JSONObject jsonObject) throws JSONException {
-		int type = JSONPacket.getPacketType(jsonObject);
-		Set<IntegerPacketType> appTypes = this.appCoordinator.getRequestTypes();
-		boolean contains = false;
-		for (IntegerPacketType reqType : appTypes) {
-			if (reqType.getInt() == type) {
-				contains = true;
-			}
-		}
-		return contains;
+		Integer type = JSONPacket.getPacketType(jsonObject);
+		if (appRequestTypes == null)
+			appRequestTypes = toIntegerSet(this.appCoordinator
+					.getRequestTypes());
+		return appRequestTypes.contains(type);
+	}
+	
+	private static Set<Integer> appRequestTypes = null;
+	
+	private static Set<Integer> toIntegerSet(Set<IntegerPacketType> types) {
+		Set<Integer> integers = new HashSet<Integer>();
+		for (IntegerPacketType type : types)
+			integers.add(type.getInt());
+		return integers;
 	}
 
 	/*
@@ -736,8 +741,8 @@ public class ActiveReplica<NodeIDType> implements
 			int myPort = (this.nodeConfig.getNodePort(getMyID()));
 			if (getClientFacingPort(myPort) != myPort) {
 				log.log(Level.INFO,
-						"Creating client messenger at {0}:{1}",
-						new Object[] {
+						"{0} creating client messenger at {1}:{2}",
+						new Object[] {this,
 								this.nodeConfig.getBindAddress(getMyID()),
 								getClientFacingPort(myPort) });
 

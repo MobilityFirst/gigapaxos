@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
@@ -43,6 +45,9 @@ import edu.umass.cs.utils.Util;
  */
 public class ConsistentHashing<NodeIDType> {
 
+	static {
+		PaxosConfig.load(ReconfigurationConfig.RC.class);
+	}
 	private static final int DEFAULT_NUM_REPLICAS = Config.getGlobalInt(RC.DEFAULT_NUM_REPLICAS);
 	
 	private static MessageDigest md;
@@ -85,7 +90,7 @@ public class ConsistentHashing<NodeIDType> {
 	 */
 	public ConsistentHashing(Set<NodeIDType> servers, boolean replicateAll) {
 		this.replicateAll = replicateAll;
-		this.refresh(servers, DEFAULT_NUM_REPLICAS);
+		this.refresh(servers, this.numReplicas = servers.size());
 	}
 
 	/**

@@ -76,7 +76,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			this.reconfigurator.close();
 	}
 
-	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args) {
+	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args, 
+			ReconfigurableNodeConfig<NodeIDType> nodeConfig) {
 		if (ReconfigurationConfig.application != null) {
 			Replicable app = ReconfigurationConfig.createApp(args);
 			if (app instanceof ClientMessenger)
@@ -94,8 +95,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								+ " responses back to clients or rely on alternate means for messaging.");
 			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(app, myID,
 					nodeConfig, messenger);
-			prc.createDefaultGroup(app.getClass().getSimpleName() + "0",
-					PaxosConfig.getActives().keySet(), nodeConfig);
+			Reconfigurator.getLogger().info("Creating default group with "+nodeConfig.getActiveReplicas());
+			prc.createDefaultGroupNodes(app.getClass().getSimpleName() + "0",
+					nodeConfig.getActiveReplicas(), nodeConfig);
 			return prc;
 		} else {
 			AbstractReplicaCoordinator<NodeIDType> appCoordinator = this
@@ -144,6 +146,10 @@ public abstract class ReconfigurableNode<NodeIDType> {
 					"Node " + id + " not present in NodeConfig argument \n  "
 							+ nodeConfig.getActiveReplicas() + "\n  "
 							+ nodeConfig.getReconfigurators());
+		Reconfigurator.getLogger().info(
+				this + ":" + this.myID + " listening on "
+						+ nodeConfig.getNodeAddress(myID) + ":"
+						+ nodeConfig.getNodePort(myID));
 		// else we have something to start
 		messenger = (new JSONMessenger<NodeIDType>(
 				(new JSONNIOTransport<NodeIDType>(ReconfigurableNode.this.myID,
@@ -155,7 +161,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			// create active
 			ActiveReplica<NodeIDType> activeReplica = new ActiveReplica<NodeIDType>(
 			// createAppCoordinator(),
-					createApp(args), nodeConfig, messenger);
+					createApp(args, nodeConfig), nodeConfig, messenger);
 			// getPacketTypes includes app's packets
 			pd.register(activeReplica.getPacketTypes(), activeReplica);
 		} else if (nodeConfig.getReconfigurators().contains(id)) {
@@ -175,8 +181,17 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 
 	// because ReconfigurableNode is abstract for backwards compatibility
-	static class DefaultReconfigurableNode extends ReconfigurableNode<String> {
+	/**
+	 */
+	public static class DefaultReconfigurableNode extends ReconfigurableNode<String> {
 
+		/**
+		 * @param id
+		 * @param nodeConfig
+		 * @param args
+		 * @param startCleanSlate
+		 * @throws IOException
+		 */
 		public DefaultReconfigurableNode(String id,
 				ReconfigurableNodeConfig<String> nodeConfig, String[] args,
 				boolean startCleanSlate) throws IOException {
@@ -185,7 +200,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 		@Override
 		protected AbstractReplicaCoordinator<String> createAppCoordinator() {
-			return super.createApp(null);
+			return super.createApp(null, super.nodeConfig);
 		}
 	}
 

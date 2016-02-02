@@ -26,6 +26,7 @@ import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
 import edu.umass.cs.nio.nioutils.SampleNodeConfig;
+import edu.umass.cs.utils.Util;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -73,7 +74,11 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 
 	/**
 	 * JSON key corresponding to sender IP address. Relevant only if
-	 * {@code MessageType} is JSONObject.
+	 * {@code MessageType} is JSONObject. These can be optimized to have just a
+	 * single short key, e.g., "SA" for sender socket address, but it doesn't
+	 * really matter because all four fields below are stamped only at the
+	 * receiver, so they don't induce more network traffic or (de-)serialization
+	 * overhead.
 	 */
 	public static final String SNDR_IP_FIELD = "_SNDR_IP_ADDRESS";
 	/**
@@ -268,10 +273,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	public static InetSocketAddress getSenderAddress(JSONObject json) {
 		try {
 			InetAddress address = (json
-					.has(MessageNIOTransport.SNDR_IP_FIELD) ? InetAddress
-					.getByName(json.getString(
-							MessageNIOTransport.SNDR_IP_FIELD).replaceAll(
-							"[^0-9.]*", "")) : null);
+					.has(MessageNIOTransport.SNDR_IP_FIELD) ? Util.getInetAddressFromString(json.getString(
+							MessageNIOTransport.SNDR_IP_FIELD)) : null);
 			int port = (json.has(MessageNIOTransport.SNDR_PORT_FIELD) ? json
 					.getInt(MessageNIOTransport.SNDR_PORT_FIELD) : -1);
 			if (address != null && port > 0) {
@@ -291,10 +294,9 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 			net.minidev.json.JSONObject json) {
 		try {
 			InetAddress address = (json
-					.containsKey(MessageNIOTransport.SNDR_IP_FIELD) ? InetAddress
-					.getByName(((String) (json
-							.get(MessageNIOTransport.SNDR_IP_FIELD)))
-							.replaceAll("[^0-9.]*", "")) : null);
+					.containsKey(MessageNIOTransport.SNDR_IP_FIELD) ? Util
+					.getInetAddressFromString(((String) (json
+							.get(MessageNIOTransport.SNDR_IP_FIELD)))) : null);
 			int port = (json.containsKey(MessageNIOTransport.SNDR_PORT_FIELD) ? (Integer) (json
 					.get(MessageNIOTransport.SNDR_PORT_FIELD)) : -1);
 			if (address != null && port > 0) {

@@ -629,11 +629,13 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	
 	private NodeIDType getNodeID(InetSocketAddress isa) {
 		if (isa != null && this.nodeConfig != null)
-			for (NodeIDType node : this.nodeConfig.getNodeIDs())
+			for (NodeIDType node : this.nodeConfig.getNodeIDs()) {
+				assert(this.nodeConfig.getNodeAddress(node) !=null) : node; 
 				if (this.nodeConfig.getNodeAddress(node).equals(
 						isa.getAddress())
 						&& this.nodeConfig.getNodePort(node) == isa.getPort())
 					return node;
+			}
 		return null;
 	}
 
@@ -1511,11 +1513,13 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		try {
 			serverChannel.socket().bind(isa);
 		} catch (BindException be) {
-			log.info(this + " failed to bind to " + isa + "; trying wildcard address instead");
+			log.info(this + " failed to bind to " + isa
+					+ "; trying wildcard address instead on port "
+					+ isa.getPort());
 			// try wildcard IP
 			serverChannel.socket().bind(new InetSocketAddress(isa.getPort()));
 		}
-		log.log(Level.FINE, "{0} listening on channel {1}", new Object[]{this, serverChannel});
+		log.log(Level.INFO, "{0} listening on channel {1}", new Object[]{this, serverChannel});
 		
 		if (isSSL())
 			// only for logging purposes

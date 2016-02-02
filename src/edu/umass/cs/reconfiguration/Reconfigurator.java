@@ -893,8 +893,8 @@ public class Reconfigurator<NodeIDType> implements
 		 */
 		if (clientRCPacket.isRedirectedResponse()) {
 			log.log(Level.FINE,
-					"{0} relaying response for forwarded request {1}",
-					new Object[] { this, clientRCPacket.getSummary() });
+					"{0} relaying response for forwarded request {1} to {2}",
+					new Object[] { this, clientRCPacket.getSummary(), clientRCPacket.getForwader() });
 			// just relay response to the client
 			return this.sendClientReconfigurationPacket(clientRCPacket);
 		}
@@ -976,6 +976,12 @@ public class Reconfigurator<NodeIDType> implements
 		try {
 			int myPort = (this.consistentNodeConfig.getNodePort(getMyID()));
 			if (getClientFacingPort(myPort) != myPort) {
+				log.log(Level.INFO,
+						"{0} creating client messenger at {1}:{2}",
+						new Object[] {this,
+								this.consistentNodeConfig
+										.getBindAddress(getMyID()),
+								getClientFacingPort(myPort) });
 				cMsgr = new JSONMessenger<InetSocketAddress>(
 						new MessageNIOTransport<InetSocketAddress, JSONObject>(
 								this.consistentNodeConfig
@@ -1285,8 +1291,13 @@ public class Reconfigurator<NodeIDType> implements
 			ReconfigurationRecord<NodeIDType> record = this.DB
 					.getReconfigurationRecord(name);
 
-			// FIXME: when can this happen?
-			if(record==null) {
+			/*
+			 * FIXME: when can this happen? When record creations don't complete
+			 * gracefully. For failed record creations, we don't have to bother
+			 * retrying them.
+			 */
+			if (record == null || record.getActiveReplicas() == null
+					|| record.getActiveReplicas().isEmpty()) {
 				this.DB.removePending(name);
 				continue;
 			}

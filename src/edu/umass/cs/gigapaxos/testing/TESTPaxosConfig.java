@@ -56,9 +56,8 @@ public class TESTPaxosConfig {
 		PaxosConfig.load();
 		// testing specific config parameters
 		try {
-			Config.register(TC.class, TC.CONFIG_DIR.getDefaultValue()
-					.toString()
-					+ TC.PROPERTIES_FILENAME.getDefaultValue().toString());
+			Config.register(TC.class, TESTING_CONFIG_FILE_KEY,
+					DEFAULT_TESTING_CONFIG_FILE);
 		} catch (IOException e) {
 			// ignore as defaults will be used
 		}
@@ -67,23 +66,14 @@ public class TESTPaxosConfig {
 	static {
 		load();
 	}
+	
+	private static final String TESTING_CONFIG_FILE_KEY = "testingConfig";
+	private static final String DEFAULT_TESTING_CONFIG_FILE = "testing.properties";
 
 	/**
 	 * Gigapaxos testing config parameters.
 	 */
 	public static enum TC implements Config.DefaultValueEnum {
-		/**
-		 * 
-		 */
-		CONFIG_DIR("conf/gigapaxos/"),
-		/**
-		 * 
-		 */
-		PROPERTIES_FILENAME("testing.properties"),
-		/**
-		 * 
-		 */
-		SERVERS_FILENAME("testing_servers.conf"),
 		
 		/**
 		 * 
@@ -93,12 +83,12 @@ public class TESTPaxosConfig {
 		/**
 		 * Default paxos group name prefix.
 		 */
-		TEST_GUID_PREFIX(TESTPaxosApp.class.getSimpleName()),
+		TEST_GUID_PREFIX(Config.getGlobalString(PC.APPLICATION).replaceAll(".*\\.", "")),
 		
 		/**
 		 * First paxos group name.
 		 */
-		TEST_GUID(TESTPaxosApp.class.getSimpleName()+"0"),
+		TEST_GUID(Config.getGlobalString(PC.APPLICATION).replaceAll(".*\\.", "")+"0"),
 
 		/**
 		 * 
@@ -202,15 +192,13 @@ public class TESTPaxosConfig {
 	 */
 	public static final int MAX_NODE_ID = 10000;
 
-	protected static final void setSingleNodeTest(String dir) {
-		setConfigDir(dir != null ? dir : Config.getGlobalString(TC.CONFIG_DIR),
-				false);
+	protected static final void setSingleNodeTest() {
+		configTest(false);
 	}
 
 	// same as setSingleNodeTest
-	protected static final void setDistribtedTest(String dir) {
-		setConfigDir(dir != null ? dir : Config.getGlobalString(TC.CONFIG_DIR),
-				true);
+	protected static final void setDistribtedTest() {
+		configTest(true);
 	}
 
 	/**
@@ -218,16 +206,10 @@ public class TESTPaxosConfig {
 	 * they may be running on different platforms, e.g., Mac and Linux.
 	 */
 
-	private static void setConfigDir(String dir, boolean distributed) {
-		String configDir = (dir.endsWith("/") ? dir : dir + "/");
+	private static void configTest(boolean distributed) {
 		if (distributed)
-			loadServersFromFile(configDir
-					+ Config.getGlobalString(TC.SERVERS_FILENAME));
-		else setupGroups();
-		
-		loadPropertiesFromFile(
-				configDir + Config.getGlobalString(TC.PROPERTIES_FILENAME),
-				distributed);
+			loadServersFromFile();
+		setupGroups();
 	}
 
 	/*
@@ -280,10 +262,6 @@ public class TESTPaxosConfig {
 			defaultGroup[i] = Config.getGlobalInt(TC.TEST_START_NODE_ID) + i;
 		
 		setDefaultGroups(Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS));
-	}
-
-	static { // is this needed?
-		//setupGroups();
 	}
 
 	// replies directly sendable by paxos via InterfaceClientRequest
@@ -398,8 +376,8 @@ public class TESTPaxosConfig {
 	 */
 	public static final String getConfDirArg(String[] args) {
 		for (String arg : args)
-			if (arg.trim().contains("-D"))
-				return arg.replace("-D", "");
+			if (arg.trim().startsWith("-T"))
+				return arg.replace("-T", "");
 		return null;
 	}
 
@@ -673,50 +651,10 @@ public class TESTPaxosConfig {
 		};
 	}
 
-
-	private static void loadPropertiesFromFile(String filename,
-			boolean distributed) {
-		try {
-			Config.register(TC.class, filename);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	private static final void loadServersFromFile(String filename) {
-		BufferedReader reader;
-		try {
-			reader = new BufferedReader(new FileReader(filename));
-			String line = null;
-			int count = 0;
-
-			TESTPaxosConfig.getNodeConfig().clear();
-
-			while ((line = reader.readLine()) != null) {
-				if (line.contains("#"))
-					continue;
-				String[] tokens = line.split("\\s");
-				assert (tokens.length >= 2);
-				int id = Config.getGlobalInt(TC.TEST_START_NODE_ID) + count;
-				try {
-					id = Integer.valueOf(tokens[0].trim());
-				} catch (NumberFormatException nfe) {
-					nfe.printStackTrace();
-				}
-				TESTPaxosConfig.getNodeConfig().add(id,
-						InetAddress.getByName(tokens[1].trim()));
-			}
-			// re-make default groups
-			Config.getConfig(TC.class).put(TC.NUM_NODES,
-					TESTPaxosConfig.getFromPaxosConfig().getNodeIDs().size());
-			setupGroups();
-			reader.close();
-		} catch (IOException e) {
-			System.err
-					.println("Could not find the file with the list of distributed servers at "
-							+ filename + "; exiting.");
-			System.exit(1);
-		}
+	private static final void loadServersFromFile() {
+		// re-make default groups
+		Config.getConfig(TC.class).put(TC.NUM_NODES,
+				TESTPaxosConfig.getFromPaxosConfig().getNodeIDs().size());
 	}
 	
 	/**
@@ -732,8 +670,6 @@ public class TESTPaxosConfig {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		NodeConfig<Integer> nc = TESTPaxosConfig.getFromPaxosConfig();
-		for(Integer i : nc.getNodeIDs())
-		System.out.println(i + ":" + nc.getNodeAddress(i)+":"+nc.getNodePort(i));
+		System.out.println("edu.umass.cs".replaceAll(".*\\.", ""));
 	}
 }

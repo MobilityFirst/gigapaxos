@@ -75,6 +75,10 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 			nodes.add(unstringer.valueOf(strNode));
 		this.paxosManager.createPaxosInstance(name, nodes, null);
 	}
+	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
+			Stringifiable<NodeIDType> unstringer) {
+		this.paxosManager.createPaxosInstance(name, nodes, null);
+	}
 
 	/**
 	 * @param app

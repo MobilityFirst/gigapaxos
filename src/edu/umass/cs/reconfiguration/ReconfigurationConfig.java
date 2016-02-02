@@ -458,22 +458,23 @@ public class ReconfigurationConfig {
 								new Object[] { args });
 			} catch (InstantiationException | IllegalAccessException
 					| IllegalArgumentException | InvocationTargetException
-					| NoSuchMethodException | SecurityException e) {
-				Reconfigurator.getLogger().fine(
+					| NoSuchMethodException | SecurityException e1) {
+				Reconfigurator.getLogger().info(
 						ReconfigurationConfig.application
 								+ " does not support (String[]) constructor;"
 								+ " trying default constructor instead");
-			} finally {
 				// if exception, try default constructor
 				try {
 					return (Replicable) ReconfigurationConfig.application
 							.getConstructor().newInstance();
 				} catch (InstantiationException | IllegalAccessException
 						| IllegalArgumentException | InvocationTargetException
-						| NoSuchMethodException | SecurityException e) {
+						| NoSuchMethodException | SecurityException e2) {
 					Reconfigurator
 							.getLogger()
-							.severe("App must support a constructor with a single String[] argument"
+							.severe("App "
+									+ ReconfigurationConfig.application.getSimpleName()
+									+ " must support a constructor with a single String[] argument"
 									+ " or the default constructor (with no arguments).");
 					System.exit(1);
 				}

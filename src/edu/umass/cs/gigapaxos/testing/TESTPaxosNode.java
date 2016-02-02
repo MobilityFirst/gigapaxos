@@ -154,8 +154,7 @@ public class TESTPaxosNode {
 		assert (myID != -1) : "Need an integer node ID as the last argument";
 
 		// first arg starting with "-D" will be interpreted as confDir
-		TESTPaxosConfig.setDistribtedTest(TESTPaxosConfig.getConfDirArg(args));
-				//Arrays.copyOfRange(args, 1, args.length)));
+		TESTPaxosConfig.setDistribtedTest();
 
 		// if -c is in args
 		PaxosManager.startWithCleanDB(TESTPaxosConfig.shouldCleanDB(args));

@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
 
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -49,7 +50,7 @@ public class IntegerMap<NodeIDType> {
 	private HashMap<Integer, NodeIDType> nodeMap = new HashMap<Integer, NodeIDType>();
 	private static boolean allInteger = true;
 
-	private static Logger log = Logger.getLogger(IntegerMap.class.getName());
+	private static Logger log = PaxosManager.getLogger();
 	
 	/**
 	 * Maps NodeIDType to int and stores the mapping
@@ -60,14 +61,41 @@ public class IntegerMap<NodeIDType> {
 	public int put(NodeIDType node) {
 		assert (node != null);
 		int id = getID(node);
-
+		
 		if (!node.toString().equals(Integer.valueOf(id).toString()))
 			allInteger = false;
 
+		boolean collision = this.nodeMap.containsKey(id);
+		if (collision && (node instanceof String)
+				&& ((String) node).equals("" + id))
+			return id;
+			
 		// address hashcode collisions
-		while (this.nodeMap.containsKey(id)
-				&& !this.nodeMap.get(id).equals(node))
-			id++;
+		if (collision)
+			while (this.nodeMap.containsKey(id)
+					&& !this.nodeMap.get(id).equals(node)) {
+				log.warning("Hash collision: " + node + " != "
+						+ this.nodeMap.get(id));
+				id++;
+			}
+
+		/*
+		 * When this works: the hash function maps integers to integers, and
+		 * string representation of integers to the corresponding integer. All
+		 * other objects are mapped to their hashcode and collisions are handled
+		 * by linearly walking down increasing integers until an empty location
+		 * is found. This works under the assumption that node IDs are either
+		 * all integers or all non-integer strings, but not a mix. If there is a
+		 * mix, it is possible that an integer and a string map to the same
+		 * hashcode, namely, the integer itself. The reason we need string
+		 * representation of integers to be mapped to the corresponding integer
+		 * is that there are situations when we may call fixNodeStringToInt even
+		 * when the stringified node ID is already fixed. This is because of
+		 * caching stringified accepts for logging efficiency, which may
+		 * sometimes log messages with integer node IDs and other times with
+		 * strings.
+		 */
+
 		this.nodeMap.put(id, node);
 		return id;
 	}
@@ -163,8 +191,13 @@ public class IntegerMap<NodeIDType> {
 		 * ID -1 is special. It is used to mean an invalid node ID. Changing
 		 * that to +1 breaks code.
 		 */
-		int hash = node.hashCode();
-		return (hash != NULL_INT_NODE ? Math.abs(node.hashCode()) : NULL_INT_NODE);
+		int hash = -1;
+		if(node.toString().matches("[0-9]*"))
+			hash = Integer.valueOf((String)node);
+		else
+			hash = node.hashCode();
+		
+		return (hash != NULL_INT_NODE ? Math.abs(hash) : NULL_INT_NODE);
 	}
 
 	/**

@@ -91,20 +91,15 @@ public class TESTPaxosApp implements Replicable,
 	 */
 	public TESTPaxosApp(JSONNIOTransport<Integer> nio) {
 		this();
-		try {
-			/*
-			 * app uses nio only to send, not receive, so it doesn't care to set
-			 * a PacketDemultiplexer
-			 */
-			setNIOTransport(nio);
-			AllApps.addApp(this);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+		setNIOTransport(nio);
+		AllApps.addApp(this);
 	}
 
 	// private because nio is necessary for testing
-	private TESTPaxosApp() {
+	/**
+	 * 
+	 */
+	public TESTPaxosApp() {
 		// app uses nio only to send, not receive, so no PacketDemultiplexer
 		try {
 			md = MessageDigest.getInstance("SHA");
@@ -544,9 +539,9 @@ public class TESTPaxosApp implements Replicable,
 		return true;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	public void setClientMessenger(
-			SSLMessenger<?, JSONObject> messenger) {
-		// do nothing
+	public void setClientMessenger(SSLMessenger<?, JSONObject> messenger) {
+		setNIOTransport((InterfaceNIOTransport<Integer, JSONObject>) messenger);
 	}
 }

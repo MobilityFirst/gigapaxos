@@ -271,15 +271,21 @@ public class Util {
 	}
 
 	public static InetSocketAddress getInetSocketAddressFromString(String s) {
-                // remove anything upto and including the first slash
-                // handles this: "10.0.1.50/10.0.1.50:24404"
-                s = s.replaceAll(".*/", "");
-		s = s.replaceAll("[^0-9.:]", "");
+		// remove anything upto and including the first slash
+		// handles this: "10.0.1.50/10.0.1.50:24404"
+		s = s.replaceAll(".*/", "");
+		s = s.replaceAll("[^0-9a-zA-Z.:]", "");
 		String[] tokens = s.split(":");
 		if (tokens.length < 2) {
 			return null;
 		}
 		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
+	}
+	
+	public static InetAddress getInetAddressFromString(String s)
+			throws UnknownHostException {
+		return InetAddress.getByName(s.replaceAll(".*/", "").replaceAll(":.*", "").replaceAll(
+				"[^0-9.]*", ""));
 	}
 
 	public static String toJSONString(Collection<?> collection) {
@@ -406,7 +412,7 @@ public class Util {
 
 	private static final String CHARSET = "ISO-8859-1";
 
-	public static String sockAddrToEncodedString(InetSocketAddress isa)
+	private static String sockAddrToEncodedString(InetSocketAddress isa)
 			throws UnsupportedEncodingException {
 		byte[] address = isa.getAddress().getAddress();
 		byte[] buf = new byte[address.length + 2];
@@ -418,7 +424,7 @@ public class Util {
 
 	}
 
-	public static InetSocketAddress encodedStringToInetSocketAddress(String str)
+	private static InetSocketAddress encodedStringToInetSocketAddress(String str)
 			throws UnknownHostException, UnsupportedEncodingException {
 		byte[] buf = str.getBytes(CHARSET);
 		int port = (int) (buf[buf.length - 2] << 8)
@@ -463,12 +469,20 @@ public class Util {
 		return set;
 	}
         
-        // TEST CODE
-        
-        private static void testGetInetSocketAddressFromString() {
-          System.out.println(getInetSocketAddressFromString("10.0.1.50/10.0.1.50:24404"));
-        }
-        private static void testToBytesAndBack() throws UnknownHostException,
+	// TEST CODE
+
+	private static void testGetInetSocketAddressFromString() {
+		assert (getInetSocketAddressFromString("10.0.1.50/10.0.1.50:24404")
+				.equals(new InetSocketAddress("10.0.1.50", 24404)));
+	}
+
+	private static void testGetInetAddressFromString()
+			throws UnknownHostException {
+		assert (getInetAddressFromString("10.0.1.50/10.0.1.50:24404")
+				.equals(InetAddress.getByName("10.0.1.50")));
+	}
+
+	private static void testToBytesAndBack() throws UnknownHostException,
 			UnsupportedEncodingException {
 		InetSocketAddress isa = new InetSocketAddress("128.119.235.43", 23451);
 		assert (Util.encodedStringToInetSocketAddress(Util
@@ -498,9 +512,10 @@ public class Util {
 
 	public static void main(String[] args) throws UnsupportedEncodingException,
 			UnknownHostException {
-          testGetInetSocketAddressFromString();
-//		Util.assertAssertionsEnabled();
-//		testToBytesAndBack();
-
+		Util.assertAssertionsEnabled();
+		testGetInetSocketAddressFromString();
+		testGetInetAddressFromString();
+		testToBytesAndBack();
+		System.out.println("SUCCESS!");
 	}
 }

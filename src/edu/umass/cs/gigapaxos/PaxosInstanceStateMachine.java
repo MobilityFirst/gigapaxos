@@ -59,6 +59,7 @@ import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.gigapaxos.paxosutil.PrepareReplyAssembler;
 import edu.umass.cs.gigapaxos.paxosutil.RequestInstrumenter;
 import edu.umass.cs.gigapaxos.paxosutil.SlotBallotState;
+import edu.umass.cs.gigapaxos.testing.TESTPaxosApp;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
@@ -1630,7 +1631,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					 */
 					Request request =
 					// don't convert to and from string unnecessarily
-					!requestPacket.shouldReturnRequestValue() ? requestPacket
+					!requestPacket.shouldReturnRequestValue() ? 
+							requestPacket
 					// ask app to translate string to InterfaceRequest
 							: getInterfaceRequest(app,
 									requestPacket.getRequestValue());
@@ -1651,13 +1653,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						log.log(Level.INFO, "{0}",
 								new Object[] { DelayProfiler.getStats() });
 
-					executed = app
-							.execute(
-									request,
-									// do not reply if recovery or not entry replica
-									(doNotReplyToClient
-											|| (requestPacket.getEntryReplica() != paxosManager
-													.getMyID())));
+					// TESTPaxosApp tracks noops, so it needs to be feed them
+					executed = (requestPacket.requestValue.equals(
+							Request.NO_OP) && !(app instanceof TESTPaxosApp))
+							|| app.execute(request,
+							// do not reply if recovery or not entry replica
+									(doNotReplyToClient || (requestPacket
+											.getEntryReplica() != paxosManager
+											.getMyID())));
 					paxosManager.executed(requestPacket);
 					assert (requestPacket.getEntryReplica() > 0) : requestPacket;
 					if(requestPacket.getEntryReplica()==paxosManager.getMyID()) myEntries++;
