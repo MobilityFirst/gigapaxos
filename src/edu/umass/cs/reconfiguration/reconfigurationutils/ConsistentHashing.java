@@ -90,7 +90,7 @@ public class ConsistentHashing<NodeIDType> {
 	 */
 	public ConsistentHashing(Set<NodeIDType> servers, boolean replicateAll) {
 		this.replicateAll = replicateAll;
-		this.refresh(servers, this.numReplicas = servers.size());
+		this.refresh(servers, DEFAULT_NUM_REPLICAS);
 	}
 
 	/**
