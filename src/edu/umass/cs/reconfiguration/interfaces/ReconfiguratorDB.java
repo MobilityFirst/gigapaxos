@@ -234,6 +234,20 @@ public interface ReconfiguratorDB<NodeIDType> {
 	public void garbageCollectedDeletedNode(NodeIDType node);
 		
 	/**
+	 * @param active
+	 * @return Whether successfully opened.
+	 */
+	public boolean initiateReadActiveRecords(NodeIDType active);
+	/**
+	 * @return Next name
+	 */
+	public ReconfigurationRecord<NodeIDType> readNextActiveRecord();
+	/**
+	 * @return Whether successfully closed.
+	 */
+	public boolean closeReadActiveRecords();
+
+	/**
 	 * Close gracefully.
 	 */
 	public void close();

@@ -192,8 +192,8 @@ public class IntegerMap<NodeIDType> {
 		 * that to +1 breaks code.
 		 */
 		int hash = -1;
-		if(node.toString().matches("[0-9]*"))
-			hash = Integer.valueOf((String)node);
+		if (node instanceof String && ((String) node).matches("[0-9]*"))
+			hash = Integer.valueOf((String) node);
 		else
 			hash = node.hashCode();
 		

@@ -91,6 +91,8 @@ if [[ ! -z $1 && ! $1 == "kill" ]]; then
   fi
 fi
 
+client_kill_targets=$client_kill_targets"\|"`echo $paxos_client/sed s/".*\.//g`
+
 tmp_paxos_server=`cat $testing_properties|grep SERVER_BINARY|awk -F "=" '{print $2}'`
 if [[ ! -z $tmp_paxos_server ]]; then
   paxos_server=$tmp_paxos_server

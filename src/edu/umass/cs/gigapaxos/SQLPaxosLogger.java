@@ -1460,11 +1460,16 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * So, the caller should really just issue sequential creation requests if a
 	 * batch creation fails or times out for any reason.
 	 * 
+	 * Note: this method just needs to be atomic, i.e., all or none, but not
+	 * synchronized. Synchronizing it will invert the invariant that messageLog
+	 * is always locked before (because of the getMinLogFile invocation)
+	 * SQLPaxosLogger.
+	 * 
 	 * @param tasks
 	 * @param update
 	 */
 	@Override
-	public synchronized boolean putCheckpointState(CheckpointTask[] tasks, boolean update) {
+	public  boolean putCheckpointState(CheckpointTask[] tasks, boolean update) {
 		if (isClosed() || DISABLE_CHECKPOINTING)
 			return false;
 
@@ -3525,7 +3530,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * Removes all state for paxosID except epoch final state. If paxosID is
 	 * null, it removes state for **all** paxosIDs.
 	 */
-	public synchronized boolean remove(String paxosID, int version) {
+	public boolean remove(String paxosID, int version) {
 		boolean removedCP = false, removedM = false, removedP = false;
 		Statement stmt = null;
 		String cmdC = "delete from "

@@ -785,6 +785,28 @@ public class PaxosConfig {
 	protected static void setConsoleHandler() {
 		setConsoleHandler(Level.INFO);
 	}
+	
+	@SuppressWarnings({ "javadoc", "unchecked", "rawtypes" })
+	public static void sanityCheck(NodeConfig nodeConfig) throws IOException {
+		for (Object n : nodeConfig.getNodeIDs()) {
+			for (Object m : nodeConfig.getNodeIDs())
+				if (nodeConfig.getNodeAddress(n).equals(
+						nodeConfig.getNodeAddress(m))
+						&& (nodeConfig.getNodePort(n) == nodeConfig
+								.getNodePort(m) || nodeConfig.getNodePort(n)
+								+ Config.getGlobalInt(PC.CLIENT_PORT_OFFSET) == nodeConfig
+								.getNodePort(m)))
+					throw new IOException(
+							"Clash in nodeConfig between "
+									+ n
+									+ " and "
+									+ m
+									+ ": node socket addresses should not be identical or "
+									+ "be exactly CLIENT_PORT_OFFSET="
+									+ Config.getGlobalInt(PC.CLIENT_PORT_OFFSET)
+									+ " apart.");
+		}
+	}
 
 	/**
 	 * @return Default node config.

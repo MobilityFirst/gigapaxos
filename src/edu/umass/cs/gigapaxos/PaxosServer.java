@@ -135,6 +135,7 @@ public class PaxosServer {
 		PaxosConfig.setConsoleHandler();
 		NodeConfig<String> nodeConfig = PaxosConfig
 				.getDefaultNodeConfig();
+		PaxosConfig.sanityCheck(nodeConfig);
 		System.out.print("Starting paxos servers [ ");
 		for (String server : processArgs(args, nodeConfig)) {
 			new PaxosServer(server, nodeConfig, args);

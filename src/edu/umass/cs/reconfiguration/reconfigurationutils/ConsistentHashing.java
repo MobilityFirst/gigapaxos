@@ -46,7 +46,7 @@ import edu.umass.cs.utils.Util;
 public class ConsistentHashing<NodeIDType> {
 
 	static {
-		PaxosConfig.load(ReconfigurationConfig.RC.class);
+		//PaxosConfig.load(ReconfigurationConfig.RC.class);
 	}
 	private static final int DEFAULT_NUM_REPLICAS = Config.getGlobalInt(RC.DEFAULT_NUM_REPLICAS);
 	
@@ -60,7 +60,7 @@ public class ConsistentHashing<NodeIDType> {
 	}
 	
 	private boolean replicateAll = false;
-	private int numReplicas;
+	private int numReplicas=DEFAULT_NUM_REPLICAS;
 	private SortedMap<Integer, NodeIDType> servers = new TreeMap<Integer, NodeIDType>();
 
 	/**
@@ -90,7 +90,7 @@ public class ConsistentHashing<NodeIDType> {
 	 */
 	public ConsistentHashing(Set<NodeIDType> servers, boolean replicateAll) {
 		this.replicateAll = replicateAll;
-		this.refresh(servers, this.numReplicas = servers.size());
+		this.refresh(servers, DEFAULT_NUM_REPLICAS);
 	}
 
 	/**
@@ -102,6 +102,12 @@ public class ConsistentHashing<NodeIDType> {
 		for (NodeIDType server : servers)
 			this.servers.put(hash(server.toString()), server);
 		this.numReplicas = (replicateAll ? this.servers.size() : numReplicas);
+	}
+	/**
+	 * @param servers
+	 */
+	public void refresh(Set<NodeIDType> servers) {
+		refresh(servers, this.numReplicas);
 	}
 
 	/**
@@ -116,19 +122,7 @@ public class ConsistentHashing<NodeIDType> {
 
 	}
 
-	/**
-	 * @param servers
-	 */
-	public void refresh(NodeIDType[] servers) {
-		refresh(servers, DEFAULT_NUM_REPLICAS);
-	}
-
-	/**
-	 * @param servers
-	 */
-	public void refresh(Set<NodeIDType> servers) {
-		refresh(servers, DEFAULT_NUM_REPLICAS);
-	}
+	
 
 	/**
 	 * @param name
@@ -136,7 +130,7 @@ public class ConsistentHashing<NodeIDType> {
 	 * this name hashes.
 	 */
 	public Set<NodeIDType> getReplicatedServers(String name) {
-		return this.getReplicatedServers(name, this.numReplicas);
+		return this.getReplicatedServers(name, this.replicateAll ? this.servers.size() : this.numReplicas);
 	}
 	
 	/**
@@ -145,7 +139,7 @@ public class ConsistentHashing<NodeIDType> {
 	 * this name hashes returned as an array.
 	 */
 	public ArrayList<NodeIDType> getReplicatedServersArray(String name) {
-		return this.getReplicatedServersArray(name, this.numReplicas);
+		return this.getReplicatedServersArray(name, this.replicateAll ? this.servers.size() : this.numReplicas);
 	}
 
 	/**
@@ -165,7 +159,6 @@ public class ConsistentHashing<NodeIDType> {
 				iterator = this.servers.keySet().iterator();
 			replicas.add(this.servers.get(iterator.next()));
 		}
-		//if(name.equals("1103")) System.out.println("hash(1103) = " + hash);
 
 		return replicas;
 	}

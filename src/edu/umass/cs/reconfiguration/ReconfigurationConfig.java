@@ -47,13 +47,19 @@ import edu.umass.cs.utils.Util;
  *         respective classes.
  */
 public class ReconfigurationConfig {
-	static {
+	/**
+	 * 
+	 */
+	public static void load() {
 		/*
 		 * Both gigapaxos and reconfiguration take parameters from the same
 		 * properties file (default "gigapaxos.properties").
 		 */
 		PaxosConfig.load();
 		PaxosConfig.load(ReconfigurationConfig.RC.class);
+	}
+	static {
+		load();
 	}
 	/**
 	 * 
@@ -483,7 +489,10 @@ public class ReconfigurationConfig {
 		return null;
 	}
 	
-	protected static void setConsoleHandler() {
+	/**
+	 * 
+	 */
+	public static void setConsoleHandler() {
 		 ConsoleHandler handler = new ConsoleHandler();
 		 handler.setLevel(Level.INFO);
 		 Reconfigurator.getLogger().setLevel(Level.INFO);

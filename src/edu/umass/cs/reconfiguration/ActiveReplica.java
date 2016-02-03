@@ -417,7 +417,7 @@ public class ActiveReplica<NodeIDType> implements
 		this.callbackMap.addStopNotifiee(stopEpoch);
 		ReconfigurableRequest appStop = this.getAppStopRequest(
 				stopEpoch.getServiceName(), stopEpoch.getEpochNumber());
-		log.log(Level.FINE,
+		log.log(Level.INFO,
 				"{0} coordinating {1} as {2}:{3}",
 				new Object[] { this, stopEpoch.getSummary(),
 						appStop.getServiceName(), appStop.getEpochNumber() });
@@ -747,11 +747,13 @@ public class ActiveReplica<NodeIDType> implements
 								getClientFacingPort(myPort) });
 
 				if (this.messenger.getClientMessenger() == null
-						|| this.messenger.getClientMessenger() != this.messenger)
-					cMsgr = new JSONMessenger<InetSocketAddress>(
+						|| this.messenger.getClientMessenger() != this.messenger) {
+					MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+					InetSocketAddress isa = new InetSocketAddress(this.nodeConfig
+							.getBindAddress(getMyID()), getClientFacingPort(myPort));
+					cMsgr = new JSONMessenger<InetSocketAddress>(niot =
 							new MessageNIOTransport<InetSocketAddress, JSONObject>(
-									this.nodeConfig.getBindAddress(getMyID()),
-									getClientFacingPort(myPort),
+									isa.getAddress(), isa.getPort(),
 									/*
 									 * Client facing demultiplexer is single
 									 * threaded to keep clients from
@@ -761,6 +763,9 @@ public class ActiveReplica<NodeIDType> implements
 									(pd = new ReconfigurationPacketDemultiplexer(
 											0)), ReconfigurationConfig
 											.getClientSSLMode()));
+					if(!niot.getListeningSocketAddress().equals(isa))
+						throw new IOException("Unable to listen on specified client facing socket address " + isa);
+				}
 				else if (this.messenger.getClientMessenger() instanceof Messenger)
 					((Messenger<NodeIDType, ?>) this.messenger
 							.getClientMessenger())
@@ -770,6 +775,8 @@ public class ActiveReplica<NodeIDType> implements
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
+			log.severe(this + ":" + e.getMessage());
+			System.exit(1);
 		}
 		return cMsgr != null ? cMsgr
 				: (AddressMessenger<JSONObject>) this.messenger;

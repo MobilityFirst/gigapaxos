@@ -833,6 +833,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		MessagingTask[] mtasks = new MessagingTask[2];
 		RequestInstrumenter.received(proposal, proposal.getForwarderID(),
 				this.getMyID());
+		assert(!this.isStopped());
 		if (PaxosCoordinator.exists(this.coordinator, this.paxosState.getBallot())) {
 			// multicast ACCEPT to all
 			AcceptPacket multicastAccept = null;

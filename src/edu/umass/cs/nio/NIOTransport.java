@@ -1532,6 +1532,16 @@ public class NIOTransport<NodeIDType> implements Runnable,
 
 		return socketSelector;
 	}
+	
+	/**
+	 * @return Actual listening socket address that in general may be different
+	 * from that corresponding to myID in nodeConfig because of the wildcard
+	 * fallback in NIOTransport.
+	 */
+	public InetSocketAddress getListeningSocketAddress() {
+		return new InetSocketAddress(getListeningAddress(), getListeningPort());
+	}
+
 
 	protected int getListeningPort() {
 		try {

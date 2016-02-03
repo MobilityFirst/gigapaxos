@@ -18,6 +18,9 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+
+import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
@@ -26,6 +29,7 @@ import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONNIOTransport;
+import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
@@ -140,23 +144,39 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 		AbstractJSONPacketDemultiplexer pd;
 
+		String err = null;
 		if (!nodeConfig.getActiveReplicas().contains(id)
-				&& !nodeConfig.getReconfigurators().contains(id))
-			Reconfigurator.getLogger().severe(
+				&& !nodeConfig.getReconfigurators().contains(id)) {
+			Reconfigurator.getLogger().severe(err = 
 					"Node " + id + " not present in NodeConfig argument \n  "
 							+ nodeConfig.getActiveReplicas() + "\n  "
 							+ nodeConfig.getReconfigurators());
+			throw new IOException(err);
+		}
+		// else
 		Reconfigurator.getLogger().info(
 				this + ":" + this.myID + " listening on "
 						+ nodeConfig.getNodeAddress(myID) + ":"
 						+ nodeConfig.getNodePort(myID));
+		MessageNIOTransport<NodeIDType, JSONObject> niot = null;
+		InetSocketAddress isa = new InetSocketAddress(
+				nodeConfig.getNodeAddress(myID), nodeConfig.getNodePort(myID));
 		// else we have something to start
 		messenger = (new JSONMessenger<NodeIDType>(
-				(new JSONNIOTransport<NodeIDType>(ReconfigurableNode.this.myID,
-						nodeConfig,
-						(pd = new ReconfigurationPacketDemultiplexer()),
+				(niot = new MessageNIOTransport<NodeIDType, JSONObject>(
+						ReconfigurableNode.this.myID, nodeConfig,
+						(pd = new ReconfigurationPacketDemultiplexer()), true,
 						ReconfigurationConfig.getServerSSLMode()))));
-
+		if (!niot.getListeningSocketAddress().equals(isa)) {
+			Reconfigurator
+					.getLogger()
+					.severe(err = this
+							+ " unable to start ReconfigurableNode at socket address "
+							+ isa);
+			throw new IOException(err);
+		}
+		// else created messenger, may still fail to create client messenger
+		
 		if (nodeConfig.getActiveReplicas().contains(id)) {
 			// create active
 			ActiveReplica<NodeIDType> activeReplica = new ActiveReplica<NodeIDType>(
@@ -222,6 +242,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		ReconfigurableNodeConfig<String> nodeConfig = new DefaultNodeConfig<String>(
 				PaxosConfig.getActives(),
 				ReconfigurationConfig.getReconfigurators());
+		PaxosConfig.sanityCheck(nodeConfig);
 		System.out.print("Creating node(s) [ ");
 		for (int i = args.length - 1; i >= 0 && nodeConfig.nodeExists(args[i]); i--)
 			if (nodeConfig.nodeExists(args[i])) {

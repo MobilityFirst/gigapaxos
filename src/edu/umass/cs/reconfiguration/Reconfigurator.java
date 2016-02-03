@@ -982,17 +982,24 @@ public class Reconfigurator<NodeIDType> implements
 								this.consistentNodeConfig
 										.getBindAddress(getMyID()),
 								getClientFacingPort(myPort) });
-				cMsgr = new JSONMessenger<InetSocketAddress>(
+				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+				InetSocketAddress isa = new InetSocketAddress(this.consistentNodeConfig
+						.getBindAddress(getMyID()), getClientFacingPort(myPort));
+				cMsgr = new JSONMessenger<InetSocketAddress>(niot =
 						new MessageNIOTransport<InetSocketAddress, JSONObject>(
-								this.consistentNodeConfig
-										.getBindAddress(getMyID()),
-								getClientFacingPort(myPort),
+								isa.getAddress(), isa.getPort(),
 								(pd = new ReconfigurationPacketDemultiplexer()),
 								ReconfigurationConfig.getClientSSLMode()));
+				if (!niot.getListeningSocketAddress().equals(isa))
+					throw new IOException(
+							"Unable to listen on specified socket address at "
+									+ isa);
 				pd.register(clientRequestTypes, this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
+			log.severe(this + ": " + e.getMessage());
+			System.exit(1);
 		}
 		return cMsgr != null ? cMsgr
 				: (AddressMessenger<JSONObject>) this.messenger;
@@ -2053,4 +2060,23 @@ public class Reconfigurator<NodeIDType> implements
 		}
 		return debug;
 	}
+	
+	/*
+	 * TODO: implement support to delete an active replica
+	 */
+	@SuppressWarnings("unused")
+	private boolean deleteActiveReplica(NodeIDType active) {
+		boolean initiated = this.DB.app.initiateReadActiveRecords(active);
+		if (!initiated)
+			return false;
+		ReconfigurationRecord<NodeIDType> record = null;
+		while ((record = this.DB.app.readNextActiveRecord()) != null) {
+			// reconfigure name so as to exclude active
+			record.toString();
+			throw new RuntimeException("Unimplemented");
+		}
+		boolean closed = this.DB.app.closeReadActiveRecords();
+		return initiated && closed;
+	}
+
 }

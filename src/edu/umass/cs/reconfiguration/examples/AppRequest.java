@@ -235,7 +235,7 @@ public class AppRequest extends JSONPacket implements
 		super(json);
 		this.name = json.getString(Keys.NAME.toString());
 		this.epoch = json.getInt(Keys.EPOCH.toString());
-		this.id = json.getInt(Keys.QID.toString());
+		this.id = json.getLong(Keys.QID.toString());
 		this.stop = json.getBoolean(Keys.STOP.toString());
 		this.value = json.getString(Keys.QVAL.toString());
 		this.coordType = (json.has(Keys.COORD.toString()) ? json
@@ -248,6 +248,8 @@ public class AppRequest extends JSONPacket implements
 		this.clientAddress = json.has(Keys.CSA.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.CSA
 						.toString())) : isa;
+				
+		//if(this.clientAddress!=null) System.out.println("Received from CSA " + this.clientAddress + " " + json);
 
 		this.response = json.has(Keys.RVAL.toString()) ? json
 				.getString(Keys.RVAL.toString()) : null;

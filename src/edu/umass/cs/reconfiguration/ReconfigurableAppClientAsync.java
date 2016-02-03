@@ -89,6 +89,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
                    // This will be set in the gigapaxos.properties file that we invoke the client using.
                    SSLDataProcessingWorker.SSL_MODES.valueOf(Config
                        .getGlobal(ReconfigurationConfig.RC.CLIENT_SSL_MODE).toString())));
+		Reconfigurator.getLogger().info(this + " listening on " + niot.getListeningSocketAddress());
 		this.reconfigurators = reconfigurators
 				.toArray(new InetSocketAddress[0]);
 	}
@@ -143,16 +144,15 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				// else try parsing as ClientReconfigurationPacket
 				response = parseAsClientReconfigurationPacket(strMsg);
 
-			assert (response != null);
-
 			RequestCallback callback = null;
 			if (response != null) {
 				// execute registered callback
 				if ((response instanceof ClientRequest)
 						&& (callback = callbacks
 								.remove(((ClientRequest) response)
-										.getRequestID())) != null)
+										.getRequestID())) != null) {
 					callback.handleResponse(((ClientRequest) response));
+				}
 				// ActiveReplicaError has to be dealt with separately
 				else if ((response instanceof ActiveReplicaError)
 						&& (callback = callbacks
@@ -164,6 +164,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					/* auto-retransmitting can cause an infinite loop, so we 
 					 * just throw the ball back to the app.
 					 */
+					assert(false);
 					callback.handleResponse(response);
 				} else if (response instanceof ClientReconfigurationPacket) {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
@@ -232,17 +233,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public Long sendRequest(ClientRequest request,
 			InetSocketAddress server, RequestCallback callback)
 			throws IOException {
-		int sent = -1;
+		boolean sendFailed = false;
 		assert (request.getServiceName() != null);
 		try {
 			if (this.callbacks.putIfAbsent(request.getRequestID(),
 					callback = new RequestAndCallback(request, callback)) == null)
-				sent = this.niot.sendToAddress(server, request.toString());
+				sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
 		} finally {
-			if (sent <= 0) {
+			if (sendFailed) {
 				this.callbacks.remove(request.getRequestID(), callback);
 				return null;
-			}
+			} 
 		}
 		return request.getRequestID();
 	}

@@ -1122,7 +1122,9 @@ public class PaxosManager<NodeIDType> {
 						new Object[] { myAddress.getAddress(),
 								(myAddress.getPort() + clientPortOffset) });
 
-				cMsgr = new JSONMessenger<InetSocketAddress>(
+				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+				InetSocketAddress isa = new InetSocketAddress(myAddress.getAddress(), myAddress.getPort());
+				cMsgr = new JSONMessenger<InetSocketAddress>(niot =
 						new MessageNIOTransport<InetSocketAddress, JSONObject>(
 								myAddress.getAddress(),
 								(myAddress.getPort() + clientPortOffset),
@@ -1135,10 +1137,16 @@ public class PaxosManager<NodeIDType> {
 								SSLDataProcessingWorker.SSL_MODES
 										.valueOf(Config.getGlobal(
 												PC.CLIENT_SSL_MODE).toString())));
+				if (!niot.getListeningSocketAddress().equals(isa))
+					throw new IOException(
+							"Unable to listen on specified socket address at "
+									+ isa);
 				this.messenger.setClientMessenger(cMsgr);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
+			log.severe(e.getMessage());
+			System.exit(1);
 		}
 		return this;
 	}
@@ -1574,7 +1582,7 @@ public class PaxosManager<NodeIDType> {
 				pism.setActive();
 			Boolean isActive = pism!=null ? pism.isActive() : null;
 			log.log(Level.INFO, "{0} recovered paxos instance {1}; isActive = {2} ",
-					new Object[] { this, pism.toStringLong(), isActive });
+					new Object[] { this, pism!=null ? pism.toStringLong() : null, isActive });
 		}
 		this.paxosLogger.closeReadAll(); // releases lock
 

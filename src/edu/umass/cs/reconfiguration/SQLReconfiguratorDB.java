@@ -100,6 +100,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final String PENDING_TABLE = "messages";
 	private static final String DEMAND_PROFILE_TABLE = "demand";
 	private static final String NODE_CONFIG_TABLE = "nodeconfig";
+	private static final String AR_TABLE = "nodeconfig";
 
 	private static final String LOG_DIRECTORY = Config
 			.getGlobalString(RC.RECONFIGURATION_DB_DIR);// "reconfiguration_DB";
@@ -132,7 +133,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final String CHARSET = "ISO-8859-1";
 
 	private static enum Columns {
-		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, RC_NODE_ID
+		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, 
+		RC_NODE_ID, AR_NODE_ID 
 	};
 
 	private static enum Keys {
@@ -1362,7 +1364,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				.toString());
 		return groups;
 	}
-
+	
 	/*
 	 * A reconfigurator needs two tables: one for all records and one for all
 	 * records with ongoing reconfigurations. A record contains the serviceName,
@@ -1371,7 +1373,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * demandProfile persistently as otherwise we will run out of memory.
 	 */
 	private boolean createTables() {
-		boolean createdRCRecordTable = false, createdPendingTable = false, createdDemandTable = false, createdNodeConfigTable = false;
+		boolean createdRCRecordTable = false, createdPendingTable = false, 
+				createdDemandTable = false, createdNodeConfigTable = false, 
+				// for storing reverse mapping from actives to names
+				createdARTable = false;
 		// simply store everything in stringified form and pull all when needed
 		String cmdRCR = "create table "
 				+ getRCRecordTable()
@@ -1419,6 +1424,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ Columns.NODE_CONFIG_VERSION.toString() + " int, primary key("
 				+ Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.NODE_CONFIG_VERSION + "))";
+		
+		String cmdAR = "create table " + getARTable() + " ("
+				+ Columns.SERVICE_NAME.toString() + " varchar(" + MAX_NAME_SIZE
+				+ ") not null, " + Columns.AR_NODE_ID.toString()
+				+ " varchar(" + MAX_NAME_SIZE +"), primary key(" + Columns.AR_NODE_ID.toString()
+				+ ", " + Columns.SERVICE_NAME.toString() + "))";
 
 		Statement stmt = null;
 		Connection conn = null;
@@ -1431,6 +1442,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			createdDemandTable = createTable(stmt, cmdDP, getDemandTable());
 			createdNodeConfigTable = createTable(stmt, cmdNC,
 					getNodeConfigTable());
+			createdARTable = createTable(stmt, cmdAR,
+					getARTable());
 			log.log(Level.INFO, "{0}{1}{2}{3}", new Object[] {
 					"Created tables ", getRCRecordTable(), " and ",
 					getPendingTable() });
@@ -1440,6 +1453,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					+ (createdPendingTable ? "" : getPendingTable())
 					+ (createdDemandTable ? "" : getDemandTable()) + " "
 					+ (createdNodeConfigTable ? "" : getNodeConfigTable())
+					+ (createdARTable ? "" : getARTable())
 					+ " ");
 			sqle.printStackTrace();
 		} finally {
@@ -1607,6 +1621,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private String getNodeConfigTable() {
 		return NODE_CONFIG_TABLE + this.myID;
+	}
+
+	private String getARTable() {
+		return AR_TABLE + this.myID;
 	}
 
 	private void cleanup(FileWriter writer) {
@@ -2288,5 +2306,23 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(conn);
 		}
 		return updatedAll;
+	}
+
+	 // TODO: Initiates a read of all records currently replicated at active.
+	@Override
+	public boolean initiateReadActiveRecords(NodeIDType active) {
+		throw new RuntimeException("Unimplemented");
+	}
+
+	 // TODO: Reads the next record for the cursor initiated above. 
+	@Override
+	public ReconfigurationRecord<NodeIDType> readNextActiveRecord() {
+		throw new RuntimeException("Unimplemented");
+	}
+
+	// TODO: closes the cursor initiated above
+	@Override
+	public boolean closeReadActiveRecords() {
+		throw new RuntimeException("Unimplemented");
 	}
 }
