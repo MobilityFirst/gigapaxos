@@ -289,4 +289,19 @@ public class DelayProfiler {
 		}
 		return s;
 	}
+
+	/**
+	 * 
+	 */
+	public static void clear() {
+		averageMillis.clear();
+		averageNanos.clear();
+		averages.clear();
+		stdDevs.clear();
+		counters.clear();
+		instarates.clear();
+		lastArrivalNanos.clear();
+		lastRecordedNanos.clear();
+		lastCount.clear();
+	}
 }

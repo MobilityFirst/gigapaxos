@@ -35,6 +35,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -47,6 +48,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -57,7 +63,9 @@ import org.json.JSONObject;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.SQL;
@@ -131,6 +139,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final boolean LARGE_CHECKPOINTS_OPTION = true;
 	private static final int MAX_FILENAME_LENGTH = 128;
 	private static final String CHARSET = "ISO-8859-1";
+	
+	private static final int THREAD_POOL_SIZE = Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS);
 
 	private static enum Columns {
 		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, 
@@ -155,6 +165,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private StringLocker stringLocker = new StringLocker();
 
+	private ScheduledExecutorService executor;
+	Future<?> checkpointServerFuture = null;
+	
 	private boolean closed = true;
 
 	private static final Logger log = (Reconfigurator.getLogger());
@@ -240,11 +253,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					pstmt.clearBatch();
 					for(int j=0; j<executed.length; j++) {
 						if(executed[j]>0) {
-							log.log(Level.INFO, "{0} updated RC record {1}", new Object[] {
+							log.log(Level.FINE, "{0} updated RC record {1}", new Object[] {
 									this, batch.get(j) });
 							committed.add(batch.get(j));
 						} else 
-							log.log(Level.INFO,
+							log.log(Level.FINE,
 									"{0} unable to update RC record {1} (executed={2}), will try insert",
 									new Object[] { this, batch.get(j),
 											executed[j] });
@@ -1034,15 +1047,26 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	// /////// Start of file system checkpoint methods and classes /////////
-
+	
 	// opens the server thread for file system based checkpoints
 	private boolean initCheckpointServer() {
+		this.executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE,
+				new ThreadFactory() {
+					@Override
+					public Thread newThread(Runnable r) {
+						Thread thread = Executors.defaultThreadFactory()
+								.newThread(r);
+						thread.setName(this.getClass().getSimpleName() + myID);
+						return thread;
+					}
+				});
+
 		try {
 			this.serverSock = new ServerSocket();
 			this.serverSock.bind(new InetSocketAddress(
 					this.consistentNodeConfig.getBindAddress(myID), 0));
 			;
-			(new Thread(new CheckpointServer())).start();
+			checkpointServerFuture = executor.submit(new CheckpointServer());
 			return true;
 		} catch (IOException e) {
 			log.severe(this
@@ -1052,6 +1076,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return false;
 	}
 
+	//Map<Future<?>,Long> transportFutures = new ConcurrentHashMap<Future<?>,Long>();
 	// spawns off a new thread to process file system based checkpoint request
 	private class CheckpointServer implements Runnable {
 
@@ -1060,12 +1085,15 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			Socket sock = null;
 			try {
 				while ((sock = serverSock.accept()) != null) {
-					(new Thread(new CheckpointTransporter(sock))).start();
+					executor.submit(new CheckpointTransporter(sock));
+					//(new Thread(new CheckpointTransporter(sock))).start();
 				}
 			} catch (IOException e) {
+				if(!isClosed()) {
 				log.severe(myID
 						+ " incurred IOException while processing checkpoint transfer request");
 				e.printStackTrace();
+				}
 			}
 		}
 	}
@@ -1187,6 +1215,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				int nTotalRead = 0;
 				// read from sock, write to file
 				while ((nread = inStream.read(buf)) >= 0) {
+					/*
+					 * FIXME: need to ensure that the read won't block forever
+					 * if the remote endpoint crashes ungracefully and there
+					 * is no exception triggered here.
+					 */
 					nTotalRead += nread;
 					fos.write(buf, 0, nread);
 				}
@@ -1587,8 +1620,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	public void close() {
 		setClosed(true);
-		if (allClosed())
-			closeGracefully();
+		if (allClosed()) /*do nothing*/;
+		closeGracefully();
 	}
 
 	/*
@@ -1597,6 +1630,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 */
 	private void closeGracefully() {
 		// do nothing
+		this.rcRecords.close(false);
+		try {
+			this.serverSock.close();
+
+		} catch (IOException e) {
+			// ignore coz there will almost always be an interrupted accept
+		}
+		this.executor.shutdownNow();
 	}
 
 	private synchronized boolean isClosed() {

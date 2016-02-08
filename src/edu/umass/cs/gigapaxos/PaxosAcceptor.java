@@ -278,7 +278,7 @@ public class PaxosAcceptor {
 			return null;
 		assert (isNonConflictingAccept(accept)) : "Received " + accept.getSummary()
 				+ " after previously receiving conflicting "
-				+ this.acceptedProposals.get(accept.slot).getSummary();
+				+ this.acceptedProposals.get(accept.slot).getSummary() + "\n  " + accept + "\n  " + this.acceptedProposals.get(accept.slot);
 
 		// accept the pvalue and the ballot
 		if (accept.ballot.compareTo(new Ballot(ballotNum, ballotCoord)) >= 0) {
@@ -555,6 +555,7 @@ public class PaxosAcceptor {
 		if (existing != null && accept.ballot.compareTo(existing.ballot) == 0) {
 			return (existing.requestID == accept.requestID 
 					//&& existing.requestValue.equals(accept.requestValue)
+					|| (existing.isStopRequest() && accept.isStopRequest())
 					);
 		}
 		return true;

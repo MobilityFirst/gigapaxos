@@ -58,8 +58,8 @@ import edu.umass.cs.utils.NullIfEmptyMap;
 public class PaxosCoordinatorState extends PaxosCoordinator {
 	private static final String NO_OP = RequestPacket.NO_OP;
 	private static final String STOP = "STOP";
-	private static final int PREPARE_TIMEOUT = 60000; // ms
-	private static final int ACCEPT_TIMEOUT = 60000; // ms
+	private static final int PREPARE_TIMEOUT = 10000; // ms
+	private static final int ACCEPT_TIMEOUT = 10000; // ms
 	private static final double ACCEPT_RETRANSMISSION_BACKOFF_FACTOR = 1.5;
 	private static final double PREPARE_RETRANSMISSION_BACKOFF_FACTOR = 1.5;
 

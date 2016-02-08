@@ -219,14 +219,16 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			initiateRecovery(initialState, missedBirthing);
 		else if ((hri != null) && hotRestore(hri)) {
 			if (initialState != null) // batched creation
-				this.putInitialState(initialState);
+				//this.putInitialState(initialState);
+				this.getApp().restore(getPaxosID(),
+						initialState);
 		} else if (pm == null)
 			testingNoRecovery(); // used only for testing size
 		assert (hri == null || initialState == null || hri.isCreateHRI()) : "Can not specify initial state for existing, paused paxos instance";
 		incrInstanceCount(); // for instrumentation
 
 		// log creation only if the number of instances is small
-		log.log((hri == null && notManyInstances()) ? Level.INFO : Level.FINER,
+		log.log(((hri == null ||initialState!=null) && notManyInstances()) ? Level.INFO : Level.FINER,
 				"Node{0} initialized paxos {1} {2} with members {3}; {4} {5} {6}",
 				new Object[] {
 						this.getNodeID(),
@@ -687,8 +689,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		assert (this.paxosState == null && this.coordinator == null);
 		log.log(Level.FINE, "{0} hot restoring with {1}", new Object[] { this,
 				hri });
-		//this.coordinator = new PaxosCoordinator();
-		this.coordinator = PaxosCoordinator.hotRestore(this.coordinator, hri);
+		this.coordinator = hri.coordBallot != null
+				&& hri.coordBallot.coordinatorID == getMyID() ? PaxosCoordinator
+				.hotRestore(this.coordinator, hri) : null;
 		this.paxosState = new PaxosAcceptor(hri.accBallot.ballotNumber,
 				hri.accBallot.coordinatorID, hri.accSlot, hri);
 		this.paxosState.setActive(); // no recovery
@@ -841,6 +844,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			multicastAccept = PaxosCoordinator.propose(this.coordinator,this.groupMembers,
 					proposal);
 			if (multicastAccept != null) {
+				assert (this.coordinator.getBallot().coordinatorID == getMyID() && multicastAccept.sender == getMyID());
 				if (proposal.isBroadcasted())
 					multicastAccept = this.paxosManager.digest(multicastAccept);
 				mtasks[0] = multicastAccept != null ? new MessagingTask(
@@ -1116,9 +1120,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					batchedAccept.getMedianCheckpointedSlot());
 			AcceptPacket accept = this.paxosManager.match(digestedAccept);
 			if (accept != null) {
-				for (MessagingTask mtask : this.handleAccept(accept))
-					if (mtask != null && !mtask.isEmpty())
-						mtasks.add(mtask);
+				MessagingTask[] mtasksHandleAccept = this.handleAccept(accept);
+				if(mtasksHandleAccept!=null)
+					for (MessagingTask mtask : this.handleAccept(accept))
+						if (mtask != null && !mtask.isEmpty())
+							mtasks.add(mtask);
 			} else {
 				assert (!SHORT_CIRCUIT_LOCAL || digestedAccept.sender != getMyID()) : digestedAccept;
 				log.log(Level.FINE,

@@ -249,8 +249,6 @@ public class AppRequest extends JSONPacket implements
 				.getInetSocketAddressFromString(json.getString(Keys.CSA
 						.toString())) : isa;
 				
-		//if(this.clientAddress!=null) System.out.println("Received from CSA " + this.clientAddress + " " + json);
-
 		this.response = json.has(Keys.RVAL.toString()) ? json
 				.getString(Keys.RVAL.toString()) : null;
 
@@ -328,7 +326,8 @@ public class AppRequest extends JSONPacket implements
 
 	@Override
 	public ClientRequest getResponse() {
-		return new AppRequest(ResponseCodes.ACK.toString(), this);
+		if(this.response!=null) return new AppRequest(this.response, this);
+		else return null;
 	}
 
 	/**

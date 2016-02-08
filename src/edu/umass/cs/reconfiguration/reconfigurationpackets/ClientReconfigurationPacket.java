@@ -88,6 +88,18 @@ public abstract class ClientReconfigurationPacket extends
 	}
 
 	/**
+	 * @param name
+	 * @param crp
+	 */
+	public ClientReconfigurationPacket(String name,
+			ClientReconfigurationPacket crp) {
+		this(crp.getInitiator(), crp.getType(), name, crp.epochNumber);
+		this.creator = crp.getCreator();
+		this.forwarder = crp.getForwader();
+		this.myReceiver = crp.myReceiver;
+	}
+
+	/**
 	 * @param json
 	 * @param unstringer
 	 * @throws JSONException

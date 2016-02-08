@@ -1523,7 +1523,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				insertCP.addBatch();
 				batch.add(i);
 				incrTotalCheckpoints();
-				if(shouldLogCheckpoint()) log.log(Level.INFO,
+				if(shouldLogCheckpoint(1)) log.log(Level.INFO,
 						"{0} checkpointed> ({1}:{2}, {3}{4}, {5}, ({6}, {7}) [{8}]) {9}",
 						new Object[] {
 								this,
@@ -1624,8 +1624,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	private synchronized boolean shouldLogCheckpoint() {
+		return shouldLogCheckpoint(5);
+	}
+
+	private synchronized boolean shouldLogCheckpoint(int sample) {
 		return totalCheckpoints < CHECKPOINT_LOG_THRESHOLD ? Util
-				.oneIn(5) : Util
+				.oneIn(sample) : Util
 				.oneIn(1000);
 	}
 
@@ -1791,7 +1795,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return logged;
 	}
 
-	private synchronized Map<String, HotRestoreInfo> pauseBatchIndividually(Map<String, HotRestoreInfo> hriMap) {
+	private /*synchronized*/ Map<String, HotRestoreInfo> pauseBatchIndividually(Map<String, HotRestoreInfo> hriMap) {
 		Map<String, HotRestoreInfo> paused = new HashMap<String,HotRestoreInfo>();
 		for(HotRestoreInfo hri : hriMap.values()) {
 			if(this.pause(hri.paxosID, hri.toString()))
@@ -1799,7 +1803,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 		return paused;
 	}
-	public synchronized Map<String, HotRestoreInfo> pause(Map<String, HotRestoreInfo> hriMap) {
+	public /*synchronized*/ Map<String, HotRestoreInfo> pause(Map<String, HotRestoreInfo> hriMap) {
 		if (isClosed())
 			return null;
 		if(!USE_CHECKPOINTS_AS_PAUSE_TABLE) return pauseBatchIndividually(hriMap);
@@ -1872,9 +1876,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * Can not start pause or unpause after close has been called. For other
 	 * operations like checkpointing or logging, we need to be able to do them
 	 * even after close has been called as waitToFinish needs that.
+	 * 
+	 * Can not lock this before messageLog.
 	 */
 	@Override
-	public synchronized boolean pause(String paxosID, String serializedState) {
+	public /*synchronized*/ boolean pause(String paxosID, String serializedState) {
 		if (isClosed() /* || !isLoggingEnabled() */)
 			return false;
 
@@ -1903,6 +1909,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				pstmt = conn.prepareStatement(pauseLogIndex ? updateCmd : updateCmdNoLogIndex);
 				pstmt.setString(1, serializedState);
 				if(pauseLogIndex) {
+					// we pause logIndex as well with older MessageLogPausable
 					logIndexBytes = deflate(this.messageLog
 							.getLogIndex(paxosID).toString().getBytes(CHARSET));
 					blob = conn.createBlob();
@@ -1939,6 +1946,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				cleanup(pstmt);
 				cleanup(conn);
 			}
+			// needed with older, MessageLogPausable
 			this.messageLog.uncache(paxosID);
 		}
 		return paused;
@@ -2012,7 +2020,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		;
 	}
 
-	private synchronized boolean pauseLogIndex(String paxosID, LogIndex logIndex) {
+	private /*synchronized*/ boolean pauseLogIndex(String paxosID, LogIndex logIndex) {
 		if (isClosed() /* || !isLoggingEnabled() */)
 			return false;
 		boolean paused = false;
@@ -2064,7 +2072,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 		return paused;
 	}
-	private synchronized Set<String> pauseLogIndexIndividually(Map<String,LogIndex> toCommit) {
+	private /*synchronized*/ Set<String> pauseLogIndexIndividually(Map<String,LogIndex> toCommit) {
 		Set<String> paused = new HashSet<String>();
 		for(Iterator<String> strIter = toCommit.keySet().iterator(); strIter.hasNext(); ) {
 			String paxosID = strIter.next();
@@ -2074,7 +2082,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return paused;
 	}
 
-	private synchronized Set<String> pauseLogIndex(
+	private /*synchronized*/ Set<String> pauseLogIndex(
 			Map<String, LogIndex> toCommit) {
 		if (isClosed())
 			return null;
@@ -2458,9 +2466,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private int logfileIndex = 0;
 	RandomAccessFile curRAF = null;
 
-	public synchronized boolean initiateReadMessages() {
-		if (isClosed() || this.cursorPstmt != null || this.cursorRset != null
-				|| this.cursorConn != null)
+	public boolean initiateReadMessages() {
+		if (isClosed())
 			return false;
 
 		log.log(Level.FINE, "{0} invoked initiatedReadMessages()",
@@ -2468,10 +2475,15 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		boolean initiated = false;
 		if (!isJournalingEnabled())
 			try {
-				this.cursorPstmt = this.getPreparedStatement(
-						this.getCursorConn(), getMTable(), null, "message");
-				this.cursorRset = this.cursorPstmt.executeQuery();
-				initiated = true;
+				synchronized (this) {
+					if (this.cursorPstmt != null || this.cursorRset != null
+							|| this.cursorConn != null)
+						return false;
+					this.cursorPstmt = this.getPreparedStatement(
+							this.getCursorConn(), getMTable(), null, "message");
+					this.cursorRset = this.cursorPstmt.executeQuery();
+					initiated = true;
+				}
 			} catch (SQLException sqle) {
 				log.severe("SQLException while getting all paxos IDs " + " : "
 						+ sqle);
@@ -2580,14 +2592,17 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * json before conversion to PaxosPacket.
 	 */
 	@Override
-	public synchronized String readNextMessage() {
+	public String readNextMessage() {
 		String packetStr = null;
 		if (!isJournalingEnabled())
 			try {
-				if (cursorRset != null && cursorRset.next()) {
-					String msg = (!getLogMessageBlobOption() ? cursorRset
-							.getString(1) : lobToString(cursorRset.getBlob(1)));
-					packetStr = msg;
+				synchronized (this) {
+					if (cursorRset != null && cursorRset.next()) {
+						String msg = (!getLogMessageBlobOption() ? cursorRset
+								.getString(1) : lobToString(cursorRset
+								.getBlob(1)));
+						packetStr = msg;
+					}
 				}
 			} catch (SQLException | IOException e) {
 				log.severe(this + " got " + e.getClass().getSimpleName()
@@ -3604,7 +3619,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	public void closeImpl() {
-		log.log(Level.INFO, "{0}{1}", new Object[] { this, " closing DB" });
+		log.log(Level.INFO, "{0}{1}", new Object[] { this, " DB closing" });
 		this.GC.shutdownNow();// cancel();
 		// messageLog should be closed before DB
 		this.messageLog.close();

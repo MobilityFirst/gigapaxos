@@ -61,7 +61,7 @@ public class JSONMessenger<NodeIDType> implements
 	protected final ScheduledExecutorService execpool;
 	private AddressMessenger<JSONObject> clientMessenger;
 	
-	private final InterfaceNIOTransport<NodeIDType,JSONObject>[] workers;
+	private final MessageNIOTransport<NodeIDType,JSONObject>[] workers;
 
 	private Logger log = NIOTransport.getLogger();
 
@@ -94,13 +94,14 @@ public class JSONMessenger<NodeIDType> implements
 			});
 		nioTransport = (InterfaceNIOTransport<NodeIDType, JSONObject>) niot;
 
-		this.workers = new InterfaceNIOTransport[numWorkers];
+		this.workers = new MessageNIOTransport[numWorkers];
 		for (int i = 0; i < workers.length; i++) {
 			try {
 				log.info((this + " starting worker with ssl mode " + this.nioTransport.getSSLMode()));
 				this.workers[i] = new MessageNIOTransport<NodeIDType, JSONObject>(
 						null, this.getNodeConfig(),
 						this.nioTransport.getSSLMode());
+				this.workers[i].setName(getMyID() + "-send_worker"+i);
 			} catch (IOException e) {
 				this.workers[i] = null;
 				e.printStackTrace();
@@ -183,8 +184,15 @@ public class JSONMessenger<NodeIDType> implements
 		if (this.clientMessenger != null && this.clientMessenger != this
 				&& this.clientMessenger instanceof InterfaceNIOTransport)
 			((InterfaceNIOTransport<?, ?>) this.clientMessenger).stop();
-		for(int i=0; i<this.workers.length;i++) if(this.workers[i]!=null) 
-			this.workers[i].stop();
+		for (int i = 0; i < this.workers.length; i++)
+			if (this.workers[i] != null
+					&& !((MessageNIOTransport<?, ?>) workers[i]).isStopped()) {
+				this.workers[i].stop();
+			}
+	}
+	
+	public String toString() {
+		return JSONMessenger.class.getSimpleName()+getMyID();
 	}
 
 	@SuppressWarnings("unchecked")

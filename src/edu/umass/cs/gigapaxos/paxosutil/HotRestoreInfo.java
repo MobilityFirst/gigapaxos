@@ -120,8 +120,17 @@ public class HotRestoreInfo {
 	}
 	
 	public boolean isCreateHRI() {
+		/** 
+		 * Revert to Original coz FIX below is bad. We do need accSlot=1
+		 * as that is the next expected slot after inserting the initial
+		 * checkpoint (slot 0). With createHRI, PaxosInstanceStateMachine
+		 * only updates the app state using restore, but does not checkpoint
+		 * the state as that would have already been done as part of a batch 
+		 * earlier. 
+		 */
+		return this.accSlot == 1 && this.version == 0 && this.accGCSlot == -1
                 // PART OF FIX FOR MOB-554
-                return this.accSlot == 0 && this.version == 0 && this.accGCSlot == -1
+                //return this.accSlot == 0 && this.version == 0 && this.accGCSlot == -1
                 // original
 		//return this.accSlot == 1 && this.version == 0 && this.accGCSlot == -1
 				&& this.coordBallot.ballotNumber == 0
@@ -131,8 +140,10 @@ public class HotRestoreInfo {
 	public static HotRestoreInfo createHRI(String paxosID, int[] members,
 			int coordinator) {
 		assert(Util.contains(coordinator, members));
-                // PART OF FIX FOR MOB-554
-                return new HotRestoreInfo(paxosID, 0, members, 0, new Ballot(0,
+		// revert to Original (see explanation above)
+		return new HotRestoreInfo(paxosID, 0, members, 1, new Ballot(0,        
+		// PART OF FIX FOR MOB-554
+                //return new HotRestoreInfo(paxosID, 0, members, 0, new Ballot(0,
                 // Original
 		//return new HotRestoreInfo(paxosID, 0, members, 1, new Ballot(0,
 				coordinator), -1, new Ballot(0, coordinator), 1,

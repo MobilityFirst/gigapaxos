@@ -274,8 +274,10 @@ public abstract class ReconfigurationPacket<NodeIDType> extends ProtocolPacket<N
 			ie.printStackTrace();
 		} finally {
 			if (ReconfigurationPacket.PacketType.intToType.get(JSONPacket
-					.getPacketType(json)) == null)
+					.getPacketType(json)) == null) {
 				System.err.println("No reconfiguration packet type found in: " + json);
+				(new RuntimeException("PrintStackTrace")).printStackTrace();
+			}
 		}
 
 		return rcPacket;

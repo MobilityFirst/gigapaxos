@@ -113,6 +113,41 @@ public class TESTReconfigurationConfig {
 		 * 
 		 */
 		NAME_PREFIX ("name"),
+		
+		/**
+		 * 
+		 */
+		TEST_CREATE_RATE (1000),
+		
+		/**
+		 * 
+		 */
+		TEST_APP_REQUEST_RATE (50),
+		
+		/**
+		 * 
+		 */
+		TEST_NUM_APP_NAMES (100), 
+		/**
+		 * 
+		 */
+		TEST_BATCH_SIZE(100), 
+		
+		/**
+		 * 
+		 */
+		NUM_CLIENTS(1),
+		
+		/**
+		 * 
+		 */
+		TEST_RTX_TIMEOUT(1000), 
+		
+		/**
+		 * 
+		 */
+		TEST_NUM_REQUESTS_PER_NAME (10),
+		
 		;
 
 		final Object defaultValue;

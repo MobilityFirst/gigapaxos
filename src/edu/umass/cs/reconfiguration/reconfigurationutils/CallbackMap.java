@@ -54,18 +54,19 @@ public class CallbackMap<NodeIDType> {
 	public StopEpoch<NodeIDType> notifyStop(String name, int epoch) {
 		if (!this.listMap.containsKey(name))
 			return null;
-		StopEpoch<NodeIDType> notifiee = null;
+		StopEpoch<NodeIDType> notifiee = null, retval = null;
 		for (Iterator<StopEpoch<NodeIDType>> notifieeIter = this.listMap.get(
 				name).iterator(); notifieeIter.hasNext();) {
 			notifiee = notifieeIter.next();
 			if (notifiee.getEpochNumber() - epoch > 0)
 				continue;
 			// else
+			retval = notifiee;
 			notifieeIter.remove();
 			break;
 		}
 		if (this.listMap.get(name).isEmpty())
 			this.listMap.remove(name);
-		return notifiee;
+		return retval;
 	}
 }

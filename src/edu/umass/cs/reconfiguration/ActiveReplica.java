@@ -28,6 +28,7 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
@@ -72,6 +73,8 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurabl
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.GCConcurrentHashMap;
+import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -133,7 +136,7 @@ public class ActiveReplica<NodeIDType> implements
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
 		this.appCoordinator = appC
-				.setStopCallback((ReconfiguratorCallback) this);
+				.setStopCallback((ReconfiguratorCallback) this).setCallback((ReconfiguratorCallback) this);
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
 		this.demandProfiler = new AggregateDemandProfiler(this.nodeConfig);
@@ -159,7 +162,19 @@ public class ActiveReplica<NodeIDType> implements
 			SSLMessenger<NodeIDType, JSONObject> messenger) {
 		this(appC, nodeConfig, messenger, false);
 	}
-
+	
+	private static long REQUEST_TIMEOUT = 5000;
+	private GCConcurrentHashMap<Long, ClientRequest> outstanding = new GCConcurrentHashMap<Long, ClientRequest>(
+			new GCConcurrentHashMapCallback() {
+				@Override
+				public void callbackGC(Object key, Object value) {
+				}
+			}, REQUEST_TIMEOUT);
+	
+	private ClientRequest enqueue(ClientRequest request) {
+		return this.outstanding.put(request.getRequestID(), request);
+	}
+	
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
@@ -180,13 +195,19 @@ public class ActiveReplica<NodeIDType> implements
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
 				// if handled, update demand stats (for reconfigurator) 
-				if (handled)
-					updateDemandStats(request,
-							MessageNIOTransport
-									.getSenderInetAddress(jsonObject));
+				if (handled) {
+					if (request instanceof ClientRequest) {
+						enqueue((ClientRequest) request);
+					} else {
+						updateDemandStats(request,
+								MessageNIOTransport
+										.getSenderInetAddress(jsonObject));
+					}
+				}
 				// else send error message to sender
 				else {
 					if (request instanceof ClientRequest) {
+						//assert(false); 
 						this.send(
 								MessageNIOTransport
 										.getSenderAddress(jsonObject),
@@ -219,8 +240,17 @@ public class ActiveReplica<NodeIDType> implements
 	public void executed(Request request, boolean handled) {
 		if (this.isRecovering())
 			return;
-		assert (request instanceof ReconfigurableRequest);
-		assert (handled);
+		//assert (request instanceof ReconfigurableRequest);
+		//assert (handled);
+		
+		if (request instanceof ClientRequest
+				&& this.outstanding.remove(((ClientRequest) request)
+						.getRequestID()) != null) {
+			assert (!(request instanceof ReconfigurationPacket));
+			this.updateDemandStats(request, ((ClientRequest) request)
+					.getClientAddress().getAddress());
+		}
+
 		/*
 		 * We need to handle the callback in a separate thread, otherwise we
 		 * risk sending the ackStop before the epoch final state has been
@@ -296,6 +326,7 @@ public class ActiveReplica<NodeIDType> implements
 	public void close() {
 		this.protocolExecutor.stop();
 		this.messenger.stop();
+		this.appCoordinator.stop();
 	}
 
 	// /////////////// Start of protocol task handler
@@ -807,6 +838,6 @@ public class ActiveReplica<NodeIDType> implements
 
 	@Override
 	public void preExecuted(Request request) {
-		throw new RuntimeException("This method should not have gotten called");
+		//throw new RuntimeException("This method should not have gotten called");
 	}
 }

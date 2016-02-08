@@ -68,7 +68,7 @@ public class DeleteServiceName extends ClientReconfigurationPacket {
 	public DeleteServiceName(JSONObject json, Stringifiable<?> unstringer)
 			throws JSONException {
 		super(json, DeleteServiceName.unstringer); // ignores unstringer
-		assert (this.getSender() != null);
+		//assert (this.getSender() != null) : json;
 		// this.setSender(JSONNIOTransport.getSenderAddress(json));
 	}
 

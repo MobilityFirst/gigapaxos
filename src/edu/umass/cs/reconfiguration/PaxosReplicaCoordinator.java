@@ -304,4 +304,9 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	public boolean existsOrHigher(String name, int epoch) {
 		return this.paxosManager.equalOrHigherVersionExists(name, epoch);
 	}
+	
+	public void stop() {
+		super.stop();
+		this.paxosManager.close();
+	}
 }

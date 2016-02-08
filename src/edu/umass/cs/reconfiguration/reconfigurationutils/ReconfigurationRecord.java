@@ -457,6 +457,8 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 						.equals(RCStates.READY_READY))))
 			this.numPossiblyUncleanReconfigurations--;
 
+		if(epoch==1 && state==RCStates.READY_READY) assert(this.numPossiblyUncleanReconfigurations<=0);
+		
 		if (this.numPossiblyUncleanReconfigurations < 0)
 			this.numPossiblyUncleanReconfigurations = 0;
 

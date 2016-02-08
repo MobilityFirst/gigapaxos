@@ -576,7 +576,7 @@ public abstract class AbstractPaxosLogger {
 		for (String name : nameStates.keySet()) {
 			tasks[i++] = new CheckpointTask(this, name, 0, gms, 0, new Ballot(0,
 					PaxosInstanceStateMachine.roundRobinCoordinator(name,
-							members, 0)), nameStates.get(name), -1);
+							members, 0)), nameStates.get(name), 0);
 		}
 		return this.putCheckpointState(tasks, false);
 	}

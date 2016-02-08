@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -124,8 +124,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		this.messenger = messenger;
 	}
 
-	protected Messenger<NodeIDType, ?> getMessenger(
-			) {
+	protected Messenger<NodeIDType, ?> getMessenger() {
 		return this.messenger;
 	}
 
@@ -141,7 +140,13 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	protected final AbstractReplicaCoordinator<NodeIDType> setCallback(
 			ReconfiguratorCallback callback) {
-		this.callback = callback;
+		/**
+		 * The correctness of Reconfigurator relies on the following as
+		 * Reconfigurator sets the callback before
+		 * its getReconfigurableReconfiguratorAsActiveReplica.
+		 */
+		if (this.callback == null)
+			this.callback = callback;
 		return this;
 	}
 
@@ -167,8 +172,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		if (needsCoordination(request)) {
 			try {
 				if (request instanceof ReplicableRequest)
-					((ReplicableRequest) request)
-						.setNeedsCoordination(false);
+					((ReplicableRequest) request).setNeedsCoordination(false);
 				handled = coordinateRequest(request);
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
@@ -197,19 +201,16 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * app's support for stop requests even though a stop request is really
 	 * meaningless to an app.
 	 * 
-	 * FIXME: Should add support for response messaging here using
-	 * the ClientMessgenser and ClientRequest interfaces similar
-	 * to that in gigapaxos.
-
+	 * FIXME: Should add support for response messaging here using the
+	 * ClientMessgenser and ClientRequest interfaces similar to that in
+	 * gigapaxos.
 	 */
-	public boolean execute(Request request,
-			boolean noReplyToClient) {
+	public boolean execute(Request request, boolean noReplyToClient) {
 
 		if (this.callback != null)
 			this.callback.preExecuted(request);
 		boolean handled = ((this.app instanceof Replicable) ? ((Replicable) (this.app))
-				.execute(request, noReplyToClient) : this.app
-				.execute(request));
+				.execute(request, noReplyToClient) : this.app.execute(request));
 		callCallback(request, handled);
 		/*
 		 * We always return true because the return value here is a no-op. It
@@ -220,8 +221,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return true;
 	}
 
-	public Request getRequest(String stringified)
-			throws RequestParseException {
+	public Request getRequest(String stringified) throws RequestParseException {
 		return this.app.getRequest(stringified);
 	}
 
@@ -285,11 +285,12 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	private boolean needsCoordination(Request request) {
 		if (request instanceof ReplicableRequest
 				&& ((ReplicableRequest) request).needsCoordination()) {
-			return true; 
+			return true;
 		}
-		/* No need for setNeedsCoordination as a request will necessarily get 
-		 * converted to a proposal or accept when coordinated, so there is
-		 * no need to worry about inifinite looping.
+		/*
+		 * No need for setNeedsCoordination as a request will necessarily get
+		 * converted to a proposal or accept when coordinated, so there is no
+		 * need to worry about inifinite looping.
 		 */
 		else if (request instanceof RequestPacket)
 			return true;
@@ -320,30 +321,31 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public void setLargeCheckpoints() {
 		this.largeCheckpoints = true;
 	}
-	
+
 	/**
-	 * Default implementation that can be overridden for more
-	 * batching optimization.
+	 * Default implementation that can be overridden for more batching
+	 * optimization.
 	 * 
 	 * @param nameStates
 	 * @param nodes
 	 * @return True if all groups successfully created.
 	 */
-	public boolean createReplicaGroup(Map<String,String> nameStates,
+	public boolean createReplicaGroup(Map<String, String> nameStates,
 			Set<NodeIDType> nodes) {
 		boolean created = true;
 		for (String name : nameStates.keySet()) {
 			created = created
-					&& this.createReplicaGroup(
-							name,
-							0,
-							nameStates.get(name),
+					&& this.createReplicaGroup(name, 0, nameStates.get(name),
 							nodes);
 		}
 		return created;
 	}
 
 	/*********************** End of private helper methods ************************/
+
+	public void stop() {
+		this.messenger.stop();
+	}
 
 	/********************** Request propagation helper methods ******************/
 	/*

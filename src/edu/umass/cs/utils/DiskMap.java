@@ -310,10 +310,30 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		if (this.shouldGC(true))
 			this.initOnetimeGC();
 		assert (value != null) : key;
+		V prev = null;
 		// all mods need to be synchronized
 		synchronized (this) {
-			return this.map.put(key, value);
+			prev = this.map.put(key, value);
+			recordPut(key);
 		}
+		return prev;
+	}
+	
+	boolean recordPuts = false;
+	private Set<K> concurrentPuts = new HashSet<K>();
+	private synchronized void recordPut(K key) {
+		if(recordingPuts())
+			concurrentPuts.add(key);
+	}
+	private synchronized void startRecordingPuts() {
+		recordPuts = true;
+	}
+	private synchronized void stopRecordingPuts() {
+		recordPuts = false;
+		this.concurrentPuts.clear();
+	}
+	private synchronized boolean recordingPuts() {
+		return recordPuts;
 	}
 
 	@Override
@@ -598,6 +618,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		if (!this.pauseQ.isEmpty()) {
 			Set<K> committed = null;
 			try {
+				startRecordingPuts();
 				committed = this.commit(this.pauseQ);
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -607,12 +628,14 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			if (committed != null)
 				for (K key : committed) {
 					synchronized (this) {
-						this.map.remove(key, this.pauseQ.remove(key));
+						// concurrent puts should not be removed
+						if(!this.concurrentPuts.contains(key))
+							this.map.remove(key, this.pauseQ.remove(key));
 						if (this.stats != null)
 							this.stats.remove(key);
 					}
 				}
-
+			stopRecordingPuts();
 			DelayProfiler.updateDelay("GC", t);
 		}
 		synchronized (this) {
@@ -731,10 +754,17 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	/**
 	 * Will stop the GC thread but will have no other effect. The map can
 	 * continue to be used with the same semantics.
+	 * @param commitAll 
+	 */
+	public void close(boolean commitAll) {
+		this.GC.shutdown();
+		if(commitAll) this.commitAll(this.map, false);
+	}
+	/**
+	 * 
 	 */
 	public void close() {
-		this.GC.shutdown();
-		this.commitAll(this.map, false);
+		close(false);
 	}
 
 	private static class KeyableString extends LogIndex implements

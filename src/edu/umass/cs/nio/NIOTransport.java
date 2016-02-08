@@ -186,7 +186,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	protected final NodeConfig<NodeIDType> nodeConfig;
 
 	// selector we'll be monitoring
-	private Selector selector = null;
+	private final Selector selector;
 
 	private final ByteBuffer writeBuffer = ByteBuffer
 			.allocateDirect(WRITE_BUFFER_SIZE);
@@ -195,24 +195,24 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	private ServerSocketChannel serverChannel;
 
 	// List of pending connects on which finishConnect needs to be called.
-	private LinkedList<ChangeRequest> pendingConnects = null;
+	private final LinkedList<ChangeRequest> pendingConnects = new LinkedList<ChangeRequest>();
 
 	/*
 	 * The key is a socket address and the value is a list of messages to be
 	 * sent to that socket address.
 	 */
-	private ConcurrentHashMap<InetSocketAddress, LinkedBlockingQueue<ByteBuffer>> sendQueues = null;
+	private final ConcurrentHashMap<InetSocketAddress, LinkedBlockingQueue<ByteBuffer>> sendQueues = new ConcurrentHashMap<InetSocketAddress, LinkedBlockingQueue<ByteBuffer>>();
 
 	/*
 	 * Maps a socket address to a socket channel. The latter may change in case
 	 * a connection breaks and a new one needs to be initiated.
 	 */
-	private HashMap<InetSocketAddress, SocketChannel> sockAddrToSockChannel = null;
+	private HashMap<InetSocketAddress, SocketChannel> sockAddrToSockChannel = new HashMap<InetSocketAddress, SocketChannel>();
 
 	/* Map to optimize connection attempts by the selector thread. */
-	private ConcurrentHashMap<InetSocketAddress, Long> connAttempts = null;
+	private ConcurrentHashMap<InetSocketAddress, Long> connAttempts = new ConcurrentHashMap<InetSocketAddress, Long>();
 	
-	private ConcurrentHashMap<NodeIDType,Long> lastFailed = null;
+	private ConcurrentHashMap<NodeIDType,Long> lastFailed = new ConcurrentHashMap<NodeIDType, Long>();
 	
 	private SenderTask senderTask;
 
@@ -220,6 +220,8 @@ public class NIOTransport<NodeIDType> implements Runnable,
 
 	private boolean stopped = false;
 
+	private final Thread me;
+	
 	/**
 	 * A flag to easily enable or disable SSL by default. CLEAR is not really a
 	 * legitimate SSL mode, i.e., it is not supported by
@@ -246,28 +248,23 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		this.myID = id;
 		// null node config means no ID-based communication possible
 		this.nodeConfig = nc;
-
 		this.worker = this.getWorker(worker, sslMode);
-
-		// non-final fields, but they never change after constructor anyway
 		this.selector = this.initSelector(mySockAddr);
-		this.pendingConnects = new LinkedList<ChangeRequest>();
-		this.sendQueues = new ConcurrentHashMap<InetSocketAddress, LinkedBlockingQueue<ByteBuffer>>();
-		this.sockAddrToSockChannel = new HashMap<InetSocketAddress, SocketChannel>();
-		this.connAttempts = new ConcurrentHashMap<InetSocketAddress, Long>();
-		this.lastFailed = new ConcurrentHashMap<NodeIDType, Long>();
 
-		if (start) {
-			Thread me = (new Thread(this));
-			me.setName(getClass().getSimpleName() + myID);
-			me.start();
-			
-			this.senderTask = new SenderTask();
-			this.senderTask.setName(getClass().getSimpleName()
-					+ SenderTask.class.getSimpleName() + myID);
-			if (useSenderTask())
-				this.senderTask.start();
-		}
+		(me = (new Thread(this))).setName(getClass().getSimpleName() + (myID != null ? myID : "[]"));
+		me.start();
+
+		if (!useSenderTask()) return;
+		(this.senderTask = new SenderTask()).setName(getClass().getSimpleName()
+				+ SenderTask.class.getSimpleName() + myID);
+		this.senderTask.start();
+	}
+
+	/**
+	 * @param name
+	 */
+	public void setName(String name) {
+		this.me.setName(name);
 	}
 
 	/**
@@ -337,13 +334,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		this(null, null, new InetSocketAddress(address, port), worker, true,
 				sslMode);
 	}
-
-	protected NIOTransport(NIOTransport<NodeIDType> niot) {
-		this.myID = niot.myID;
-		this.nodeConfig = niot.nodeConfig;
-		this.worker = niot.worker;
-	}
-
+	
 	private DataProcessingWorker getWorker(
 			DataProcessingWorker worker,
 			SSLDataProcessingWorker.SSL_MODES sslMode) throws IOException {
@@ -511,7 +502,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 			}
 		}
 		try {
-			this.senderTask.close();
+			if(this.senderTask!=null) this.senderTask.close();
 			this.selector.close();
 			this.serverChannel.close();
 			if (this.worker instanceof SSLDataProcessingWorker)
@@ -534,7 +525,10 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		this.selector.wakeup();
 	}
 
-	protected synchronized boolean isStopped() {
+	/**
+	 * @return Whether stopped.
+	 */
+	public synchronized boolean isStopped() {
 		return this.stopped;
 	}
 
@@ -592,8 +586,8 @@ public class NIOTransport<NodeIDType> implements Runnable,
 					this.accept(key);
 				if (key.isValid() && key.isConnectable())
 					this.finishConnection(key);
-				if (key.isValid() && key.isWritable()) 
-					if (useSenderTask())
+				if (key.isValid() && key.isWritable())
+					if (useSenderTask() && this.senderTask != null)
 						this.senderTask.addKey(key);
 					else
 						this.write(key);
@@ -1714,7 +1708,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	}
 
 	public String toString() {
-		return this.getClass().getSimpleName() + (this.myID!=null ? this.myID : "");
+		return this.getClass().getSimpleName() + (this.myID!=null ? this.myID : "[]");
 	}
 
 	/*

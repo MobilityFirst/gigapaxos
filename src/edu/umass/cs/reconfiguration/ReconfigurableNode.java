@@ -19,6 +19,8 @@ package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.json.JSONObject;
 
@@ -31,9 +33,12 @@ import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
+import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.Util;
 
 /**
  * 
@@ -56,8 +61,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 	protected abstract AbstractReplicaCoordinator<NodeIDType> createAppCoordinator();
 
-	private ActiveReplica<NodeIDType> activeReplica;
-	private Reconfigurator<NodeIDType> reconfigurator;
+	private final Set<ActiveReplica<NodeIDType>> activeReplicas = new HashSet<ActiveReplica<NodeIDType>>();
+	private final Set<Reconfigurator<NodeIDType>> reconfigurators = new HashSet<Reconfigurator<NodeIDType>>();
 
 	/**
 	 * @param id
@@ -65,8 +70,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @throws IOException
 	 */
 	public ReconfigurableNode(NodeIDType id,
-			ReconfigurableNodeConfig<NodeIDType> nodeConfig)
-			throws IOException {
+			ReconfigurableNodeConfig<NodeIDType> nodeConfig) throws IOException {
 		this(id, nodeConfig, null, false);
 	}
 
@@ -74,13 +78,20 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * Close gracefully.
 	 */
 	public void close() {
-		if (this.activeReplica != null)
-			this.activeReplica.close();
-		if (this.reconfigurator != null)
-			this.reconfigurator.close();
+		for (ActiveReplica<NodeIDType> node : this.activeReplicas) {
+			Reconfigurator.getLogger().info(node + " closing");
+			node.close();
+		}
+		for (Reconfigurator<NodeIDType> node : this.reconfigurators) {
+			Reconfigurator.getLogger().info(node + " closing");
+			node.close();
+		}
+		this.messenger.stop();
+		Reconfigurator.getLogger().info(
+				"----------" + this + " closed----->||||");
 	}
 
-	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args, 
+	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig) {
 		if (ReconfigurationConfig.application != null) {
 			Replicable app = ReconfigurationConfig.createApp(args);
@@ -91,15 +102,16 @@ public abstract class ReconfigurableNode<NodeIDType> {
 						.getLogger()
 						.info(app.getClass().getSimpleName()
 								+ " does not implement "
-								+ ClientMessenger.class
-										.getSimpleName()
+								+ ClientMessenger.class.getSimpleName()
 								+ ", which means the app should either rely on "
 								+ ClientRequest.class.getSimpleName()
 								+ " or not expect to send "
 								+ " responses back to clients or rely on alternate means for messaging.");
-			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(app, myID,
-					nodeConfig, messenger);
-			Reconfigurator.getLogger().info("Creating default group with "+nodeConfig.getActiveReplicas());
+			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(
+					app, myID, nodeConfig, messenger);
+			Reconfigurator.getLogger().info(
+					"Creating default group with "
+							+ nodeConfig.getActiveReplicas());
 			prc.createDefaultGroupNodes(app.getClass().getSimpleName() + "0",
 					nodeConfig.getActiveReplicas(), nodeConfig);
 			return prc;
@@ -124,7 +136,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @param nodeConfig
 	 *            Maps node IDs of active replicas and reconfigurators to their
 	 *            socket addresses.
-	 * @param args 
+	 * @param args
 	 * @param startCleanSlate
 	 *            Used to join newly added nodes.
 	 * 
@@ -147,8 +159,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		String err = null;
 		if (!nodeConfig.getActiveReplicas().contains(id)
 				&& !nodeConfig.getReconfigurators().contains(id)) {
-			Reconfigurator.getLogger().severe(err = 
-					"Node " + id + " not present in NodeConfig argument \n  "
+			Reconfigurator.getLogger().severe(
+					err = "Node " + id
+							+ " not present in NodeConfig argument \n  "
 							+ nodeConfig.getActiveReplicas() + "\n  "
 							+ nodeConfig.getReconfigurators());
 			throw new IOException(err);
@@ -176,34 +189,37 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			throw new IOException(err);
 		}
 		// else created messenger, may still fail to create client messenger
-		
+
 		if (nodeConfig.getActiveReplicas().contains(id)) {
 			// create active
 			ActiveReplica<NodeIDType> activeReplica = new ActiveReplica<NodeIDType>(
 			// createAppCoordinator(),
 					createApp(args, nodeConfig), nodeConfig, messenger);
+			this.activeReplicas.add(activeReplica);
 			// getPacketTypes includes app's packets
 			pd.register(activeReplica.getPacketTypes(), activeReplica);
 		} else if (nodeConfig.getReconfigurators().contains(id)) {
 			// create reconfigurator
 			Reconfigurator<NodeIDType> reconfigurator = new Reconfigurator<NodeIDType>(
 					nodeConfig, messenger, startCleanSlate);
-			pd.register(reconfigurator.getPacketTypes().toArray(new IntegerPacketType[0]),
-					reconfigurator);
+			pd.register(
+					reconfigurator.getPacketTypes().toArray(
+							new IntegerPacketType[0]), reconfigurator);
+			this.reconfigurators.add(reconfigurator);
 
 			// wrap reconfigurator in active to make it reconfigurable
-			ReconfigurableNode.this.activeReplica = reconfigurator
+			ActiveReplica<NodeIDType> activeReplica = reconfigurator
 					.getReconfigurableReconfiguratorAsActiveReplica();
-			pd.register(activeReplica.getPacketTypes(),
-					ReconfigurableNode.this.activeReplica);
+			pd.register(activeReplica.getPacketTypes(), activeReplica);
+			this.activeReplicas.add(activeReplica);
 		}
 	}
-
 
 	// because ReconfigurableNode is abstract for backwards compatibility
 	/**
 	 */
-	public static class DefaultReconfigurableNode extends ReconfigurableNode<String> {
+	public static class DefaultReconfigurableNode extends
+			ReconfigurableNode<String> {
 
 		/**
 		 * @param id
@@ -222,6 +238,14 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		protected AbstractReplicaCoordinator<String> createAppCoordinator() {
 			return super.createApp(null, super.nodeConfig);
 		}
+		
+		public String toString() {
+			return super.toString();
+		}
+	}
+	
+	public String toString() {
+		return "Node" + this.myID;
 	}
 
 	/**
@@ -234,11 +258,13 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @throws IOException
 	 */
 	public static void main(String[] args) throws IOException {
+		Util.assertAssertionsEnabled();
+		ReconfigurationConfig.setConsoleHandler();
+
 		if (args.length == 0)
 			throw new RuntimeException(
 					"At least one node ID must be specified as a command-line argument for starting "
 							+ ReconfigurableNode.class);
-		ReconfigurationConfig.setConsoleHandler();
 		ReconfigurableNodeConfig<String> nodeConfig = new DefaultNodeConfig<String>(
 				PaxosConfig.getActives(),
 				ReconfigurationConfig.getReconfigurators());
@@ -249,11 +275,11 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				System.out.print(args[i] + ":"
 						+ nodeConfig.getNodeAddress(args[i]) + ":"
 						+ nodeConfig.getNodePort(args[i]) + " ");
-				new DefaultReconfigurableNode(args[i], 
-						// must use a different nodeConfig for each
-						new DefaultNodeConfig<String>(
-						PaxosConfig.getActives(),
-						ReconfigurationConfig.getReconfigurators()), args, false);
+				new DefaultReconfigurableNode(args[i],
+				// must use a different nodeConfig for each
+						new DefaultNodeConfig<String>(PaxosConfig.getActives(),
+								ReconfigurationConfig.getReconfigurators()),
+						args, false);
 			}
 		System.out.println("]");
 	}

@@ -92,7 +92,13 @@ public class ReconfigurableClientCreateTester {
 	 * batch map to the same RC group. For this, we need RC IDs because IDs, not
 	 * socket addresses, are used for consistent-hashing RCs on to the ring.
 	 */
-	private CreateServiceName[] makeCreateNameRequest(String name,
+	/**
+	 * @param name
+	 * @param state
+	 * @param batchSize
+	 * @return Array of batched CreateServiceName requests.
+	 */
+	public CreateServiceName[] makeCreateNameRequest(String name,
 			String state, int batchSize) {
 		Set<String> names = new HashSet<String>();
 		for (int i = 0; i < batchSize; i++)

@@ -53,12 +53,20 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	ConcurrentHashMap<String, Long> nonDefaultRestartPeriods = new ConcurrentHashMap<String, Long>();
 
 	public void run() {
-		while (true) {
+		while (!closed) {
 			this.coordinate();
 			waitUntilNotified(RESTART_PERIOD);
 		}
+		log.info(this + " closing");
 	}
 
+	private boolean closed = false;
+	/**
+	 * 
+	 */
+	public void close() {
+		closed = true;
+	}
 	/**
 	 * @param request
 	 * @return True if enqueued for coordination.

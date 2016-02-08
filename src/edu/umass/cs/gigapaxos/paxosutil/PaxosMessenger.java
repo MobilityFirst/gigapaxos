@@ -56,12 +56,16 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 
 	public PaxosMessenger(InterfaceNIOTransport<NodeIDType, JSONObject> niot,
 			IntegerMap<NodeIDType> nodeMap) {
-		super(niot, NUM_MESSENGER_WORKERS);
+		this(niot, nodeMap, NUM_MESSENGER_WORKERS);
+	}
+	public PaxosMessenger(InterfaceNIOTransport<NodeIDType, JSONObject> niot,
+			IntegerMap<NodeIDType> nodeMap, int numWorkers) {
+		super(niot, numWorkers);
 		this.nodeMap = nodeMap;
 	}
 
 	public PaxosMessenger(PaxosMessenger<NodeIDType> msgr) {
-		this(msgr.getNIOTransport(), msgr.nodeMap);
+		this(msgr.getNIOTransport(), msgr.nodeMap, 0);
 	}
 
 	public void send(MessagingTask[] mtasks) throws JSONException, IOException {

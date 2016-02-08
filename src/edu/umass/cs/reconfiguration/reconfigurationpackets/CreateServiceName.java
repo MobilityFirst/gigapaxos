@@ -32,6 +32,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.StringifiableDefault;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BatchedCreateServiceName.BatchKeys;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.utils.Util;
@@ -44,8 +45,24 @@ import edu.umass.cs.utils.Util;
  */
 public class CreateServiceName extends ClientReconfigurationPacket {
 
-	protected static enum Keys {
-		NAME, STATE, NAME_STATE_ARRAY
+	/**
+	 *
+	 */
+	public static enum Keys {
+		/**
+		 * 
+		 */
+		NAME, /**
+		 * 
+		 */
+		STATE, /**
+		 * 
+		 */
+		NAME_STATE_ARRAY, 
+		/**
+		 * 
+		 */
+		FAILED_CREATES
 	};
 
 	/**
@@ -65,12 +82,13 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 */
 	public final Map<String, String> nameStates;
 
+	private final Set<String> failedCreates;
+
 	/**
 	 * @param name
 	 * @param state
 	 */
-	public CreateServiceName(String name,
-			 String state) {
+	public CreateServiceName(String name, String state) {
 		this(null, name, 0, state);
 	}
 
@@ -87,6 +105,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				name, epochNumber);
 		this.initialState = state;
 		this.nameStates = nameStates;
+		this.failedCreates = null;
 	}
 
 	/**
@@ -111,6 +130,32 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	}
 
 	/**
+	 * FIXME: need to document the reliance on the consistent ordering of the
+	 * head element in nameStates.
+	 * 
+	 * @param nameStates
+	 * @param create
+	 */
+	public CreateServiceName(Map<String, String> nameStates,
+			CreateServiceName create) {
+		this(nameStates, null, create);
+	}
+
+	/**
+	 * @param nameStates
+	 * @param failedCreates
+	 * @param create
+	 */
+	public CreateServiceName(Map<String, String> nameStates,
+			Set<String> failedCreates, CreateServiceName create) {
+		super(nameStates.keySet().iterator().next(), create);
+		this.nameStates = nameStates;
+		this.initialState = nameStates.get(nameStates.keySet().iterator()
+				.next());
+		this.failedCreates = failedCreates;
+	}
+
+	/**
 	 * @param json
 	 * @param unstringer
 	 * @throws JSONException
@@ -119,9 +164,17 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 			throws JSONException {
 		super(json, CreateServiceName.unstringer); // ignores unstringer
 		// may not be true for String packet demultiplexers
-		//assert (this.getSender() != null);
+		// assert (this.getSender() != null);
 		this.initialState = json.optString(Keys.STATE.toString(), null);
 		this.nameStates = getNameStateMap(json);
+		JSONArray jsonArray = json.has(Keys.FAILED_CREATES.toString()) ? json
+				.getJSONArray(Keys.FAILED_CREATES.toString()) : null;
+		if (jsonArray != null && jsonArray.length() > 0) {
+			this.failedCreates = new HashSet<String>();
+			for (int i = 0; i < jsonArray.length(); i++)
+				this.failedCreates.add(jsonArray.getString(i));
+		} else
+			this.failedCreates = null;
 	}
 
 	/**
@@ -140,6 +193,9 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 
 		json.putOpt(BatchKeys.NAME_STATE_ARRAY.toString(),
 				getNameStateJSONArray(this.nameStates));
+
+		if (this.failedCreates != null && !this.failedCreates.isEmpty())
+			json.put(Keys.FAILED_CREATES.toString(), this.failedCreates);
 		return json;
 	}
 
@@ -210,6 +266,30 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				+ (this.isBatched() ? ":|batched|=" + this.size() : "");
 	}
 
+	/**
+	 * @param nameStates
+	 * @param batchSize
+	 * @return Array of batched CreateServiceName requests.
+	 */
+	public static CreateServiceName[] makeCreateNameRequest(
+			Map<String, String> nameStates, int batchSize) {
+		return ReconfigurationConfig.makeCreateNameRequest(nameStates,
+				batchSize);
+	}
+
+	/**
+	 * @param nameStates
+	 * @param batchSize
+	 * @param reconfigurators
+	 * @return Array of batched CreateServiceName requests.
+	 */
+	public static CreateServiceName[] makeCreateNameRequest(
+			Map<String, String> nameStates, int batchSize,
+			Set<String> reconfigurators) {
+		return ReconfigurationConfig.makeCreateNameRequest(nameStates,
+				batchSize, reconfigurators);
+	}
+
 	public static void main(String[] args) {
 		try {
 			Util.assertAssertionsEnabled();
@@ -253,4 +333,5 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 			e.printStackTrace();
 		}
 	}
+
 }

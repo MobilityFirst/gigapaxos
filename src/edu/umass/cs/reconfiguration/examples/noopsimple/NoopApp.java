@@ -48,6 +48,8 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		Replicable, Reconfigurable, ClientMessenger {
 
 	private static final String DEFAULT_INIT_STATE = "";
+	// total number of reconfigurations across all records
+	int numReconfigurationsSinceRecovery = -1;
 
 	private class AppData {
 		final String name;
@@ -115,6 +117,8 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		if (data == null) {
 			System.out.println("App-" + myID + " has no record for "
 					+ request.getServiceName() + " for " + request);
+			assert(request.getResponse()==null)
+			;
 			return false;
 		}
 		assert (data != null);
@@ -154,7 +158,8 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 
 	private void sendResponse(AppRequest request) {
 		// set to whatever response value is appropriate
-		request.setResponse(ResponseCodes.ACK.toString());
+		request.setResponse(ResponseCodes.ACK.toString() + " "
+				+ numReconfigurationsSinceRecovery);
 	}
 
 	// no-op
@@ -239,6 +244,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 			data = new AppData(name, state);
 			System.out.println(">>>App-" + myID + " creating " + name
 					+ " with state " + state);
+			numReconfigurationsSinceRecovery++;
 		} else if (state == null) {
 			if (data != null)
 				System.out.println("App-" + myID + " deleting " + name

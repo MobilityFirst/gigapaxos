@@ -227,6 +227,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	}
 
 	protected void close() {
+		super.stop();
 		this.app.close();
 	}
 

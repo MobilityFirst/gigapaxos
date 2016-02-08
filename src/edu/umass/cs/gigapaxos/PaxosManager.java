@@ -452,7 +452,7 @@ public class PaxosManager<NodeIDType> {
 
 	public boolean createPaxosInstance(String paxosID, Set<NodeIDType> gms,
 			String initialState) {
-		return this.createPaxosInstance(paxosID, 0, gms, myApp, null, null,
+		return this.createPaxosInstance(paxosID, 0, gms, myApp, initialState, null,
 				true)!=null;
 	}
 
@@ -490,14 +490,18 @@ public class PaxosManager<NodeIDType> {
 	 * @param gms
 	 * @return True if all successfully created.
 	 */
-	public synchronized boolean createPaxosInstance(Map<String, String> nameStates,
-			Set<NodeIDType> gms) {
-		int[] members = Util.setToIntArray(this.integerMap.put(gms)); 
-		this.paxosLogger.insertInitialCheckpoints(nameStates,
-				Util.setToStringSet(gms),
-				members);
+	public synchronized boolean createPaxosInstance(
+			Map<String, String> nameStates, Set<NodeIDType> gms) {
+		int[] members = Util.setToIntArray(this.integerMap.put(gms));
+		log.log(Level.INFO,
+				"{0} batch-inserting initial checkpoints for {1} names: {2}",
+				new Object[] { this, nameStates.size(), nameStates });
+		if (SNEAKY_BATCH_CREATION)
+			this.paxosLogger.insertInitialCheckpoints(nameStates,
+					Util.setToStringSet(gms), members);
 		boolean created = true;
 		for (String name : nameStates.keySet()) {
+			assert(nameStates.get(name)!=null);
 			created = created
 					&& (SNEAKY_BATCH_CREATION ? this.createPaxosInstance(name,
 							0, gms, this.myApp, nameStates.get(name),

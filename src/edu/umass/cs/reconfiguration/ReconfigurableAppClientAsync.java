@@ -143,7 +143,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if ((response = this.parseAsAppRequest(strMsg)) == null)
 				// else try parsing as ClientReconfigurationPacket
 				response = parseAsClientReconfigurationPacket(strMsg);
-
+			
 			RequestCallback callback = null;
 			if (response != null) {
 				// execute registered callback
@@ -164,7 +164,6 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					/* auto-retransmitting can cause an infinite loop, so we 
 					 * just throw the ball back to the app.
 					 */
-					assert(false);
 					callback.handleResponse(response);
 				} else if (response instanceof ClientReconfigurationPacket) {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
@@ -235,12 +234,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			throws IOException {
 		boolean sendFailed = false;
 		assert (request.getServiceName() != null);
+		RequestCallback prev = null;
 		try {
-			if (this.callbacks.putIfAbsent(request.getRequestID(),
-					callback = new RequestAndCallback(request, callback)) == null)
-				sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
+			prev = this.callbacks.put(request.getRequestID(),
+					callback = new RequestAndCallback(request, callback));
+			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
 		} finally {
-			if (sendFailed) {
+			if (sendFailed && prev==null) {
 				this.callbacks.remove(request.getRequestID(), callback);
 				return null;
 			} 
@@ -407,6 +407,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				reqIter.remove();
 			}
 		}
+	}
+	
+	/**
+	 * 
+	 */
+	public void close() {
+		this.niot.stop();
 	}
 
 	/**

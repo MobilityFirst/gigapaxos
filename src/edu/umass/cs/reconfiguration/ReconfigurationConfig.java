@@ -19,8 +19,10 @@ package edu.umass.cs.reconfiguration;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
@@ -31,6 +33,9 @@ import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
@@ -237,7 +242,11 @@ public class ReconfigurationConfig {
 		/**
 		 * 
 		 */
-		REPLICATE_ALL (true),
+		REPLICATE_ALL (true), 
+		/**
+		 * 
+		 */
+		MAX_BATCH_SIZE(10000),
 				
 		;
 
@@ -488,6 +497,52 @@ public class ReconfigurationConfig {
 		}
 		return null;
 	}
+
+	/**
+	 * @param nameStates
+	 * @param batchSize
+	 * @return Array of CreateServiceName objects each of which is a batch
+	 *         create of up to batchSize names and corresponds to the same RC
+	 *         group.
+	 */
+	public static CreateServiceName[] makeCreateNameRequest(Map<String,String> nameStates, int batchSize) {
+		return makeCreateNameRequest(nameStates, batchSize, 		
+						ReconfigurationConfig.getReconfiguratorIDs());
+	}
+
+	/**
+	 * @param nameStates
+	 * @param batchSize
+	 * @param reconfigurators 
+	 * @return Array of CreateServiceName objects each of which is a batch
+	 *         create of up to batchSize names and corresponds to the same RC
+	 *         group.
+	 */
+	public static CreateServiceName[] makeCreateNameRequest(Map<String,String> nameStates, int batchSize, Set<String> reconfigurators) {
+		// each set in batches below corresponds to a different RC group
+		Collection<Set<String>> batches = ConsistentReconfigurableNodeConfig
+				.splitIntoRCGroups(nameStates.keySet(),
+						reconfigurators);
+
+		Set<CreateServiceName> creates = new HashSet<CreateServiceName>();
+		// each nameStatesCur batch is limited to batchSize
+		for (Set<String> batch : batches) {
+			Map<String, String> nameStatesCur = new HashMap<String, String>();
+			for (Iterator<String> nameIter = batch.iterator(); nameIter
+					.hasNext();) {
+				String name = nameIter.next();
+				nameStatesCur.put(name, nameStates.get(name));
+				// reached batchSize or last element of set
+				if (nameStatesCur.size() == batchSize || !nameIter.hasNext()) {
+					// make a single batched create
+					creates.add(new CreateServiceName(null, nameStatesCur));
+					nameStatesCur = new HashMap<String, String>();
+				}
+			}
+		}
+		return creates.toArray(new CreateServiceName[0]);
+	}
+
 	
 	/**
 	 * 
@@ -501,5 +556,31 @@ public class ReconfigurationConfig {
 		 PaxosManager.getLogger().setLevel(Level.INFO);
 		 PaxosManager.getLogger().addHandler(handler);
 		 PaxosManager.getLogger().setUseParentHandlers(false);		 
+	}
+	
+	private static CreateServiceName[] testMakeCreateNameRequest(String name,
+			String state, int numRequests, int batchSize) {
+		Util.assertAssertionsEnabled();
+		Map<String, String> nameStates = new HashMap<String, String>();
+		for (int i = 0; i < numRequests; i++)
+			nameStates.put(name + i, state);
+		CreateServiceName[] creates = makeCreateNameRequest(nameStates,
+				batchSize);
+		ConsistentHashing<String> ch = new ConsistentHashing<String>(
+				ReconfigurationConfig.getReconfiguratorIDs());
+		String name0 = null;
+		for (CreateServiceName create : creates)
+			for (String curName : create.nameStates.keySet())
+				assert (ch.getReplicatedServers(curName).equals(ch
+						.getReplicatedServers(name0 == null ? name0 = curName
+								: name0)));
+		return creates;
+	}
+	
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		testMakeCreateNameRequest("name", "some_state", 1000, 100);
 	}
 }

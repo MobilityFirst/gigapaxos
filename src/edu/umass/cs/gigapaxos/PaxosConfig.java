@@ -34,7 +34,6 @@ import edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.NodeConfig;
-import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.MultiArrayMap;
@@ -216,7 +215,7 @@ public class PaxosConfig {
 		PAUSE_RATE_LIMIT(1000), // /s
 
 		/**
-		 * Refer to documentation in {@link AbstractReconfiguratorDB}.
+		 * Refer to documentation in {@link SQLPaxosLogger}.
 		 */
 		MAX_FINAL_STATE_AGE(3600 * 1000),
 		/**
@@ -686,7 +685,7 @@ public class PaxosConfig {
 		 * makes a noticeable difference only when the number of groups is small
 		 * (like 1 or 2).
 		 */
-		DIGEST_REQUESTS(true),
+		DIGEST_REQUESTS(false),
 
 		/**
 		 * Whether paxos packets across different paxos groups should be batched
@@ -790,7 +789,7 @@ public class PaxosConfig {
 	public static void sanityCheck(NodeConfig nodeConfig) throws IOException {
 		for (Object n : nodeConfig.getNodeIDs()) {
 			for (Object m : nodeConfig.getNodeIDs())
-				if (nodeConfig.getNodeAddress(n).equals(
+				if (!n.equals(m) && nodeConfig.getNodeAddress(n).equals(
 						nodeConfig.getNodeAddress(m))
 						&& (nodeConfig.getNodePort(n) == nodeConfig
 								.getNodePort(m) || nodeConfig.getNodePort(n)
