@@ -583,4 +583,19 @@ public class ReconfigurationConfig {
 	public static void main(String[] args) {
 		testMakeCreateNameRequest("name", "some_state", 1000, 100);
 	}
+
+	/**
+	 * @param reconfigurators
+	 * @param globalInt
+	 * @return Socket addresses with the port offset added to each element.
+	 */
+	public static InetSocketAddress[] offsetSocketAddresses(
+			Set<InetSocketAddress> reconfigurators, int globalInt) {
+		InetSocketAddress[] offsetted = new InetSocketAddress[reconfigurators.size()];
+		int i=0;
+		for(InetSocketAddress isa : reconfigurators) {
+			offsetted[i++] = new InetSocketAddress(isa.getAddress(), isa.getPort());
+		}
+		return offsetted;
+	}
 }
