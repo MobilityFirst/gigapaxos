@@ -92,6 +92,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 
 	abstract protected Integer getPacketType(MessageType message);
 
+	// FIXME: this method needs to be deprecated and removed
+	@Deprecated
 	abstract protected MessageType getMessage(String message);
 
 	abstract protected MessageType processHeader(String message, NIOHeader header);

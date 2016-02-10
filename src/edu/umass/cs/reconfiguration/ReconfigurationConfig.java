@@ -594,7 +594,7 @@ public class ReconfigurationConfig {
 		InetSocketAddress[] offsetted = new InetSocketAddress[reconfigurators.size()];
 		int i=0;
 		for(InetSocketAddress isa : reconfigurators) {
-			offsetted[i++] = new InetSocketAddress(isa.getAddress(), isa.getPort());
+			offsetted[i++] = new InetSocketAddress(isa.getAddress(), isa.getPort() + globalInt);
 		}
 		return offsetted;
 	}

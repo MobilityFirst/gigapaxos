@@ -48,9 +48,11 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
+import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator.GetRequestCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
+import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.AckDropEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.AckStartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.AckStopEpoch;
@@ -99,8 +101,7 @@ import edu.umass.cs.utils.Util;
  *            Reconfigurators and whether and how to reconfigure the current
  *            active replica placement.
  */
-public class ActiveReplica<NodeIDType> implements
-		ReconfiguratorCallback,
+public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		PacketDemultiplexer<JSONObject> {
 	/**
 	 * Offset for client facing port that may in general be different from
@@ -135,8 +136,14 @@ public class ActiveReplica<NodeIDType> implements
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
-		this.appCoordinator = appC
-				.setStopCallback((ReconfiguratorCallback) this).setCallback((ReconfiguratorCallback) this);
+		this.appCoordinator = appC.setStopCallback(
+				(ReconfiguratorCallback) this).setCallback(
+				(ReconfiguratorCallback) this).setGetRequestCallback(new GetRequestCallback<NodeIDType>() {
+					@Override
+					public String getRequest(String stringified) {
+						return ActiveReplica.this.removeForcedClientRequestPrefix(stringified);
+					}
+				});;
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
 		this.demandProfiler = new AggregateDemandProfiler(this.nodeConfig);
@@ -152,8 +159,8 @@ public class ActiveReplica<NodeIDType> implements
 		this.noReporting = noReporting;
 		if (this.messenger.getClientMessenger() == null) // exactly once
 			this.messenger.setClientMessenger(initClientMessenger());
-		assert(this.messenger.getClientMessenger()!=null);
-		assert(this.appCoordinator.getMessenger()==this.messenger);
+		assert (this.messenger.getClientMessenger() != null);
+		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
 	}
 
@@ -162,19 +169,93 @@ public class ActiveReplica<NodeIDType> implements
 			SSLMessenger<NodeIDType, JSONObject> messenger) {
 		this(appC, nodeConfig, messenger, false);
 	}
-	
+
+	protected static final String FORCED_REQUEST_ID_PREFIX = "_QID:";
+	protected static final String FORCED_REQUEST_ID_SUFFIX = ":";
+
+	// FIXME: unused; forcibly makes a ClientRequest
+	protected static ClientRequest makeForcedClientRequest(
+			final Request request, final InetSocketAddress isa) {
+		return request instanceof ClientRequest ? (ClientRequest) request
+				: new ClientRequest() {
+
+					@Override
+					public IntegerPacketType getRequestType() {
+						return request.getRequestType();
+					}
+
+					@Override
+					public String getServiceName() {
+						return request.getServiceName();
+					}
+
+					@Override
+					public InetSocketAddress getClientAddress() {
+						return isa;
+					}
+
+					@Override
+					public ClientRequest getResponse() {
+						return request instanceof ClientRequest ? ((ClientRequest) request)
+								.getResponse() : null;
+					}
+
+					@Override
+					public long getRequestID() {
+						return request instanceof ClientRequest ? ((ClientRequest) request)
+								.getRequestID() : (long)(Math.random()*Long.MAX_VALUE);
+					}
+
+					@Override
+					public String toString() {
+						return FORCED_REQUEST_ID_PREFIX + ":"
+								+ this.getRequestID() + FORCED_REQUEST_ID_SUFFIX
+								+ request.toString();
+					}
+				};
+	}
+
+	// FIXME: unused; inverts forced conversion to ClientRequest 
+	protected String removeForcedClientRequestPrefix(String s) {
+		if (!s.startsWith(FORCED_REQUEST_ID_PREFIX))
+			return s;
+		s.replaceFirst(FORCED_REQUEST_ID_PREFIX, "");
+		long requestID = Long.valueOf(s.split(FORCED_REQUEST_ID_SUFFIX, 2)[0]);
+		this.dequeue(requestID);
+		return s;
+	}
+
+	class SenderAndRequest {
+		InetSocketAddress isa;
+		ClientRequest request;
+
+		SenderAndRequest(ClientRequest request, InetSocketAddress isa) {
+			this.isa = isa;
+			this.request = request;
+		}
+	}
+
 	private static long REQUEST_TIMEOUT = 5000;
-	private GCConcurrentHashMap<Long, ClientRequest> outstanding = new GCConcurrentHashMap<Long, ClientRequest>(
+	private GCConcurrentHashMap<Long, SenderAndRequest> outstanding = new GCConcurrentHashMap<Long, SenderAndRequest>(
 			new GCConcurrentHashMapCallback() {
 				@Override
 				public void callbackGC(Object key, Object value) {
 				}
 			}, REQUEST_TIMEOUT);
-	
-	private ClientRequest enqueue(ClientRequest request) {
-		return this.outstanding.put(request.getRequestID(), request);
+
+	private SenderAndRequest enqueue(SenderAndRequest senderAndRequest) {
+		return this.outstanding.put(senderAndRequest.request.getRequestID(),
+				senderAndRequest);
 	}
-	
+
+	private SenderAndRequest dequeue(long requestID) {
+		SenderAndRequest senderAndRequest = null;
+		if ((senderAndRequest = this.outstanding.remove(requestID)) != null)
+			this.updateDemandStats(senderAndRequest.request,
+					senderAndRequest.isa.getAddress());
+		return senderAndRequest;
+	}
+
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
@@ -192,31 +273,39 @@ public class ActiveReplica<NodeIDType> implements
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
 				Request request = this.getRequest(jsonObject);
+				if (request instanceof ClientRequest)
+					enqueue(new SenderAndRequest((ClientRequest) request,
+							MessageNIOTransport.getSenderAddress(jsonObject)));
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
-				// if handled, update demand stats (for reconfigurator) 
+				// if handled, update demand stats (for reconfigurator)
 				if (handled) {
-					if (request instanceof ClientRequest) {
-						enqueue((ClientRequest) request);
-					} else {
+					if (!(request instanceof ClientRequest)) {
+						/*
+						 * FIXME: It is possible for a stop request spawned by
+						 * this demand report and the reconfiguration policy to
+						 * be coordinated before this request itself resulting
+						 * in this request not being executed at all. It is also
+						 * possible that this request fails to be coordinated
+						 * for other reasons making the demand report not
+						 * meaningful.
+						 */
 						updateDemandStats(request,
 								MessageNIOTransport
 										.getSenderInetAddress(jsonObject));
 					}
-				}
-				// else send error message to sender
-				else {
-					if (request instanceof ClientRequest) {
-						//assert(false); 
-						this.send(
-								MessageNIOTransport
-										.getSenderAddress(jsonObject),
-								new ActiveReplicaError(this.nodeConfig
-										.getNodeSocketAddress(getMyID()),
-										request.getServiceName(),
-										((ClientRequest) request)
-												.getRequestID()).toJSONObject());
-					}
+				} else {
+					if (request instanceof ClientRequest) // useless enqueue
+						this.dequeue(((ClientRequest) request).getRequestID());
+
+					// send error message to sender
+					this.send(
+							MessageNIOTransport.getSenderAddress(jsonObject),
+							new ActiveReplicaError(this.nodeConfig
+									.getNodeSocketAddress(getMyID()), request
+									.getServiceName(),
+									((ClientRequest) request).getRequestID())
+									.toJSONObject());
 				}
 			}
 		} catch (RequestParseException rpe) {
@@ -240,16 +329,11 @@ public class ActiveReplica<NodeIDType> implements
 	public void executed(Request request, boolean handled) {
 		if (this.isRecovering())
 			return;
-		//assert (request instanceof ReconfigurableRequest);
-		//assert (handled);
-		
-		if (request instanceof ClientRequest
-				&& this.outstanding.remove(((ClientRequest) request)
-						.getRequestID()) != null) {
-			assert (!(request instanceof ReconfigurationPacket));
-			this.updateDemandStats(request, ((ClientRequest) request)
-					.getClientAddress().getAddress());
-		}
+		// assert (request instanceof ReconfigurableRequest);
+		// assert (handled);
+
+		if (request instanceof ClientRequest)
+			this.dequeue(((ClientRequest) request).getRequestID());
 
 		/*
 		 * We need to handle the callback in a separate thread, otherwise we
@@ -292,8 +376,7 @@ public class ActiveReplica<NodeIDType> implements
 
 		public void run() {
 			StopEpoch<NodeIDType> stopEpoch = null;
-			int epoch = ((ReconfigurableRequest) request)
-					.getEpochNumber();
+			int epoch = ((ReconfigurableRequest) request).getEpochNumber();
 			while ((stopEpoch = callbackMap.notifyStop(
 					request.getServiceName(), epoch)) != null) {
 				appCoordinator.deleteReplicaGroup(request.getServiceName(),
@@ -308,12 +391,12 @@ public class ActiveReplica<NodeIDType> implements
 	 */
 	public Set<IntegerPacketType> getPacketTypes() {
 		Set<IntegerPacketType> types = this.getAppPacketTypes();
-		
+
 		if (types == null)
 			types = new HashSet<IntegerPacketType>();
-		
+
 		types.remove(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
-		
+
 		for (IntegerPacketType type : this.getActiveReplicaPacketTypes()) {
 			types.add(type);
 		}
@@ -394,14 +477,16 @@ public class ActiveReplica<NodeIDType> implements
 	}
 
 	private static final boolean BATCH_CREATION = true;
-	/* This could be optimized further by supporting batch creation in 
+
+	/*
+	 * This could be optimized further by supporting batch creation in
 	 * PaxosManager.
 	 */
 	private boolean batchedCreate(StartEpoch<NodeIDType> startEpoch) {
 		boolean created = true;
 		if (BATCH_CREATION)
-			return this.appCoordinator.createReplicaGroup(startEpoch.getNameStates(),
-					startEpoch.getCurEpochGroup());
+			return this.appCoordinator.createReplicaGroup(
+					startEpoch.getNameStates(), startEpoch.getCurEpochGroup());
 		else
 			for (String name : startEpoch.getNameStates().keySet()) {
 				assert (startEpoch.getEpochNumber() == 0);
@@ -635,9 +720,9 @@ public class ActiveReplica<NodeIDType> implements
 					.getRequestTypes());
 		return appRequestTypes.contains(type);
 	}
-	
+
 	private static Set<Integer> appRequestTypes = null;
-	
+
 	private static Set<Integer> toIntegerSet(Set<IntegerPacketType> types) {
 		Set<Integer> integers = new HashSet<Integer>();
 		for (IntegerPacketType type : types)
@@ -717,8 +802,8 @@ public class ActiveReplica<NodeIDType> implements
 	@SuppressWarnings("unchecked")
 	private void send(InetSocketAddress isa, JSONObject msg) {
 		try {
-			((AddressMessenger<JSONObject>) this.messenger)
-					.sendToAddress(isa, msg);
+			((AddressMessenger<JSONObject>) this.messenger).sendToAddress(isa,
+					msg);
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 		}
@@ -746,10 +831,9 @@ public class ActiveReplica<NodeIDType> implements
 		return mtask;
 	}
 
-	private ReconfigurableRequest getAppStopRequest(String name,
-			int epoch) {
-		ReconfigurableRequest appStop = this.appCoordinator
-				.getStopRequest(name, epoch);
+	private ReconfigurableRequest getAppStopRequest(String name, int epoch) {
+		ReconfigurableRequest appStop = this.appCoordinator.getStopRequest(
+				name, epoch);
 		return appStop == null ? new DefaultAppRequest(name, epoch, true)
 				: appStop;
 	}
@@ -766,25 +850,28 @@ public class ActiveReplica<NodeIDType> implements
 		AbstractPacketDemultiplexer<JSONObject> pd = null;
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
 		Set<IntegerPacketType> appTypes = null;
-		if ((appTypes = this.appCoordinator.getAppRequestTypes())==null || appTypes.isEmpty())
+		if ((appTypes = this.appCoordinator.getAppRequestTypes()) == null
+				|| appTypes.isEmpty())
 			return null;
 		try {
 			int myPort = (this.nodeConfig.getNodePort(getMyID()));
 			if (getClientFacingPort(myPort) != myPort) {
 				log.log(Level.INFO,
 						"{0} creating client messenger at {1}:{2}",
-						new Object[] {this,
+						new Object[] { this,
 								this.nodeConfig.getBindAddress(getMyID()),
 								getClientFacingPort(myPort) });
 
 				if (this.messenger.getClientMessenger() == null
 						|| this.messenger.getClientMessenger() != this.messenger) {
 					MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
-					InetSocketAddress isa = new InetSocketAddress(this.nodeConfig
-							.getBindAddress(getMyID()), getClientFacingPort(myPort));
-					cMsgr = new JSONMessenger<InetSocketAddress>(niot =
-							new MessageNIOTransport<InetSocketAddress, JSONObject>(
-									isa.getAddress(), isa.getPort(),
+					InetSocketAddress isa = new InetSocketAddress(
+							this.nodeConfig.getBindAddress(getMyID()),
+							getClientFacingPort(myPort));
+					cMsgr = new JSONMessenger<InetSocketAddress>(
+							niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
+									isa.getAddress(),
+									isa.getPort(),
 									/*
 									 * Client facing demultiplexer is single
 									 * threaded to keep clients from
@@ -794,10 +881,11 @@ public class ActiveReplica<NodeIDType> implements
 									(pd = new ReconfigurationPacketDemultiplexer(
 											0)), ReconfigurationConfig
 											.getClientSSLMode()));
-					if(!niot.getListeningSocketAddress().equals(isa))
-						throw new IOException("Unable to listen on specified client facing socket address " + isa);
-				}
-				else if (this.messenger.getClientMessenger() instanceof Messenger)
+					if (!niot.getListeningSocketAddress().equals(isa))
+						throw new IOException(
+								"Unable to listen on specified client facing socket address "
+										+ isa);
+				} else if (this.messenger.getClientMessenger() instanceof Messenger)
 					((Messenger<NodeIDType, ?>) this.messenger
 							.getClientMessenger())
 							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
@@ -838,6 +926,7 @@ public class ActiveReplica<NodeIDType> implements
 
 	@Override
 	public void preExecuted(Request request) {
-		//throw new RuntimeException("This method should not have gotten called");
+		// throw new
+		// RuntimeException("This method should not have gotten called");
 	}
 }

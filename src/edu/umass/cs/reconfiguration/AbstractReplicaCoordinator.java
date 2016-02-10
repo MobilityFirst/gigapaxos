@@ -222,7 +222,9 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	}
 
 	public Request getRequest(String stringified) throws RequestParseException {
-		return this.app.getRequest(stringified);
+		return this.app
+				.getRequest(this.getRequestCallback != null ? this.getRequestCallback
+						.getRequest(stringified) : stringified);
 	}
 
 	/**
@@ -269,6 +271,17 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	@Override
 	public boolean restore(String name, String state) {
 		return app.restore(name, state);
+	}
+	
+	protected interface GetRequestCallback<NodeIDType> {
+		public String getRequest(String stringified);
+	}
+	
+	private GetRequestCallback<NodeIDType> getRequestCallback = null;
+
+	protected AbstractReplicaCoordinator<NodeIDType> setGetRequestCallback(GetRequestCallback<NodeIDType> grc) {
+		this.getRequestCallback = grc;
+		return this;
 	}
 
 	/*********************** Start of private helper methods **********************/

@@ -8,7 +8,7 @@ java -ea -Xms4096M -cp .:./build/classes/:./lib/*:./dist/* -Djava.util.logging.c
 
 java -ea -Xms4096M -cp .:./build/classes/:./lib/*:./dist/* edu.umass.cs.gigapaxos.PaxosServer AR0 AR1 AR2 2>/tmp/run1;
 
-java -cp .:./build/classes -Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.keyStore=node100.jks -Djavax.net.ssl.trustStorePassword=qwerty -Djavax.net.ssl.trustStore=node101.jks  edu.umass.cs.nio.SSLNIOTester 100
+java -ea -cp .:./build/classes -Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.keyStore=conf/keyStore/node100.jks -Djavax.net.ssl.trustStorePassword=qwerty -Djavax.net.ssl.trustStore=conf/keyStore/node101.jks edu.umass.cs.nio.nioutils.SSLNIOTester 101
 
 -Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.keyStore=conf/keyStore/node100.jks -Djavax.net.ssl.trustStorePassword=qwerty -Djavax.net.ssl.trustStore=conf/trustStore/node100.jks
 
