@@ -87,20 +87,23 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
 			throws IOException {
+                Reconfigurator.getLogger().info(
+				this + " ssl mode " + sslMode);
+                Reconfigurator.getLogger().info(
+				this + " client port offset " + clientPortOffset);
 		this.niot = (new MessageNIOTransport<String, String>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
 				// This will be set in the gigapaxos.properties file that we
 				// invoke the client using.
-				SSLDataProcessingWorker.SSL_MODES.valueOf(Config.getGlobal(
-						ReconfigurationConfig.RC.CLIENT_SSL_MODE).toString())));
+				sslMode));
 		Reconfigurator.getLogger().info(
 				this + " listening on " + niot.getListeningSocketAddress());
-		this.reconfigurators = (SSLDataProcessingWorker.SSL_MODES.valueOf(
-				Config.getGlobal(ReconfigurationConfig.RC.CLIENT_SSL_MODE)
-						.toString()).equals(
-				SSLDataProcessingWorker.SSL_MODES.CLEAR) ? reconfigurators
-				.toArray(new InetSocketAddress[0]) : ReconfigurationConfig
-				.offsetSocketAddresses(reconfigurators, clientPortOffset));
+		this.reconfigurators = (sslMode.equals(SSLDataProcessingWorker.SSL_MODES.CLEAR) 
+                                ? reconfigurators.toArray(new InetSocketAddress[0]) 
+                                : ReconfigurationConfig.offsetSocketAddresses(reconfigurators, 
+                                        clientPortOffset));
+                Reconfigurator.getLogger().info(
+				this + " reconfigurators " + Arrays.toString(this.reconfigurators));
 	}
 
 	/**
@@ -315,8 +318,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private void sendRequest(ClientReconfigurationPacket request)
 			throws IOException {
-		this.niot.sendToAddress(getRandom(this.reconfigurators),
-				request.toString());
+                InetSocketAddress dest = getRandom(this.reconfigurators);
+                Reconfigurator.getLogger().info(this + " sending request to " + dest + ": " + request.toString());
+		this.niot.sendToAddress(dest, request.toString());
 	}
 
 	private InetSocketAddress getRandom(InetSocketAddress[] isas) {
@@ -407,10 +411,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		Long lastQueriedTime = this.lastQueriedActives.get(name);
 		if (lastQueriedTime == null)
 			lastQueriedTime = 0L;
+                Reconfigurator.getLogger().info(this + " last quiried time for " 
+                        + name + " is " + lastQueriedTime);
 		if (System.currentTimeMillis() - lastQueriedTime > MIN_RTX_INTERVAL
 				|| forceRefresh) {
 			if (forceRefresh)
 				this.activeReplicas.remove(name);
+                        Reconfigurator.getLogger().info(this + " sending actives request for " + name);
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
 		}
