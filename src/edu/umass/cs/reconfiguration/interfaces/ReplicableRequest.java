@@ -18,12 +18,13 @@
 package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 
 /**
  * @author V. Arun
  */
-public interface ReplicableRequest extends Request {
+public interface ReplicableRequest extends Request, RequestIdentifier {
 	
 	/**
 	 * @return True if this request needs to be coordinated.
@@ -51,7 +52,17 @@ public interface ReplicableRequest extends Request {
 	 * FIXME: Change this method's definition to just
 	 * {@code setDoesNotNeedCoordination()} without an explicit argument.
 	 * 
+	 * FIXME: This method is deprecated, unnecessary, and should just be
+	 * removed. It's original purpose was to be able to easily do lazy
+	 * propogation replica coordination without introducing an additional
+	 * type (just to distinguish between the original request at the 
+	 * entry replica and the replicated request so as to avoid an infinite
+	 * propagation loop), but introducing an additional type is the 
+	 * clean way to do this. Paxos for example already has its own types,
+	 * so it doesn't need this method.
+	 * 
 	 * @param b
 	 */
+	//@Deprecated
 	public void setNeedsCoordination(boolean b);
 }

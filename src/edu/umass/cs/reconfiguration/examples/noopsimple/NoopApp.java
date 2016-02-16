@@ -49,7 +49,8 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 
 	private static final String DEFAULT_INIT_STATE = "";
 	// total number of reconfigurations across all records
-	int numReconfigurationsSinceRecovery = -1;
+	private int numReconfigurationsSinceRecovery = -1;
+	private boolean verbose=false;
 
 	private class AppData {
 		final String name;
@@ -124,7 +125,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		assert (data != null);
 		data.setState(request.getValue());
 		this.appData.put(request.getServiceName(), data);
-		System.out.println("App-" + myID + " wrote to " + data.name
+		if(verbose) System.out.println("App-" + myID + " wrote to " + data.name
 				+ " with state " + data.getState());
 		if (DELEGATE_RESPONSE_MESSAGING)
 			this.sendResponse(request);
@@ -242,12 +243,13 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 
 		if (data == null && state != null) {
 			data = new AppData(name, state);
-			System.out.println(">>>App-" + myID + " creating " + name
+			if(verbose) System.out.println(">>>App-" + myID + " creating " + name
 					+ " with state " + state);
 			numReconfigurationsSinceRecovery++;
 		} else if (state == null) {
 			if (data != null)
-				System.out.println("App-" + myID + " deleting " + name
+				if (verbose)
+					System.out.println("App-" + myID + " deleting " + name
 						+ " with final state " + data.state);
 			this.appData.remove(name);
 			assert (this.appData.get(name) == null);

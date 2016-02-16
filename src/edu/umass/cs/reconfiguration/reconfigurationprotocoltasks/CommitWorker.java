@@ -29,6 +29,7 @@ import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.RepliconfigurableReconfiguratorDB;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
 import edu.umass.cs.utils.Config;
@@ -74,8 +75,11 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	public synchronized boolean enqueueForExecution(
 			RCRecordRequest<NodeIDType> request) {
 		boolean enqueued = false;
-		if (!this.checkIfObviated(request))
+		if (!this.checkIfObviated(request)) {
+			log.log(Level.FINEST, "{0} enqueueing request {1}", new Object[] {
+					this, request.getSummary() });
 			enqueued = this.pending.add(request);
+		}
 		log.log(Util.oneIn(10) ? Level.INFO : Level.FINE,
 				"{0} pendingQSize = {1}; executedQSize = {2}\n {3}\n {4}",
 				new Object[] { this, this.pending.size(), this.executed.size(),
@@ -107,8 +111,12 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	// need to implement equals() for RCRecordRequest
 	public synchronized boolean executedCallback(
 			RCRecordRequest<NodeIDType> request) {
+		log.log(Level.FINEST, "{0} executed request {1}", new Object[] { this,
+				request.getSummary(Level.FINEST) });
 		// knock off exact match or lower in pending
 		boolean equalRemovedFromPending = this.pending.remove(request);
+		log.log(Level.FINEST, "{0} exact-matched and removed pending task {1}",
+				new Object[] { this, request.getSummary(Level.FINEST) });
 		this.lastAttempts.remove(request);
 		this.knockOffLower(request, this.pending, true);
 
@@ -182,9 +190,13 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	private boolean knockOffLower(RCRecordRequest<NodeIDType> request,
 			Set<RCRecordRequest<NodeIDType>> set, boolean isPending) {
 		boolean lowerRemoved = false;
+		RCRecordRequest<NodeIDType> lower = null;
 		for (Iterator<RCRecordRequest<NodeIDType>> reqIter = set.iterator(); reqIter
 				.hasNext();)
-			if (reqIter.next().lessThan(request) && (lowerRemoved = true)) {
+			if ((lower = reqIter.next()).lessThan(request)
+					&& (lowerRemoved = true)) {
+				log.log(Level.FINEST, "{0} knocked off lower request {1}",
+						new Object[] { this, lower.getSummary(Level.FINEST) });
 				reqIter.remove();
 				if (isPending)
 					this.lastAttempts.remove(request);
@@ -243,6 +255,8 @@ public class CommitWorker<NodeIDType> implements Runnable {
 			head = head == null ? request : head;
 			// try coordinate and set last attempted timestamp
 			if (repeatable(request)) {
+				log.log(Level.FINEST, "{0} coordinating request {1}",
+						new Object[] { this, request.getSummary(Level.FINEST) });
 				this.coordinate(request);
 				this.lastAttempts.put(request, System.currentTimeMillis());
 				oldestAttempt = Math.min(oldestAttempt,
@@ -259,7 +273,7 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	 */
 	public boolean coordinate(RCRecordRequest<NodeIDType> request) {
 		try {
-			return this.coordinator.coordinateRequest(request);
+			return this.coordinator.coordinateRequest(request, callback);
 		} catch (Exception e) {
 			e.printStackTrace();
 			// continue
@@ -322,14 +336,17 @@ public class CommitWorker<NodeIDType> implements Runnable {
 			.getGlobalLong(ReconfigurationConfig.RC.COMMIT_WORKER_RESTART_PERIOD);
 
 	private final AbstractReplicaCoordinator<?> coordinator;
+	private final ReconfiguratorCallback callback;
 
 	private static final Logger log = (Reconfigurator.getLogger());
 
 	/**
 	 * @param coordinator
+	 * @param callback 
 	 */
-	public CommitWorker(AbstractReplicaCoordinator<?> coordinator) {
+	public CommitWorker(AbstractReplicaCoordinator<?> coordinator, ReconfiguratorCallback callback) {
 		this.coordinator = coordinator;
+		this.callback = callback;
 		(new Thread(this)).start();
 	}
 

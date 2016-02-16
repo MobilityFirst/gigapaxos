@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Set;
 
 import edu.umass.cs.gigapaxos.interfaces.Application;
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
@@ -35,12 +36,13 @@ public interface ReplicaCoordinator<NodeIDType> {
 	 * handle the request.
 	 * 
 	 * @param request
+	 * @param callback 
 	 * @return False if coordinated, else the result of local
 	 *         {@link Application#execute} invocation.
 	 * @throws IOException
 	 * @throws RequestParseException
 	 */
-	public boolean coordinateRequest(Request request)
+	public boolean coordinateRequest(Request request, ExecutedCallback callback)
 			throws IOException, RequestParseException;
 
 	/**

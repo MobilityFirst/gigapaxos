@@ -1,18 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
- * 
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  */
 package edu.umass.cs.utils;
 
@@ -55,9 +54,11 @@ public class Util {
 	public static final String ms(double d) {
 		return decimalFormat.format(d) + "ms";
 	} // milli to microseconds
+
 	public static final String mu(double d) {
 		return decimalFormat.format(d * 1000) + "us";
 	} // milli to microseconds
+
 	public static final String nmu(double d) {
 		return decimalFormat.format(d / 1000.0) + "us";
 	} // milli to microseconds
@@ -119,7 +120,7 @@ public class Util {
 		}
 		return set;
 	}
-	
+
 	public static int[] filter(int[] array, int member) {
 		for (int a : array)
 			if (a == member) {
@@ -281,11 +282,11 @@ public class Util {
 		}
 		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
 	}
-	
+
 	public static InetAddress getInetAddressFromString(String s)
 			throws UnknownHostException {
-		return InetAddress.getByName(s.replaceAll(".*/", "").replaceAll(":.*", "").replaceAll(
-				"[^0-9.]*", ""));
+		return InetAddress.getByName(s.replaceAll(".*/", "")
+				.replaceAll(":.*", "").replaceAll("[^0-9.]*", ""));
 	}
 
 	public static String toJSONString(Collection<?> collection) {
@@ -348,29 +349,28 @@ public class Util {
 			@Override
 			public String toString() {
 				return str == null || str.length() < size ? str
-						: str != null ? str.substring(0, prefixSize)
-								+ "[...]"
+						: str != null ? str.substring(0, prefixSize) + "[...]"
 								+ str.substring(str.length() - suffixSize)
 								: null;
 			}
 		};
 	}
-	
-	public static byte[] getAlphanumericAsBytes()  {
+
+	public static byte[] getAlphanumericAsBytes() {
 		int low = '0', high = 'z';
 		byte[] bytes = new byte[high - low + 1];
 		for (int i = 0; i < bytes.length; i++)
 			bytes[i] = (byte) (low + i);
 		return bytes;
 	}
+
 	public static byte[] getRandomAlphanumericBytes() {
 		byte[] an = Util.getAlphanumericAsBytes();
 		byte[] msg = new byte[1024];
-		for(int i=0; i<msg.length; i++) 
-			msg[i] = an[(int)(Math.random()*an.length)];
+		for (int i = 0; i < msg.length; i++)
+			msg[i] = an[(int) (Math.random() * an.length)];
 		return msg;
 	}
-
 
 	private static Collection<?> truncate(Collection<?> list, int size) {
 		if (list.size() <= size)
@@ -457,18 +457,19 @@ public class Util {
 			throws UnsupportedEncodingException {
 		return Util.bytesToLong(str.getBytes(CHARSET));
 	}
-	
+
 	public static long toLong(Object obj) {
-		if(obj instanceof Long) return (long)obj;
-		return (int)obj;
+		if (obj instanceof Long)
+			return (long) obj;
+		return (int) obj;
 	}
-        
+
 	public static Set<Integer> toIntSet(int i) {
 		Set<Integer> set = new HashSet<Integer>();
 		set.add(i);
 		return set;
 	}
-        
+
 	// TEST CODE
 
 	private static void testGetInetSocketAddressFromString() {
@@ -508,6 +509,35 @@ public class Util {
 			assert (Util.encodedStringToInetSocketAddress(Util
 					.sockAddrToEncodedString(sockAddr)).equals(sockAddr));
 		}
+	}
+
+	public static Object getRandomOtherThan(Set<?> all, Set<?> exclude) {
+		Object[] allArray = all.toArray();
+		int index = -1;
+		if (exclude.containsAll(all))
+			return null;
+		while (exclude
+				.contains(allArray[index = (int) (Math.random() * allArray.length)]))
+			;
+		return allArray[index];
+	}
+	public static InetSocketAddress offsetPort(InetSocketAddress isa, int offset) {
+		return new InetSocketAddress(isa.getAddress(), isa.getPort() + offset);
+	}
+	
+	public static Set<?> removeFromSetCopy(Set<?> set, Object element) {
+		if (set != null && element != null) {
+			Set<?> copy = new HashSet<>(set);
+			copy.remove(element);
+			return copy;
+		}
+		return set;
+	}
+
+	public static Set<?> removeFromSet(Set<?> set, Object element) {
+		if(set!=null && element!=null) 
+			set.remove(element);
+		return set;
 	}
 
 	public static void main(String[] args) throws UnsupportedEncodingException,

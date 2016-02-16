@@ -125,7 +125,7 @@ public class NoopApp implements Replicable, Reconfigurable,
 		data.setState(request.getValue());
 		this.appData.put(request.getServiceName(), data);
 		System.out.println("App-" + myID + " wrote " + data.name
-				+ " with state " + data.getState() + " from " + request.getClientAddress());
+				+ " with state " + data.getState());
 		if (DELEGATE_RESPONSE_MESSAGING)
 			this.sendResponse(request);
 		else

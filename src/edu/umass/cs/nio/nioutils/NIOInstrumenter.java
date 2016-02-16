@@ -24,7 +24,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.nio.JSONMessenger;
-import edu.umass.cs.reconfiguration.testing.ReconfigurableClient;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -50,9 +49,6 @@ public class NIOInstrumenter {
 	private static boolean enabled = true;
 	
 	private static Set<Integer> excludePorts = new HashSet<Integer>();
-	static {
-		excludePorts.add(ReconfigurableClient.TEST_PORT);
-	}
 
 	public static synchronized void incrSent() {
 		totalSent++;

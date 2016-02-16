@@ -17,6 +17,8 @@
  */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
+import java.util.logging.Level;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -24,6 +26,7 @@ import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
+import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 
@@ -41,7 +44,7 @@ public class RCRecordRequest<NodeIDType> extends
 		ReplicableRequest, ReconfigurableRequest, SummarizableRequest {
 
 	private static enum Keys {
-		REQUEST_TYPE, START_EPOCH
+		REQUEST_TYPE, START_EPOCH, QID
 	};
 
 	/**
@@ -87,6 +90,7 @@ public class RCRecordRequest<NodeIDType> extends
 	 * The start epoch request that started this reconfiguration.
 	 */
 	public final StartEpoch<NodeIDType> startEpoch;
+	private final long requestID;
 	private boolean coordType = true;
 
 	/**
@@ -100,6 +104,7 @@ public class RCRecordRequest<NodeIDType> extends
 				startEpoch.getServiceName(), startEpoch.getEpochNumber());
 		this.reqType = reqType;
 		this.startEpoch = startEpoch;
+		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 
 	/**
@@ -116,6 +121,8 @@ public class RCRecordRequest<NodeIDType> extends
 		this.startEpoch = json.has(Keys.START_EPOCH.toString()) ? new StartEpoch<NodeIDType>(
 				(JSONObject) json.get(Keys.START_EPOCH.toString()), unstringer)
 				: null;
+		this.requestID = json.getLong(Keys.QID.toString());
+
 	}
 
 	@Override
@@ -127,6 +134,7 @@ public class RCRecordRequest<NodeIDType> extends
 		if (this.startEpoch != null)
 			json.put(Keys.START_EPOCH.toString(),
 					this.startEpoch.toJSONObject());
+		json.put(Keys.QID.toString(), this.requestID);
 		return json;
 	}
 
@@ -177,7 +185,7 @@ public class RCRecordRequest<NodeIDType> extends
 
 	public boolean isNodeConfigChange() {
 		return this.getServiceName().equals(
-				AbstractReconfiguratorDB.RecordNames.NODE_CONFIG.toString());
+				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString());
 	}
 
 	public RequestTypes getRCRequestType() {
@@ -203,6 +211,11 @@ public class RCRecordRequest<NodeIDType> extends
 				+ (this.startEpoch.isSplitOrMerge() ? ":"
 						+ this.startEpoch.getPrevGroupName() + ":"
 						+ this.startEpoch.getPrevEpochNumber() : "");
+	}
+	public String getSummary(Level level) {
+		if(Reconfigurator.getLogger().isLoggable(level))
+			return this.getSummary();
+		else return null;
 	}
 
 	/*
@@ -232,7 +245,21 @@ public class RCRecordRequest<NodeIDType> extends
 
 	public boolean lessThan(RCRecordRequest<NodeIDType> req2) {
 		return this.getServiceName().equals(req2.getServiceName())
-				&& this.getEpochNumber() - req2.getEpochNumber() < 0;
+				&& (this.getEpochNumber() - req2.getEpochNumber() < 0 || (this
+						.getEpochNumber() == req2.getEpochNumber()
+						&& this.getRCRequestType().equals(
+								RequestTypes.RECONFIGURATION_INTENT) && !req2
+						.getRCRequestType().equals(
+								RequestTypes.RECONFIGURATION_INTENT)));
+	}
+
+	@Override
+	public long getRequestID() {
+		return this.requestID;
+	}
+
+	public boolean isActiveNodeConfigChange() {
+		return this.getServiceName().equals(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG.toString());
 	}
 
 }

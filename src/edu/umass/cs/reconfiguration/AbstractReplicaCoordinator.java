@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -73,13 +74,22 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	private boolean largeCheckpoints = false;
 	protected Messenger<NodeIDType, ?> messenger;
 
-	/********************* Start of abstract methods **********************************************/
+	/*********************
+	 * Start of abstract methods
+	 * 
+	 * @param request
+	 * @param callback
+	 * @return Success of coordination.
+	 * @throws IOException
+	 * @throws RequestParseException
+	 **********************************************/
 	/*
 	 * This method performs whatever replica coordination action is necessary to
 	 * handle the request.
 	 */
-	public abstract boolean coordinateRequest(Request request)
-			throws IOException, RequestParseException;
+	public abstract boolean coordinateRequest(Request request,
+			ExecutedCallback callback) throws IOException,
+			RequestParseException;
 
 	/*
 	 * This method should return true if the replica group is successfully
@@ -142,8 +152,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 			ReconfiguratorCallback callback) {
 		/**
 		 * The correctness of Reconfigurator relies on the following as
-		 * Reconfigurator sets the callback before
-		 * its getReconfigurableReconfiguratorAsActiveReplica.
+		 * Reconfigurator sets the callback before its
+		 * getReconfigurableReconfiguratorAsActiveReplica.
 		 */
 		if (this.callback == null)
 			this.callback = callback;
@@ -167,13 +177,13 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * @return True if coordinated successfully or handled successfully
 	 *         (locally), false otherwise.
 	 */
-	public boolean handleIncoming(Request request) {
+	protected boolean handleIncoming(Request request, ExecutedCallback callback) {
 		boolean handled = false;
 		if (needsCoordination(request)) {
 			try {
 				if (request instanceof ReplicableRequest)
 					((ReplicableRequest) request).setNeedsCoordination(false);
-				handled = coordinateRequest(request);
+				handled = coordinateRequest(request, callback);
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
 			} catch (RequestParseException rpe) {
@@ -222,9 +232,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	}
 
 	public Request getRequest(String stringified) throws RequestParseException {
-		return this.app
-				.getRequest(this.getRequestCallback != null ? this.getRequestCallback
-						.getRequest(stringified) : stringified);
+		return this.app.getRequest(stringified);
 	}
 
 	/**
@@ -272,28 +280,24 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public boolean restore(String name, String state) {
 		return app.restore(name, state);
 	}
-	
-	protected interface GetRequestCallback<NodeIDType> {
-		public String getRequest(String stringified);
-	}
-	
-	private GetRequestCallback<NodeIDType> getRequestCallback = null;
 
-	protected AbstractReplicaCoordinator<NodeIDType> setGetRequestCallback(GetRequestCallback<NodeIDType> grc) {
-		this.getRequestCallback = grc;
-		return this;
-	}
-
-	/*********************** Start of private helper methods **********************/
-	// Call back active replica for stop requests, else call default callback
-	private void callCallback(Request request, boolean handled) {
+	/*
+	 * Call back active replica for stop requests, else call default callback.
+	 * Should really be private, but sometimes we may need to trigger a callback
+	 * for an older request.
+	 */
+	protected void callCallback(Request request, boolean handled) {
 		if (this.stopCallback != null
 				&& request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop()) {
+			// no longer used (by ActiveReplica)
 			this.stopCallback.executed(request, handled);
 		} else if (this.callback != null)
+			// used by reconfigurator
 			this.callback.executed(request, handled);
 	}
+
+	/*********************** Start of private helper methods **********************/
 
 	private boolean needsCoordination(Request request) {
 		if (request instanceof ReplicableRequest

@@ -20,6 +20,7 @@ package edu.umass.cs.reconfiguration.reconfigurationpackets;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
@@ -28,9 +29,8 @@ import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 @author V. Arun
  * @param <NodeIDType> 
  */
-public class AckStartEpoch<NodeIDType> extends BasicReconfigurationPacket<NodeIDType> implements ReplicableRequest{
+public class AckStartEpoch<NodeIDType> extends BasicReconfigurationPacket<NodeIDType> implements Request {
 
-	private boolean coordType = false;
 	/**
 	 * @param initiator
 	 * @param serviceName
@@ -50,14 +50,7 @@ public class AckStartEpoch<NodeIDType> extends BasicReconfigurationPacket<NodeID
 	public AckStartEpoch(JSONObject json, Stringifiable<NodeIDType> unstringer) throws JSONException {
 		super(json, unstringer);
 	}
-	@Override
-	public boolean needsCoordination() {
-		return coordType;
-	}
-	@Override
-	public void setNeedsCoordination(boolean b) {
-		coordType = b;
-	}
+
 	@Override
 	public IntegerPacketType getRequestType() {
 		return this.getType();

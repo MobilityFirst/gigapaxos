@@ -317,11 +317,10 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 */
 	public static InetSocketAddress getReceiverAddress(JSONObject json) {
 		try {
-			InetAddress address = (json
-					.has(MessageNIOTransport.RCVR_IP_FIELD) ? InetAddress
-					.getByName(json.getString(
-							MessageNIOTransport.RCVR_IP_FIELD).replaceAll(
-							"[^0-9.]*", "")) : null);
+			InetAddress address = (json.has(MessageNIOTransport.RCVR_IP_FIELD) ? Util
+					.getInetAddressFromString(json
+							.getString(MessageNIOTransport.RCVR_IP_FIELD))
+					: null);
 			int port = (json.has(MessageNIOTransport.RCVR_PORT_FIELD) ? json
 					.getInt(MessageNIOTransport.RCVR_PORT_FIELD) : -1);
 			if (address != null && port > 0) {

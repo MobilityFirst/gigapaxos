@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,8 +51,8 @@ import edu.umass.cs.utils.Config;
  */
 public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		ConsistentNodeConfig<NodeIDType> implements
-		ModifiableActiveConfig<NodeIDType>,
-		ModifiableRCConfig<NodeIDType>, InterfaceGetActiveIPs {
+		ModifiableActiveConfig<NodeIDType>, ModifiableRCConfig<NodeIDType>,
+		InterfaceGetActiveIPs {
 	private final SimpleReconfiguratorNodeConfig<NodeIDType> nodeConfig;
 	private Set<NodeIDType> activeReplicas; // most recent cached copy
 	private Set<NodeIDType> reconfigurators; // most recent cached copy
@@ -71,6 +72,7 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	 * maintained until explicitly told to garbage collect them.
 	 */
 	private Set<NodeIDType> reconfiguratorsSlatedForRemoval = new HashSet<NodeIDType>();
+	private Set<NodeIDType> activesSlatedForRemoval = new HashSet<NodeIDType>();
 
 	/**
 	 * @param nc
@@ -231,6 +233,8 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		}
 		// assign any node to unassigned addresses
 		for (NodeIDType node : this.nodeConfig.getActiveReplicas()) {
+			if (this.activesSlatedForRemoval.contains(node))
+				continue;
 			InetAddress address = this.nodeConfig.getNodeAddress(node);
 			if (unassigned.contains(address)) {
 				newNodes.add(node);
@@ -254,6 +258,8 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	// refresh consistent hash structure if changed
 	private synchronized boolean refreshActives() {
 		Set<NodeIDType> curActives = this.nodeConfig.getActiveReplicas();
+		// remove those slated for removal for CH ring purposes
+		curActives.removeAll(this.activesSlatedForRemoval);
 		if (curActives.equals(this.getLastActives()))
 			return false;
 		this.setLastActives(curActives);
@@ -331,6 +337,10 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		return this.nodeConfig.removeReconfigurator(id);
 	}
 
+	private InetSocketAddress removeActive(NodeIDType id) {
+		return this.nodeConfig.removeActiveReplica(id);
+	}
+
 	/**
 	 * A utility method to split a collection of names into batches wherein
 	 * names in each batch map to the same reconfigurator group. The set of
@@ -358,7 +368,7 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		}
 		return batches.values();
 	}
-	
+
 	/**
 	 * @param names
 	 * @return True if all names map to the same reconfigurator group.
@@ -383,15 +393,46 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	}
 
 	/**
+	 * @param id
+	 * @return IP address of id being slated for removal.
+	 */
+	public InetSocketAddress slateForRemovalActive(NodeIDType id) {
+		this.activesSlatedForRemoval.add(id);
+		return this.getNodeSocketAddress(id);
+	}
+
+	/**
 	 * @return True if all nodes slated for removal have been successfully
 	 *         removed.
 	 */
-	public boolean removeSlatedForRemoval() {
-		boolean removed = false;
-		for (NodeIDType slated : this.reconfiguratorsSlatedForRemoval) {
-			removed = removed || (this.removeReconfigurator(slated) != null);
+	public boolean removeReconfiguratorsSlatedForRemoval() {
+		boolean allRemoved = true;
+		for (Iterator<NodeIDType> nodeIter = this.reconfiguratorsSlatedForRemoval
+				.iterator(); nodeIter.hasNext();) {
+			NodeIDType slated = nodeIter.next();
+			if (this.removeReconfigurator(slated) != null)
+				nodeIter.remove();
+			else
+				allRemoved = false;
 		}
-		return removed;
+		return allRemoved;
+	}
+
+	/**
+	 * @return True if all nodes slated for removal have been successfully
+	 *         removed.
+	 */
+	public boolean removeActivesSlatedForRemoval() {
+		boolean allRemoved = true;
+		for (Iterator<NodeIDType> nodeIter = this.activesSlatedForRemoval
+				.iterator(); nodeIter.hasNext();) {
+			NodeIDType slated = nodeIter.next();
+			if (this.removeActive(slated) != null)
+				nodeIter.remove();
+			else
+				allRemoved = false;
+		}
+		return allRemoved;
 	}
 
 	@Override
@@ -412,9 +453,14 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 
 	public String toString() {
 		String s = "";
-		for (NodeIDType id : this.nodeConfig.getNodeIDs()) {
+		for (NodeIDType id : this.nodeConfig.getActiveReplicas()) {
 			s += id + ":" + this.getNodeSocketAddress(id) + " ";
 		}
+		s += "\n";
+		for (NodeIDType id : this.nodeConfig.getReconfigurators()) {
+			s += id + ":" + this.getNodeSocketAddress(id) + " ";
+		}
+
 		return s;
 	}
 }

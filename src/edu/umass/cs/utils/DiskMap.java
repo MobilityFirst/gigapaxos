@@ -733,7 +733,11 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 					copy.put(((Keyable<K>) value).getKey(), value);
 			}
 		} else
-			copy.putAll(m);
+			for (Object key : m.keySet().toArray()) {
+				V value = m.get(key);
+				if (value != null)
+					copy.put((K) key, m.get(key));
+			}
 
 		while (!copy.isEmpty()) {
 			Set<K> committed = null;

@@ -197,7 +197,7 @@ public class TESTPaxosMain {
 				.println("\n############### Testing with recovery ################\n");
 		TESTPaxosConfig.setCleanDB(false);
 		PaxosManager.startWithCleanDB(false);
-		// testPaxosAfterRecovery();
+		testPaxosAfterRecovery();
 	}
 
 	public static void main(String[] args) throws InterruptedException,

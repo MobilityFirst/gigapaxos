@@ -19,6 +19,7 @@ package edu.umass.cs.gigapaxos;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -836,7 +837,6 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		MessagingTask[] mtasks = new MessagingTask[2];
 		RequestInstrumenter.received(proposal, proposal.getForwarderID(),
 				this.getMyID());
-		assert(!this.isStopped());
 		if (PaxosCoordinator.exists(this.coordinator, this.paxosState.getBallot())) {
 			// multicast ACCEPT to all
 			AcceptPacket multicastAccept = null;
@@ -926,13 +926,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			assert (this.paxosState.getBallot().compareTo(pvalue.ballot) >= 0) : this
 					+ ":" + pvalue;
 
-		log.log(Level.FINE,
+		log.log(Level.INFO,
 				"{0} {1} {2} with {3}",
 				new Object[] {
 						this,
 						prepareReply.ballot.compareTo(prepare.ballot) > 0 ? "preempting"
 								: "acking", prepare.ballot,
-						prepareReply.getSummary(log.isLoggable(Level.FINE)) });
+						prepareReply.getSummary(log.isLoggable(Level.INFO)) });
 
 		MessagingTask mtask = prevBallot.compareTo(prepareReply.ballot) < 0 ?
 		// log only if not already logged (if my ballot got upgraded)
@@ -1616,7 +1616,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 */
 	protected static boolean execute(PaxosInstanceStateMachine pism,
 			PaxosManager<?> paxosManager, Replicable app,
-			RequestPacket decision, boolean doNotReplyToClient) {
+			RequestPacket decision, boolean recoveryMode) {
 
 		int myEntries = 0;
 		boolean shouldLog = instrument(5*getCPI(
@@ -1665,30 +1665,16 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							Request.NO_OP) && !(app instanceof TESTPaxosApp))
 							|| app.execute(request,
 							// do not reply if recovery or not entry replica
-									(doNotReplyToClient || (requestPacket
+									(recoveryMode || (requestPacket
 											.getEntryReplica() != paxosManager
 											.getMyID())));
-					paxosManager.executed(requestPacket);
+					paxosManager.executed(requestPacket, request, 
+							// send response if entry replica and !recovery
+							requestPacket.getEntryReplica() == paxosManager
+							.getMyID() && !recoveryMode);
 					assert (requestPacket.getEntryReplica() > 0) : requestPacket;
 					if(requestPacket.getEntryReplica()==paxosManager.getMyID()) myEntries++;
 
-					if (requestPacket.getEntryReplica() == paxosManager
-							.getMyID()
-							&& !doNotReplyToClient
-							// can be null if app returns null
-							&& request != null
-							&& request instanceof ClientRequest) {
-						RequestInstrumenter.remove(requestPacket.requestID);
-						ClientRequest clientRequest = ((ClientRequest) request);
-						ClientRequest response = clientRequest
-								.getResponse();
-						if (clientRequest.getClientAddress() != null
-								&& response != null) {
-							paxosManager.send(clientRequest.getClientAddress(),
-									response);
-						} 
-
-					}
 					// don't try any more if stopped
 					if (pism != null && pism.isStopped())
 						return true;
@@ -1714,7 +1700,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			} while (!executed && waitRetry(RETRY_TIMEOUT));
 		}
 		// decrease outstanding count double counting myEntry requests
-		if (!doNotReplyToClient)
+		if (!recoveryMode)
 			paxosManager
 					.decrNumOutstanding(decision.batchSize() + 1 + myEntries);
 		return true;

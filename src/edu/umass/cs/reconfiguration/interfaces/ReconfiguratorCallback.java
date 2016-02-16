@@ -17,6 +17,7 @@
  */
 package edu.umass.cs.reconfiguration.interfaces;
 
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 
 /**
@@ -27,12 +28,12 @@ import edu.umass.cs.gigapaxos.interfaces.Request;
  *         is not (yet) expected to be implemented by a third-party class like
  *         an instance of Application.
  */
-public interface ReconfiguratorCallback {
+public interface ReconfiguratorCallback extends ExecutedCallback {
 	/**
 	 * @param request
 	 * @param handled
 	 */
-	public void executed(Request request, boolean handled);
+	//public void executed(Request request, boolean handled);
 	/**
 	 * @param request
 	 */

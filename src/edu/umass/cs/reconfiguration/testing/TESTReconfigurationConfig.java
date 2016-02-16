@@ -70,7 +70,7 @@ public class TESTReconfigurationConfig {
 	static {
 		load();
 	}
-	
+
 	private static final String TESTING_CONFIG_FILE_KEY = "testingConfig";
 	private static final String DEFAULT_TESTING_CONFIG_FILE = "testing.properties";
 
@@ -78,76 +78,87 @@ public class TESTReconfigurationConfig {
 	 * Reconfiguration testing config parameters.
 	 */
 	public static enum TRC implements Config.DefaultValueEnum {
-		
+
 		/**
 		 * 
 		 */
-		NUM_RECONFIGURATORS (3),
-		
+		NUM_RECONFIGURATORS(3),
+
 		/**
 		 * 
 		 */
-		NUM_ACTIVES (3),
-		
+		NUM_ACTIVES(3),
+
 		/**
 		 * 
 		 */
-		AR_PREFIX ("AR"),
-		
+		AR_PREFIX("AR"),
+
 		/**
 		 * 
 		 */
-		RC_PREFIX ("RC"),
-		
+		RC_PREFIX("RC"),
+
 		/**
 		 * 
 		 */
-		AR_START_PORT (2000),
-		
+		AR_START_PORT(2000),
+
 		/**
 		 * 
 		 */
-		RC_START_PORT (3000), 
-		
+		RC_START_PORT(3000),
+
 		/**
 		 * 
 		 */
-		NAME_PREFIX ("name"),
-		
+		NAME_PREFIX("name"),
+
 		/**
 		 * 
 		 */
-		TEST_CREATE_RATE (1000),
-		
+		TEST_CREATE_RATE(1000),
+
 		/**
 		 * 
 		 */
-		TEST_APP_REQUEST_RATE (50),
-		
+		TEST_APP_REQUEST_RATE(50),
+
 		/**
 		 * 
 		 */
-		TEST_NUM_APP_NAMES (100), 
+		TEST_NUM_APP_NAMES(1),
+
 		/**
 		 * 
 		 */
-		TEST_BATCH_SIZE(100), 
-		
+		TEST_RECONFIGURATION_THROUGHPUT_NUM_APP_NAMES(100),
+
+		/**
+		 * 
+		 */
+		TEST_BATCH_SIZE(100),
+
 		/**
 		 * 
 		 */
 		NUM_CLIENTS(1),
-		
+
 		/**
 		 * 
 		 */
-		TEST_RTX_TIMEOUT(1000), 
-		
+		TEST_RTX_TIMEOUT(1000),
+
 		/**
 		 * 
 		 */
-		TEST_NUM_REQUESTS_PER_NAME (10),
-		
+		TEST_NUM_REQUESTS_PER_NAME(10),
+
+		/**
+		 * 
+		 */
+		TEST_PORT(61000),
+
 		;
 
 		final Object defaultValue;
@@ -161,23 +172,23 @@ public class TESTReconfigurationConfig {
 			return this.defaultValue;
 		}
 	}
-	
+
 	/**
 	 * @return A map of names and socket addresses corresponding to servers
 	 *         hosting paxos replicas.
 	 */
 	protected static Map<String, InetSocketAddress> getLocalActives() {
 		Map<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
-		for (int i = 0; i < Config.getGlobalInt(TRC.NUM_ACTIVES); i++) 
+		for (int i = 0; i < Config.getGlobalInt(TRC.NUM_ACTIVES); i++)
 			map.put(Config.getGlobalString(TRC.AR_PREFIX) + i,
 					new InetSocketAddress("localhost", Config
 							.getGlobalInt(TRC.AR_START_PORT) + i));
 		return map;
 	}
-	
+
 	protected static Map<String, InetSocketAddress> getLocalReconfigurators() {
 		Map<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
-		for (int i = 0; i < Config.getGlobalInt(TRC.NUM_RECONFIGURATORS); i++) 
+		for (int i = 0; i < Config.getGlobalInt(TRC.NUM_RECONFIGURATORS); i++)
 			map.put(Config.getGlobalString(TRC.RC_PREFIX) + i,
 					new InetSocketAddress("localhost", Config
 							.getGlobalInt(TRC.RC_START_PORT) + i));
@@ -188,7 +199,7 @@ public class TESTReconfigurationConfig {
 	 * 
 	 */
 	public static final int MAX_NODE_ID = 10000;
-	
+
 	/**
 	 * to enable retransmission of requests by TESTPaxosClient
 	 */
@@ -198,10 +209,9 @@ public class TESTReconfigurationConfig {
 	 */
 	public static final long CLIENT_REQ_RTX_TIMEOUT = 8000;
 
-
-
 	private static boolean clean_db = Config
-			.getGlobalBoolean(PC.DISABLE_LOGGING) && !Config.getGlobalBoolean(PC.ENABLE_JOURNALING);
+			.getGlobalBoolean(PC.DISABLE_LOGGING)
+			&& !Config.getGlobalBoolean(PC.ENABLE_JOURNALING);
 
 	private static ArrayList<Object> failedNodes = new ArrayList<Object>();
 
@@ -219,14 +229,12 @@ public class TESTReconfigurationConfig {
 		return clean_db;
 	}
 
-	
 	/**
 	 * 
 	 */
 	public static final boolean PAXOS_MANAGER_UNIT_TEST = false;
 
 	/******************** End of distributed settings **************************/
-
 
 	/**
 	 * Cleans DB if -c command line arg is specified.
@@ -274,16 +282,18 @@ public class TESTReconfigurationConfig {
 	public static boolean isCrashed(Object nodeID) {
 		return TESTReconfigurationConfig.failedNodes.contains(nodeID);
 	}
-	
+
 	/**
 	 * @param level
 	 */
 	public static void setConsoleHandler(Level level) {
 		PaxosConfig.setConsoleHandler(level);
 	}
+
 	protected static void setConsoleHandler() {
 		setConsoleHandler(Level.INFO);
 	}
+
 	/**
 	 * @param args
 	 */

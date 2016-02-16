@@ -167,7 +167,7 @@ public class ReconfigurationConfig {
 		 * requests to be different because the TLS authentication mode for
 		 * client-server and server-server communication may be different.
 		 */
-		CLIENT_PORT_OFFSET(00),
+		CLIENT_PORT_OFFSET(100),
 		/**
 		 * True if deletes are completed based on probing all actives.
 		 * 

@@ -49,7 +49,7 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 		try {
 			return JSONPacket.getPacketType(json);
 		} catch (JSONException e) {
-			log.severe("Unable to decode JSON packet type for: " + json);
+			NIOTransport.getLogger().severe("Unable to decode JSON packet type for: " + json);
 			e.printStackTrace();
 		}
 		return null;

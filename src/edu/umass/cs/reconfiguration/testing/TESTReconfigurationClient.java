@@ -1,6 +1,7 @@
 package edu.umass.cs.reconfiguration.testing;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.HashMap;
@@ -12,11 +13,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.json.JSONException;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -32,7 +37,11 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureActiveNodeConfig;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
@@ -44,7 +53,7 @@ import edu.umass.cs.utils.DelayProfiler;
  *         This class is designed to test all client commands including
  *         creation, deletion, request actives, and app requests to names.
  */
-// @FixMethodOrder(org.junit.runners.MethodSorters.NAME_ASCENDING)
+@FixMethodOrder(org.junit.runners.MethodSorters.NAME_ASCENDING)
 public class TESTReconfigurationClient {
 
 	private static Logger log = Reconfigurator.getLogger();
@@ -316,6 +325,9 @@ public class TESTReconfigurationClient {
 
 		} while (!success[0]
 				&& (timeout == null || System.currentTimeMillis() - t < timeout));
+		if (!success[0])
+			log.log(Level.INFO, "testExists failed after {1}ms", new Object[] {
+					success[0], System.currentTimeMillis() - t });
 		return success[0];
 	}
 
@@ -396,7 +408,8 @@ public class TESTReconfigurationClient {
 	}
 
 	// sequentially tests deletes of names
-	private boolean testDeletes(String[] names) throws IOException {
+	private boolean testDeletes(String[] names) throws IOException,
+			InterruptedException {
 		boolean deleted = true;
 		for (String name : names)
 			deleted = deleted && this.testDelete(name);
@@ -404,12 +417,14 @@ public class TESTReconfigurationClient {
 		return deleted;
 	}
 
-	private boolean testDelete(String name) throws IOException {
+	private boolean testDelete(String name) throws IOException,
+			InterruptedException {
 		return testDelete(name, null);
 	}
 
 	// blocking delete until success or timeout of a single name
-	private boolean testDelete(String name, Long timeout) throws IOException {
+	private boolean testDelete(String name, Long timeout) throws IOException,
+			InterruptedException {
 		long t = System.currentTimeMillis();
 		if (timeout == null)
 			timeout = Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT);
@@ -424,13 +439,17 @@ public class TESTReconfigurationClient {
 						public void handleResponse(Request response) {
 							if (response instanceof DeleteServiceName) {
 								log.log(Level.INFO,
-										"{0} name {1} in {2}ms",
+										"{0} name {1} in {2}ms {3}",
 										new Object[] {
 												!((DeleteServiceName) response)
 														.isFailed() ? "Deleted"
 														: "Failed to delete",
 												name,
-												(System.currentTimeMillis() - t) });
+												(System.currentTimeMillis() - t),
+												((DeleteServiceName) response)
+														.isFailed() ? ((DeleteServiceName) response)
+														.getResponseMessage()
+														: "" });
 								success[0] = !((DeleteServiceName) response)
 										.isFailed();
 								monitorNotify(success);
@@ -438,6 +457,8 @@ public class TESTReconfigurationClient {
 						}
 					});
 			monitorWait(success, timeout);
+			if (!success[0])
+				Thread.sleep(Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT));
 		} while (!success[0]);
 		return success[0];
 	}
@@ -453,6 +474,82 @@ public class TESTReconfigurationClient {
 					e.printStackTrace();
 				}
 			}
+	}
+
+	private boolean testReconfigureReconfigurators(
+			Map<String, InetSocketAddress> newlyAddedRCs,
+			Set<String> deletedNodes, Long timeout) {
+		boolean[] success = new boolean[1];
+		long t = System.currentTimeMillis();
+
+		try {
+			this.getRandomClient().sendServerReconfigurationRequest(
+					new ReconfigureRCNodeConfig<String>(null, newlyAddedRCs,
+							deletedNodes), new RequestCallback() {
+
+						@Override
+						public void handleResponse(Request response) {
+							log.log(Level.INFO,
+									"{0} node config in {1}ms: {2} ",
+									new Object[] {
+											((ServerReconfigurationPacket<?>) response)
+													.isFailed() ? "Failed to reconfigure"
+													: "Successfully reconfigured",
+											(System.currentTimeMillis() - t),
+											((ServerReconfigurationPacket<?>) response)
+													.getSummary() });
+							if (response instanceof ReconfigureRCNodeConfig
+									&& !((ReconfigureRCNodeConfig<?>) response)
+											.isFailed()) {
+								success[0] = true;
+								monitorNotify(success);
+							} else
+								assert (false);
+						}
+					});
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		monitorWait(success, timeout);
+		return success[0];
+
+	}
+
+	private boolean testReconfigureActives(
+			Map<String, InetSocketAddress> newlyAddedActives,
+			Set<String> deletes, Long timeout) {
+		boolean[] success = new boolean[1];
+		long t = System.currentTimeMillis();
+
+		try {
+			this.getRandomClient().sendServerReconfigurationRequest(
+					new ReconfigureActiveNodeConfig<String>(null,
+							newlyAddedActives, deletes), new RequestCallback() {
+
+						@Override
+						public void handleResponse(Request response) {
+							log.log(Level.INFO,
+									"{0} node config in {1}ms: {2} ",
+									new Object[] {
+											((ServerReconfigurationPacket<?>) response)
+													.isFailed() ? "Failed to reconfigure"
+													: "Successfully reconfigured",
+											(System.currentTimeMillis() - t),
+											((ServerReconfigurationPacket<?>) response)
+													.getSummary() });
+							if (response instanceof ReconfigureActiveNodeConfig
+									&& !((ReconfigureActiveNodeConfig<?>) response)
+											.isFailed()) {
+								success[0] = true;
+								monitorNotify(success);
+							}
+						}
+					});
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		monitorWait(success, timeout);
+		return success[0];
 	}
 
 	/**
@@ -478,19 +575,9 @@ public class TESTReconfigurationClient {
 		return names;
 	}
 
-	/**
-	 * Tests creation, existence, app requests, deletion, and non-existence of a
-	 * set of names. Assumes that we start from a clean slate, i.e., none of the
-	 * randomly generated names exists before the test.
-	 * 
-	 * @throws IOException
-	 */
-	@Test
-	public void testBasic() throws IOException {
-		String[] names = generateRandomNames(Config
-				.getGlobalInt(TRC.TEST_NUM_APP_NAMES));
+	private boolean testBasic(String[] names) throws IOException,
+			NumberFormatException, InterruptedException {
 		DelayProfiler.clear();
-
 		boolean test = testNotExists(names)
 				&& testCreates(names)
 				&& testExists(names)
@@ -498,16 +585,59 @@ public class TESTReconfigurationClient {
 						Config.getGlobalInt(TRC.TEST_NUM_REQUESTS_PER_NAME))
 				&& testDeletes(names) && testNotExists(names);
 		log.info("testBasic: " + DelayProfiler.getStats());
-		Assert.assertEquals(test, true);
+		return test;
 	}
 
 	/**
-	 * Same as {@link #testBasic()} but with batch created names.
+	 * 
+	 */
+	@Rule
+	public TestName name = new TestName();
+
+	/**
+	 * 
+	 */
+	@Before
+	public void beforeTestMethod() {
+		System.out.print("\nTesting " + name.getMethodName() + "...");
+	}
+
+	/**
+	 * 
+	 */
+	@After
+	public void afterTestMethod() {
+		System.out.println(succeeded() ? "[success]" : "[FAILED]");
+	}
+
+	/**
+	 * Tests creation, existence, app requests, deletion, and non-existence of a
+	 * set of names. Assumes that we start from a clean slate, i.e., none of the
+	 * randomly generated names exists before the test.
 	 * 
 	 * @throws IOException
+	 * @throws InterruptedException
+	 * @throws NumberFormatException
 	 */
 	@Test
-	public void testBatchedBasic() throws IOException {
+	public void test01_Basic() throws IOException, NumberFormatException,
+			InterruptedException {
+		boolean test = (testBasic(generateRandomNames(Config
+				.getGlobalInt(TRC.TEST_NUM_APP_NAMES))));
+		Assert.assertEquals(test, true);
+		success();
+	}
+
+	/**
+	 * Same as {@link #test01_Basic()} but with batch created names.
+	 * 
+	 * @throws IOException
+	 * @throws InterruptedException
+	 * @throws NumberFormatException
+	 */
+	@Test
+	public void test02_BatchedBasic() throws IOException,
+			NumberFormatException, InterruptedException {
 		// test batched creates
 		String[] bNames = generateRandomNames(Config
 				.getGlobalInt(TRC.TEST_NUM_APP_NAMES));
@@ -520,6 +650,7 @@ public class TESTReconfigurationClient {
 				&& testDeletes(bNames) && testNotExists(bNames);
 		log.info("testBatchedBasic: " + DelayProfiler.getStats());
 		Assert.assertEquals(test, true);
+		success();
 	}
 
 	/**
@@ -527,11 +658,13 @@ public class TESTReconfigurationClient {
 	 * @throws InterruptedException
 	 */
 	@Test
-	public void testReconfigurationThroughput() throws IOException,
+	public void test03_ReconfigurationThroughput() throws IOException,
 			InterruptedException {
 		DelayProfiler.clear();
-		String[] names = generateRandomNames(Math.max(1,
-				Config.getGlobalInt(TRC.TEST_NUM_APP_NAMES)));
+		String[] names = generateRandomNames(Math
+				.max(Config
+						.getGlobalInt(TRC.TEST_RECONFIGURATION_THROUGHPUT_NUM_APP_NAMES),
+						Config.getGlobalInt(TRC.TEST_NUM_APP_NAMES)));
 		long t = System.currentTimeMillis();
 		int before = numReconfigurations;
 		Assert.assertEquals(
@@ -542,13 +675,128 @@ public class TESTReconfigurationClient {
 			Thread.sleep(1000);
 			DelayProfiler.updateValue("reconfiguration_rate", (delta * 1000)
 					/ (System.currentTimeMillis() - t));
-			System.out.println("testReconfigurationThroughput: "
+			System.out.println("\ntestReconfigurationThroughput: "
 					+ DelayProfiler.getStats());
-			log.info("testReconfigurationThroughput: "
+			log.info("testReconfigurationThroughput stats: "
 					+ DelayProfiler.getStats());
 		}
-		Assert.assertEquals(testDeletes(names) && testNotExists(names), true);
 		Thread.sleep(1000);
+		Assert.assertEquals(testDeletes(names) && testNotExists(names), true);
+		success();
+	}
+
+	/**
+	 * @throws IOException
+	 * @throws InterruptedException
+	 * 
+	 */
+	@Test
+	public void test21_DeleteActiveReplica() throws IOException,
+			InterruptedException {
+		String[] names = null;
+		boolean test = testCreates(names = generateRandomNames(Config
+				.getGlobalInt(TRC.TEST_NUM_APP_NAMES)));
+		Map<String, InetSocketAddress> actives = TESTReconfigurationConfig
+				.getLocalActives();
+		Map<String, InetSocketAddress> deletes = new HashMap<String, InetSocketAddress>();
+		deletes.put(actives.keySet().iterator().next(),
+				actives.get(actives.keySet().iterator().next()));
+		test = test
+				&& this.testReconfigureActives(null, deletes.keySet(), null)
+				&& this.testDeletes(names);
+		assert (test);
+		justDeletedActives.putAll(deletes);
+		;
+		Assert.assertEquals(test, true);
+		success();
+	}
+
+	/**
+	 * @throws IOException
+	 * @throws InterruptedException
+	 * 
+	 */
+	@Test
+	public void test22_AddActiveReplica() throws IOException,
+			InterruptedException {
+		Map<String, InetSocketAddress> newlyAddedActives = new HashMap<String, InetSocketAddress>();
+
+		newlyAddedActives.putAll(justDeletedActives);
+		boolean test = this.testReconfigureActives(newlyAddedActives, null,
+				null);
+		assert (test);
+		Assert.assertEquals(test, true);
+		justDeletedActives.clear();
+		Thread.sleep(1000);
+		success();
+	}
+
+	/**
+	 * @throws IOException
+	 */
+	@Test
+	public void test31_AddReconfigurator() throws IOException {
+		System.out.println("");
+		boolean test = testCreates(generateRandomNames(Config
+				.getGlobalInt(TRC.TEST_NUM_APP_NAMES)));
+		assert (test);
+		Map<String, InetSocketAddress> newlyAddedRCs = new HashMap<String, InetSocketAddress>();
+		newlyAddedRCs.put(
+				Config.getGlobalString(TRC.RC_PREFIX)
+						+ (int) (Math.random() * Short.MAX_VALUE),
+				new InetSocketAddress(InetAddress.getByName("localhost"),
+						Config.getGlobalInt(TRC.TEST_PORT)));
+		test = test
+				&& this.testReconfigureReconfigurators(newlyAddedRCs, null,
+						null);
+		assert (test);
+		justAddedRCs.putAll(newlyAddedRCs);
+		assert (!justAddedRCs.isEmpty());
+		Assert.assertEquals(test, true);
+		success();
+	}
+
+	/**
+	 * 
+	 */
+	@Test
+	public void test32_DeleteReconfigurator() {
+		System.out.println("");
+		assert (!justAddedRCs.isEmpty());
+		boolean test = this.testReconfigureReconfigurators(null,
+				justAddedRCs.keySet(), null);
+		assert (test);
+		justAddedRCs.clear();
+		Assert.assertEquals(test, true);
+		success();
+	}
+
+	private boolean testSuccess = false;
+
+	private void success() {
+		this.testSuccess = true;
+	}
+
+	private boolean succeeded() {
+		return this.testSuccess;
+	}
+
+	private static Map<String, InetSocketAddress> justAddedRCs = new HashMap<String, InetSocketAddress>();
+	private static Map<String, InetSocketAddress> justDeletedActives = new HashMap<String, InetSocketAddress>();
+
+	protected TESTReconfigurationClient allTests() throws InterruptedException {
+		try {
+			test01_Basic();
+			test02_BatchedBasic();
+			test03_ReconfigurationThroughput();
+			test21_DeleteActiveReplica();
+			test22_AddActiveReplica();
+			test31_AddReconfigurator();
+			test32_DeleteReconfigurator();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return this;
 	}
 
 	/**
@@ -569,17 +817,6 @@ public class TESTReconfigurationClient {
 		for (TESTReconfigurationClient client : allInstances)
 			client.close();
 		TESTReconfigurationMain.closeServers();
-	}
-
-	protected TESTReconfigurationClient allTests() throws InterruptedException {
-		try {
-			testBasic();
-			testBatchedBasic();
-			testReconfigurationThroughput();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return this;
 	}
 
 	/**

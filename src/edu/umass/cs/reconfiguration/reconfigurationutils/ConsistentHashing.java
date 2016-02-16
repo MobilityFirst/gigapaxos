@@ -46,7 +46,7 @@ import edu.umass.cs.utils.Util;
 public class ConsistentHashing<NodeIDType> {
 
 	static {
-		//PaxosConfig.load(ReconfigurationConfig.RC.class);
+		PaxosConfig.load(ReconfigurationConfig.RC.class);
 	}
 	private static final int DEFAULT_NUM_REPLICAS = Config.getGlobalInt(RC.DEFAULT_NUM_REPLICAS);
 	
@@ -224,7 +224,7 @@ public class ConsistentHashing<NodeIDType> {
 		ConsistentHashing<String> CHI = new ConsistentHashing<String>(IDs);
 		System.out.println("ring ordering = " + CHI.getServers());
 
-		String[] IDs1 = {"RC0", "RC1", "RC2", "RC317"};
+		String[] IDs1 = {"RC0", "RC1", "RC2", "RC9384"};
 		ConsistentHashing<String> CHI1 = new ConsistentHashing<String>(IDs1);
 		System.out.println("ring ordering = " + CHI1.getServers());
 

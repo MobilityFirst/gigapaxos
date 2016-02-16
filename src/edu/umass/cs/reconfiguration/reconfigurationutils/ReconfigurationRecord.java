@@ -132,7 +132,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		this.epoch = epoch;
 		this.actives = actives;
 		this.newActives = newActives;
-		if (name.equals(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+		if (name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 				.toString()))
 			for (NodeIDType node : newActives)
 				this.rcEpochs.put(node, 0);
@@ -564,7 +564,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	 */
 	public void trimRCEpochs() {
 		if (!this.getName().equals(
-				AbstractReconfiguratorDB.RecordNames.NODE_CONFIG.toString()))
+				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString()))
 			return;
 		for (Iterator<NodeIDType> iterator = this.rcEpochs.keySet().iterator(); iterator
 				.hasNext();) {

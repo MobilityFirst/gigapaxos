@@ -33,10 +33,11 @@ public class StopEpoch<NodeIDType> extends
 		ReconfigurableRequest, ReplicableRequest {
 
 	private static enum Keys {
-		GET_FINALSTATE
+		GET_FINALSTATE, QID
 	};
 
 	private final boolean getFinalState;
+	private final long requestID;
 
 	/**
 	 * @param initiator
@@ -49,6 +50,7 @@ public class StopEpoch<NodeIDType> extends
 		super(initiator, ReconfigurationPacket.PacketType.STOP_EPOCH, name,
 				epochNumber);
 		this.getFinalState = getFinalState;
+		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 
 	/**
@@ -69,12 +71,14 @@ public class StopEpoch<NodeIDType> extends
 			throws JSONException {
 		super(json, unstringer);
 		this.getFinalState = json.optBoolean(Keys.GET_FINALSTATE.toString());
+		this.requestID = json.getLong(Keys.QID.toString());
 	}
 
 	@Override
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
 		json.put(Keys.GET_FINALSTATE.toString(), this.getFinalState);
+		json.put(Keys.QID.toString(), this.requestID);
 		return json;
 	}
 
@@ -99,5 +103,10 @@ public class StopEpoch<NodeIDType> extends
 	 */
 	public boolean shouldGetFinalState() {	
 		return this.getFinalState;
+	}
+
+	@Override
+	public long getRequestID() {
+		return this.requestID;
 	}
 }

@@ -8,10 +8,11 @@ import java.net.InetSocketAddress;
  *         An interface that simplifies messaging of responses back to clients
  *         that the corresponding requests.
  */
-public interface ClientRequest extends Request {
+public interface ClientRequest extends Request, RequestIdentifier {
 	/**
 	 * @return The socket address of the client that sent this request.
 	 */
+	@Deprecated
 	public InetSocketAddress getClientAddress();
 
 	/**
@@ -19,9 +20,4 @@ public interface ClientRequest extends Request {
 	 *         request.
 	 */
 	public ClientRequest getResponse();
-
-	/**
-	 * @return Request ID.
-	 */
-	public long getRequestID();
 }

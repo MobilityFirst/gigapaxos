@@ -79,11 +79,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 */
 	public void close() {
 		for (ActiveReplica<NodeIDType> node : this.activeReplicas) {
-			Reconfigurator.getLogger().info(node + " closing");
 			node.close();
 		}
 		for (Reconfigurator<NodeIDType> node : this.reconfigurators) {
-			Reconfigurator.getLogger().info(node + " closing");
 			node.close();
 		}
 		this.messenger.stop();

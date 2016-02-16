@@ -31,6 +31,7 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxosutil.OverloadException;
@@ -48,7 +49,6 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
-import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator.GetRequestCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
@@ -136,14 +136,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
-		this.appCoordinator = appC.setStopCallback(
-				(ReconfiguratorCallback) this).setCallback(
-				(ReconfiguratorCallback) this).setGetRequestCallback(new GetRequestCallback<NodeIDType>() {
-					@Override
-					public String getRequest(String stringified) {
-						return ActiveReplica.this.removeForcedClientRequestPrefix(stringified);
-					}
-				});;
+		this.appCoordinator = appC
+		 .setStopCallback((ReconfiguratorCallback) this)
+		 .setCallback((ReconfiguratorCallback) this);
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
 		this.demandProfiler = new AggregateDemandProfiler(this.nodeConfig);
@@ -170,66 +165,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this(appC, nodeConfig, messenger, false);
 	}
 
-	protected static final String FORCED_REQUEST_ID_PREFIX = "_QID:";
-	protected static final String FORCED_REQUEST_ID_SUFFIX = ":";
-
-	// FIXME: unused; forcibly makes a ClientRequest
-	protected static ClientRequest makeForcedClientRequest(
-			final Request request, final InetSocketAddress isa) {
-		return request instanceof ClientRequest ? (ClientRequest) request
-				: new ClientRequest() {
-
-					@Override
-					public IntegerPacketType getRequestType() {
-						return request.getRequestType();
-					}
-
-					@Override
-					public String getServiceName() {
-						return request.getServiceName();
-					}
-
-					@Override
-					public InetSocketAddress getClientAddress() {
-						return isa;
-					}
-
-					@Override
-					public ClientRequest getResponse() {
-						return request instanceof ClientRequest ? ((ClientRequest) request)
-								.getResponse() : null;
-					}
-
-					@Override
-					public long getRequestID() {
-						return request instanceof ClientRequest ? ((ClientRequest) request)
-								.getRequestID() : (long)(Math.random()*Long.MAX_VALUE);
-					}
-
-					@Override
-					public String toString() {
-						return FORCED_REQUEST_ID_PREFIX + ":"
-								+ this.getRequestID() + FORCED_REQUEST_ID_SUFFIX
-								+ request.toString();
-					}
-				};
-	}
-
-	// FIXME: unused; inverts forced conversion to ClientRequest 
-	protected String removeForcedClientRequestPrefix(String s) {
-		if (!s.startsWith(FORCED_REQUEST_ID_PREFIX))
-			return s;
-		s.replaceFirst(FORCED_REQUEST_ID_PREFIX, "");
-		long requestID = Long.valueOf(s.split(FORCED_REQUEST_ID_SUFFIX, 2)[0]);
-		this.dequeue(requestID);
-		return s;
-	}
 
 	class SenderAndRequest {
 		InetSocketAddress isa;
-		ClientRequest request;
+		ReplicableRequest request;
 
-		SenderAndRequest(ClientRequest request, InetSocketAddress isa) {
+		SenderAndRequest(ReplicableRequest request, InetSocketAddress isa) {
 			this.isa = isa;
 			this.request = request;
 		}
@@ -248,11 +189,24 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				senderAndRequest);
 	}
 
-	private SenderAndRequest dequeue(long requestID) {
+	private SenderAndRequest dequeue(ReplicableRequest request) {
 		SenderAndRequest senderAndRequest = null;
-		if ((senderAndRequest = this.outstanding.remove(requestID)) != null)
+		if ((senderAndRequest = this.outstanding.remove(request.getRequestID())) != null) {
+			// send demand report
 			this.updateDemandStats(senderAndRequest.request,
 					senderAndRequest.isa.getAddress());
+			// send response to originating client
+			if (request instanceof ClientRequest
+					&& ((ClientRequest) request).getResponse() != null) {
+				try {
+					((JSONMessenger<?>) this.messenger).sendClient(
+							senderAndRequest.isa,
+							((ClientRequest) request).getResponse());
+				} catch (IOException | JSONException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 		return senderAndRequest;
 	}
 
@@ -273,30 +227,24 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
 				Request request = this.getRequest(jsonObject);
-				if (request instanceof ClientRequest)
-					enqueue(new SenderAndRequest((ClientRequest) request,
+				// enqueue demand stats sending callback
+				if (request instanceof ReplicableRequest)
+					enqueue(new SenderAndRequest((ReplicableRequest) request,
 							MessageNIOTransport.getSenderAddress(jsonObject)));
+
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
-				// if handled, update demand stats (for reconfigurator)
 				if (handled) {
-					if (!(request instanceof ClientRequest)) {
-						/*
-						 * FIXME: It is possible for a stop request spawned by
-						 * this demand report and the reconfiguration policy to
-						 * be coordinated before this request itself resulting
-						 * in this request not being executed at all. It is also
-						 * possible that this request fails to be coordinated
-						 * for other reasons making the demand report not
-						 * meaningful.
-						 */
+					if (!(request instanceof ReplicableRequest)) {
+						// if handled locally, update demand stats
 						updateDemandStats(request,
 								MessageNIOTransport
 										.getSenderInetAddress(jsonObject));
 					}
 				} else {
-					if (request instanceof ClientRequest) // useless enqueue
-						this.dequeue(((ClientRequest) request).getRequestID());
+					// if failed, dequeue useless enqueue
+					if (request instanceof ReplicableRequest) 
+						this.dequeue(((ReplicableRequest) request));
 
 					// send error message to sender
 					this.send(
@@ -332,8 +280,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		// assert (request instanceof ReconfigurableRequest);
 		// assert (handled);
 
-		if (request instanceof ClientRequest)
-			this.dequeue(((ClientRequest) request).getRequestID());
+		if (request instanceof ReplicableRequest)
+			this.dequeue(((ReplicableRequest) request));
 
 		/*
 		 * We need to handle the callback in a separate thread, otherwise we
@@ -537,7 +485,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				"{0} coordinating {1} as {2}:{3}",
 				new Object[] { this, stopEpoch.getSummary(),
 						appStop.getServiceName(), appStop.getEpochNumber() });
-		this.appCoordinator.handleIncoming(appStop);
+		this.appCoordinator.handleIncoming(appStop, this);
 		return null; // need to wait until callback
 	}
 
@@ -642,7 +590,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		long t1 = System.currentTimeMillis();
 		boolean handled = false;
 		try {
-			handled = this.appCoordinator.handleIncoming(request);
+			handled = this.appCoordinator.handleIncoming(request, this);
 		} catch (OverloadException re) {
 			PaxosPacketDemultiplexer.throttleExcessiveLoad();
 		}

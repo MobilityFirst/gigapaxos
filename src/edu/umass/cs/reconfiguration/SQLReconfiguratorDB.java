@@ -144,7 +144,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private static enum Columns {
 		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, 
-		RC_NODE_ID, AR_NODE_ID 
+		RC_NODE_ID, AR_NODE_ID, IS_RECONFIGURATOR 
 	};
 
 	private static enum Keys {
@@ -273,7 +273,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(conn);
 		}
 
-		log.log(Level.INFO,
+		log.log(Level.FINE,
 				"{0} batch-committed {1}({2}) out of {3}({4})",
 				new Object[] { this, committed.size(), committed,
 						toCommit.size(), toCommit.keySet() });
@@ -536,7 +536,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.putReconfigurationRecord(record);
 
 		record = this.getReconfigurationRecord(name);
-		assert (!name.equals(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+		assert (!name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 				.toString()) || !record.getActiveReplicas().equals(
 				record.getNewActives()));
 		return true;
@@ -645,7 +645,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.putReconfigurationRecord(record, rcGroupName);
 		if (!record.isReady()) // FIXME: READY
 			this.setPending(record.getName(), true, true);
-		log.log(Level.INFO, "{0} inserted RC record named {1} to RC group {2}",
+		log.log(Level.FINER, "{0} inserted RC record named {1} to RC group {2}",
 				new Object[] { this, record.getName(), rcGroupName });
 		return true;
 	}
@@ -826,10 +826,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			if (state == null) // all done already
 				return true;
 
+			String passedArg = state;
 			// else first try treating state as remote file handle
 			if ((state = this.getRemoteCheckpoint(rcGroup, state)) == null)
-				throw new RuntimeException(this
-						+ " unable to fetch checkpoint state");
+				throw new RuntimeException(this + " unable to fetch " + rcGroup
+						+ " checkpoint state " + passedArg);
 
 			BufferedReader br = null;
 			try {
@@ -1043,6 +1044,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			return false;
 		setClosed(false); // setting open
 		initAdjustSoftNodeConfig();
+		initAdjustSoftActiveNodeConfig();
+		log.log(Level.INFO, "{0} proceeding with node config version {1}: "
+				+ this.consistentNodeConfig);
 		return initCheckpointServer();
 	}
 
@@ -1393,7 +1397,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(conn);
 		}
 		// must not return the nodeConfig record itself as an RC group
-		if(groups!=null) groups.remove(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+		if(groups!=null) groups.remove(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 				.toString());
 		return groups;
 	}
@@ -1454,10 +1458,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ Columns.RC_NODE_ID.toString() + " varchar(" + MAX_NAME_SIZE
 				+ ") not null, " + Columns.INET_ADDRESS.toString()
 				+ " varchar(256), " + Columns.PORT.toString() + " int, "
-				+ Columns.NODE_CONFIG_VERSION.toString() + " int, primary key("
+				+ Columns.NODE_CONFIG_VERSION.toString() + " int, " + 
+				Columns.IS_RECONFIGURATOR.toString() + " int, primary key("
 				+ Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.NODE_CONFIG_VERSION + "))";
 		
+		// FIXME: not needed
 		String cmdAR = "create table " + getARTable() + " ("
 				+ Columns.SERVICE_NAME.toString() + " varchar(" + MAX_NAME_SIZE
 				+ ") not null, " + Columns.AR_NODE_ID.toString()
@@ -1855,18 +1861,28 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 		if(USE_DISK_MAP) rcDB.rcRecords.commit();
 		rcDB.printRCTable();
-		//System.out.println("RC group names = " + rcDB.getRCGroupNames());
 	}
-
+	@Override
+	public boolean addActiveReplica(NodeIDType node,
+			InetSocketAddress sockAddr, int version) {
+		return this.addToNodeConfig(node, sockAddr, version, false);
+	}
+	
 	@Override
 	public boolean addReconfigurator(NodeIDType node,
 			InetSocketAddress sockAddr, int version) {
+		return this.addToNodeConfig(node, sockAddr, version, true);
+	}
+	
+	private boolean addToNodeConfig(NodeIDType node,
+			InetSocketAddress sockAddr, int version, boolean isReconfigurator) {
 		String cmd = "insert into " + getNodeConfigTable() + " ("
 				+ Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.INET_ADDRESS.toString() + ", "
 				+ Columns.PORT.toString() + ", "
-				+ Columns.NODE_CONFIG_VERSION.toString()
-				+ " ) values (?,?,?,?)";
+				+ Columns.NODE_CONFIG_VERSION.toString() + ", "
+				+ Columns.IS_RECONFIGURATOR.toString()
+				+ " ) values (?,?,?,?,?)";
 
 		PreparedStatement insertCP = null;
 		Connection conn = null;
@@ -1878,6 +1894,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			insertCP.setString(2, sockAddr.toString());
 			insertCP.setInt(3, sockAddr.getPort());
 			insertCP.setInt(4, version);
+			insertCP.setInt(5, isReconfigurator ? 1 : 0); // 1 means true
 			insertCP.executeUpdate();
 			// conn.commit();
 			added = true;
@@ -1920,9 +1937,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return removed;
 	}
 
-	private Integer getMaxNodeConfigVersion() {
+	private Integer getMaxNodeConfigVersion(boolean reconfigurators) {
 		String cmd = "select max(" + Columns.NODE_CONFIG_VERSION.toString()
-				+ ") from " + this.getNodeConfigTable();
+				+ ") from " + this.getNodeConfigTable() + " where "
+				+ Columns.IS_RECONFIGURATOR.toString() + (reconfigurators ? "=1" : "=0");
 
 		Integer maxVersion = null;
 		PreparedStatement pstmt = null;
@@ -1946,9 +1964,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return maxVersion;
 	}
 
-	@Override
-	public Map<NodeIDType, InetSocketAddress> getRCNodeConfig(boolean maxOnly) {
-		Integer version = this.getMaxNodeConfigVersion();
+	//@Override
+	private Map<NodeIDType, InetSocketAddress> getRCNodeConfig(boolean maxOnly, boolean reconfigurators) {
+		Integer version = this.getMaxNodeConfigVersion(reconfigurators);
 		if (version == null)
 			return null;
 
@@ -1956,8 +1974,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		String cmd = "select " + Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.INET_ADDRESS.toString() + " from "
 				+ this.getNodeConfigTable() + " where "
+				+ Columns.IS_RECONFIGURATOR.toString() + (reconfigurators ? "=1" : "=0") + " and ("
 				+ Columns.NODE_CONFIG_VERSION.toString()
-				+ (maxOnly ? "=?" : ">=?");
+				+ (maxOnly ? "=?" : ">=?") + ")";
 
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
@@ -1995,14 +2014,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private void initAdjustSoftNodeConfig() {
 		// get node config containing all reconfigurators from DB
 		Map<NodeIDType, InetSocketAddress> rcMapAll = this
-				.getRCNodeConfig(false);
+				.getRCNodeConfig(false, true);
 		// if no hard copy, copy soft to hard and return
 		if (rcMapAll.isEmpty() && copySoftNodeConfigToDB())
 			return;
 
 		// else get NC record with the current and next set of reconfigurators
 		ReconfigurationRecord<NodeIDType> ncRecord = this
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 						.toString());
 		if (ncRecord == null)
 			return; // else we have something to do
@@ -2011,10 +2030,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		Set<NodeIDType> latestRCs = ncRecord.getNewActives();
 		if (rcMapAll == null || rcMapAll.isEmpty())
 			return;
+
 		// add all nodes
 		for (NodeIDType node : rcMapAll.keySet())
 			this.consistentNodeConfig.addReconfigurator(node,
 					rcMapAll.get(node));
+
 		for (NodeIDType node : this.consistentNodeConfig.getReconfigurators())
 			// remove outdated consistentNodeConfig entries
 			if (!rcMapAll.containsKey(node))
@@ -2022,17 +2043,70 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			// slate for removal the difference between all and latest
 			else if (!latestRCs.contains(node))
 				this.consistentNodeConfig.slateForRemovalReconfigurator(node);
+		log.log(Level.INFO,
+				"{0} read the following reconfigurator set from node config version {1} in DB: "
+						+ this.consistentNodeConfig.getReconfigurators(), this.getMaxNodeConfigVersion(true) );
 	}
+	
+	private void initAdjustSoftActiveNodeConfig() {
+		// get node config containing all actives from DB
+		Map<NodeIDType, InetSocketAddress> arMapAll = this.getRCNodeConfig(
+				false, false);
 
-	// copy soft to hard if no hard copy
+		// if no hard copy, copy soft to hard and return
+		if (arMapAll.isEmpty() && copySoftNodeConfigToDB(false))
+			return;
+
+		// else get NC record with the current and next set of actives
+		ReconfigurationRecord<NodeIDType> ncRecord = this
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+						.toString());
+		if (ncRecord == null)
+			return; // else we have something to do
+
+
+		// get only the latest version actives
+		Set<NodeIDType> latestARs = ncRecord.getNewActives();
+		if (arMapAll == null || arMapAll.isEmpty())
+			return;
+
+		// add all nodes
+		for (NodeIDType node : arMapAll.keySet())
+			this.consistentNodeConfig.addActiveReplica(node,
+					arMapAll.get(node));
+		for (NodeIDType node : this.consistentNodeConfig.getActiveReplicas())
+			// remove outdated consistentNodeConfig entries
+			if (!arMapAll.containsKey(node))
+				this.consistentNodeConfig.removeActiveReplica(node);
+			// slate for removal the difference between all and latest
+			else if (!latestARs.contains(node))
+				this.consistentNodeConfig.slateForRemovalActive(node);
+		log.log(Level.INFO,
+				"{0} read the following active replica set from node config version {1} in DB: "
+						+ this.consistentNodeConfig.getActiveReplicas(), this.getMaxNodeConfigVersion(false));
+	}
 	private boolean copySoftNodeConfigToDB() {
+		return this.copySoftNodeConfigToDB(true);
+	}
+	// copy soft to hard if no hard copy
+	private boolean copySoftNodeConfigToDB(boolean isReconfigurators) {
 		boolean added = true;
-		for (NodeIDType reconfigurator : this.consistentNodeConfig
-				.getReconfigurators())
-			added = added
-					&& this.addReconfigurator(reconfigurator,
-							this.consistentNodeConfig
-									.getNodeSocketAddress(reconfigurator), 0);
+		if (isReconfigurators)
+			for (NodeIDType reconfigurator : this.consistentNodeConfig
+					.getReconfigurators())
+				added = added
+						&& this.addReconfigurator(reconfigurator,
+								this.consistentNodeConfig
+										.getNodeSocketAddress(reconfigurator),
+								0);
+		else
+			for (NodeIDType active : this.consistentNodeConfig
+					.getActiveReplicas())
+				added = added
+						&& this.addActiveReplica(active,
+								this.consistentNodeConfig
+										.getNodeSocketAddress(active), 0);
+
 		assert (added);
 		return added;
 	}
@@ -2105,7 +2179,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	@Override
 	public void setRCEpochs(ReconfigurationRecord<NodeIDType> ncRecord) {
 		if (!ncRecord.getName().equals(
-				AbstractReconfiguratorDB.RecordNames.NODE_CONFIG.toString()))
+				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString()))
 			return;
 		this.putReconfigurationRecord(ncRecord);
 	}
@@ -2348,22 +2422,79 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 		return updatedAll;
 	}
+	
+	private ResultSet cursorRS = null;
+	private PreparedStatement cursorPsmt = null;
+	private Connection cursorConn = null;
+	private NodeIDType cursorActive = null;
 
-	 // TODO: Initiates a read of all records currently replicated at active.
+	// initiates a read of all records currently replicated at active.
 	@Override
 	public boolean initiateReadActiveRecords(NodeIDType active) {
-		throw new RuntimeException("Unimplemented");
+		if (this.cursorRS != null || this.closed)
+			return false;
+		
+		// need to commit all before making a full pass
+		this.rcRecords.commit();
+		
+		this.cursorActive = active;
+		Connection conn = null;
+		try {
+			if (conn == null) {
+				this.cursorPsmt = this.getPreparedStatement(
+						this.cursorConn = this.getDefaultConn(),
+						this.getRCRecordTable(), null,
+						Columns.STRINGIFIED_RECORD.toString(), " where " + Columns.SERVICE_NAME.toString() + " != '"
+						+ AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG.toString()+"'");
+			}
+			cursorRS = this.cursorPsmt.executeQuery();
+			assert (cursorRS != null && cursorRS.next());
+			return true;
+		} catch (SQLException sqle) {
+			log.severe(this
+					+ " encountered exception while initiating readActiveRecords: "
+					+ sqle.getMessage());
+			sqle.printStackTrace();
+		}
+		return false;
 	}
 
-	 // TODO: Reads the next record for the cursor initiated above. 
+	// reads the next record for the cursor initiated above.
 	@Override
 	public ReconfigurationRecord<NodeIDType> readNextActiveRecord() {
-		throw new RuntimeException("Unimplemented");
+		ReconfigurationRecord<NodeIDType> record = null;
+		try {
+			while (this.cursorRS.next())
+				if ((record = new ReconfigurationRecord<NodeIDType>(
+						new JSONObject(
+								this.cursorRS
+										.getString(Columns.STRINGIFIED_RECORD
+												.toString())),
+						this.consistentNodeConfig)).getActiveReplicas() != null
+						&& record.getActiveReplicas().contains(
+								this.cursorActive) && record.isReconfigurationReady())
+					return record;
+				else
+					log.log(Level.FINEST,
+							"{0} read record {1} not replicated at {2}",
+							new Object[] { this, record.getName(),
+									this.cursorActive });
+		} catch (SQLException | JSONException sqle) {
+			log.severe(this
+					+ " encountered exception in readNextActiveRecord: "
+					+ sqle.getMessage());
+			sqle.printStackTrace();
+		}
+		return null;
 	}
 
-	// TODO: closes the cursor initiated above
+	// closes the cursor initiated above
 	@Override
 	public boolean closeReadActiveRecords() {
-		throw new RuntimeException("Unimplemented");
+		this.cleanup(cursorConn);
+		this.cleanup(cursorRS);
+		this.cleanup(cursorPsmt);
+		return true;
 	}
+
 }

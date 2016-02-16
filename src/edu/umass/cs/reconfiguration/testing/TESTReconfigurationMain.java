@@ -28,13 +28,7 @@ import edu.umass.cs.utils.Config;
  *         deletions with reconfigurations enabled.
  * 
  *         TODOS:
- * 
- *         (1) Add test for reconfiguring reconfigurators like in
- *         {@link ReconfigurableClient}.
- * 
- *         (2) Add test involving crashes of reconfigurators or active replicas.
- * 
- *         (3) Add tests with different numbers of reconfigurators
+ *         (1) Add tests with different numbers of reconfigurators
  *         and actives.
  *
  */
@@ -106,7 +100,7 @@ public class TESTReconfigurationMain {
 		dnc = new DefaultNodeConfig<String>(
 				TESTReconfigurationConfig.getLocalActives(),
 				TESTReconfigurationConfig.getLocalReconfigurators());
-		System.out.println(dnc.getNodeIDs());
+		//System.out.println(dnc.getNodeIDs());
 		reconfigurators = startReconfigurators(args);
 		actives = startActives(args);
 	}
@@ -134,7 +128,7 @@ public class TESTReconfigurationMain {
 		ReconfigurationConfig.setConsoleHandler();
 		TESTReconfigurationConfig.load();
 
-		Result result = JUnitCore.runClasses(TESTReconfigurationMain.class);
+		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
 		for (Failure failure : result.getFailures())
 			System.out.println(failure.toString());
 

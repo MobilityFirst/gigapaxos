@@ -124,7 +124,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends ProtocolPacket<N
 		RC_RECORD_REQUEST(238),
 		
 		// admin -> reconfigurator
-		RECONFIGURE_RC_NODE_CONFIG (239);
+		RECONFIGURE_RC_NODE_CONFIG (239),
+		RECONFIGURE_ACTIVE_NODE_CONFIG (240)
 		;
 
 		private final int number;
@@ -139,7 +140,9 @@ public abstract class ReconfigurationPacket<NodeIDType> extends ProtocolPacket<N
 	public static final ReconfigurationPacket.PacketType[] clientPacketTypes = {PacketType.CREATE_SERVICE_NAME,
 		PacketType.DELETE_SERVICE_NAME, PacketType.REQUEST_ACTIVE_REPLICAS, PacketType.ACTIVE_REPLICA_ERROR
 	};
-	
+	public static final ReconfigurationPacket.PacketType[] serverPacketTypes = {
+			PacketType.RECONFIGURE_RC_NODE_CONFIG,
+			PacketType.RECONFIGURE_ACTIVE_NODE_CONFIG };	
 	
 	/********************************* End of ReconfigurationpacketType ***********************/
 
@@ -172,7 +175,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends ProtocolPacket<N
 
 		typeMap.put(ReconfigurationPacket.PacketType.RC_RECORD_REQUEST, RCRecordRequest.class); 
 
-		typeMap.put(ReconfigurationPacket.PacketType.RECONFIGURE_RC_NODE_CONFIG, ReconfigureRCNodeConfig.class); 
+		typeMap.put(ReconfigurationPacket.PacketType.RECONFIGURE_RC_NODE_CONFIG, ReconfigureRCNodeConfig.class);
+		typeMap.put(ReconfigurationPacket.PacketType.RECONFIGURE_ACTIVE_NODE_CONFIG, ReconfigureActiveNodeConfig.class);
 
 		for(ReconfigurationPacket.PacketType type : ReconfigurationPacket.PacketType.intToType.values()) {
 			assert(getPacketTypeClassName(type)!=null) : type;

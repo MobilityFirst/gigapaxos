@@ -166,7 +166,7 @@ public class WaitAckStopEpoch<NodeIDType>
 	private NodeIDType getNextNode() {
 		if (!this.nodeIterator.hasNext())
 			this.nodeIterator = startEpoch.getPrevEpochGroup().iterator();
-		return (this.nodeIterator.next());
+		return this.nodeIterator.next();
 	}
 
 	/**

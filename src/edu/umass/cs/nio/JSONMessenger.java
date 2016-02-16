@@ -149,9 +149,15 @@ public class JSONMessenger<NodeIDType> implements
 			byte[] msgBytes = message.getBytes(MessageNIOTransport.NIO_CHARSET_ENCODING);
 			for (int r = 0; r < mtask.recipients.length; r++) {
 
-				// special case provision for InetSocketAddress
-				int sent = this.specialCaseSend(mtask.recipients[r], msgBytes,
-						useWorkers);
+				int sent = -1;
+				try {
+					// special case provision for InetSocketAddress
+					sent = this.specialCaseSend(mtask.recipients[r],
+							msgBytes,	useWorkers);
+				} catch(IOException e) {
+					e.printStackTrace();
+					continue; // remaining sends might succeed
+				}
 
 				// check success or failure and react accordingly
 				if (sent > 0) {
@@ -357,12 +363,14 @@ public class JSONMessenger<NodeIDType> implements
 	 * end receiving this object be able to reconstruct it from a byte[], string,
 	 * or JSONObject.
 	 * 
+	 * Automatically tries to use clientMessenger.
+	 * 
 	 * @param sockAddr
 	 * @param message
 	 * @throws JSONException
 	 * @throws IOException
 	 */
-	public void send(InetSocketAddress sockAddr, Object message)
+	public void sendClient(InetSocketAddress sockAddr, Object message)
 			throws JSONException, IOException {
 		AddressMessenger<JSONObject> msgr = this.getClientMessenger();
 		if (msgr == null && this.nioTransport instanceof JSONMessenger)

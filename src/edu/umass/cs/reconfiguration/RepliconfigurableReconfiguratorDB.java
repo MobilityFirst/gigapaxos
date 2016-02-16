@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -28,13 +28,16 @@ import java.util.logging.Level;
 
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB.RecordNames;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
+import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitAckDropEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
@@ -71,8 +74,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 			AbstractReconfiguratorDB<NodeIDType> app,
 			NodeIDType myID,
 			ConsistentReconfigurableNodeConfig<NodeIDType> consistentNodeConfig,
-			Messenger<NodeIDType, JSONObject> niot,
-			boolean startCleanSlate) {
+			Messenger<NodeIDType, JSONObject> niot, boolean startCleanSlate) {
 		// setting paxosManager out-of-order limit to 1
 		super(app, myID, consistentNodeConfig, niot, 1);
 		assert (niot != null);
@@ -85,6 +87,20 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 				&& !startCleanSlate)
 			this.createDefaultGroups();
 		this.setLargeCheckpoints();
+		this.app.setCallback(new ReconfiguratorCallback() {
+
+			@Override
+			public void executed(Request request, boolean handled) {
+				RepliconfigurableReconfiguratorDB.this.callCallback(request,
+						handled);
+			}
+
+			@Override
+			public void preExecuted(Request request) {
+				RepliconfigurableReconfiguratorDB.this.getCallback()
+						.preExecuted(request);
+			}
+		});
 	}
 
 	// needed by Reconfigurator
@@ -99,7 +115,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	 * in the first place to prevent the severe log below.
 	 */
 	@Override
-	public boolean coordinateRequest(Request request)
+	public boolean coordinateRequest(Request request, ExecutedCallback callback)
 			throws IOException, RequestParseException {
 		String rcGroupName = this.getRCGroupName(request.getServiceName());
 		// can only send stop request to own RC group
@@ -115,17 +131,19 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 			rcGroupName = request.getServiceName();
 		}
 
-		return super.coordinateRequest(rcGroupName, request);
+		return super.coordinateRequest(rcGroupName, request, callback);
 	}
 
 	/**
 	 * @param request
+	 * @param callback
 	 * @return Returns the result of
-	 *         {@link #coordinateRequest(Request)}.
+	 *         {@link #coordinateRequest(Request,ExecutedCallback)}.
 	 */
-	public boolean coordinateRequestSuppressExceptions(Request request) {
+	public boolean coordinateRequestSuppressExceptions(Request request,
+			ExecutedCallback callback) {
 		try {
-			return this.coordinateRequest(request);
+			return this.coordinateRequest(request, callback);
 		} catch (RequestParseException | IOException e) {
 			log.warning(this + " incurred " + e.getClass().getSimpleName()
 					+ " while coordinating " + request);
@@ -169,13 +187,13 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 						new Object[] { this, this.app.getRCGroupName(node),
 								group });
 				try {
-				this.createReplicaGroup(
-						this.app.getRCGroupName(node),
-						0,
-						this.getInitialRCGroupRecord(
-								this.app.getRCGroupName(node), group)
-								.toString(), group);
-				} catch(PaxosInstanceCreationException pice) {
+					this.createReplicaGroup(
+							this.app.getRCGroupName(node),
+							0,
+							this.getInitialRCGroupRecord(
+									this.app.getRCGroupName(node), group)
+									.toString(), group);
+				} catch (PaxosInstanceCreationException pice) {
 					// can happen during recovery
 					log.info(this
 							+ " encountered paxos instance creation exception (not unusual during recovery): "
@@ -184,18 +202,32 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 			}
 		}
 		/*
-		 * Create NODE_CONFIG record, the master copy of the set of all
+		 * Create RC_NODE_CONFIG record, the master copy of the set of all
 		 * reconfigurators.
 		 */
 		this.createReplicaGroup(
-				RecordNames.NODE_CONFIG.toString(),
+				RecordNames.RC_NODE_CONFIG.toString(),
 				0,
 				this.getInitialRCGroupRecord(
-						RecordNames.NODE_CONFIG.toString(),
+						RecordNames.RC_NODE_CONFIG.toString(),
 						this.consistentNodeConfig.getReconfigurators())
 						.toString(), this.consistentNodeConfig
 						.getReconfigurators());
-		return false;
+
+		/*
+		 * Create ACTIVE_NODE_CONFIG record, the master copy of the set of all
+		 * reconfigurators.
+		 */
+		this.createReplicaGroup(
+				RecordNames.ACTIVE_NODE_CONFIG.toString(),
+				0,
+				this.getInitialRCGroupRecord(
+						RecordNames.ACTIVE_NODE_CONFIG.toString(),
+						this.consistentNodeConfig.getActiveReplicas())
+						.toString(), this.consistentNodeConfig
+						.getReconfigurators());
+
+		return false; // not used
 	}
 
 	@Override
@@ -206,11 +238,14 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return created;
 	}
 
-	/** The initial RC group record for RC nodes is just directly inserted into
+	/**
+	 * The initial RC group record for RC nodes is just directly inserted into
 	 * the reconfiguration DB by paxos as the initial state and does not go
-	 * through {@link AbstractReconfiguratorDB#handleRCRecordRequest(edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest)},
-	 * so it does not have to pass the {@link StartEpoch#isInitEpoch()} check and will indeed
-	 * not pass that check as both the previous group is not empty.
+	 * through
+	 * {@link AbstractReconfiguratorDB#handleRCRecordRequest(edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest)}
+	 * , so it does not have to pass the {@link StartEpoch#isInitEpoch()} check
+	 * and will indeed not pass that check as both the previous group is not
+	 * empty.
 	 */
 	private ReconfigurationRecord<NodeIDType> getInitialRCGroupRecord(
 			String groupName, Set<NodeIDType> group) {
@@ -239,7 +274,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	protected String getRCGroupName(String serviceName) {
 		return this.app.getRCGroupName(serviceName);
 	}
-	
+
 	protected void setRecovering(boolean b) {
 		this.app.recovering = false;
 	}
@@ -407,18 +442,29 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return this.app.updateDBNodeConfig(version);
 	}
 
+	protected boolean changeActiveDBNodeConfig(int version) {
+		return this.app.updateActiveDBNodeConfig(version);
+	}
+
 	@Override
 	public boolean deleteFinalState(String rcGroupName, int epoch) {
 		// special case for node config changes
-		if (rcGroupName.equals(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
-				.toString()))
+		if (rcGroupName
+				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+						.toString()))
 			return isNCReady(epoch + 1); // final state deletion unnecessary
+		else if (rcGroupName
+				.equals(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+						.toString()))
+			return isActiveNCReady(epoch + 1); // final state deletion
+												// unnecessary
+
 		return super.deleteFinalState(rcGroupName, epoch);
 	}
 
 	private boolean isNCReady(int epoch) {
 		ReconfigurationRecord<NodeIDType> ncRecord = this
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 						.toString());
 		if (ncRecord != null && ncRecord.getEpoch() == epoch
 				&& ncRecord.isReady())
@@ -426,7 +472,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		else {
 			String debug = this.app.isNodeConfigChangeCompleteDebug();
 			log.log(Level.INFO,
-					"{0} has *NOT* completed node config change to epoch {1}; state = {2}; {3}",
+					"{0} has *NOT* completed node config change to epoch {1}; nc_state = {2}; {3}",
 					new Object[] { this, epoch, ncRecord.getSummary(), debug });
 		}
 		assert (ncRecord == null || ncRecord.getEpoch() != epoch || !ncRecord
@@ -434,9 +480,26 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return false;
 	}
 
+	private boolean isActiveNCReady(int epoch) {
+		ReconfigurationRecord<NodeIDType> activeNCRecord = this
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+						.toString());
+		if (activeNCRecord != null && activeNCRecord.getEpoch() == epoch
+				&& activeNCRecord.isReady())
+			return true;
+		else {
+			log.log(Level.INFO,
+					"{0} has *NOT* completed active node config change to epoch {1}; nc_state = {2}",
+					new Object[] { this, epoch, activeNCRecord.getSummary() });
+		}
+		assert (activeNCRecord == null || activeNCRecord.getEpoch() != epoch || !activeNCRecord
+				.isReady()) : activeNCRecord;
+		return false;
+	}
+
 	protected boolean isBeingDeleted(String curRCGroup) {
 		Set<NodeIDType> newRCs = this.getReconfigurationRecord(
-				AbstractReconfiguratorDB.RecordNames.NODE_CONFIG.toString())
+				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString())
 				.getNewActives();
 		boolean presentInNew = false;
 		for (NodeIDType node : newRCs) {
@@ -467,7 +530,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 
 	protected int getCurNCEpoch() {
 		return this.getReconfigurationRecord(
-				AbstractReconfiguratorDB.RecordNames.NODE_CONFIG.toString())
+				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString())
 				.getEpoch();
 	}
 
@@ -541,7 +604,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	}
 
 	protected boolean isNCRecord(String name) {
-		return name.equals(AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+		return name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 				.toString());
 	}
 
@@ -551,4 +614,59 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	public void removePending(String name) {
 		this.app.removePending(name);
 	}
+
+	private NodeIDType outstandingActiveDeletion = null;
+
+	protected void setOutstanding(NodeIDType active) {
+		this.outstandingActiveDeletion = active;
+	}
+
+	/**
+	 * @param toFilter
+	 * @return Will modify argument and return it by removing active nodes
+	 *         either currently being deleted or that have been deleted. Used by
+	 *         {@link WaitAckDropEpoch} to avoid unnecessary message send
+	 *         failures.
+	 */
+	public Set<NodeIDType> filterDeletedActives(Set<NodeIDType> toFilter) {
+		if (this.outstandingActiveDeletion != null)
+			toFilter.remove(outstandingActiveDeletion);
+		for (Iterator<NodeIDType> nodeIter = toFilter.iterator(); nodeIter
+				.hasNext();) {
+			if (this.consistentNodeConfig.getNodeAddress(nodeIter.next()) == null)
+				nodeIter.remove();
+		}
+		return toFilter;
+	}
+
+	private Set<String> outstandingReconfigurations = new HashSet<String>();
+
+	protected boolean outstandingContains(String name) {
+		return this.outstandingReconfigurations.contains(name);
+	}
+
+	protected void addToOutstanding(String name) {
+		synchronized (this.outstandingReconfigurations) {
+			this.outstandingReconfigurations.add(name);
+		}
+		log.log(Level.INFO, "{0} has +outstanding = {1}", new Object[] { this,
+				this.outstandingReconfigurations });
+	}
+
+	protected void waitOutstanding(int max) throws InterruptedException {
+		synchronized (this.outstandingReconfigurations) {
+			while (this.outstandingReconfigurations.size() >= max)
+				this.outstandingReconfigurations.wait();
+		}
+	}
+
+	protected void notifyOutstanding(String name) {
+		synchronized (this.outstandingReconfigurations) {
+			this.outstandingReconfigurations.remove(name);
+			this.outstandingReconfigurations.notify();
+		}
+		log.log(Level.INFO, "{0} has -outstanding = {1}", new Object[] { this,
+				this.outstandingReconfigurations });
+	}
+
 }

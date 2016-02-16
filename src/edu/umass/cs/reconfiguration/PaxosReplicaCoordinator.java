@@ -25,6 +25,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
@@ -114,21 +115,21 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	}
 
 	@Override
-	public boolean coordinateRequest(Request request)
+	public boolean coordinateRequest(Request request, ExecutedCallback callback)
 			throws IOException, RequestParseException {
-		return this.coordinateRequest(request.getServiceName(), request);
+		return this.coordinateRequest(request.getServiceName(), request, callback);
 	}
 
-	private String propose(String paxosID, Request request) {
+	private String propose(String paxosID, Request request, ExecutedCallback callback) {
 		String proposee = null;
 		if (request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop())
 			proposee = this.paxosManager
 					.proposeStop(paxosID,
 							((ReconfigurableRequest) request)
-									.getEpochNumber(), request);
+									.getEpochNumber(), request, callback);
 		else
-			proposee = this.paxosManager.propose(paxosID, request);
+			proposee = this.paxosManager.propose(paxosID, request, callback);
 		return proposee;
 	}
 
@@ -136,12 +137,13 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	/**
 	 * @param paxosGroupID
 	 * @param request
+	 * @param callback 
 	 * @return True if successfully proposed to some epoch of paxosGroupID.
 	 * @throws RequestParseException
 	 */
 	public boolean coordinateRequest(String paxosGroupID,
-			Request request) throws RequestParseException {
-		String proposee = this.propose(paxosGroupID, request);
+			Request request, ExecutedCallback callback) throws RequestParseException {
+		String proposee = this.propose(paxosGroupID, request, callback);
 		log.log(Level.FINE,
 				"{0} {1} request {2}:{3} [{4}] {5} to {6}",
 				new Object[] {

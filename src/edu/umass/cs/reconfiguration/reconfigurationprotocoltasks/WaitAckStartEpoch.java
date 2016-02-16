@@ -205,7 +205,7 @@ public class WaitAckStartEpoch<NodeIDType>
 				(this.startEpoch.creator != null ? "; sending ack to client "
 						+ this.startEpoch.creator : "") });
 
-		// multicast start epoch confirmation message
+		// send complete to self in order to paxos-commit it
 		GenericMessagingTask<NodeIDType, ?> epochStartCommit = new GenericMessagingTask(
 				this.DB.getMyID(), new RCRecordRequest<NodeIDType>(
 						this.DB.getMyID(), this.startEpoch,

@@ -41,6 +41,7 @@ public class DefaultAppRequest implements
 	private final int epochNumber;
 	private final String requestValue;
 	private boolean isCoord = true;
+	private final long requestID = (long)(Math.random()*Long.MAX_VALUE);
 	
 	/**
 	 * @param serviceName
@@ -112,5 +113,9 @@ public class DefaultAppRequest implements
 	@Override
 	public void setNeedsCoordination(boolean b) {
 		this.isCoord = b;
+	}
+	@Override
+	public long getRequestID() {
+		return this.requestID;
 	}
 }

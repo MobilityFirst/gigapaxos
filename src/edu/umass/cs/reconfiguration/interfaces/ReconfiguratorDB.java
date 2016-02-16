@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Set;
 
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 
@@ -153,17 +154,21 @@ public interface ReconfiguratorDB<NodeIDType> {
 			InetSocketAddress sockAddr, int version);
 
 	/**
+	 * @param node
+	 * @param sockAddr
+	 * @param version
+	 * @return True if successfully added.
+	 */
+	public boolean addActiveReplica(NodeIDType node,
+			InetSocketAddress sockAddr, int version);
+
+	
+	/**
 	 * @param version
 	 * @return Delete deleted reconfigurators.
 	 */
 	public boolean garbageCollectOldReconfigurators(int version);
 
-	/**
-	 * @param maxOnly
-	 *            True means only the latest version information is returned.
-	 * @return Node config information for reconfigurators as a map.
-	 */
-	public Map<NodeIDType, InetSocketAddress> getRCNodeConfig(boolean maxOnly);
 
 	/**
 	 * Merge state, i.e., append instead of replacing state, exactly once. The
@@ -247,6 +252,11 @@ public interface ReconfiguratorDB<NodeIDType> {
 	 */
 	public boolean closeReadActiveRecords();
 
+	/**
+	 * @param callback
+	 */
+	public void setCallback(ReconfiguratorCallback callback);
+	
 	/**
 	 * Close gracefully.
 	 */

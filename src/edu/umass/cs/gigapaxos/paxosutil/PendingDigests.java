@@ -8,6 +8,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.PaxosManager.RequestAndCallback;
+import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
 import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
@@ -24,7 +26,7 @@ import edu.umass.cs.utils.Util;
 public class PendingDigests {
 
 	final ConcurrentHashMap<Long, AcceptPacket> accepts;
-	final Map<Long, RequestPacket> requests;
+	final Map<Long, RequestAndCallback> requests;
 	final PendingDigestCallback callback;
 
 	private final MessageDigest[] mds;
@@ -41,12 +43,12 @@ public class PendingDigests {
 		abstract public void callback(AcceptPacket accept);
 	}
 	/**
-	 * @param requests
+	 * @param rcs 
 	 * @param numMDs
 	 * @param callback 
 	 */
-	public PendingDigests(Map<Long, RequestPacket> requests, int numMDs, PendingDigestCallback callback) {
-		this.requests = requests;
+	public PendingDigests(Map<Long, RequestAndCallback> rcs, int numMDs, PendingDigestCallback callback) {
+		this.requests = rcs;
 		this.mds = new MessageDigest[numMDs];
 		this.callback = callback;
 		this.accepts = (ACCEPT_TIMEOUT == Integer.MAX_VALUE ? new ConcurrentHashMap<Long, AcceptPacket>()
@@ -72,21 +74,21 @@ public class PendingDigests {
 	 * @return Accept packet constructed from matching request if any.
 	 */
 	public AcceptPacket match(AcceptPacket accept) {
-		RequestPacket request = null;
+		RequestAndCallback rc = null;
 
 		synchronized (this.requests) {
-			if ((request = requests.get(accept.requestID)) == null) 
+			if ((rc = requests.get(accept.requestID)) == null) 
 				this.accepts.put(accept.requestID, accept);
 		}
 
-		if (request != null && request.getPaxosID().equals(accept.getPaxosID())) {
-			if (request.digestEquals(accept,
+		if (rc != null && rc.request.getPaxosID().equals(accept.getPaxosID())) {
+			if (rc.request.digestEquals(accept,
 					this.mds[(int) (Math.random() * this.mds.length)])) {
-				accept = accept.undigest(request);
+				accept = accept.undigest(rc.request);
 				assert (accept.hasRequestValue());
 				return accept;
 			} else
-				logAnomaly(request, accept);
+				logAnomaly(rc.request, accept);
 		}
 
 		return null;

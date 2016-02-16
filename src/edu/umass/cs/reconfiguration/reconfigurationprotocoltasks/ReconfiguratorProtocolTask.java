@@ -38,12 +38,20 @@ ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 
 	private static final String HANDLER_METHOD_PREFIX = ReconfigurationPacket.HANDLER_METHOD_PREFIX; // could be any String as scope is local
 	private static final ReconfigurationPacket.PacketType[] localTypes = {
+		// active -> reconfigurator
 		ReconfigurationPacket.PacketType.DEMAND_REPORT,
+		
+		// client -> reconfigurator
 		ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME,
 		ReconfigurationPacket.PacketType.DELETE_SERVICE_NAME,
 		ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS,
+		
+		// reconfigurator -> reconfigurator
 		ReconfigurationPacket.PacketType.RC_RECORD_REQUEST,
+		
+		// any node with ssl credentials -> reconfigurator
 		ReconfigurationPacket.PacketType.RECONFIGURE_RC_NODE_CONFIG,
+		ReconfigurationPacket.PacketType.RECONFIGURE_ACTIVE_NODE_CONFIG,
 	};
 	private static final ReconfigurationPacket.PacketType[] types = 
 			ReconfigurationPacket.concatenate(localTypes, 

@@ -35,10 +35,11 @@ public class DemandReport<NodeIDType> extends
 		BasicReconfigurationPacket<NodeIDType> implements
 		ReplicableRequest {
 	private enum Keys {
-		STATS
+		STATS, QID
 	};
 
 	private final JSONObject stats;
+	private final long requestID;
 
 	/**
 	 * @param initiator
@@ -51,6 +52,7 @@ public class DemandReport<NodeIDType> extends
 		super(initiator, ReconfigurationPacket.PacketType.DEMAND_REPORT, name,
 				epochNumber);
 		this.stats = stats;
+		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 
 	/**
@@ -64,6 +66,7 @@ public class DemandReport<NodeIDType> extends
 		super(initiator, ReconfigurationPacket.PacketType.DEMAND_REPORT, name,
 				epochNumber);
 		this.stats = demand.getStats();
+		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 
 	/**
@@ -75,11 +78,13 @@ public class DemandReport<NodeIDType> extends
 			throws JSONException {
 		super(json, unstringer);
 		this.stats = json.getJSONObject(Keys.STATS.toString());
+		this.requestID = json.getLong(Keys.QID.toString());
 	}
 
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
 		json.put(Keys.STATS.toString(), this.stats);
+		json.put(Keys.QID.toString(), this.requestID);
 		return json;
 	}
 
@@ -126,5 +131,10 @@ public class DemandReport<NodeIDType> extends
 		} catch (JSONException je) {
 			je.printStackTrace();
 		}
+	}
+
+	@Override
+	public long getRequestID() {
+		return 0;
 	}
 }

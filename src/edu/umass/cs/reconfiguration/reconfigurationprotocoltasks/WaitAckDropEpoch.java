@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -38,6 +38,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -68,6 +69,8 @@ public class WaitAckDropEpoch<NodeIDType>
 	private final NodeIDType myID;
 	private final DropEpochFinalState<NodeIDType> dropEpoch;
 	private final StartEpoch<NodeIDType> startEpoch;
+	private final Set<NodeIDType> prevGroup;
+	private final RepliconfigurableReconfiguratorDB<NodeIDType> DB;
 	private int numRestarts = 0;
 	private final long creationTime = System.currentTimeMillis();
 	private final boolean isNodeConfigChange;
@@ -78,6 +81,7 @@ public class WaitAckDropEpoch<NodeIDType>
 
 	/**
 	 * @param startEpoch
+	 * @param prevGroup 
 	 * @param DB
 	 *            The getAllActive() call is a hack to be able to finish deletes
 	 *            quicker. This has safety violation risks upon name re-creation
@@ -88,6 +92,7 @@ public class WaitAckDropEpoch<NodeIDType>
 	 *            split/merge RC group reconfigurations.
 	 */
 	public WaitAckDropEpoch(StartEpoch<NodeIDType> startEpoch,
+			Set<NodeIDType> prevGroup,
 			RepliconfigurableReconfiguratorDB<NodeIDType> DB) {
 		/*
 		 * For node config changes, we require all *new* epoch replicas to
@@ -100,11 +105,14 @@ public class WaitAckDropEpoch<NodeIDType>
 		 */
 		super(
 				startEpoch.getServiceName().equals(
-						AbstractReconfiguratorDB.RecordNames.NODE_CONFIG
+						AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
 								.toString()) ? startEpoch.getCommonMembers()
 						: startEpoch.getPrevEpochGroup());
+		this.prevGroup = prevGroup != null ? new HashSet<NodeIDType>(prevGroup)
+				: new HashSet<NodeIDType>();
+		this.DB = DB;
 		this.isNodeConfigChange = startEpoch.getServiceName().equals(
-				AbstractReconfiguratorDB.RecordNames.NODE_CONFIG.toString());
+				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString());
 		/*
 		 * FIXME: dropEpoch service name should be previous group name for merge
 		 * and not be done at all for non-merge RC group change operations.
@@ -124,32 +132,48 @@ public class WaitAckDropEpoch<NodeIDType>
 						: RESTART_PERIOD_SERVICE_NAMES);
 	}
 
+	/**
+	 * @param startEpoch
+	 * @param DB
+	 */
+	public WaitAckDropEpoch(StartEpoch<NodeIDType> startEpoch,
+			RepliconfigurableReconfiguratorDB<NodeIDType> DB) {
+		this(startEpoch, startEpoch.getPrevEpochGroup(), DB);
+	}
+
 	@Override
 	public GenericMessagingTask<NodeIDType, ?>[] restart() {
+		this.DB.filterDeletedActives(this.prevGroup);
 		// send DropEpoch to all new actives and await acks from all?
-		log.log(Level.INFO,
-				"{0} (re-)sending [{1} of {2}] {3} to {4} ",
+		log.log(Level.INFO, "{0} (re-)sending [{1} of {2}] {3} to {4}",
 				new Object[] {
 						this.refreshKey(),
 						this.numRestarts,
 						MAX_RESTARTS,
 						this.dropEpoch.getSummary(),
 						this.isNodeConfigChange ? startEpoch.getCommonMembers()
-								: startEpoch.getPrevEpochGroup() });
+								: this.prevGroup });
+
 		if ((// have something to drop in the first place
 				this.startEpoch.hasPrevEpochGroup()
-				// count limit on restarts for good garbage collection
+						&& !this.prevGroup.isEmpty()
+						// count limit on restarts for good garbage collection
 						&& this.numRestarts++ < MAX_RESTARTS
 				// time limit on restarts to prevent ghost final state deletion
 				&& System.currentTimeMillis() - this.creationTime < ReconfigurationConfig
 						.getMaxFinalStateAge())
-				// or is node config change
-				|| this.isNodeConfigChange)
+				/* Or is node config change coz these drop epoch tasks are meant to ensure
+				 * that all reconfigurators have completed the node config change, so
+				 * they must go on for ever in order to be able to respond bacj with
+				 * success to the client.
+				 */
+				|| this.isNodeConfigChange) {
 			return (new GenericMessagingTask<NodeIDType, DropEpochFinalState<NodeIDType>>(
 					this.isNodeConfigChange ? this.startEpoch
-							.getCommonMembers().toArray() : this.startEpoch
-							.getPrevEpochGroup().toArray(), this.dropEpoch))
+							.getCommonMembers().toArray()
+							: this.prevGroup.toArray(), this.dropEpoch))
 					.toArray();
+		}
 		// else
 		log.info(this + " protocol task canceling itself ");
 		ProtocolExecutor.cancel(this);
@@ -197,6 +221,7 @@ public class WaitAckDropEpoch<NodeIDType>
 		return this.key;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public boolean handleEvent(ProtocolEvent<PacketType, String> event) {
 		assert (event.getType()
@@ -204,6 +229,8 @@ public class WaitAckDropEpoch<NodeIDType>
 		log.log(Level.INFO, "{0} received {1}",
 				new Object[] { this.refreshKey(),
 						((AckDropEpochFinalState<String>) event).getSummary() });
+		this.prevGroup.remove(((AckDropEpochFinalState<NodeIDType>) event)
+				.getSender());
 		return true;
 	}
 

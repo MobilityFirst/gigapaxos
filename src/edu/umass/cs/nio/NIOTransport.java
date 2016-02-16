@@ -365,15 +365,18 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	 * @throws IOException
 	 */
 	public int send(NodeIDType id, byte[] data) throws IOException {
+		InetAddress address = this.nodeConfig.getNodeAddress(id);
+		int port = this.nodeConfig.getNodePort(id);
+		if (address == null || port < 0)
+			return -1;
+
 		log.log(Level.FINEST,
 				"{0} invoked send to ({1}={2}:{3}: {4}), checking connection status..",
-				new Object[] { this, id, this.nodeConfig.getNodeAddress(id),
-						this.nodeConfig.getNodePort(id), new Stringer(data) });
+				new Object[] { this, id, address, port, new Stringer(data) });
 		if (this.nodeConfig == null)
 			throw new NullPointerException(
 					"Attempting ID-based communication with null InterfaceNodeConfig");
-		return send(new InetSocketAddress(this.nodeConfig.getNodeAddress(id),
-				this.nodeConfig.getNodePort(id)), data);
+		return send(new InetSocketAddress(address, port), data);
 	}
 
 	/**

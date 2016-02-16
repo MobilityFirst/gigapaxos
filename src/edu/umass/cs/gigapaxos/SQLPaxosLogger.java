@@ -2452,6 +2452,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				 * corresponding logIndex so that we maintain the invariant that
 				 * logIndex is always unpaused when the corresponding paxos
 				 * instance is unpaused.
+				 * 
+				 * Note: This invariant is not needed for correctness with
+				 * DiskMap as it will automatically page in logIndex state
+				 * as needed.
 				 */
 				this.unpauseLogIndex(paxosID);
 			}

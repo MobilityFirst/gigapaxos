@@ -151,6 +151,7 @@ public class HotRestoreInfo {
 	}
 
 	public static void main(String[] args) {
+		Util.assertAssertionsEnabled();
 		int[] members = { 1, 4, 67 };
 		int[] nodeSlots = { 1, 3, 5 };
 		HotRestoreInfo hri1 = new HotRestoreInfo("paxos0", 2, members,

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StopEpoch;
 
@@ -32,18 +33,23 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.StopEpoch;
  *            they are automatically removed after some idle time.
  */
 public class CallbackMap<NodeIDType> {
-	private final HashMap<String, List<StopEpoch<NodeIDType>>> listMap = new HashMap<String, List<StopEpoch<NodeIDType>>>();
+	private final ConcurrentHashMap<String, List<StopEpoch<NodeIDType>>> listMap = new ConcurrentHashMap<String, List<StopEpoch<NodeIDType>>>();
 
 	/**
 	 * @param stopEpoch
 	 * @return True as specified by {@link List#add(Object)}.
 	 */
 	public boolean addStopNotifiee(StopEpoch<NodeIDType> stopEpoch) {
-		if (!this.listMap.containsKey(stopEpoch.getServiceName())) {
-			ArrayList<StopEpoch<NodeIDType>> notifiees = new ArrayList<StopEpoch<NodeIDType>>();
-			this.listMap.put(stopEpoch.getServiceName(), notifiees);
-		}
-		return this.listMap.get(stopEpoch.getServiceName()).add(stopEpoch);
+		//if (!this.listMap.containsKey(stopEpoch.getServiceName())) {
+			//ArrayList<StopEpoch<NodeIDType>> notifiees = new ArrayList<StopEpoch<NodeIDType>>();
+			//this.listMap.put(stopEpoch.getServiceName(), notifiees);
+		//}
+		this.listMap.putIfAbsent(stopEpoch.getServiceName(), new ArrayList<StopEpoch<NodeIDType>>());
+		List<StopEpoch<NodeIDType>> notifiees = null;
+		if((notifiees = this.listMap.get(stopEpoch.getServiceName())) != null)
+			return notifiees.add(stopEpoch);
+		//return this.listMap.get(stopEpoch.getServiceName()).add(stopEpoch);
+		else return false;
 	}
 
 	/**

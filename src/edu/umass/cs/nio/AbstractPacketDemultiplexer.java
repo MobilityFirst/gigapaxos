@@ -88,7 +88,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	private final ScheduledExecutorService executor;
 	private final HashMap<Integer, PacketDemultiplexer<MessageType>> demuxMap = new HashMap<Integer, PacketDemultiplexer<MessageType>>();
 	private final Set<Integer> orderPreservingTypes = new HashSet<Integer>();
-	protected static final Logger log = NIOTransport.getLogger();
+	private static final Logger log = NIOTransport.getLogger();
 
 	abstract protected Integer getPacketType(MessageType message);
 
