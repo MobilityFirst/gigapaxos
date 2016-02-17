@@ -280,7 +280,15 @@ public class Util {
 		if (tokens.length < 2) {
 			return null;
 		}
-		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
+                String ipString = tokens[0];
+                try {
+                  if (ipString.equals("publicIP")) {
+                    ipString = InetAddress.getLocalHost().getHostAddress();
+                  } 
+                } catch (UnknownHostException e) {
+                  return null;
+                }
+		return new InetSocketAddress(ipString, Integer.valueOf(tokens[1]));
 	}
 
 	public static InetAddress getInetAddressFromString(String s)
@@ -477,6 +485,11 @@ public class Util {
 				.equals(new InetSocketAddress("10.0.1.50", 24404)));
 	}
 
+        private static void testGetPublicInetSocketAddressFromString() {
+		System.out.println(getInetSocketAddressFromString("publicIP:24404"));
+	}
+        
+        
 	private static void testGetInetAddressFromString()
 			throws UnknownHostException {
 		assert (getInetAddressFromString("10.0.1.50/10.0.1.50:24404")
@@ -547,5 +560,6 @@ public class Util {
 		testGetInetAddressFromString();
 		testToBytesAndBack();
 		System.out.println("SUCCESS!");
+                //testGetPublicInetSocketAddressFromString();
 	}
 }
