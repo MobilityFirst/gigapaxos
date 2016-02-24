@@ -84,6 +84,7 @@ public class WaitAckStartEpoch<NodeIDType>
 						: 1), !startEpoch.isMerge() ? false : true);
 		// need to recreate start epoch just to set initiator to self
 		this.startEpoch = new StartEpoch<NodeIDType>(DB.getMyID(), startEpoch);
+		
 		this.DB = DB;
 		this.key = this.refreshKey();
 	}
@@ -240,7 +241,8 @@ public class WaitAckStartEpoch<NodeIDType>
 			 * facing messenger may in general be different.
 			 */
 		} else
-			assert (false);
+			//assert (false) : this.startEpoch.getSummary()
+			;
 
 		/*
 		 * Propagate start epoch confirmation to all. But if RC group name, do

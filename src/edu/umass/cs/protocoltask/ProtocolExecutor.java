@@ -18,6 +18,7 @@
 package edu.umass.cs.protocoltask;
 
 import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -30,6 +31,8 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 
 import edu.umass.cs.nio.GenericMessagingTask;
+import edu.umass.cs.nio.JSONMessenger;
+import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.protocoltask.json.ProtocolPacket;
 import edu.umass.cs.utils.MultiArrayMap;
@@ -205,7 +208,7 @@ public class ProtocolExecutor<NodeIDType, EventType, KeyType> {
 	 */
 	public void stop() {
 		this.messenger.stop();
-		this.executor.shutdown();
+		this.executor.shutdownNow();
 	}
 
 	// can also ask executor to act like a simple execpool
@@ -401,15 +404,20 @@ public class ProtocolExecutor<NodeIDType, EventType, KeyType> {
 			return false;
 		}
 		@SuppressWarnings("unchecked")
-		// FIXME: Not sure if there is a way to prevent this warning.
 		ProtocolTask<NodeIDType, EventType, KeyType>[] ptasks = new ProtocolTask[1];
 		try {
 			send(task.handleEvent(event, ptasks), event.getKey());
 		} catch (Exception e) {
 			handleException(e, task);
 		}
-		if (ptasks[0] != null)
-			spawn((ptasks[0]));
+
+		try {
+			if (ptasks[0] != null)
+				spawn((ptasks[0]));
+		} catch (ProtocolTaskCreationException e) {
+			e.printStackTrace();
+			// ignore duplicate task exceptions
+		}
 		if (removable(task.getKey()))
 			remove(task);
 		return true;
@@ -484,13 +492,17 @@ public class ProtocolExecutor<NodeIDType, EventType, KeyType> {
 		for (GenericMessagingTask<NodeIDType, ?> mtask : mtasks) {
 			try {
 				this.messenger.send(mtask);
-			} catch (IOException ioe) {
+			} catch (ClosedByInterruptException cbie) {
+				// because of cancel, no need to print exception
+				allSent = false;
+			} 
+			catch (IOException ioe) {
 				ioe.printStackTrace();
 				allSent = false;
 			} catch (JSONException je) {
 				je.printStackTrace();
 				allSent = false;
-			}
+			} 
 		}
 		return allSent;
 	}

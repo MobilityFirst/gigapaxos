@@ -500,7 +500,7 @@ public class ReconfigurableClient {
 						reconfiguratorID, new InetSocketAddress(InetAddress
 								.getByName("localhost"), TEST_PORT)));
 				while (!client
-						.waitForReconfigureRCSuccess(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+						.waitForReconfigureRCSuccess(AbstractReconfiguratorDB.RecordNames.RC_NODES
 								.toString()))
 					;
 				DelayProfiler.updateDelay("addReconfigurator", t0);
@@ -516,7 +516,7 @@ public class ReconfigurableClient {
 				client.sendRequest(new ReconfigureRCNodeConfig<String>(null,
 						null, deleted));
 				while (!client
-						.waitForReconfigureRCSuccess(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+						.waitForReconfigureRCSuccess(AbstractReconfiguratorDB.RecordNames.RC_NODES
 								.toString())) {
 				}
 				DelayProfiler.updateDelay("removeReconfigurator", t0);

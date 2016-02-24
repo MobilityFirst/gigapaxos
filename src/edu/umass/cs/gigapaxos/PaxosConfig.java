@@ -67,7 +67,7 @@ public class PaxosConfig {
 	public static void load(Class<?> type) {
 		try {
 			Config.register(type, GIGAPAXOS_CONFIG_FILE_KEY,
-					DEFAULT_GIGAPAXOS_CONFIG_FILE);
+						DEFAULT_GIGAPAXOS_CONFIG_FILE);
 		} catch (IOException e) {
 			// ignore as default will still be used
 		}
@@ -394,7 +394,7 @@ public class PaxosConfig {
 		 * Prefix of the paxos DB's name. The whole name is obtained by
 		 * concatenating this prefix with the node ID.
 		 */
-		PAXOS_DB_PREFIX("paxos_logs"),
+		PAXOS_DB_PREFIX("paxos_logs."),
 
 		/**
 		 * Maximum length in characters of a paxos group name.

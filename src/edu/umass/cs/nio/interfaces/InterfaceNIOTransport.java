@@ -100,4 +100,9 @@ public interface InterfaceNIOTransport<NodeIDType,MessageType> {
 	 * @return Whether {@code node} got disconnected.
 	 */
 	public boolean isDisconnected(NodeIDType node);
+
+	/**
+	 * @return True if stopped.
+	 */
+	public boolean isStopped();
 }

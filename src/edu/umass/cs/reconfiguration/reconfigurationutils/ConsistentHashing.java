@@ -224,7 +224,7 @@ public class ConsistentHashing<NodeIDType> {
 		ConsistentHashing<String> CHI = new ConsistentHashing<String>(IDs);
 		System.out.println("ring ordering = " + CHI.getServers());
 
-		String[] IDs1 = {"RC0", "RC1", "RC2", "RC9384"};
+		String[] IDs1 = {"RC0", "RC1", "RC2", "RC3", "RC4", "RC3723"};
 		ConsistentHashing<String> CHI1 = new ConsistentHashing<String>(IDs1);
 		System.out.println("ring ordering = " + CHI1.getServers());
 

@@ -206,10 +206,9 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		 * reconfigurators.
 		 */
 		this.createReplicaGroup(
-				RecordNames.RC_NODE_CONFIG.toString(),
+				RecordNames.RC_NODES.toString(),
 				0,
-				this.getInitialRCGroupRecord(
-						RecordNames.RC_NODE_CONFIG.toString(),
+				this.getInitialRCGroupRecord(RecordNames.RC_NODES.toString(),
 						this.consistentNodeConfig.getReconfigurators())
 						.toString(), this.consistentNodeConfig
 						.getReconfigurators());
@@ -219,10 +218,9 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		 * reconfigurators.
 		 */
 		this.createReplicaGroup(
-				RecordNames.ACTIVE_NODE_CONFIG.toString(),
+				RecordNames.AR_NODES.toString(),
 				0,
-				this.getInitialRCGroupRecord(
-						RecordNames.ACTIVE_NODE_CONFIG.toString(),
+				this.getInitialRCGroupRecord(RecordNames.AR_NODES.toString(),
 						this.consistentNodeConfig.getActiveReplicas())
 						.toString(), this.consistentNodeConfig
 						.getReconfigurators());
@@ -449,40 +447,41 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	@Override
 	public boolean deleteFinalState(String rcGroupName, int epoch) {
 		// special case for node config changes
-		if (rcGroupName
-				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
-						.toString()))
+		if (rcGroupName.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
+				.toString()))
 			return isNCReady(epoch + 1); // final state deletion unnecessary
 		else if (rcGroupName
-				.equals(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+				.equals(AbstractReconfiguratorDB.RecordNames.AR_NODES
 						.toString()))
-			return isActiveNCReady(epoch + 1); // final state deletion
-												// unnecessary
-
+			return isActiveNCReady(epoch + 1);
+		// final state deletion strictly unnecessary
 		return super.deleteFinalState(rcGroupName, epoch);
 	}
 
 	private boolean isNCReady(int epoch) {
 		ReconfigurationRecord<NodeIDType> ncRecord = this
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString());
-		if (ncRecord != null && ncRecord.getEpoch() == epoch
-				&& ncRecord.isReady())
+		boolean ncComplete = false;
+		if (ncComplete = (ncRecord != null && ncRecord.getEpoch() == epoch && ncRecord
+				.isReady())) {
+			log.log(Level.INFO, "{0} {1} is all ready", new Object[] { this,
+					AbstractReconfiguratorDB.RecordNames.RC_NODES });
 			return true;
-		else {
-			String debug = this.app.isNodeConfigChangeCompleteDebug();
-			log.log(Level.INFO,
-					"{0} has *NOT* completed node config change to epoch {1}; nc_state = {2}; {3}",
+		} else {
+			String debug = this.app.areRCChangesCompleteDebug();
+			// debug empty means only ncRecord change remains
+			log.log(debug.isEmpty() ? Level.INFO : Level.FINE,
+					"{0} has not completed node config record change to epoch {1}; nc_record = {2}; {3}",
 					new Object[] { this, epoch, ncRecord.getSummary(), debug });
 		}
-		assert (ncRecord == null || ncRecord.getEpoch() != epoch || !ncRecord
-				.isReady()) : ncRecord;
-		return false;
+		// maybe true by now despite check above
+		return ncComplete;
 	}
 
 	private boolean isActiveNCReady(int epoch) {
 		ReconfigurationRecord<NodeIDType> activeNCRecord = this
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
 						.toString());
 		if (activeNCRecord != null && activeNCRecord.getEpoch() == epoch
 				&& activeNCRecord.isReady())
@@ -497,9 +496,10 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return false;
 	}
 
+	// really checks for not present in new
 	protected boolean isBeingDeleted(String curRCGroup) {
 		Set<NodeIDType> newRCs = this.getReconfigurationRecord(
-				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString())
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString())
 				.getNewActives();
 		boolean presentInNew = false;
 		for (NodeIDType node : newRCs) {
@@ -507,6 +507,19 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 				presentInNew = true;
 		}
 		return !presentInNew;
+	}
+
+	// really checks for not present in old
+	protected boolean isBeingAdded(String curRCGroup) {
+		Set<NodeIDType> oldRCs = this.getReconfigurationRecord(
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString())
+				.getActiveReplicas();
+		boolean presentInOld = false;
+		for (NodeIDType node : oldRCs) {
+			if (this.getRCGroupName(node).equals(curRCGroup))
+				presentInOld = true;
+		}
+		return !presentInOld;
 	}
 
 	protected void delayedDeleteComplete() {
@@ -530,7 +543,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 
 	protected int getCurNCEpoch() {
 		return this.getReconfigurationRecord(
-				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString())
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString())
 				.getEpoch();
 	}
 
@@ -604,7 +617,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	}
 
 	protected boolean isNCRecord(String name) {
-		return name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+		return name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
 				.toString());
 	}
 

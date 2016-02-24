@@ -165,10 +165,6 @@ public abstract class AbstractPaxosLogger {
 	private final boolean BATCH_CHECKPOINTS = Config.getGlobalBoolean(PC.BATCH_CHECKPOINTS);
 
 	/*
-	 * FIXME: This method is unused. It was designed to offload checkpointing to
-	 * its own task so that the paxos instance could move on. But there is no
-	 * safe and efficient way for the instance to move on unless the checkpoint
-	 * is complete, so we can not offload checkpoints to a worker after all.
 	 */
 	protected static final void checkpoint(AbstractPaxosLogger logger, boolean sync,
 			String paxosID, int version, Set<String> members, int slot,
@@ -177,12 +173,12 @@ public abstract class AbstractPaxosLogger {
 			return;
 
 		if (logger.BATCH_CHECKPOINTS)
-			if (sync)
-				logger.collapsingCheckpointer
-						.enqueueAndWait(logger.new CheckpointTask(logger,
-								paxosID, version, members, slot, ballot, state,
-								gcSlot));
-			else
+			if (!sync)
+				//logger.collapsingCheckpointer
+					//	.enqueueAndWait(logger.new CheckpointTask(logger,
+						//		paxosID, version, members, slot, ballot, state,
+							//	gcSlot));
+			//else
 				logger.collapsingCheckpointer
 						.enqueue(logger.new CheckpointTask(logger, paxosID,
 								version, members, slot, ballot, state, gcSlot));

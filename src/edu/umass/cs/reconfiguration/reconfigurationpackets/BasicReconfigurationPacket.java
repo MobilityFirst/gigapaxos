@@ -32,7 +32,7 @@ import edu.umass.cs.nio.nioutils.StringifiableDefault;
  */
 public abstract class BasicReconfigurationPacket<NodeIDType> extends ReconfigurationPacket<NodeIDType> implements Request  {
 
-	protected enum Keys {SERVICE_NAME, EPOCH_NUMBER, IS_COORDINATION};
+	protected enum Keys {NAME, EPOCH, COORDINATED};
 
 	protected final String serviceName;
 	protected final int epochNumber;
@@ -56,13 +56,13 @@ public abstract class BasicReconfigurationPacket<NodeIDType> extends Reconfigura
 	 */
 	public BasicReconfigurationPacket(JSONObject json, Stringifiable<NodeIDType> unstringer) throws JSONException {
 		super(json, unstringer);
-		this.serviceName = json.getString(Keys.SERVICE_NAME.toString());
-		this.epochNumber = json.getInt(Keys.EPOCH_NUMBER.toString());
+		this.serviceName = json.getString(Keys.NAME.toString());
+		this.epochNumber = json.getInt(Keys.EPOCH.toString());
 	}
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
-		json.put(Keys.SERVICE_NAME.toString(), this.serviceName);
-		json.put(Keys.EPOCH_NUMBER.toString(), this.epochNumber);
+		json.put(Keys.NAME.toString(), this.serviceName);
+		json.put(Keys.EPOCH.toString(), this.epochNumber);
 		return json;
 	}
 

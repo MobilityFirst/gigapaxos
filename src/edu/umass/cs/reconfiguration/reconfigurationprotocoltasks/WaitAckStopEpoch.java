@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -61,12 +61,17 @@ public class WaitAckStopEpoch<NodeIDType>
 	 * reconfiguration protocol tasks are multiples of this, so it should be
 	 * changed with care.
 	 */
-	public static final long RESTART_PERIOD = Config.getGlobalLong(RC.STOP_TASK_RESTART_PERIOD);//2000;
+	public static final long RESTART_PERIOD = Config
+			.getGlobalLong(RC.STOP_TASK_RESTART_PERIOD);// 2000;
 
 	private final String key;
 	private final StopEpoch<NodeIDType> stopEpoch;
-	protected final StartEpoch<NodeIDType> startEpoch; // just convenient to
-														// remember this
+	/**
+	 * 
+	 */
+	public final StartEpoch<NodeIDType> startEpoch;
+	private final Object monitor;
+
 	protected final RepliconfigurableReconfiguratorDB<NodeIDType> DB;
 	private Iterator<NodeIDType> nodeIterator = null;
 
@@ -79,18 +84,34 @@ public class WaitAckStopEpoch<NodeIDType>
 	/**
 	 * @param startEpoch
 	 * @param DB
+	 * @param monitor
 	 */
 	public WaitAckStopEpoch(StartEpoch<NodeIDType> startEpoch,
-			RepliconfigurableReconfiguratorDB<NodeIDType> DB) {
+			RepliconfigurableReconfiguratorDB<NodeIDType> DB, Object monitor) {
 		super(startEpoch.getPrevEpochGroup(), 1);
+		this.monitor = monitor;
 		this.stopEpoch = new StopEpoch<NodeIDType>(DB.getMyID(),
 				startEpoch.getPrevGroupName(), startEpoch.getPrevEpochNumber(),
-				startEpoch.isMerge());
+				// get final state for splits as well if isAggregatedMergeSplit
+				startEpoch.isMerge()
+						|| (this.isAggregatedMergeSplit() && startEpoch
+								.isSplit()),
+				// don't actually stop if split
+				!startEpoch.isSplit());
 		this.startEpoch = startEpoch;
 		this.nodeIterator = startEpoch.getPrevEpochGroup().iterator();
 		this.DB = DB;
 		this.key = this.refreshKey();
 		this.setPeriod(RESTART_PERIOD);
+	}
+
+	/**
+	 * @param startEpoch
+	 * @param DB
+	 */
+	public WaitAckStopEpoch(StartEpoch<NodeIDType> startEpoch,
+			RepliconfigurableReconfiguratorDB<NodeIDType> DB) {
+		this(startEpoch, DB, null);
 	}
 
 	@Override
@@ -119,14 +140,18 @@ public class WaitAckStopEpoch<NodeIDType>
 	protected boolean amObviated() {
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(this.stopEpoch.getServiceName());
-		if (record == null // nothing to delete
+		if ((record == null // nothing to delete
 				// moved on
 				|| (record.getEpoch() - this.stopEpoch.getEpochNumber() > 0)
-				// moved beyond WAIT_ACK_STOP
+		// moved beyond WAIT_ACK_STOP
 				|| (record.getEpoch() == this.stopEpoch.getEpochNumber() && record
-						.getState().equals(RCStates.WAIT_DELETE))) {
+						.getState().equals(RCStates.WAIT_DELETE)))
+				// need the splittee state if isAggregatedMergeSplit
+				&& (!this.startEpoch.isSplitOrMerge() || !this
+						.isAggregatedMergeSplit())) {
 			log.log(Level.INFO, "{0} obviated because record = ", new Object[] {
-					this.getKey(), record!=null ? record.getSummary() : record});
+					this.getKey(),
+					record != null ? record.getSummary() : record });
 			return true;
 		}
 		return false;
@@ -145,7 +170,8 @@ public class WaitAckStopEpoch<NodeIDType>
 		 * otherwise we may prevent the intent from ever getting committed and
 		 * be stuck.
 		 */
-		if (this.startEpoch.noPrevEpochGroup() || this.startEpoch.isSplit()) {
+		if (this.startEpoch.noPrevEpochGroup()
+				|| (this.startEpoch.isSplit() && !this.isAggregatedMergeSplit())) {
 			return new GenericMessagingTask<NodeIDType, AckStopEpoch<NodeIDType>>(
 					this.DB.getMyID(), new AckStopEpoch<NodeIDType>(
 							this.startEpoch.getInitiator(),
@@ -177,7 +203,10 @@ public class WaitAckStopEpoch<NodeIDType>
 	 */
 	public String refreshKey() {
 		return Reconfigurator.getTaskKey(getClass(), stopEpoch, this.DB
-				.getMyID().toString());
+				.getMyID().toString())
+				+ (this.startEpoch.isSplit() ? ":"
+						+ this.startEpoch.getServiceName() + ":"
+						+ this.startEpoch.getEpochNumber() : "");
 	}
 
 	/**
@@ -206,9 +235,23 @@ public class WaitAckStopEpoch<NodeIDType>
 				ackStopEpoch.getSummary() });
 		this.startEpoch.setFirstPrevEpochCandidate(ackStopEpoch.getSender());
 		// finalState can not be null
-		if (this.stopEpoch.shouldGetFinalState())
-			return (this.finalState = ackStopEpoch.getFinalState()) != null;
+		if (this.stopEpoch.shouldGetFinalState()) {
+			if (ackStopEpoch.getFinalState() != null)
+				this.setFinalState(ackStopEpoch.getFinalState());
+			else
+				return false;
+		}
 		return true;
+	}
+
+	private void setFinalState(String state) {
+		if (this.monitor != null)
+			synchronized (this.monitor) {
+				this.finalState = state;
+				this.monitor.notifyAll();
+			}
+		else
+			this.finalState = state;
 	}
 
 	// Send startEpoch when stopEpoch is committed
@@ -220,11 +263,12 @@ public class WaitAckStopEpoch<NodeIDType>
 		} else
 			DelayProfiler.updateDelay("stopServiceEpoch", this.initTime);
 
-		log.log(Level.INFO, "{0} received ACK_{1} ", new Object[] { this,
-				this.stopEpoch.getSummary() });
+		log.log(Level.INFO, "{0} received ACK_{1} {2}", new Object[] { this,
+				this.stopEpoch.getSummary(),
+				this.finalState != null ? "(with finalState)" : "" });
 
 		GenericMessagingTask<NodeIDType, ?>[] mtasks = null;
-		// no next epoch group means delete record
+		// no next epoch group means delete record (and not RC merge)
 		if (this.startEpoch.noCurEpochGroup()) {
 			assert (!startEpoch.isMerge());
 			ptasks[0] = new WaitAckDropEpoch<NodeIDType>(this.startEpoch,
@@ -232,20 +276,34 @@ public class WaitAckStopEpoch<NodeIDType>
 			// about to delete RC record, but send confirmation to client anyway
 			return this.prepareDeleteIntent();
 		} else if (this.startEpoch.isMerge()) {
-			RCRecordRequest<NodeIDType> merge = new RCRecordRequest<NodeIDType>(
-					this.DB.getMyID(), new StartEpoch<NodeIDType>(
-							this.startEpoch, this.finalState),
-					RCRecordRequest.RequestTypes.RECONFIGURATION_MERGE);
-			mtasks = (new GenericMessagingTask<NodeIDType, Object>(
-					this.DB.getMyID(), merge)).toArray();
-			log.log(Level.INFO, "{0} sending out {1}", new Object[] { this,
-					merge.getSummary() });
-		} else
+			if (!this.isAggregatedMergeSplit()) {
+				RCRecordRequest<NodeIDType> merge = new RCRecordRequest<NodeIDType>(
+						this.DB.getMyID(), new StartEpoch<NodeIDType>(
+								this.startEpoch, this.finalState),
+						RCRecordRequest.RequestTypes.RECONFIGURATION_MERGE);
+				mtasks = (new GenericMessagingTask<NodeIDType, Object>(
+						this.DB.getMyID(), merge)).toArray();
+				log.log(Level.INFO, "{0} sending to self {1}", new Object[] {
+						this, merge.getSummary() });
+			}
+		} else if (!this.startEpoch.isSplitOrMerge()
+				|| !this.isAggregatedMergeSplit())
 			// else start next epoch group
 			ptasks[0] = new WaitAckStartEpoch<NodeIDType>(this.startEpoch,
 					this.DB);
 
 		return mtasks; // ptasks[0].start() will actually send the startEpoch
+	}
+
+	/**
+	 * @return Retrieved final state if any of stopped epoch.
+	 */
+	public String getFinalState() {
+		if(this.monitor!=null)
+		synchronized (this.monitor) {
+			return this.finalState;
+		}
+		else return this.finalState;
 	}
 
 	private GenericMessagingTask<NodeIDType, ?>[] prepareDeleteIntent() {
@@ -256,8 +314,12 @@ public class WaitAckStopEpoch<NodeIDType>
 				rcRecReq)).toArray();
 	}
 
+	// monitor is non-null only when Reconfigurator.isAggregatedSplitMerge()
+	private boolean isAggregatedMergeSplit() {
+		return this.monitor != null;
+	}
+
 	public String toString() {
 		return this.getKey();
 	}
-
 }

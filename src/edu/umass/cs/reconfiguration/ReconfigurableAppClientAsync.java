@@ -48,7 +48,7 @@ import edu.umass.cs.utils.Util;
  */
 public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private static final long MIN_RTX_INTERVAL = 1000;
-	private static final long GC_TIMEOUT = 60000;
+	private static final long GC_TIMEOUT = 120000;
 
 	final MessageNIOTransport<String, String> niot;
 	final InetSocketAddress[] reconfigurators;
@@ -353,8 +353,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private void sendRequest(ClientReconfigurationPacket request)
 			throws IOException {
-                InetSocketAddress dest = getRandom(this.reconfigurators);
-                Reconfigurator.getLogger().info(this + " sending request to " + dest + ": " + request.toString());
+		InetSocketAddress dest = getRandom(this.reconfigurators);
 		this.niot.sendToAddress(dest, request.toString());
 	}
 

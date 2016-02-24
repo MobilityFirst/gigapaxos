@@ -15,6 +15,10 @@
  */
 package edu.umass.cs.utils;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -336,8 +340,8 @@ public class Util {
 		return new Object() {
 			@Override
 			public String toString() {
-				return str == null || str.length() < size ? str
-						: str != null ? str.substring(0, size) : null;
+				return str == null || str.length() <= size ? str
+						: str != null ? str.substring(0, size) +"[..truncated]" : null;
 			}
 		};
 	}
@@ -539,6 +543,15 @@ public class Util {
 			set.remove(element);
 		return set;
 	}
+	
+	// return s1 - s2
+	public static Set<Object> diff(Set<?> s1, Set<?> s2) {
+		Set<Object> diff = new HashSet<Object>();
+		for (Object node : s1)
+			if (!s2.contains(node))
+				diff.add(node);
+		return diff;
+	}
 
 	public static void main(String[] args) throws UnsupportedEncodingException,
 			UnknownHostException {
@@ -547,5 +560,23 @@ public class Util {
 		testGetInetAddressFromString();
 		testToBytesAndBack();
 		System.out.println("SUCCESS!");
+	}
+
+	public static boolean recursiveRemove(File file) {
+		boolean deleted = true;
+		for(File f : file.listFiles()) 
+			if(f.isFile()) 
+				deleted = deleted && f.delete();
+			else recursiveRemove(f);
+		return deleted && file.delete();
+	}
+
+	public static void wipeoutFile(String filename) throws IOException {
+		FileWriter writer = null;
+		try {
+			(writer = new FileWriter(filename, false)).close();
+		} finally {
+			writer.close();
+		}
 	}
 }

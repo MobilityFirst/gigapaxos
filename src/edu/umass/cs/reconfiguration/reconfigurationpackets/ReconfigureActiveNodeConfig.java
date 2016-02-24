@@ -76,7 +76,7 @@ public class ReconfigureActiveNodeConfig<NodeIDType> extends
 	}
 	@Override
 	public String getServiceName() {
-		return AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG.toString();
+		return AbstractReconfiguratorDB.RecordNames.AR_NODES.toString();
 	}
 
 }

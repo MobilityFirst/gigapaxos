@@ -56,7 +56,7 @@ public final class SyncDecisionsPacket extends PaxosPacket {
 		this.nodeID = nodeID;
 		this.maxDecisionSlot = maxDecisionSlot;
 		this.missingSlotNumbers = missingSlotNumbers;
-		this.packetType = PaxosPacket.PaxosPacketType.SYNC_DECISIONS;
+		this.packetType = PaxosPacket.PaxosPacketType.SYNC_DECISIONS_REQUEST;
 	}
 
 	public SyncDecisionsPacket(JSONObject json) throws JSONException {
@@ -70,9 +70,9 @@ public final class SyncDecisionsPacket extends PaxosPacket {
 					.getJSONArray(PaxosPacket.Keys.MISS.toString()));
 		else
 			missingSlotNumbers = null;
-		assert (PaxosPacket.getPaxosPacketType(json) == PaxosPacketType.SYNC_DECISIONS || PaxosPacket
+		assert (PaxosPacket.getPaxosPacketType(json) == PaxosPacketType.SYNC_DECISIONS_REQUEST || PaxosPacket
 				.getPaxosPacketType(json) == PaxosPacketType.CHECKPOINT_REQUEST); 
-		this.packetType = PaxosPacketType.SYNC_DECISIONS;
+		this.packetType = PaxosPacketType.SYNC_DECISIONS_REQUEST;
 	}
 
 	@Override

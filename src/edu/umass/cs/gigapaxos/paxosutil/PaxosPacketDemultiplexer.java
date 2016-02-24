@@ -98,7 +98,7 @@ public abstract class PaxosPacketDemultiplexer extends
 		case BATCHED_ACCEPT_REPLY:
 			paxosPacket = (new BatchedAcceptReply(json));
 			break;
-		case SYNC_DECISIONS:
+		case SYNC_DECISIONS_REQUEST:
 			paxosPacket = (new SyncDecisionsPacket(json));
 			break;
 		case CHECKPOINT_STATE:

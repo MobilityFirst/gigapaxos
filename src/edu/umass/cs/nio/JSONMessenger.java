@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -19,6 +19,7 @@ package edu.umass.cs.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -60,8 +61,8 @@ public class JSONMessenger<NodeIDType> implements
 	private final InterfaceNIOTransport<NodeIDType, JSONObject> nioTransport;
 	protected final ScheduledExecutorService execpool;
 	private AddressMessenger<JSONObject> clientMessenger;
-	
-	private final MessageNIOTransport<NodeIDType,JSONObject>[] workers;
+
+	private final MessageNIOTransport<NodeIDType, JSONObject>[] workers;
 
 	private Logger log = NIOTransport.getLogger();
 
@@ -71,44 +72,52 @@ public class JSONMessenger<NodeIDType> implements
 	/**
 	 * @param niot
 	 */
-	public JSONMessenger(final InterfaceNIOTransport<NodeIDType, JSONObject> niot) {
+	public JSONMessenger(
+			final InterfaceNIOTransport<NodeIDType, JSONObject> niot) {
 		this(niot, 0);
 	}
+
 	/**
 	 * @param niot
 	 * @param numWorkers
 	 */
 	@SuppressWarnings("unchecked")
-	public JSONMessenger(final InterfaceNIOTransport<NodeIDType, JSONObject> niot, int numWorkers) {
+	public JSONMessenger(
+			final InterfaceNIOTransport<NodeIDType, JSONObject> niot,
+			int numWorkers) {
 		// to not create thread pools unnecessarily
 		if (niot instanceof JSONMessenger)
 			this.execpool = ((JSONMessenger<NodeIDType>) niot).execpool;
 		else
-			this.execpool = Executors.newScheduledThreadPool(5, new ThreadFactory() {
-				@Override
-				public Thread newThread(Runnable r) {
-					Thread thread = Executors.defaultThreadFactory().newThread(r);
-					thread.setName(this.getClass().getSimpleName() + niot.getMyID() + thread.getName());
-					return thread;
-				}
-			});
+			this.execpool = Executors.newScheduledThreadPool(5,
+					new ThreadFactory() {
+						@Override
+						public Thread newThread(Runnable r) {
+							Thread thread = Executors.defaultThreadFactory()
+									.newThread(r);
+							thread.setName(this.getClass().getSimpleName()
+									+ niot.getMyID() + thread.getName());
+							return thread;
+						}
+					});
 		nioTransport = (InterfaceNIOTransport<NodeIDType, JSONObject>) niot;
 
 		this.workers = new MessageNIOTransport[numWorkers];
 		for (int i = 0; i < workers.length; i++) {
 			try {
-				log.info((this + " starting worker with ssl mode " + this.nioTransport.getSSLMode()));
+				log.info((this + " starting worker with ssl mode " + this.nioTransport
+						.getSSLMode()));
 				this.workers[i] = new MessageNIOTransport<NodeIDType, JSONObject>(
 						null, this.getNodeConfig(),
 						this.nioTransport.getSSLMode());
-				this.workers[i].setName(getMyID() + "-send_worker"+i);
+				this.workers[i].setName(getMyID() + "-send_worker" + i);
 			} catch (IOException e) {
 				this.workers[i] = null;
 				e.printStackTrace();
 			}
 		}
 	}
-	
+
 	@Override
 	public void send(GenericMessagingTask<NodeIDType, ?> mtask)
 			throws IOException, JSONException {
@@ -123,11 +132,12 @@ public class JSONMessenger<NodeIDType> implements
 	 * messages when asked to send but the channel is congested. We use the
 	 * return value of NIO send to decide whether to retransmit.
 	 */
-	protected void send(GenericMessagingTask<NodeIDType, ?> mtask, boolean useWorkers)
-			throws IOException, JSONException {
+	protected void send(GenericMessagingTask<NodeIDType, ?> mtask,
+			boolean useWorkers) throws IOException, JSONException {
 		if (mtask == null || mtask.recipients == null || mtask.msgs == null) {
 			return;
 		}
+		IOException thrown = null;
 		for (Object msg : mtask.msgs) {
 			if (msg == null) {
 				assert (false);
@@ -137,8 +147,7 @@ public class JSONMessenger<NodeIDType> implements
 			try {
 				if (msg instanceof JSONObject) {
 					message = ((JSONObject) (msg)).toString();
-				}
-				else
+				} else
 					// we no longer require msg to be JSON at all
 					message = msg.toString();
 			} catch (Exception je) {
@@ -146,16 +155,19 @@ public class JSONMessenger<NodeIDType> implements
 						+ " incurred exception while decoding: " + msg);
 				throw (je);
 			}
-			byte[] msgBytes = message.getBytes(MessageNIOTransport.NIO_CHARSET_ENCODING);
+			byte[] msgBytes = message
+					.getBytes(MessageNIOTransport.NIO_CHARSET_ENCODING);
 			for (int r = 0; r < mtask.recipients.length; r++) {
 
 				int sent = -1;
 				try {
 					// special case provision for InetSocketAddress
-					sent = this.specialCaseSend(mtask.recipients[r],
-							msgBytes,	useWorkers);
-				} catch(IOException e) {
+					sent = this.specialCaseSend(mtask.recipients[r], msgBytes,
+							useWorkers);
+				} catch (IOException e) {
+					if((e instanceof ClosedByInterruptException)) throw e;
 					e.printStackTrace();
+					thrown = e;
 					continue; // remaining sends might succeed
 				}
 
@@ -181,6 +193,7 @@ public class JSONMessenger<NodeIDType> implements
 				}
 			}
 		}
+		if(thrown!=null) throw thrown;
 	}
 
 	// Note: stops underlying NIOTransport as well.
@@ -196,13 +209,14 @@ public class JSONMessenger<NodeIDType> implements
 				this.workers[i].stop();
 			}
 	}
-	
+
 	public String toString() {
-		return JSONMessenger.class.getSimpleName()+getMyID();
+		return JSONMessenger.class.getSimpleName() + getMyID();
 	}
 
 	@SuppressWarnings("unchecked")
-	private int specialCaseSend(Object id, byte[] msgBytes, boolean useWorkers) throws IOException {
+	private int specialCaseSend(Object id, byte[] msgBytes, boolean useWorkers)
+			throws IOException {
 		if (id instanceof InetSocketAddress)
 			return this.sendToAddress((InetSocketAddress) id, msgBytes);
 		else
@@ -239,7 +253,7 @@ public class JSONMessenger<NodeIDType> implements
 			} finally {
 				if (sent < msg.toString().length() && sent != -1) {
 					// nio can only send all or none, hence the assert
-					assert(sent==0);
+					assert (sent == 0);
 					log.warning("Node "
 							+ nioTransport.getMyID()
 							+ "->"
@@ -279,13 +293,13 @@ public class JSONMessenger<NodeIDType> implements
 
 	private int sendToID(NodeIDType id, byte[] msgBytes, boolean useWorkers)
 			throws IOException {
-		int i = (int) (Math.random() * (this.workers.length+1));
+		int i = (int) (Math.random() * (this.workers.length + 1));
 		return (useWorkers && this.workers.length > 0
 				&& i < this.workers.length && this.workers[i] != null) ? this.workers[i]
 				.sendToID(id, msgBytes) : this.nioTransport.sendToID(id,
-						msgBytes);
+				msgBytes);
 	}
-	
+
 	/**
 	 * Sends jsonData to address.
 	 * 
@@ -323,7 +337,7 @@ public class JSONMessenger<NodeIDType> implements
 	public void addPacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
 		this.nioTransport.addPacketDemultiplexer(pd);
 	}
-	
+
 	protected InterfaceNIOTransport<NodeIDType, JSONObject> getNIOTransport() {
 		return this.nioTransport;
 	}
@@ -335,19 +349,19 @@ public class JSONMessenger<NodeIDType> implements
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public void setClientMessenger(
-			AddressMessenger<?> clientMessenger) {
+	public void setClientMessenger(AddressMessenger<?> clientMessenger) {
 		if (this.clientMessenger != null)
 			throw new IllegalStateException(
 					"Can not change client messenger once set");
 		this.clientMessenger = (AddressMessenger<JSONObject>) clientMessenger;
 	}
-	
+
 	class JSONObjectWrapper extends JSONObject {
 		final Object obj;
 
 		JSONObjectWrapper(Object obj) {
-			super(obj instanceof JSONObject ? (JSONObject)obj : new JSONObject());
+			super(obj instanceof JSONObject ? (JSONObject) obj
+					: new JSONObject());
 			this.obj = obj;
 		}
 
@@ -360,8 +374,8 @@ public class JSONMessenger<NodeIDType> implements
 	 * A hack that relies on the fact that NIO treats JSONObject as no different
 	 * from any other object in that it invokes toString() and then getBytes(.)
 	 * to serialize and send it over the network. It is necessary that the other
-	 * end receiving this object be able to reconstruct it from a byte[], string,
-	 * or JSONObject.
+	 * end receiving this object be able to reconstruct it from a byte[],
+	 * string, or JSONObject.
 	 * 
 	 * Automatically tries to use clientMessenger.
 	 * 
@@ -378,29 +392,37 @@ public class JSONMessenger<NodeIDType> implements
 		(msgr != null ? msgr : this).sendToAddress(sockAddr,
 				new JSONObjectWrapper(message));
 	}
+
 	@Override
 	public NodeConfig<NodeIDType> getNodeConfig() {
 		return this.nioTransport.getNodeConfig();
 	}
+
 	@Override
 	public SSL_MODES getSSLMode() {
 		return this.nioTransport.getSSLMode();
 	}
+
 	@Override
 	public int sendToID(NodeIDType id, byte[] msg) throws IOException {
 		return this.nioTransport.sendToID(id, msg);
 	}
+
 	@Override
 	public int sendToAddress(InetSocketAddress isa, byte[] msg)
 			throws IOException {
 		return this.nioTransport.sendToAddress(isa, msg);
 	}
+	
+	public boolean isStopped(){return this.nioTransport.isStopped();}
+
 	@Override
 	public boolean isDisconnected(NodeIDType node) {
-		boolean disconnected = this.nioTransport.isDisconnected(node) ;
-		if(this.workers!=null)
-		for(InterfaceNIOTransport<NodeIDType,JSONObject> niot : this.workers)
-			disconnected = disconnected || (niot!=null && niot.isDisconnected(node));
+		boolean disconnected = this.nioTransport.isDisconnected(node);
+		if (this.workers != null)
+			for (InterfaceNIOTransport<NodeIDType, JSONObject> niot : this.workers)
+				disconnected = disconnected
+						|| (niot != null && niot.isDisconnected(node));
 		return disconnected;
 	}
 }

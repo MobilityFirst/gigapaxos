@@ -48,7 +48,7 @@ public abstract class ClientReconfigurationPacket extends
 		BasicReconfigurationPacket<InetSocketAddress> {
 
 	private static enum Keys {
-		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_REQUEST
+		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY
 	};
 
 	/**
@@ -145,7 +145,7 @@ public abstract class ClientReconfigurationPacket extends
 		if (this.creator == null)
 			this.creator = this.getSender();
 
-		this.isRequest = json.getBoolean(Keys.IS_REQUEST.toString());
+		this.isRequest = json.getBoolean(Keys.IS_QUERY.toString());
 	}
 
 	/**
@@ -173,7 +173,7 @@ public abstract class ClientReconfigurationPacket extends
 			json.put(Keys.MY_RECEIVER.toString(), this.myReceiver.toString());
 		if (this.creator != null)
 			json.put(Keys.CREATOR.toString(), this.creator.toString());
-		json.put(Keys.IS_REQUEST.toString(), this.isRequest);
+		json.put(Keys.IS_QUERY.toString(), this.isRequest);
 		return json;
 	}
 

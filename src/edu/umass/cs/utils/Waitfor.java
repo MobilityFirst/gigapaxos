@@ -1,5 +1,6 @@
 package edu.umass.cs.utils;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -21,7 +22,7 @@ public class Waitfor<NodeIDType> {
 	public Waitfor(NodeIDType[] m) {
 		this.members = new HashSet<NodeIDType>();
 		for(NodeIDType node : m) this.members.add(node);
-		this.responded = new HashSet<NodeIDType>();
+		this.responded = Collections.synchronizedSet(new HashSet<NodeIDType>());
 		initialize();
 	}
 	/**
@@ -29,7 +30,7 @@ public class Waitfor<NodeIDType> {
 	 */
 	public Waitfor(Set<NodeIDType> m) {
 		this.members = m;
-		this.responded = new HashSet<NodeIDType>();
+		this.responded = Collections.synchronizedSet(new HashSet<NodeIDType>());
 		initialize();
 	}
 	private void initialize() {
@@ -42,6 +43,9 @@ public class Waitfor<NodeIDType> {
 	 */
 	public boolean updateHeardFrom(NodeIDType node) {
 		boolean changed=false;
+		// only responses from members are valid
+		if(!this.members.contains(node)) return false;
+		
 		if(!this.responded.contains(node)) {
 			changed = true;
 			this.heardCount++;
@@ -112,6 +116,13 @@ public class Waitfor<NodeIDType> {
 		}
 		s+="]}";
 		return s;
+	}
+	
+	/**
+	 * @return The set of members that have responded.
+	 */
+	public Set<NodeIDType> getResponded() {
+		return new HashSet<NodeIDType>(this.responded);
 	}
 	
 	/**

@@ -1180,7 +1180,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	 */
 	private static final boolean SNEAK_DIRECT_WRITE = true; // default true
 
-	private boolean trySneakyWrite(InetSocketAddress isa, ByteBuffer data) {
+	private boolean trySneakyWrite(InetSocketAddress isa, ByteBuffer data) throws IOException {
 		if (!SNEAK_DIRECT_WRITE)
 			return false;
 		SocketChannel channel = this.getSockAddrToSockChannel(isa);
@@ -1192,7 +1192,8 @@ public class NIOTransport<NodeIDType> implements Runnable,
 			} catch (IOException e) {
 				if (!this.isDisconnected(isa)) {
 					this.updateFailed(isa);
-					e.printStackTrace();
+					//e.printStackTrace();
+					throw e;
 				}
 			}
 		}
@@ -1688,7 +1689,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 			connected = false;
 		}
 		if (connected)
-			log.log(Level.FINEST, "{0} finished connecting {1}", new Object[] {
+			log.log(Level.FINER, "{0} finished connecting {1}", new Object[] {
 					this, socketChannel });
 		return connected;
 	}

@@ -151,6 +151,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private static final String PAUSE_TABLE = "pause";
 	private static final String MESSAGES_TABLE = "messages";
 
+
 	/**
 	 * Disable persistent logging altogether
 	 */
@@ -632,6 +633,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	static class Journaler {
+		private static final String SUBDIR = "paxos_journals.";
 		private static final String PREFIX = "log.";
 		private static final String POSTPREFIX = ".";
 		private final int myID;
@@ -648,7 +650,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 		Journaler(String logdir, int myID) {
 			this.myID = myID;
-			this.logdir = logdir;
+			this.logdir = logdir+SUBDIR+myID+"/";
 			this.logfilePrefix = PREFIX + myID + POSTPREFIX;
 			assert (this.logdir != null && this.logfilePrefix != null);
 			this.curLogfile = generateLogfileName();
@@ -1065,7 +1067,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			.getGlobalBoolean(PC.USE_DISK_MAP);
 	private static final boolean DISABLE_CHECKPOINTING = Config
 			.getGlobalBoolean(PC.DISABLE_CHECKPOINTING);
-	private static final boolean USE_HEX_TIMESTAMP = Config
+	/**
+	 * Used also by reconfiguration.
+	 */
+	public static final boolean USE_HEX_TIMESTAMP = Config
 			.getGlobalBoolean(PC.USE_HEX_TIMESTAMP);
 	private static final boolean LAZY_COMPACTION = Config
 			.getGlobalBoolean(PC.LAZY_COMPACTION);	
@@ -1282,8 +1287,20 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return baos.toByteArray();
 	}
 
+	private Object checkpointLock = new Object();
+
+	private void putCheckpointState(final String paxosID, final int version,
+			final Set<String> group, final int slot, final Ballot ballot,
+			final String state, final int acceptedGCSlot, final long createTime) {
+		synchronized (this.checkpointLock) {
+			this.putCheckpointState(paxosID, version, group, slot, ballot,
+					state, acceptedGCSlot, createTime,
+					this.existsRecord(getCTable(), paxosID));
+		}
+	}
+
 	/*
-	 * The entry point for checkpointing. Puts given checkpoint state for
+	 * The actual checkpointing method. Puts given checkpoint state for
 	 * paxosID. 'state' could be anything that allows PaxosInterface to later
 	 * restore the corresponding state. For example, 'state' could be the name
 	 * of a file where the app maintains a checkpoint of all of its state. It
@@ -1292,7 +1309,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 */
 	private void putCheckpointState(final String paxosID, final int version,
 			final Set<String> group, final int slot, final Ballot ballot,
-			final String state, final int acceptedGCSlot, final long createTime) {
+			final String state, final int acceptedGCSlot, final long createTime, boolean existingCP) {
 		if (isClosed() || DISABLE_CHECKPOINTING)
 			return;
 
@@ -1304,8 +1321,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		String updateCmd = "update "
 				+ getCTable()
 				+ " set version=?,members=?, slot=?, ballotnum=?, coordinator=?, state=?, create_time=?, min_logfile=? where paxos_id=?";
-		boolean existingCP = this.existsRecord(getCTable(), paxosID);
-		// FIXME: concurrency issue; should explicitly process insert exception
+		//boolean existingCP = this.existsRecord(getCTable(), paxosID);
 		String cmd = existingCP ? updateCmd : insertCmd;
 		PreparedStatement insertCP = null;
 		Connection conn = null;
@@ -3568,7 +3584,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					&& this.messageLog.getLogIndex(paxosID, version) != null) {
 				this.messageLog.remove(paxosID);
 				assert(this.messageLog.get(paxosID)==null);
-				log.log(Level.INFO, "{0} removed logIndex for {1}:{2}",
+				log.log(Level.FINE, "{0} removed logIndex for {1}:{2}",
 						new Object[] { this, paxosID, version });
 			}
 		}

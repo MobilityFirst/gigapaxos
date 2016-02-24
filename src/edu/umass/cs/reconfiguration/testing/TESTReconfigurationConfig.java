@@ -82,7 +82,7 @@ public class TESTReconfigurationConfig {
 		/**
 		 * 
 		 */
-		NUM_RECONFIGURATORS(3),
+		NUM_RECONFIGURATORS(5),
 
 		/**
 		 * 
@@ -147,8 +147,18 @@ public class TESTReconfigurationConfig {
 		/**
 		 * 
 		 */
-		TEST_RTX_TIMEOUT(1000),
+		TEST_RTX_TIMEOUT(2000),
+		
+		/**
+		 * 
+		 */
+		TEST_APP_REQUEST_TIMEOUT (2000),
 
+		/**
+		 * 
+		 */
+		TEST_EXISTS_TIMEOUT (1000),
+		
 		/**
 		 * 
 		 */

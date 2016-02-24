@@ -180,8 +180,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		if (!createdOrExistsOrHigher)
 			throw new PaxosInstanceCreationException((this
 					+ " failed to create " + groupName + ":" + epoch
-					+ " with state [" + state + "] likely because epoch "
-					+ epoch + " or higher was previously created and stopped."));
+					+ " with state [" + state + "]"));
 		return createdOrExistsOrHigher;
 	}
 	

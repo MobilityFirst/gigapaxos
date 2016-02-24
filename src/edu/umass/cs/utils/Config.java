@@ -110,17 +110,19 @@ public class Config extends Properties {
 	 */
 	public static Config register(Class<?> type, String systemPropertyKey,
 			String defaultConfigFile) throws IOException {
-                String configFile = System.getProperty(systemPropertyKey) != null 
-                  ? System.getProperty(systemPropertyKey) :
-                  defaultConfigFile;
+		// one time
+		if (Config.getConfig(type) != null)
+			return Config.getConfig(type);
+		// else
+		String configFile = System.getProperty(systemPropertyKey) != null ? System
+				.getProperty(systemPropertyKey) : defaultConfigFile;
 		try {
-                  return configMap.put(type, new Config(configFile));
+			return configMap.put(type, new Config(configFile));
 		} catch (IOException ioe) {
 			// we still use defaults
 			configMap.put(type, new Config());
 			log.warning(Config.class.getSimpleName() + " unable to find file "
-					+ configFile + "; using default values for type "
-					+ type);
+					+ configFile + "; using default values for type " + type);
 			throw ioe;
 		}
 	}
@@ -140,17 +142,16 @@ public class Config extends Properties {
 	 *         will be thrown.
 	 */
 	public static Object getGlobal(Enum<?> field) {
-		assert (configMap.get(field.getDeclaringClass()).get(field) != null) : field
-				+ " : "
-				+ configMap.get(field.getDeclaringClass())
-				+ " : "
-				+ configMap.get(field.getDeclaringClass())
-						.get(field);
+
 		if (configMap.containsKey(field.getDeclaringClass()))
 			return configMap.get(field.getDeclaringClass()).get(field);
+		else if (field instanceof DefaultValueEnum)
+			return ((DefaultValueEnum) field).getDefaultValue();
+
 		throw new RuntimeException("No matching "
 				+ Config.class.getSimpleName() + " registered for field "
-				+ field);
+				+ field + " and/or " + field
+				+ " not instance of " + DefaultValueEnum.class.getSimpleName());
 	}
 
 	/**

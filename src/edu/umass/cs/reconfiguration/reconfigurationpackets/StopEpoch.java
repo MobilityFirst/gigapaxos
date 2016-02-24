@@ -33,24 +33,27 @@ public class StopEpoch<NodeIDType> extends
 		ReconfigurableRequest, ReplicableRequest {
 
 	private static enum Keys {
-		GET_FINALSTATE, QID
+		GET_FINALSTATE, QID, EXECUTE_STOP
 	};
 
 	private final boolean getFinalState;
 	private final long requestID;
+	private final boolean executeStop;
 
 	/**
 	 * @param initiator
 	 * @param name
 	 * @param epochNumber
 	 * @param getFinalState
+	 * @param executeStop 
 	 */
 	public StopEpoch(NodeIDType initiator, String name, int epochNumber,
-			boolean getFinalState) {
+			boolean getFinalState, boolean executeStop) {
 		super(initiator, ReconfigurationPacket.PacketType.STOP_EPOCH, name,
 				epochNumber);
 		this.getFinalState = getFinalState;
 		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
+		this.executeStop = executeStop;
 	}
 
 	/**
@@ -59,7 +62,7 @@ public class StopEpoch<NodeIDType> extends
 	 * @param epochNumber
 	 */
 	public StopEpoch(NodeIDType initiator, String name, int epochNumber) {
-		this(initiator, name, epochNumber, false);
+		this(initiator, name, epochNumber, false, true);
 	}
 
 	/**
@@ -72,6 +75,7 @@ public class StopEpoch<NodeIDType> extends
 		super(json, unstringer);
 		this.getFinalState = json.optBoolean(Keys.GET_FINALSTATE.toString());
 		this.requestID = json.getLong(Keys.QID.toString());
+		this.executeStop = json.getBoolean(Keys.EXECUTE_STOP.toString());
 	}
 
 	@Override
@@ -79,12 +83,20 @@ public class StopEpoch<NodeIDType> extends
 		JSONObject json = super.toJSONObjectImpl();
 		json.put(Keys.GET_FINALSTATE.toString(), this.getFinalState);
 		json.put(Keys.QID.toString(), this.requestID);
+		json.put(Keys.EXECUTE_STOP.toString(), this.executeStop);
 		return json;
 	}
 
 	@Override
 	public boolean isStop() {
 		return true;
+	}
+	
+	/**
+	 * @return True if stop must be coordinated.
+	 */
+	public boolean shouldExecuteStop() {
+		return this.executeStop;
 	}
 
 	@Override

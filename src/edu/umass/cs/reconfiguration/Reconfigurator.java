@@ -34,6 +34,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.nio.JSONMessenger;
@@ -46,6 +47,7 @@ import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
+import edu.umass.cs.protocoltask.ProtocolTaskCreationException;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
@@ -55,6 +57,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureActiveNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
@@ -66,6 +69,7 @@ import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitAckDropEpoc
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitAckStartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitAckStopEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.CommitWorker;
+import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitPrimaryExecution;
 import edu.umass.cs.reconfiguration.reconfigurationutils.AbstractDemandProfile;
 import edu.umass.cs.reconfiguration.reconfigurationutils.AggregateDemandProfiler;
@@ -211,8 +215,10 @@ public class Reconfigurator<NodeIDType> implements
 				// do nothing
 				log.log(Level.FINE, MyLogger.FORMAT[2], new Object[] { this,
 						"unable to handle packet", jsonObject });
-		} catch (JSONException je) {
-			je.printStackTrace();
+		} catch (JSONException | ProtocolTaskCreationException e) {
+			log.severe(this + " incurred exception " + e.getMessage()
+					+ " while trying to handle message " + jsonObject);
+			e.printStackTrace();
 		}
 		return false; // neither reconfiguration packet nor app request
 	}
@@ -355,30 +361,34 @@ public class Reconfigurator<NodeIDType> implements
 
 	private static final long BATCH_CREATE_TIMEOUT = 30 * 1000;
 
-	private String updateAndCheckComplete(StartEpoch<NodeIDType> startEpoch) {
-		String headName = this.pendingBatchCreateParents.remove(startEpoch
-				.getServiceName());
-		Integer remaining = null;
+	private CreateServiceName updateAndCheckComplete(String batchCreateHeadName) {
+		String headName = this.pendingBatchCreateParents
+				.remove(batchCreateHeadName);
 		if (headName == null)
-			return startEpoch.getServiceName();
-
+			return null;
+		// else
 		BatchCreateJobs jobs = this.pendingBatchCreates.get(headName);
-		jobs.remaining.remove(startEpoch.getServiceName());
-		remaining = jobs.remaining.size();
+		jobs.remaining.remove(batchCreateHeadName);
 		if (jobs.remaining.isEmpty()) {
-			this.pendingBatchCreates.remove(headName);
 			log.log(Level.INFO,
 					"{0} returning completed batch create with head name {1} with {2} parts and {3} total constituent names",
 					new Object[] { this, headName, jobs.parts.size(),
 							jobs.totalNames() });
-			return headName;
+			return this.pendingBatchCreates.remove(headName).original;
 		}
+		// else
 		log.log(Level.INFO,
-				"{0} completed batch create part job with head name {1}  with {2} constituent names;",
-				new Object[] { this, startEpoch.getServiceName(),
-						startEpoch.getNameStates().size(),
-						remaining != null ? " jobs remaining=" + remaining : "" });
+				"{0} completed batch create part job with head name {1}; jobs remaining = {2}",
+				new Object[] { this, batchCreateHeadName, jobs.remaining });
 		return null;
+	}
+
+	private String updateAndCheckComplete(StartEpoch<NodeIDType> startEpoch) {
+		CreateServiceName original = this.updateAndCheckComplete(startEpoch
+				.getServiceName());
+		if (original == null)
+			return startEpoch.getServiceName();
+		return original.getServiceName();
 	}
 
 	/**
@@ -392,10 +402,28 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleCreateServiceName(
 			CreateServiceName create,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		log.log(Level.FINE, "{0} received {1} from {2}", new Object[] { this,
-				create.getSummary(), create.getCreator() });
+		log.log(!this.pendingBatchCreateParents.containsKey(create
+				.getServiceName()) ? Level.INFO : Level.INFO,
+				"{0} received {1} from client {2} {3}{4}",
+				new Object[] {
+						this,
+						create.getSummary(),
+						create.getCreator(),
+						create.isForwarded() ? "from reconfigurator "
+								+ create.getSender() : "" });
 
+		/*
+		 * If create is batched but all names do not belong to the same
+		 * reconfigurator group, we automatically split the batch into smaller
+		 * batches, issue the constituent creates, wait for the corresponding
+		 * responses, and send a single success or failure response (upon a
+		 * timeout) back to the issuing client. If it is a legitimate batch
+		 * create, i.e., all names hash to the same reconfigurator group, then
+		 * we don't have to maintain any state and can try to commit it like a
+		 * usual unbatched create.
+		 */
 		if (create.isBatched()
+				&& !this.isLegitimateCreateRequest(create)
 				&& !this.pendingBatchCreates.containsKey(create
 						.getServiceName())
 				&& !this.pendingBatchCreateParents.containsKey(create
@@ -423,6 +451,25 @@ public class Reconfigurator<NodeIDType> implements
 							create.getServiceName(), BATCH_CREATE_TIMEOUT);
 				}
 			}, BATCH_CREATE_TIMEOUT, TimeUnit.MILLISECONDS);
+			return null;
+		}
+		// responses for forwarded batch create jobs coming back
+		else if (this.pendingBatchCreateParents.containsKey(create
+				.getServiceName())
+				&& create.isForwarded()
+				&& create.getForwader().equals(
+						this.consistentNodeConfig
+								.getNodeSocketAddress(getMyID()))) {
+			assert (!create.isRequest()); // response
+			CreateServiceName original = this.updateAndCheckComplete(create
+					.getServiceName());
+			if (original != null)
+				// all done, send success response to client
+				this.sendClientReconfigurationPacket(create
+						.setResponseMessage("Successfully batch-created "
+								+ original.size() + " names with head name "
+								+ original.getServiceName()));
+			// else wait for more responses
 			return null;
 		}
 
@@ -519,12 +566,12 @@ public class Reconfigurator<NodeIDType> implements
 		// for NC changes, prev drop complete signifies everyone's on board
 		if (rcRecReq.isReconfigurationPrevDropComplete()
 				&& rcRecReq.getServiceName().equals(
-						AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+						AbstractReconfiguratorDB.RecordNames.RC_NODES
 								.toString()))
 			this.sendReconfigureRCNodeConfigConfirmationToInitiator(rcRecReq);
 		else if (rcRecReq.isReconfigurationPrevDropComplete()
 				&& rcRecReq.getServiceName().equals(
-						AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+						AbstractReconfiguratorDB.RecordNames.AR_NODES
 								.toString()))
 			this.sendReconfigureActiveNodeConfigConfirmationToInitiator(rcRecReq);
 
@@ -549,10 +596,11 @@ public class Reconfigurator<NodeIDType> implements
 
 		if (rcRecReq.isReconfigurationMerge())
 			// stop mergee task obviated when reconfiguration merge proposed
-			this.protocolExecutor.remove(getTaskKey(WaitAckStopEpoch.class,
-					getMyID().toString(),
-					rcRecReq.startEpoch.getPrevGroupName(),
-					rcRecReq.startEpoch.getPrevEpochNumber()));
+			// this.protocolExecutor.remove(getTaskKey(WaitAckStopEpoch.class,
+			// getMyID().toString(),
+			// rcRecReq.startEpoch.getPrevGroupName(),
+			// rcRecReq.startEpoch.getPrevEpochNumber()))
+			;
 
 		return mtask != null ? mtask.toArray() : null;
 	}
@@ -649,6 +697,15 @@ public class Reconfigurator<NodeIDType> implements
 			RequestActiveReplicas request,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 
+		log.log(Level.INFO,
+				"{0} received {1} {2} from client {3} {4}",
+				new Object[] {
+						this,
+						request.isRequest() ? "" : "RESPONSE",
+						request.getSummary(),
+						request.getCreator(),
+						request.isForwarded() ? "from reconfigurator "
+								+ request.getSender() : "" });
 		if (this.processRedirection(request))
 			return null;
 
@@ -710,7 +767,7 @@ public class Reconfigurator<NodeIDType> implements
 			ReconfigureRCNodeConfig<NodeIDType> changeRC,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 		assert (changeRC.getServiceName()
-				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString()));
 		log.log(Level.INFO,
 				"\n\n{0}\n{1} received {2} request {3} from initiator {4}\n{5}",
@@ -745,8 +802,8 @@ public class Reconfigurator<NodeIDType> implements
 		// will use the nodeConfig before the change below.
 		if (changeRC.newlyAddedNodes != null || changeRC.deletedNodes != null)
 			this.initiateReconfiguration(
-					AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
-							.toString(), ncRecord,
+					AbstractReconfiguratorDB.RecordNames.RC_NODES.toString(),
+					ncRecord,
 					newRCs, // this.consistentNodeConfig.getNodeSocketAddress
 					(changeRC.getIssuer()), changeRC.getMyReceiver(), null,
 					null, null, changeRC.newlyAddedNodes);
@@ -763,7 +820,7 @@ public class Reconfigurator<NodeIDType> implements
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 
 		assert (changeActives.getServiceName()
-				.equals(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+				.equals(AbstractReconfiguratorDB.RecordNames.AR_NODES
 						.toString()));
 		log.log(Level.INFO,
 				"\n\n{0}\n{1} received {2} request {3} from initiator {4}\n{5}",
@@ -778,24 +835,33 @@ public class Reconfigurator<NodeIDType> implements
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
 					changeActives.getIssuer(), changeActives.setFailed()
 							.setResponseMessage(errorMessage))).toArray();
+		} else if (this.nothingToDo(changeActives)) {
+			String errorMessage = " Requested node additions or deletions already in place";
+			log.log(Level.INFO, "{0} {1} : {2}", new Object[] { this,
+					errorMessage, changeActives });
+			// do not setFailed() in this case
+			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
+					changeActives.getIssuer(),
+					changeActives.setResponseMessage(errorMessage))).toArray();
+
 		}
 		// check first if NC is ready for reconfiguration
-		ReconfigurationRecord<NodeIDType> ancRecord = this.DB
+		ReconfigurationRecord<NodeIDType> activeNCRecord = this.DB
 				.getReconfigurationRecord(changeActives.getServiceName());
-		if (ancRecord == null)
+		if (activeNCRecord == null)
 			return null; // possible if startCleanSlate
 
-		if (!ancRecord.isReady()) {
+		if (!activeNCRecord.isReady()) {
 			String errorMessage = " Trying to conduct concurrent node config changes";
 			log.warning(this + errorMessage + ": " + changeActives.getSummary()
-					+ "\n when activeNCRecord = " + ancRecord.getSummary());
+					+ "\n when activeNCRecord = " + activeNCRecord.getSummary());
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
 					changeActives.getIssuer(), changeActives.setFailed()
 							.setResponseMessage(errorMessage))).toArray();
 		}
 
 		// else try to reconfigure even though it may still fail
-		Set<NodeIDType> curActives = ancRecord.getActiveReplicas();
+		Set<NodeIDType> curActives = activeNCRecord.getActiveReplicas();
 		Set<NodeIDType> newActives = new HashSet<NodeIDType>(curActives);
 		newActives.addAll(changeActives.getAddedNodeIDs());
 		newActives.removeAll(changeActives.getDeletedNodeIDs());
@@ -803,8 +869,8 @@ public class Reconfigurator<NodeIDType> implements
 		if (changeActives.newlyAddedNodes != null
 				|| changeActives.deletedNodes != null)
 			this.initiateReconfiguration(
-					AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
-							.toString(), ancRecord,
+					AbstractReconfiguratorDB.RecordNames.AR_NODES.toString(),
+					activeNCRecord,
 					newActives, // this.consistentNodeConfig.getNodeSocketAddress
 					(changeActives.getIssuer()), changeActives.getMyReceiver(),
 					null, null, null, changeActives.newlyAddedNodes);
@@ -812,10 +878,25 @@ public class Reconfigurator<NodeIDType> implements
 		return null;
 	}
 
-	// FIXME: only allow one at a time?
 	private boolean isPermitted(
 			ReconfigureActiveNodeConfig<NodeIDType> changeActives) {
-		return true;
+		return changeActives.hasDeletedNodes() ? changeActives.deletedNodes
+				.size() == 1 : true;
+	}
+
+	private boolean nothingToDo(
+			ReconfigureActiveNodeConfig<NodeIDType> changeActives) {
+		boolean nothing = true;
+		nothing = nothing
+				&& (changeActives.hasAddedNodes() ? this.consistentNodeConfig
+						.getActiveReplicas().containsAll(
+								changeActives.newlyAddedNodes.keySet()) : true);
+		if (changeActives.hasDeletedNodes())
+			for (NodeIDType node : changeActives.deletedNodes)
+				nothing = nothing
+						&& !this.consistentNodeConfig.getActiveReplicas()
+								.contains(node);
+		return nothing;
 	}
 
 	/**
@@ -840,7 +921,9 @@ public class Reconfigurator<NodeIDType> implements
 	 */
 	@Override
 	public void executed(Request request, boolean handled) {
-		if (this.isRecovering())
+		if (this.isRecovering()
+				&& !((request instanceof RCRecordRequest<?>) && ((RCRecordRequest<?>) request)
+						.isReconfigurationMerge()))
 			return; // no messaging during recovery
 		BasicReconfigurationPacket<?> rcPacket = null;
 		try {
@@ -858,8 +941,13 @@ public class Reconfigurator<NodeIDType> implements
 		// checked right above
 		RCRecordRequest<NodeIDType> rcRecReq = (RCRecordRequest<NodeIDType>) rcPacket;
 
-		if (this.isCommitWorkerCoordinated(rcRecReq))
+		if (this.isCommitWorkerCoordinated(rcRecReq)) {
+			log.log(Level.FINE,
+					"{0} executing CommitWorker callback after {1} execution of {2}",
+					new Object[] { this, (handled ? "successful" : "failed"),
+							rcRecReq.getSummary() });
 			this.commitWorker.executedCallback(rcRecReq, handled);
+		}
 
 		// handled is true when reconfiguration intent causes state change
 		if (handled && rcRecReq.isReconfigurationIntent()
@@ -915,10 +1003,10 @@ public class Reconfigurator<NodeIDType> implements
 			}
 		} else if (handled && rcRecReq.isActiveNodeConfigChange()) {
 			if (rcRecReq.isReconfigurationIntent()) {
-				executeActiveNodeConfigChange(rcRecReq);
+				this.spawnExecuteActiveNodeConfigChange(rcRecReq);
 			}
 		} else if (rcRecReq.isReconfigurationMerge()) {
-			if (!handled)
+			if (!handled) {
 				/*
 				 * Merge was unsuccessful probably because the node that
 				 * responded with the checkpoint handle did not deliver on the
@@ -931,9 +1019,12 @@ public class Reconfigurator<NodeIDType> implements
 				 * executed() callback function but WaitEpochFinalState by
 				 * design belongs to ActiveReplica.
 				 */
+				log.log(Level.INFO, "{0} restarting failed merge {1}",
+						new Object[] { this, rcRecReq.getSummary() });
 				this.protocolExecutor
 						.spawnIfNotRunning(new WaitAckStopEpoch<NodeIDType>(
 								rcRecReq.startEpoch, this.DB));
+			}
 
 			else if (handled && rcRecReq.getInitiator().equals(getMyID()))
 				/*
@@ -963,7 +1054,7 @@ public class Reconfigurator<NodeIDType> implements
 
 	private void ncAssert(RCRecordRequest<NodeIDType> rcRecReq, boolean handled) {
 		ReconfigurationRecord<NodeIDType> ncRecord = this.DB
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString());
 		assert (!ncRecord.getActiveReplicas().equals(ncRecord.getNewActives())) : this
 				+ " : handled="
@@ -1125,9 +1216,9 @@ public class Reconfigurator<NodeIDType> implements
 		 */
 		if (clientRCPacket.isRedirectedResponse()) {
 			log.log(Level.FINE,
-					"{0} relaying response for forwarded request {1} to {2}",
+					"{0} relaying RESPONSE for forwarded request {1} to {2}",
 					new Object[] { this, clientRCPacket.getSummary(),
-							clientRCPacket.getForwader() });
+							clientRCPacket.getCreator() });
 			// just relay response to the client
 			return this.sendClientReconfigurationPacket(clientRCPacket);
 		}
@@ -1482,6 +1573,9 @@ public class Reconfigurator<NodeIDType> implements
 		// stop task obviated just before reconfiguration complete proposed
 		this.protocolExecutor.remove(this.getTaskKeyPrev(
 				WaitAckStopEpoch.class, rcRecReq));
+
+		// FIXME: need to also remove split stop tasks here
+
 		// start task obviated just before reconfiguration complete proposed
 		this.protocolExecutor.remove(this.getTaskKey(WaitAckStartEpoch.class,
 				rcRecReq));
@@ -1527,6 +1621,8 @@ public class Reconfigurator<NodeIDType> implements
 				TimeUnit.SECONDS);
 	}
 
+	private static final boolean SKIP_ACTIVE_DELETIONS_UPON_RECOVERY = true;
+
 	/*
 	 * Called initially upon recovery to finish pending reconfigurations. We
 	 * assume that the set of pending reconfigurations is not too big as this is
@@ -1538,26 +1634,31 @@ public class Reconfigurator<NodeIDType> implements
 			ReconfigurationRecord<NodeIDType> record = this.DB
 					.getReconfigurationRecord(name);
 
-			/*
-			 * FIXME: when can this happen? When record creations don't complete
-			 * gracefully. For failed record creations, we don't have to bother
-			 * retrying them.
-			 */
-			if (record == null || record.getActiveReplicas() == null
-					|| record.getActiveReplicas().isEmpty()) {
+			if (record == null
+					||
+					// ignore failed creations
+					record.getActiveReplicas() == null
+					|| record.getActiveReplicas().isEmpty() ||
+					// probably crashed before setPending(false)
+					record.isReady()) {
 				this.DB.removePending(name);
 				continue;
 			}
 
-			// finish pending active node config change
+			/*
+			 * Skip active node deletions upon recovery. Either others completed
+			 * it or it did not get completed from the issuing client's
+			 * perspective in which case it will be reissued if needed.
+			 */
 			if (record.getName().equals(
-					AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
-							.toString())) {
-				this.executeActiveNodeConfigChange(new RCRecordRequest<NodeIDType>(
-						this.getMyID(), this.formStartEpoch(name, record,
-								record.getNewActives(), null, null, null, null,
-								null, null),
-						RCRecordRequest.RequestTypes.RECONFIGURATION_INTENT));
+					AbstractReconfiguratorDB.RecordNames.AR_NODES.toString())) {
+				if (!SKIP_ACTIVE_DELETIONS_UPON_RECOVERY)
+					this.executeActiveNodeConfigChange(new RCRecordRequest<NodeIDType>(
+							this.getMyID(), this.formStartEpoch(name, record,
+									record.getNewActives(), null, null, null,
+									null, null, null),
+							RCRecordRequest.RequestTypes.RECONFIGURATION_INTENT));
+				this.DB.removePending(record.getName());
 				continue;
 			}
 
@@ -1594,19 +1695,26 @@ public class Reconfigurator<NodeIDType> implements
 			@SuppressWarnings("unchecked")
 			NodeIDType randomResponsibleRC = (NodeIDType) (responsibleRCs
 					.toArray()[(int) (Math.random() * responsibleRCs.size())]);
+
 			request = request.setForwader(this.consistentNodeConfig
 					.getBindSocketAddress(getMyID()));
-			log.log(Level.FINE,
-					"{0} forwarding client request {1} to reconfigurator {2}",
-					new Object[] { this, request.getSummary(),
-							randomResponsibleRC });
-			this.messenger.sendToAddress(
+			log.log(Level.INFO,
+					"{0} forwarding client request {1} to reconfigurator {2}:{3}",
+					new Object[] {
+							this,
+							request.getSummary(),
+							randomResponsibleRC,
+							this.consistentNodeConfig
+									.getNodeSocketAddress(randomResponsibleRC) });
+
+			// FIXME: sometimes fails with non-replicateAll reconfigurators
+			assert (this.messenger.sendToAddress(
 					this.consistentNodeConfig
 							.getNodeSocketAddress(randomResponsibleRC),
 					request.setForwader(
 							this.consistentNodeConfig
 									.getNodeSocketAddress(getMyID()))
-							.toJSONObject());
+							.toJSONObject()) > 0);
 		} catch (IOException | JSONException e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
@@ -1622,22 +1730,21 @@ public class Reconfigurator<NodeIDType> implements
 			InetSocketAddress querier = this.getQuerier(response);
 			if (querier.equals(response.getCreator())) {
 				// only response can go back to client
-				log.log(Level.FINE,
-						"{0} sending client response {1}:{2} to client {3}",
+				log.log(Level.INFO,
+						"{0} sending client RESPONSE {1}:{2} to client {3}",
 						new Object[] { this, response,
 								response.getResponseMessage(), querier });
-				(this.getMessenger(response.getMyReceiver())).sendToAddress(
-						querier, response.toJSONObject());
+				(this.getClientMessenger()).sendToAddress(querier,
+						response.toJSONObject());
 			} else {
 				// may be a request or response
-				log.log(Level.FINE,
-						"{0} sending client {1} {2} to reconfigurator {3}",
-						new Object[] {
-								this,
-								response.isRequest() ? "request"
-										: "request's response",
+				log.log(Level.INFO,
+						"{0} sending {1} {2} to reconfigurator {3}",
+						new Object[] { this,
+								response.isRequest() ? "request" : "RESPONSE",
 								response.getSummary(), querier });
-				this.messenger.sendToAddress(querier, response.toJSONObject());
+				assert (this.messenger.sendToAddress(querier,
+						response.toJSONObject()) > 0);
 			}
 		} catch (IOException | JSONException e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
@@ -1827,17 +1934,19 @@ public class Reconfigurator<NodeIDType> implements
 	private void sendReconfigureActiveNodeConfigConfirmationToInitiator(
 			RCRecordRequest<NodeIDType> rcRecReq) {
 		try {
-			log.info(this + " has nodeConfig = " + this.consistentNodeConfig);
 			ReconfigureActiveNodeConfig<NodeIDType> response = new ReconfigureActiveNodeConfig<NodeIDType>(
 					this.DB.getMyID(), rcRecReq.startEpoch.newlyAddedNodes,
 					this.diff(rcRecReq.startEpoch.prevEpochGroup,
 							rcRecReq.startEpoch.curEpochGroup));
+			log.log(Level.INFO,
+					"{0} has nodeConfig = {1} after processing {2}",
+					new Object[] { this, this.consistentNodeConfig,
+							response.getSummary() });
 
 			log.log(Level.INFO,
-					"\n\n{0}\n{1} finished required reconfigurations to change active replica(s) {2}; delete active replica(s) {3}; sending response to {4}\n{5}\n",
-					new Object[] { separator, this, response.newlyAddedNodes,
-							response.deletedNodes, rcRecReq.startEpoch.creator,
-							separator });
+					"\n\n{0}\n{1} finished required reconfigurations to change active replica(s) {2}; sending response to {3}\n{4}\n",
+					new Object[] { separator, this, response.getSummary(),
+							rcRecReq.startEpoch.creator, separator });
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
 					response.toJSONObject());
 		} catch (IOException | JSONException e) {
@@ -1935,6 +2044,34 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	/*
+	 * Starts in a separate thread as it is a blocking operation. It does not
+	 * have to finish before returning even though it is technically a paxos
+	 * request (or the request's callback to be precise) because it is an
+	 * internal operation. The issuing client only gets a response when
+	 * executeActiveNodeConfig and the WaitAckDropEpoch task that it spawns both
+	 * eventually complete, which may take a while.
+	 */
+	private void spawnExecuteActiveNodeConfigChange(
+			final RCRecordRequest<NodeIDType> rcRecReq) {
+		log.log(Level.INFO,
+				"{0} spawning active node config change task for {1}",
+				new Object[] {
+						this,
+						new ReconfigureActiveNodeConfig<NodeIDType>(rcRecReq
+								.getInitiator(),
+								rcRecReq.startEpoch.newlyAddedNodes,
+								rcRecReq.startEpoch.getDeletedNodes())
+								.getSummary() });
+		this.protocolExecutor.submit(new Runnable() {
+			@Override
+			public void run() {
+				Reconfigurator.this.executeActiveNodeConfigChange(rcRecReq);
+			}
+
+		});
+	}
+
+	/*
 	 * There is no actual reconfiguration to be done for the ACTIVE_NODE_CONFIG
 	 * record itself, just the app records placed on deleted active nodes. The
 	 * current and new actives in the ACTIVE_NODE_CONFIG do *not* mean the
@@ -1947,7 +2084,7 @@ public class Reconfigurator<NodeIDType> implements
 			RCRecordRequest<NodeIDType> rcRecReq) {
 
 		ReconfigurationRecord<NodeIDType> record = this.DB
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
 						.toString());
 
 		// change soft copy
@@ -1985,6 +2122,9 @@ public class Reconfigurator<NodeIDType> implements
 		boolean executed = this.DB.execute(new RCRecordRequest<NodeIDType>(
 				rcRecReq.getInitiator(), rcRecReq.startEpoch,
 				RCRecordRequest.RequestTypes.RECONFIGURATION_COMPLETE));
+
+		this.DB.forceCheckpoint(AbstractReconfiguratorDB.RecordNames.AR_NODES
+				.toString());
 
 		// launch prev drop complete
 		if (rcRecReq.getInitiator().equals(this.getMyID()))
@@ -2137,7 +2277,7 @@ public class Reconfigurator<NodeIDType> implements
 		Map<String, Set<NodeIDType>> newRCGroups = this.DB.getNewRCGroups();
 		// get NC record from DB
 		ReconfigurationRecord<NodeIDType> ncRecord = this.DB
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString());
 
 		assert (!ncRecord.getActiveReplicas().equals(ncRecord.getNewActives())) : ncRecord;
@@ -2146,16 +2286,20 @@ public class Reconfigurator<NodeIDType> implements
 			return false;
 
 		// adjustCurWithNewRCGroups(curRCGroups, newRCGroups, ncRecord);
-		String changed = this.changeExistingGroups(curRCGroups, newRCGroups,
-				ncRecord, affectedNodes);
-		String split = this.splitExistingGroups(curRCGroups, newRCGroups,
-				ncRecord);
-		String merged = this.mergeExistingGroups(curRCGroups, newRCGroups,
-				ncRecord);
+		String changedSplitMerged = this.changeExistingGroups(curRCGroups,
+				newRCGroups, ncRecord, affectedNodes);
+		if (!isAggregatedMergeSplit()) {
+			// the two methods below are unused with aggregated merge/split
+			changedSplitMerged += this.splitExistingGroups(curRCGroups,
+					newRCGroups, ncRecord);
+			changedSplitMerged += this.mergeExistingGroups(curRCGroups,
+					newRCGroups, ncRecord);
+		}
 
-		log.log(Level.INFO, "{0} changed/split/merged = \n{1}{2}{3}",
-				new Object[] { this, changed, split, merged });
-		return !(changed + split + merged).isEmpty();
+		log.log(Level.INFO, "\n                           "
+				+ "{0} changed/split/merged = \n{1}", new Object[] { this,
+				changedSplitMerged });
+		return !(changedSplitMerged).isEmpty();
 	}
 
 	private boolean isRecovering() {
@@ -2178,14 +2322,29 @@ public class Reconfigurator<NodeIDType> implements
 			this.commitWorker.enqueueForExecution(rcRecReq,
 					NODE_CONFIG_RESTART_PERIOD);
 		else {
+			if (rcRecReq.isReconfigurationMerge())
+				log.log(Level.INFO, "{0} coordinating merge {1}", new Object[] {
+						this, rcRecReq.getSummary() });
 			this.commitWorker.enqueueForExecution(rcRecReq);
 		}
 	}
 
-	/*
+	/**
+	 * Default true now for an improved merge/split implementation. Doing merges
+	 * in the old way potentially violates RSM safety.
+	 */
+	protected static boolean isAggregatedMergeSplit() {
+		return true;
+	}
+
+	/**
 	 * This method reconfigures groups that exist locally both in the old and
 	 * new rings, i.e., this node just has to do a standard reconfiguration
 	 * operation because the membership of the paxos group is changing.
+	 * 
+	 * With {@link #isAggregatedMergeSplit()}, this method suffices for all
+	 * necessary reconfigurations; otherwise, we have to also invoke
+	 * splitExistingGroups and mergeExistingGroups.
 	 */
 	private String changeExistingGroups(
 			Map<String, Set<NodeIDType>> curRCGroups,
@@ -2196,29 +2355,251 @@ public class Reconfigurator<NodeIDType> implements
 		Map<String, Set<String>> mergeLists = this.DB.app.getMergeLists();
 		// for each new group, initiate group change if and as needed
 		for (String newRCGroup : newRCGroups.keySet()) {
-			if (curRCGroups.keySet().contains(newRCGroup)) {
-				if (!isPresent(newRCGroup, affectedNodes))
-					continue; // don't trivial-reconfigure
+			if (!isPresent(newRCGroup, affectedNodes))
+				continue; // don't trivial-reconfigure
+			else
+				log.log(Level.FINE,
+						"{0} finds {1} present in affected RC groups {2}",
+						new Object[] { this, newRCGroup, affectedNodes });
+			final Map<String, Set<String>> mergees = this.isMergerGroup(
+					newRCGroup, curRCGroups, newRCGroups, ncRecord);
+			Map<String, Set<NodeIDType>> splitParentGroup = this.isSplitGroup(
+					newRCGroup, curRCGroups, newRCGroups, ncRecord);
+			int ncEpoch = ncRecord.getRCEpoch(newRCGroup);
 
-				int ncEpoch = ncRecord.getRCEpoch(newRCGroup);
+			boolean invokeAggregatedMergeSplit = isAggregatedMergeSplit()
+					&& (!mergees.isEmpty() || splitParentGroup != null);
+
+			if (curRCGroups.keySet().contains(newRCGroup)
+					&& !invokeAggregatedMergeSplit) {
+
 				// change current group
-				debug += (this + " changing current group {" + newRCGroup + ":"
+				debug += (this + " changing local group {" + newRCGroup + ":"
 						+ (ncEpoch - 1) + "=" + curRCGroups.get(newRCGroup)
 						+ "} to {" + newRCGroup + ":" + (ncEpoch) + "=" + newRCGroups
-							.get(newRCGroup)) + "}\n";
-				this.repeatUntilObviated(new RCRecordRequest<NodeIDType>(this
-						.getMyID(),
-						new StartEpoch<NodeIDType>(this.getMyID(), newRCGroup,
-								ncEpoch, newRCGroups.get(newRCGroup),
-								curRCGroups.get(newRCGroup), mergeLists
-										.get(newRCGroup)), // mergees
-						RequestTypes.RECONFIGURATION_INTENT));
-			}
+							.get(newRCGroup)) + "}";
+
+				if ((mergees).isEmpty() || !isAggregatedMergeSplit()) {
+					this.repeatUntilObviated(new RCRecordRequest<NodeIDType>(
+							this.getMyID(), new StartEpoch<NodeIDType>(this
+									.getMyID(), newRCGroup, ncEpoch,
+									newRCGroups.get(newRCGroup), curRCGroups
+											.get(newRCGroup), mergeLists
+											.get(newRCGroup)), // mergees
+							RequestTypes.RECONFIGURATION_INTENT));
+				}
+			} else if (invokeAggregatedMergeSplit) {
+				// change current group
+				debug += (this
+						+ (curRCGroups.keySet().contains(newRCGroup) ? " changing local group "
+								: " creating ")
+						+ "{"
+						+ newRCGroup
+						+ ":"
+						+ (curRCGroups.keySet().contains(newRCGroup) ? ncEpoch - 1
+								: ncEpoch)
+						+ "="
+						+ this.DB.getOldGroup(newRCGroup).values().iterator()
+								.next()
+						+ "}"
+
+						+ (mergees.isEmpty() ? "" : " merging groups {"
+								+ mergees + "}")
+
+						+ (splitParentGroup == null ? "" : " splitting from {"
+								+ splitParentGroup) + "}");
+				this.aggregatedSplitMerge(newRCGroup, curRCGroups, newRCGroups,
+						ncRecord, mergees, splitParentGroup);
+
+			} else
+				debug += "(" + this
+						+ " relying on others to create non-local group {"
+						+ newRCGroup + ":" + ncEpoch + "="
+						+ newRCGroups.get(newRCGroup) + "})";
+			debug += "\n";
 		}
 		return debug;
 	}
 
-	/*
+	private void aggregatedSplitMerge(String newRCGroup,
+			Map<String, Set<NodeIDType>> curRCGroups,
+			Map<String, Set<NodeIDType>> newRCGroups,
+			ReconfigurationRecord<NodeIDType> ncRecord,
+			Map<String, Set<String>> mergees,
+			Map<String, Set<NodeIDType>> splitParentGroup) {
+		// spawn a new task to avoid blocking here
+		this.protocolExecutor.submit(new Runnable() {
+
+			public void run() {
+				/*
+				 * Aggregate mergee states, create replica group locally, and
+				 * spawn WaitAckStartEpoch that will complete when all replicas
+				 * have done the same.
+				 */
+				Object monitor = new Object();
+				String mergedStateFilename = Reconfigurator.this
+						.spawnMergeeStopAndFetchStateTasks(Reconfigurator.this
+								.getStopTasks(newRCGroup, mergees.keySet(),
+										splitParentGroup, monitor, curRCGroups,
+										newRCGroups, ncRecord), monitor,
+								newRCGroup, ncRecord.getRCEpoch(newRCGroup));
+
+				boolean created = Reconfigurator.this.DB.createReplicaGroup(
+						newRCGroup, ncRecord.getRCEpoch(newRCGroup),
+						LargeCheckpointer
+								.createCheckpointHandle(mergedStateFilename),
+						newRCGroups.get(newRCGroup));
+				assert (created);
+
+				// will issue the complete upon majority
+				Reconfigurator.this.protocolExecutor
+						.spawnIfNotRunning(new WaitAckStartEpoch<NodeIDType>(
+						// passive start epoch
+								new StartEpoch<NodeIDType>(Reconfigurator.this
+										.getMyID(), newRCGroup, ncRecord
+										.getRCEpoch(newRCGroup), newRCGroups
+										.get(newRCGroup), true),
+								Reconfigurator.this.DB));
+			}
+		});
+	}
+
+	private Map<String, Set<NodeIDType>> isSplitGroup(String rcGroup,
+			Map<String, Set<NodeIDType>> curRCGroups,
+			Map<String, Set<NodeIDType>> newRCGroups,
+			ReconfigurationRecord<NodeIDType> ncRecord) {
+		if (newRCGroups.keySet().contains(rcGroup)
+				&& this.DB.isBeingAdded(rcGroup))
+			return this.DB.getOldGroup(rcGroup);
+		return null;
+	}
+
+	/**
+	 * @param rcGroup
+	 * @param curRCGroups
+	 * @param newRCGroups
+	 * @param ncRecord
+	 * @return True if {@code rcGroup} is a group into which other groups are
+	 *         being merged. This is true when a group is being deleted and it
+	 *         consistent-hashes on to {@code rcGroup} in the new ring.
+	 */
+	private Map<String, Set<String>> isMergerGroup(String rcGroup,
+			Map<String, Set<NodeIDType>> curRCGroups,
+			Map<String, Set<NodeIDType>> newRCGroups,
+			ReconfigurationRecord<NodeIDType> ncRecord) {
+		Map<String, Set<String>> mergees = new ConcurrentHashMap<String, Set<String>>();
+		if (newRCGroups.keySet().contains(rcGroup)) {
+			for (NodeIDType curRCNode : ncRecord.getActiveReplicas()) {
+				String curRCGroup = this.DB.getRCGroupName(curRCNode);
+				if (this.DB.isBeingDeleted(curRCGroup)) {
+					Map<String, Set<NodeIDType>> mergeGroup = this.DB
+							.getNewGroup(curRCGroup);
+					String mergeGroupName = mergeGroup.keySet().iterator()
+							.next();
+					if (mergeGroupName.equals(rcGroup))
+						mergees.put(curRCGroup, Util.setToStringSet(mergeGroup
+								.get(mergeGroupName)));
+				}
+			}
+		}
+		if (!mergees.isEmpty())
+			mergees.put(
+					rcGroup,
+					Util.setToStringSet(this.DB.getOldGroup(rcGroup).values()
+							.iterator().next()));
+		return mergees;
+	}
+
+	/**
+	 * 
+	 * @param newRCGroup
+	 * @param mergees
+	 * @param splitParentGroup
+	 * @param monitor
+	 * @param curRCGroups
+	 * @param newRCGroups
+	 * @param ncRecord
+	 * @return All of the {@link WaitAckStopEpoch} tasks needed to stop groups
+	 *         being merged or split in order to create {@code newRCGroup}
+	 */
+	private Set<WaitAckStopEpoch<NodeIDType>> getStopTasks(String newRCGroup,
+			Set<String> mergees, Map<String, Set<NodeIDType>> splitParentGroup,
+			Object monitor, Map<String, Set<NodeIDType>> curRCGroups,
+			Map<String, Set<NodeIDType>> newRCGroups,
+			ReconfigurationRecord<NodeIDType> ncRecord) {
+		Set<WaitAckStopEpoch<NodeIDType>> stopTasks = new HashSet<WaitAckStopEpoch<NodeIDType>>();
+		for (String mergee : mergees) {
+			Set<NodeIDType> mergeeGroup = this.DB.getOldGroup(newRCGroup)
+					.values().iterator().next();
+			stopTasks.add(new WaitAckStopEpoch<NodeIDType>(
+					new StartEpoch<NodeIDType>(this.getMyID(), newRCGroup,
+							ncRecord.getRCEpoch(newRCGroup), newRCGroups
+									.get(newRCGroup), mergeeGroup, mergee,
+							true, newRCGroups.containsKey(mergee) ? ncRecord
+									.getRCEpoch(mergee) - 1 : ncRecord
+									.getRCEpoch(mergee)), this.DB, monitor));
+		}
+		if (splitParentGroup != null) {
+			String splitParent = splitParentGroup.keySet().iterator().next();
+			stopTasks.add(new WaitAckStopEpoch<NodeIDType>(
+					new StartEpoch<NodeIDType>(this.getMyID(), newRCGroup,
+							ncRecord.getRCEpoch(newRCGroup), newRCGroups
+									.get(newRCGroup), splitParentGroup.values()
+									.iterator().next(), splitParent, false,
+							ncRecord.getRCEpoch(splitParent) - 1), this.DB,
+					monitor));
+		}
+		return stopTasks;
+	}
+
+	private String spawnMergeeStopAndFetchStateTasks(
+			Set<WaitAckStopEpoch<NodeIDType>> stopTasks, Object monitor,
+			String mergerGroup, int mergerGroupEpoch) {
+
+		Map<String, String> finalStates = new ConcurrentHashMap<String, String>();
+
+		log.log(Level.INFO, "{0} starting wait on stop task monitors {1}",
+				new Object[] { this, stopTasks });
+
+		// FIXME: should start tasks inside synchronized
+		for (WaitAckStopEpoch<NodeIDType> stopTask : stopTasks)
+			assert (this.protocolExecutor.spawnIfNotRunning(stopTask));
+
+		synchronized (monitor) {
+			while (!stopTasks.isEmpty())
+				try {
+					monitor.wait();
+					for (Iterator<WaitAckStopEpoch<NodeIDType>> iter = stopTasks
+							.iterator(); iter.hasNext();) {
+						WaitAckStopEpoch<NodeIDType> stopTask = iter.next();
+						String finalState = stopTask.getFinalState();
+						if (finalState != null) {
+							iter.remove();
+							finalStates.put(
+									stopTask.startEpoch.getPrevGroupName()
+											+ ":"
+											+ stopTask.startEpoch
+													.getPrevEpochNumber(),
+									finalState);
+						}
+					}
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					log.log(Level.INFO,
+							"{0} interrupted while waiting on tasks {1}",
+							new Object[] { this, stopTasks });
+				}
+		}
+		log.log(Level.INFO,
+				"{0} finished waiting on all stop task monitors {1}",
+				new Object[] { this, stopTasks });
+		// merge mergee checkpoints
+		return this.DB.app.fetchAndAggregateMergeeStates(finalStates,
+				mergerGroup, mergerGroupEpoch);
+		// can create the mergeGroup now with all the fetched states
+	}
+
+	/**
 	 * This method "reconfigures" groups that will exist locally in the new ring
 	 * but do not currently exist in the old ring. This "reconfiguration" is
 	 * actually a group split operation, wherein an existing group is stopped
@@ -2226,6 +2607,13 @@ public class Reconfigurator<NodeIDType> implements
 	 * stopped group, one with membership identical to the stopped group and the
 	 * other corresponding to the new but currently non-existent group. A
 	 * detailed example is described below.
+	 * 
+	 * Note: This method is unused with {@link #isAggregatedMergeSplit()}.
+	 * 
+	 * @param curRCGroups
+	 * @param newRCGroups
+	 * @param ncRecord
+	 * @return A debug message for pretty-printing.
 	 */
 	private String splitExistingGroups(
 			Map<String, Set<NodeIDType>> curRCGroups,
@@ -2282,7 +2670,8 @@ public class Reconfigurator<NodeIDType> implements
 		return debug;
 	}
 
-	/*
+	/**
+	 * 
 	 * This method "reconfigures" groups that will not exist locally in the new
 	 * ring but do currently exist locally in the old ring. This
 	 * "reconfiguration" is actually a group merge operation, wherein the old
@@ -2291,6 +2680,13 @@ public class Reconfigurator<NodeIDType> implements
 	 * and the mergee group's final state is merged into the latter group simply
 	 * through a paxos update operation. A detailed example and a discussion of
 	 * relevant concerns is described below.
+	 * 
+	 * Note: This method is unused with {@link #isAggregatedMergeSplit()}.
+	 * 
+	 * @param curRCGroups
+	 * @param newRCGroups
+	 * @param ncRecord
+	 * @return A debug message for pretty-printing.
 	 */
 	private String mergeExistingGroups(
 			Map<String, Set<NodeIDType>> curRCGroups,
@@ -2383,6 +2779,40 @@ public class Reconfigurator<NodeIDType> implements
 				 * available upon reconfiguration complete and can be executed
 				 * sequentially in the new epoch. It is also easy to look at the
 				 * RC record and determine if all the merges are done.
+				 * 
+				 * FIXME: It is better to first start a task to stop all mergee
+				 * groups (including the mergeGroup) and get a copy of their
+				 * final state on the local host and concatenate them into an
+				 * initialState meant for the mergeGroup. This will obviate the
+				 * current design of having to coordinate merges individually in
+				 * the mergeGroup with a global state handle; each such
+				 * coordinated merge operation can fail at a subset of replicas
+				 * prompting them to lauch WaitAckStopEpoch tasks to try to
+				 * re-coordinate the merge that would be redundant on the nodes
+				 * on which the merge already succeeded. The current design is
+				 * also more complex to debug and, most importantly, violates
+				 * state machine semantics. Thus, it is possible that changes to
+				 * a merged RC record don't result in the same state at all
+				 * replicas because some replicas may not yet have completed the
+				 * merge. Waiting until all replicas have completed all
+				 * constituent merges is both more complicated to implement and
+				 * is bad for liveness. The new design of assembling all merged
+				 * state into an initialState before starting the paxos instance
+				 * also has the benefit of cleanly dealing with crash recovery
+				 * using paxos checkpoint transfers as usual.
+				 * 
+				 * Invariant: A state machine maintains state machine semantics,
+				 * i.e., replicas start from the same initial state and any
+				 * sequence of executed requests results in the same state at
+				 * the end of the execution sequence at all replicas.
+				 * 
+				 * Note that the invariant above implicitly disallows "failed"
+				 * request executions at a subset of replicas, i.e., a request R
+				 * and a state S completely determine the resulting next state
+				 * at any replica. Allowing R to fail at a strict subset of
+				 * replicas while succeeding at others means that different
+				 * replicas may go from the same state S to different possible
+				 * next states, causing divergence.
 				 */
 				this.protocolExecutor
 						.spawnIfNotRunning(new WaitAckStopEpoch<NodeIDType>(

@@ -76,7 +76,7 @@ public class ReconfigureRCNodeConfig<NodeIDType> extends
 	}
 	@Override
 	public String getServiceName() {
-		return AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString();
+		return AbstractReconfiguratorDB.RecordNames.RC_NODES.toString();
 	}
 
 }

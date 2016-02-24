@@ -154,6 +154,10 @@ public class PaxosAcceptor {
 		return this.state == (byte) STATES.ACTIVE.ordinal();
 	}
 
+	protected synchronized boolean isRecovering() {
+		return this.state == (byte) STATES.RECOVERY.ordinal();
+	}
+
 	protected synchronized int getBallotCoord() {
 		return this.ballotCoord;
 	}

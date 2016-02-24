@@ -34,7 +34,7 @@ public class BatchedCreateServiceName extends CreateServiceName {
 	 * @param epochNumber
 	 * @param state
 	 */
-	public BatchedCreateServiceName(InetSocketAddress initiator, String name,
+	private BatchedCreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state) {
 		super(initiator, name, epochNumber, state);
 		this.initialStates = new String[1];
@@ -50,7 +50,7 @@ public class BatchedCreateServiceName extends CreateServiceName {
 	 * @param epochNumber
 	 * @param states
 	 */
-	public BatchedCreateServiceName(InetSocketAddress initiator,
+	private BatchedCreateServiceName(InetSocketAddress initiator,
 			String[] names, int epochNumber, String[] states) {
 		super(initiator, names[0], epochNumber, states[0]);
 		assert (epochNumber == 0);
@@ -82,7 +82,7 @@ public class BatchedCreateServiceName extends CreateServiceName {
 		for (int i = 0; i < nameStateArray.length(); i++) {
 			JSONObject nameState = nameStateArray.getJSONObject(i);
 			this.names[i] = nameState
-					.getString(BasicReconfigurationPacket.Keys.SERVICE_NAME
+					.getString(BasicReconfigurationPacket.Keys.NAME
 							.toString());
 			this.initialStates[i] = nameState.getString(Keys.STATE
 					.toString());
@@ -95,7 +95,7 @@ public class BatchedCreateServiceName extends CreateServiceName {
 		for (int i = 0; i < names.length; i++) {
 			JSONObject nameState = new JSONObject();
 			nameState.put(
-					BasicReconfigurationPacket.Keys.SERVICE_NAME.toString(),
+					BasicReconfigurationPacket.Keys.NAME.toString(),
 					this.names[i]);
 			nameState.put(Keys.STATE.toString(), this.initialStates[i]);
 			jsonArray.put(nameState);

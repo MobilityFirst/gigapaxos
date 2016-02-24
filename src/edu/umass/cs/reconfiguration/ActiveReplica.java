@@ -136,9 +136,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
-		this.appCoordinator = appC
-		 .setStopCallback((ReconfiguratorCallback) this)
-		 .setCallback((ReconfiguratorCallback) this);
+		this.appCoordinator = appC.setStopCallback(
+				(ReconfiguratorCallback) this).setCallback(
+				(ReconfiguratorCallback) this);
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
 		this.demandProfiler = new AggregateDemandProfiler(this.nodeConfig);
@@ -164,7 +164,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			SSLMessenger<NodeIDType, JSONObject> messenger) {
 		this(appC, nodeConfig, messenger, false);
 	}
-
 
 	class SenderAndRequest {
 		InetSocketAddress isa;
@@ -243,7 +242,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 					}
 				} else {
 					// if failed, dequeue useless enqueue
-					if (request instanceof ReplicableRequest) 
+					if (request instanceof ReplicableRequest)
 						this.dequeue(((ReplicableRequest) request));
 
 					// send error message to sender
@@ -331,6 +330,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						epoch);
 				sendAckStopEpoch(stopEpoch);
 			}
+			/*
+			 * Stops are coordinated exactly once for a paxos group, so we must
+			 * always find a match here.
+			 * 
+			 * FIXME: Unless the app itself coordinated the stop in which case
+			 * this assert should not hold.
+			 */
+			assert (stopEpoch != null);
 		}
 	}
 
@@ -396,15 +403,27 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			return mtasks;
 		}
 		// else
+		if(startEpoch.isPassive()) {
+			// do nothing
+			return null;
+		}
 		// if no previous group, create replica group with empty state
-		if (startEpoch.noPrevEpochGroup()) {
+		else if (startEpoch.noPrevEpochGroup()) {
+			boolean created = false;
+			try {
 			// createReplicaGroup is a local operation (but may fail)
-			boolean created = startEpoch.isBatchedCreate() ? this
+			 created = startEpoch.isBatchedCreate() ? this
 					.batchedCreate(startEpoch) : this.appCoordinator
 					.createReplicaGroup(startEpoch.getServiceName(),
 							startEpoch.getEpochNumber(),
 							startEpoch.getInitialState(),
 							startEpoch.getCurEpochGroup());
+			} catch(Error e) {
+				log.severe(this
+						+ " received null state in non-passive startEpoch "
+						+ startEpoch);
+				e.printStackTrace();
+			}
 			// the creation above will throw an exception if it fails
 			assert (created && this.appCoordinator.getReplicaGroup(
 					startEpoch.getServiceName()).equals(
@@ -414,6 +433,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 			return mtasks; // and also send positive ack
 		}
+
 		/*
 		 * Else request previous epoch state using a threshold protocoltask. We
 		 * spawn WaitEpochFinalState as opposed to simply returning it in
@@ -477,14 +497,17 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this.logEvent(stopEpoch);
 		if (this.stoppedOrMovedOn(stopEpoch))
 			return this.sendAckStopEpoch(stopEpoch).toArray(); // still send ack
+		if(!stopEpoch.shouldExecuteStop())
+			return null;
 		// else coordinate stop with callback
 		this.callbackMap.addStopNotifiee(stopEpoch);
 		ReconfigurableRequest appStop = this.getAppStopRequest(
 				stopEpoch.getServiceName(), stopEpoch.getEpochNumber());
 		log.log(Level.INFO,
-				"{0} coordinating {1} as {2}:{3}",
-				new Object[] { this, stopEpoch.getSummary(),
-						appStop.getServiceName(), appStop.getEpochNumber() });
+				"{0} coordinating {1} while replica group = {2}:{3} {4}",
+				new Object[] { this, stopEpoch.getSummary(), stopEpoch.getServiceName(), 
+				this.appCoordinator.getEpoch(stopEpoch.getServiceName()),
+						this.appCoordinator.getReplicaGroup(stopEpoch.getServiceName()) });
 		this.appCoordinator.handleIncoming(appStop, this);
 		return null; // need to wait until callback
 	}
@@ -498,7 +521,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	public GenericMessagingTask<NodeIDType, ?>[] handleDropEpochFinalState(
 			DropEpochFinalState<NodeIDType> event,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		this.logEvent(event);
+		Level level = event.getServiceName().equals(
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString())
+				|| event.getServiceName().equals(
+						AbstractReconfiguratorDB.RecordNames.AR_NODES
+								.toString()) ? Level.INFO : Level.FINE;
+		this.logEvent(event, level);
 		DropEpochFinalState<NodeIDType> dropEpoch = (DropEpochFinalState<NodeIDType>) event;
 		boolean deleted = this.appCoordinator.deleteFinalState(
 				dropEpoch.getServiceName(), dropEpoch.getEpochNumber());
@@ -507,7 +535,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		GenericMessagingTask<NodeIDType, AckDropEpochFinalState<NodeIDType>> mtask = new GenericMessagingTask<NodeIDType, AckDropEpochFinalState<NodeIDType>>(
 				dropEpoch.getInitiator(), ackDrop);
 		assert (ackDrop.getInitiator().equals(dropEpoch.getInitiator()));
-		log.log(deleted ? Level.FINE : Level.FINE,
+		log.log(deleted ? level : Level.FINE,
 				"{0} {1} sending {2} to {3}",
 				new Object[] { this, deleted ? "" : "*NOT*",
 						ackDrop.getSummary(), ackDrop.getInitiator() });
@@ -611,10 +639,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			retval = true;
 		if (retval)
 			log.log(Level.INFO,
-					"{0} has no state or has already moved on to epoch {1} when received {2}",
+					"{0} has no state or has already moved on to epoch {1} upon receiving {2}",
 					new Object[] { this, epoch, packet.getSummary() });
 		else
-			log.log(Level.INFO,
+			log.log(Level.FINE,
 					"{0} has {1}:{2} with replica group {3} when asked to stop {4}:{5}",
 					new Object[] {
 							this,
@@ -773,7 +801,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 								stopEpoch.getEpochNumber()) : null));
 		GenericMessagingTask<NodeIDType, ?> mtask = new GenericMessagingTask<NodeIDType, Object>(
 				(stopEpoch.getInitiator()), ackStopEpoch);
-		log.log(Level.INFO, "{0} sending {1} to {2}", new Object[] { this,
+		log.log(Level.FINE, "{0} sending {1} to {2}", new Object[] { this,
 				ackStopEpoch.getSummary(), stopEpoch.getInitiator() });
 		this.send(mtask);
 		return mtask;

@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -107,7 +107,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	private Long deleteTime = null;
 	// optimization to track whether quick final-deletion is safe
 	private int numPossiblyUncleanReconfigurations = 0;
-	
+
 	private String rcGroupName = null;
 
 	/**
@@ -132,7 +132,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		this.epoch = epoch;
 		this.actives = actives;
 		this.newActives = newActives;
-		if (name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+		if (name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
 				.toString()))
 			for (NodeIDType node : newActives)
 				this.rcEpochs.put(node, 0);
@@ -247,7 +247,8 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	public Set<NodeIDType> getActiveReplicas(String name, int epoch) {
 		if ((this.name.equals(name) && this.epoch == epoch))
 			return this.getActiveReplicas();
-		else // should never get called otherwise
+		else
+			// should never get called otherwise
 			assert (false) : name + ":" + epoch + " != " + this.name + ":"
 					+ this.epoch;
 		return null;
@@ -312,6 +313,14 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	}
 
 	/**
+	 * @param newActives
+	 */
+	public void setActivesToNewActives(Set<NodeIDType> newActives) {
+		if(newActives!=null) this.newActives = newActives;
+		this.actives = this.newActives;
+	}
+
+	/**
 	 * 
 	 */
 	public void setActivesToNewActives() {
@@ -348,7 +357,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	/**
 	 * @return True if toMerge has not yet been initialized.
 	 */
-	public boolean isToMergeNull() {
+	private boolean isToMergeNull() {
 		return this.toMerge == null;
 	}
 
@@ -434,15 +443,16 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	 * @param state
 	 * @return {@code this}
 	 */
-	public ReconfigurationRecord<NodeIDType> setState(String name, int epoch, RCStates state) {
+	public ReconfigurationRecord<NodeIDType> setState(String name, int epoch,
+			RCStates state) {
 		assert (this.name.equals(name) && (this.epoch == epoch
 				|| state.equals(RCStates.READY) // common case
 				|| state.equals(RCStates.READY_READY) // creation
 		|| state.equals(RCStates.WAIT_DELETE))) : this.epoch + "!=" + epoch;
 
 		/*
-		 * any lower epoch state to READY -> incr
-		 * one lower epoch READY_READY to READY -> decr
+		 * any lower epoch state to READY -> incr one lower epoch READY_READY to
+		 * READY -> decr
 		 */
 		// !READY to READY => unclean
 		if (state.equals(RCStates.READY))
@@ -457,8 +467,9 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 						.equals(RCStates.READY_READY))))
 			this.numPossiblyUncleanReconfigurations--;
 
-		if(epoch==1 && state==RCStates.READY_READY) assert(this.numPossiblyUncleanReconfigurations<=0);
-		
+		if (epoch == 1 && state == RCStates.READY_READY)
+			assert (this.numPossiblyUncleanReconfigurations <= 0);
+
 		if (this.numPossiblyUncleanReconfigurations < 0)
 			this.numPossiblyUncleanReconfigurations = 0;
 
@@ -467,7 +478,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 
 		if (state.equals(RCStates.WAIT_DELETE))
 			this.deleteTime = System.currentTimeMillis();
-		
+
 		return this;
 	}
 
@@ -537,7 +548,24 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 				return this.rcEpochs.get(node);
 		}
 		throw new RuntimeException("Unable to obtain RC epoch for "
-				+ rcGroupName);
+				+ rcGroupName + "; rcEpochs = " + this.rcEpochs);
+	}
+
+	/**
+	 * @param rcGroupName
+	 * @return The epoch number for the reconfigurator group name. Inserts
+	 *         default of 0 if no entry found, which can only happen if the
+	 *         inserted value before a crash was not checkpointed.
+	 */
+	public Integer getRCEpoch(NodeIDType rcGroupName) {
+		for (NodeIDType node : this.rcEpochs.keySet()) {
+			if (node.equals(rcGroupName))
+				return this.rcEpochs.get(node);
+		}
+		// throw new RuntimeException("Unable to obtain RC epoch for "
+		// + rcGroupName + "; rcEpochs = " + this.rcEpochs);
+		this.rcEpochs.put(rcGroupName, 0);
+		return 0;
 	}
 
 	/**
@@ -564,7 +592,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	 */
 	public void trimRCEpochs() {
 		if (!this.getName().equals(
-				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString()))
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString()))
 			return;
 		for (Iterator<NodeIDType> iterator = this.rcEpochs.keySet().iterator(); iterator
 				.hasNext();) {
@@ -602,7 +630,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	public long getDeleteTime() {
 		return this.deleteTime;
 	}
-	
+
 	/**
 	 * @param groupName
 	 * @return {@code this}
@@ -611,6 +639,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		this.rcGroupName = groupName;
 		return this;
 	}
+
 	/**
 	 * @return RC group name to which this record currently belongs.
 	 */
@@ -627,9 +656,11 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 				+ this.getEpoch()
 				+ ":"
 				+ this.getState()
+				+ (this.actives!=null && !this.actives.equals(this.newActives) ? ":" + this.actives
+						+ "->" + this.newActives : "")
 				+ (!this.areMergesAllDone() ? ":!merged[" + this.merged + "!="
 						+ this.toMerge + "]"
-						: !this.isToMergeNull() ? " merged[" + this.merged
+						: !this.isToMergeNull() && !this.toMerge.isEmpty()  ? " merged[" + this.merged
 								+ "==" + this.toMerge + "]" : "");
 	}
 

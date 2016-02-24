@@ -128,7 +128,7 @@ public class RCRecordRequest<NodeIDType> extends
 	@Override
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
-		json.put(BasicReconfigurationPacket.Keys.IS_COORDINATION.toString(),
+		json.put(BasicReconfigurationPacket.Keys.COORDINATED.toString(),
 				this.coordType);
 		json.put(Keys.REQUEST_TYPE.toString(), this.reqType);
 		if (this.startEpoch != null)
@@ -185,7 +185,7 @@ public class RCRecordRequest<NodeIDType> extends
 
 	public boolean isNodeConfigChange() {
 		return this.getServiceName().equals(
-				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString());
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString());
 	}
 
 	public RequestTypes getRCRequestType() {
@@ -259,7 +259,7 @@ public class RCRecordRequest<NodeIDType> extends
 	}
 
 	public boolean isActiveNodeConfigChange() {
-		return this.getServiceName().equals(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG.toString());
+		return this.getServiceName().equals(AbstractReconfiguratorDB.RecordNames.AR_NODES.toString());
 	}
 
 }

@@ -149,6 +149,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	public CreateServiceName(Map<String, String> nameStates,
 			Set<String> failedCreates, CreateServiceName create) {
 		super(nameStates.keySet().iterator().next(), create);
+		this.setSender(create.getSender());
 		this.nameStates = nameStates;
 		this.initialState = nameStates.get(nameStates.keySet().iterator()
 				.next());

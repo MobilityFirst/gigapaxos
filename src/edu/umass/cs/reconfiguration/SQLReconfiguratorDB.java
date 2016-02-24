@@ -34,6 +34,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -68,6 +70,7 @@ import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
 import edu.umass.cs.gigapaxos.paxosutil.SQL;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
@@ -132,6 +135,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final boolean COMBINE_DEMAND_STATS = Config
 			.getGlobalBoolean(RC.COMBINE_DEMAND_STATS);// false;
 	private static final String CHECKPOINT_TRANSFER_DIR = "paxos_large_checkpoints";
+	private static final String FINAL_CHECKPOINT_TRANSFER_DIR = "final_checkpoints";
+
 	/**
 	 * Should just be true as reconfigurator checkpoint size increases with the
 	 * number of service names and can therefore be very large.
@@ -139,24 +144,24 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final boolean LARGE_CHECKPOINTS_OPTION = true;
 	private static final int MAX_FILENAME_LENGTH = 128;
 	private static final String CHARSET = "ISO-8859-1";
-	
-	private static final int THREAD_POOL_SIZE = Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS);
+
+	private static final int THREAD_POOL_SIZE = Config
+			.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS);
 
 	private static enum Columns {
-		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, 
-		RC_NODE_ID, AR_NODE_ID, IS_RECONFIGURATOR 
+		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, RC_NODE_ID, AR_NODE_ID, IS_RECONFIGURATOR
 	};
 
 	private static enum Keys {
 		INET_SOCKET_ADDRESS, FILENAME, FILESIZE
 	};
-	
-	private final DiskMap<String,ReconfigurationRecord<NodeIDType>> rcRecords;
+
+	private final DiskMap<String, ReconfigurationRecord<NodeIDType>> rcRecords;
 
 	private static final ArrayList<SQLReconfiguratorDB<?>> instances = new ArrayList<SQLReconfiguratorDB<?>>();
 
 	protected String logDirectory;
-	
+
 	private ComboPooledDataSource dataSource = null;
 
 	private ServerSocket serverSock = null;
@@ -167,11 +172,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private ScheduledExecutorService executor;
 	Future<?> checkpointServerFuture = null;
-	
+
 	private boolean closed = true;
 
 	private static final Logger log = (Reconfigurator.getLogger());
-	private static final int MAX_DB_BATCH_SIZE = Config.getGlobalInt(PC.MAX_DB_BATCH_SIZE);
+	private static final int MAX_DB_BATCH_SIZE = Config
+			.getGlobalInt(PC.MAX_DB_BATCH_SIZE);
 
 	/**
 	 * @param myID
@@ -184,14 +190,16 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		logDirectory = (logDir == null ? SQLReconfiguratorDB.LOG_DIRECTORY
 				: logDir) + "/";
 		addDerbyPersistentReconfiguratorDB(this);
-		
-		this.rcRecords = USE_DISK_MAP ? new DiskMap<String, ReconfigurationRecord<NodeIDType>>(Config.getGlobalInt(PC.PINSTANCES_CAPACITY)) {
+
+		this.rcRecords = USE_DISK_MAP ? new DiskMap<String, ReconfigurationRecord<NodeIDType>>(
+				Config.getGlobalInt(PC.PINSTANCES_CAPACITY)) {
 
 			@Override
 			public Set<String> commit(
 					Map<String, ReconfigurationRecord<NodeIDType>> toCommit)
 					throws IOException {
-				return SQLReconfiguratorDB.this.putReconfigurationRecordDB(toCommit);
+				return SQLReconfiguratorDB.this
+						.putReconfigurationRecordDB(toCommit);
 			}
 
 			@Override
@@ -199,10 +207,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					throws IOException {
 				return SQLReconfiguratorDB.this.getReconfigurationRecordDB(key);
 			}
-		} : null;
+		}
+				: null;
 		initialize();
 	}
-	
+
 	private Set<String> putReconfigurationRecordDB(
 			Map<String, ReconfigurationRecord<NodeIDType>> toCommit) {
 		String updateCmd = "update " + getRCRecordTable() + " set "
@@ -210,23 +219,24 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ Columns.STRINGIFIED_RECORD.toString() + "=? where "
 				+ Columns.SERVICE_NAME.toString() + "=?";
 		String cmd = updateCmd;
-		
+
 		PreparedStatement pstmt = null;
 		Connection conn = null;
 		Set<String> committed = new HashSet<String>();
-		ReconfigurationRecord<?>[] values = toCommit.values().toArray(new ReconfigurationRecord[0]);
+		ReconfigurationRecord<?>[] values = toCommit.values().toArray(
+				new ReconfigurationRecord[0]);
 		try {
 			ArrayList<String> batch = new ArrayList<String>();
-			for(int i=0; i<values.length; i++) {
+			for (int i = 0; i < values.length; i++) {
 				String name = values[i].getName();
-				if(conn==null) {
+				if (conn == null) {
 					conn = this.getDefaultConn();
 					conn.setAutoCommit(false);
 					pstmt = conn.prepareStatement(updateCmd);
 				}
 				// FIXME: should move to putReconfigurationRecordIndividually
 				// removal
-				if(toCommit.get(name)==null) {
+				if (toCommit.get(name) == null) {
 					this.deleteReconfigurationRecord(name);
 					log.log(Level.INFO, "{0} deleted RC record {1}",
 							new Object[] { this, name });
@@ -235,28 +245,31 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				}
 				// else update/insert
 				String rcGroupName = toCommit.get(name).getRCGroupName();
-				if(rcGroupName==null) rcGroupName = this.getRCGroupName(name);
+				if (rcGroupName == null)
+					rcGroupName = this.getRCGroupName(name);
 				pstmt.setString(1, rcGroupName);
 				if (RC_RECORD_CLOB_OPTION)
-					pstmt.setClob(2, new StringReader((toCommit.get(name)).toString()));
+					pstmt.setClob(2,
+							new StringReader((toCommit.get(name)).toString()));
 				else
 					pstmt.setString(2, (toCommit.get(name)).toString());
 				pstmt.setString(3, name);
 				pstmt.addBatch();
 				batch.add(name);
-				
+
 				int[] executed = new int[batch.size()];
-				if ((i+1) % MAX_DB_BATCH_SIZE == 0 || (i+1) == toCommit.size()) {
+				if ((i + 1) % MAX_DB_BATCH_SIZE == 0
+						|| (i + 1) == toCommit.size()) {
 					executed = pstmt.executeBatch();
-					assert(executed.length==batch.size());
+					assert (executed.length == batch.size());
 					conn.commit();
 					pstmt.clearBatch();
-					for(int j=0; j<executed.length; j++) {
-						if(executed[j]>0) {
-							log.log(Level.FINE, "{0} updated RC record {1}", new Object[] {
-									this, batch.get(j) });
+					for (int j = 0; j < executed.length; j++) {
+						if (executed[j] > 0) {
+							log.log(Level.FINE, "{0} updated RC record {1}",
+									new Object[] { this, batch.get(j) });
 							committed.add(batch.get(j));
-						} else 
+						} else
 							log.log(Level.FINE,
 									"{0} unable to update RC record {1} (executed={2}), will try insert",
 									new Object[] { this, batch.get(j),
@@ -286,22 +299,27 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return committed;
 	}
 
-	private Map<String, ReconfigurationRecord<NodeIDType>> diff(Map<String, ReconfigurationRecord<NodeIDType>> map, Set<String> set) {
+	private Map<String, ReconfigurationRecord<NodeIDType>> diff(
+			Map<String, ReconfigurationRecord<NodeIDType>> map, Set<String> set) {
 		Map<String, ReconfigurationRecord<NodeIDType>> diffMap = new HashMap<String, ReconfigurationRecord<NodeIDType>>();
-		for(String s : map.keySet())
-			if(!set.contains(s) && map.get(s)!=null) diffMap.put(s, map.get(s));
+		for (String s : map.keySet())
+			if (!set.contains(s) && map.get(s) != null)
+				diffMap.put(s, map.get(s));
 		return diffMap;
 	}
 
 	private Set<String> putReconfigurationRecordIndividually(
 			Map<String, ReconfigurationRecord<NodeIDType>> toCommit) {
-		log.log(Level.INFO, "{0} individually committing names {1} names: {2}", new Object[] {
-				this, toCommit.keySet().size(), toCommit.keySet() });
+		log.log(Level.FINE,
+				"{0} individually committing names {1} names: {2}",
+				new Object[] { this, toCommit.keySet().size(),
+						toCommit.keySet() });
 		Set<String> committed = new HashSet<String>();
 		for (String name : toCommit.keySet()) {
 			String rcGroupName = toCommit.get(name).getRCGroupName();
-			if(rcGroupName==null) rcGroupName = this.getRCGroupName(name);
-			
+			if (rcGroupName == null)
+				rcGroupName = this.getRCGroupName(name);
+
 			if (toCommit.get(name) == null) {
 				this.deleteReconfigurationRecord(name);
 				log.log(Level.INFO, "{0} deleted RC record {1}", new Object[] {
@@ -315,7 +333,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			}
 			committed.add(name);
 		}
-		//this.printRCTable();
+		// this.printRCTable();
 		return committed;
 	}
 
@@ -333,10 +351,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	@Override
 	public synchronized ReconfigurationRecord<NodeIDType> getReconfigurationRecord(
 			String name) {
-		if(USE_DISK_MAP) return this.rcRecords.get(name);
-		else return this.getReconfigurationRecordDB(name);
+		if (USE_DISK_MAP)
+			return this.rcRecords.get(name);
+		else
+			return this.getReconfigurationRecordDB(name);
 	}
-	
+
 	private ReconfigurationRecord<NodeIDType> getReconfigurationRecordDB(
 			String name) {
 		long t0 = System.currentTimeMillis();
@@ -410,7 +430,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	@Override
 	public synchronized boolean setState(String name, int epoch,
 			ReconfigurationRecord.RCStates state) {
-		return this.setStateMerge(name, epoch, state, null);
+		return this.setStateMerge(name, epoch, state, null, null);
 	}
 
 	/*
@@ -421,13 +441,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	@Override
 	public synchronized boolean setStateMerge(String name, int epoch,
-			ReconfigurationRecord.RCStates state, Set<String> mergees) {
+			ReconfigurationRecord.RCStates state, Set<NodeIDType> newActives, Set<String> mergees) {
 		ReconfigurationRecord<NodeIDType> record = this
 				.getReconfigurationRecord(name);
 		if (record == null)
 			return false;
-		//assert (!(record.getState().equals(state) && epoch == record.getEpoch()));
-
+		
 		log.log(Level.INFO,
 				"==============================> {0} {1} {2}:{3} -> {4}:{5} {6} {7} {8}",
 				new Object[] { this, record.getName(), record.getEpoch(),
@@ -442,7 +461,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				|| state.equals(RCStates.READY_READY) || state
 					.equals(RCStates.WAIT_DELETE));
 		if (record.isReady()) {
-			record.setActivesToNewActives();
+			record.setActivesToNewActives(newActives);
 			/*
 			 * The list of pending reconfigurations is stored persistently so
 			 * that we can resume the most recent incomplete reconfiguration
@@ -536,27 +555,32 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.putReconfigurationRecord(record);
 
 		record = this.getReconfigurationRecord(name);
-		assert (!name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
-				.toString()) || !record.getActiveReplicas().equals(
+		assert (!name
+				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
+						.toString()) || !record.getActiveReplicas().equals(
 				record.getNewActives()));
 		return true;
 	}
-	
-	private static final boolean USE_DISK_MAP = Config.getGlobalBoolean(RC.USE_DISK_MAP_RCDB);
-	
+
+	private static final boolean USE_DISK_MAP = Config
+			.getGlobalBoolean(RC.USE_DISK_MAP_RCDB);
+
 	private synchronized void putReconfigurationRecord(
 			ReconfigurationRecord<NodeIDType> rcRecord) {
-		if(USE_DISK_MAP) this.rcRecords.put(rcRecord.getName(), rcRecord);
-		else this.putReconfigurationRecordDB(rcRecord, this.getRCGroupName(rcRecord.getName()));
+		if (USE_DISK_MAP)
+			this.rcRecords.put(rcRecord.getName(), rcRecord);
+		else
+			this.putReconfigurationRecordDB(rcRecord,
+					this.getRCGroupName(rcRecord.getName()));
 	}
-	
+
 	private synchronized void putReconfigurationRecord(
 			ReconfigurationRecord<NodeIDType> rcRecord, String rcGroupName) {
-		if(USE_DISK_MAP) {
+		if (USE_DISK_MAP) {
 			this.rcRecords.put(rcRecord.getName(),
 					rcRecord.setRCGroupName(rcGroupName));
-		}
-		else this.putReconfigurationRecordDB(rcRecord, rcGroupName);
+		} else
+			this.putReconfigurationRecordDB(rcRecord, rcGroupName);
 	}
 
 	private void putReconfigurationRecordDB(
@@ -574,7 +598,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		String cmd = prev != null ? updateCmd : insertCmd;
 
 		rcRecord.setRCGroupName(rcGroupName);
-		
+
 		PreparedStatement insertCP = null;
 		Connection conn = null;
 		try {
@@ -595,7 +619,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(insertCP);
 			cleanup(conn);
 		}
-		//printRCTable();
+		// printRCTable();
 		log.log(Level.FINE, "{0} put {1} into RC group {2}", new Object[] {
 				this, rcRecord.getSummary(), rcGroupName });
 	}
@@ -616,7 +640,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 						+ " "
 						+ rs.getString(Columns.STRINGIFIED_RECORD.toString());
 			}
-			log.info(this + " RC table " + this.getRCRecordTable() + " :\n" + s + "\n]");
+			log.info(this + " RC table " + this.getRCRecordTable() + " :\n" + s
+					+ "\n]");
 		} catch (SQLException e) {
 			log.severe("SQLException while print RC records table " + cmd);
 			e.printStackTrace();
@@ -645,16 +670,19 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.putReconfigurationRecord(record, rcGroupName);
 		if (!record.isReady()) // FIXME: READY
 			this.setPending(record.getName(), true, true);
-		log.log(Level.FINER, "{0} inserted RC record named {1} to RC group {2}",
+		log.log(Level.FINER,
+				"{0} inserted RC record named {1} to RC group {2}",
 				new Object[] { this, record.getName(), rcGroupName });
 		return true;
 	}
 
 	private synchronized boolean deleteReconfigurationRecord(String name) {
-		ReconfigurationRecord<NodeIDType> record = this.getReconfigurationRecord(name);
-		return record!=null ? this.deleteReconfigurationRecord(name, record.getEpoch()) : false;
+		ReconfigurationRecord<NodeIDType> record = this
+				.getReconfigurationRecord(name);
+		return record != null ? this.deleteReconfigurationRecord(name,
+				record.getEpoch()) : false;
 	}
-	
+
 	@Override
 	public synchronized boolean deleteReconfigurationRecord(String name,
 			int epoch) {
@@ -668,7 +696,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		} else
 			return this.deleteReconfigurationRecordDB(name, epoch);
 	}
-	
+
 	private synchronized boolean deleteReconfigurationRecordDB(String name,
 			int epoch) {
 		ReconfigurationRecord<NodeIDType> record = this
@@ -748,7 +776,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 								this.rcRecords });
 				this.rcRecords.commit();
 			}
-			
+
 			PreparedStatement pstmt = null;
 			ResultSet recordRS = null;
 			Connection conn = null;
@@ -778,7 +806,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					ReconfigurationRecord<NodeIDType> rcRecord = new ReconfigurationRecord<NodeIDType>(
 							new JSONObject(msg), this.consistentNodeConfig);
 					fos.write((rcRecord.toString() + "\n").getBytes(CHARSET));
-					if(debug.length() < 64*1024) debug += "\n"+rcRecord;
+					if (debug.length() < 64 * 1024)
+						debug += "\n" + rcRecord;
 				}
 			} catch (SQLException | JSONException | IOException e) {
 				log.severe(e.getClass().getSimpleName()
@@ -796,8 +825,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					new Object[] { this, rcGroup,
 							this.getCheckpointDir() + rcGroup, debug });
 			// return filename, not actual checkpoint
-			return !exceptions && this.deleteOldCheckpoints(rcGroup, 2) ? this
-					.getCheckpointURL(cpFilename) : null;
+			if (!exceptions) {
+				this.deleteOldCheckpoints(rcGroup, 3);
+				return LargeCheckpointer.createCheckpointHandle(cpFilename); // this.getCheckpointURL(cpFilename);
+			}
+			// else
+			return null;
 		}
 	}
 
@@ -826,9 +859,13 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			if (state == null) // all done already
 				return true;
 
-			String passedArg = state;
+			String passedArg = state, localFilename = this
+					.getCheckpointFile("checkpoint." + rcGroup + ".tmp");
 			// else first try treating state as remote file handle
-			if ((state = this.getRemoteCheckpoint(rcGroup, state)) == null)
+			if ((state = (LargeCheckpointer.isCheckpointHandle(state) ? LargeCheckpointer
+					.restoreCheckpointHandle(state, localFilename) : state)
+			// this.getRemoteCheckpoint(rcGroup, state)
+			) == null)
 				throw new RuntimeException(this + " unable to fetch " + rcGroup
 						+ " checkpoint state " + passedArg);
 
@@ -871,6 +908,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					e.printStackTrace();
 				}
 			}
+
+			// delete has no effect if file not created above
+			new File(localFilename).delete();
 
 			return true;
 		}
@@ -917,7 +957,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 		return pending.toArray(new String[0]);
 	}
-	
+
 	@Override
 	public void removePending(String name) {
 		PreparedStatement pstmt = null;
@@ -926,8 +966,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		try {
 			conn = this.getDefaultConn();
 			pstmt = conn.prepareStatement("delete from " + getPendingTable()
-					+ " where " + Columns.SERVICE_NAME.toString() + "='"
-					+ name+"'");
+					+ " where " + Columns.SERVICE_NAME.toString() + "='" + name
+					+ "'");
 			pstmt.execute();
 		} catch (SQLException e) {
 			log.severe("Node"
@@ -1051,7 +1091,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	// /////// Start of file system checkpoint methods and classes /////////
-	
+
 	// opens the server thread for file system based checkpoints
 	private boolean initCheckpointServer() {
 		this.executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE,
@@ -1080,7 +1120,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return false;
 	}
 
-	//Map<Future<?>,Long> transportFutures = new ConcurrentHashMap<Future<?>,Long>();
+	// Map<Future<?>,Long> transportFutures = new
+	// ConcurrentHashMap<Future<?>,Long>();
 	// spawns off a new thread to process file system based checkpoint request
 	private class CheckpointServer implements Runnable {
 
@@ -1090,13 +1131,13 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			try {
 				while ((sock = serverSock.accept()) != null) {
 					executor.submit(new CheckpointTransporter(sock));
-					//(new Thread(new CheckpointTransporter(sock))).start();
+					// (new Thread(new CheckpointTransporter(sock))).start();
 				}
 			} catch (IOException e) {
-				if(!isClosed()) {
-				log.severe(myID
-						+ " incurred IOException while processing checkpoint transfer request");
-				e.printStackTrace();
+				if (!isClosed()) {
+					log.severe(myID
+							+ " incurred IOException while processing checkpoint transfer request");
+					e.printStackTrace();
 				}
 			}
 		}
@@ -1157,11 +1198,13 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	/*
+	 * FIXME: unused.
+	 * 
 	 * Sends request for and receives remote checkpoint file if correctly
 	 * formatted URL. If so, it returns a local filename. If not, it returns the
 	 * url back as-is.
 	 */
-	private String getRemoteCheckpoint(String rcGroup, String url) {
+	protected String getRemoteCheckpoint(String rcGroup, String url) {
 		if (url == null)
 			return url;
 		String filename = url;
@@ -1221,8 +1264,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				while ((nread = inStream.read(buf)) >= 0) {
 					/*
 					 * FIXME: need to ensure that the read won't block forever
-					 * if the remote endpoint crashes ungracefully and there
-					 * is no exception triggered here.
+					 * if the remote endpoint crashes ungracefully and there is
+					 * no exception triggered here.
 					 */
 					nTotalRead += nread;
 					fos.write(buf, 0, nread);
@@ -1246,8 +1289,74 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 	}
 
-	// makes a checkpoint URL out of a local filename
-	private String getCheckpointURL(String localFilename) {
+	/**
+	 * @param finalStates
+	 * @param mergerGroup
+	 * @param mergerGroupEpoch
+	 * @return Merged checkpoint filename.
+	 */
+	public String fetchAndAggregateMergeeStates(Map<String, String> finalStates,
+			String mergerGroup, int mergerGroupEpoch) {
+		String mergerGroupCheckpointFile = this
+				.getCheckpointFileNoTimestamp(mergerGroup+":"+mergerGroupEpoch);
+		for (String mergee : finalStates.keySet()) {
+			// mergee is name:epoch format
+			new File(this.getCheckpointFileNoTimestamp(mergee)).getParentFile().mkdirs();
+			LargeCheckpointer.restoreCheckpointHandle(finalStates.get(mergee),
+					this.getCheckpointFileNoTimestamp(mergee));
+		}
+		// all checkpoints collected above
+
+		try {
+			// create empty file for merging checkpoints
+			if (this.createCheckpointFile(mergerGroupCheckpointFile))
+				Util.wipeoutFile(mergerGroupCheckpointFile);
+		} catch (IOException ioe) {
+			log.severe(this + " unable to create empty file "
+					+ mergerGroupCheckpointFile
+					+ " for merging mergee final state checkpoints ");
+			ioe.printStackTrace();
+			return null;
+		}
+		assert (new File(mergerGroupCheckpointFile).exists() && new File(
+				mergerGroupCheckpointFile).length() == 0);
+
+		FileOutputStream fos = null;
+		try {
+			fos = new FileOutputStream(mergerGroupCheckpointFile);	
+			// merge each mergeeCheckpointFile into mergerGroupCheckpointFile
+			long totalSize = 0;
+			for (String mergee : finalStates.keySet()) {
+				String mergeeCheckpointFile = this
+						.getCheckpointFileNoTimestamp(mergee);
+				totalSize += new File(mergeeCheckpointFile).length();
+				Files.copy(Paths.get(mergeeCheckpointFile), fos);
+			}
+
+			// sanity check and cleanup
+			assert (totalSize == new File(mergerGroupCheckpointFile).length());
+			if (totalSize != new File(mergerGroupCheckpointFile).length())
+				log.severe(this + " expecting size " + totalSize
+						+ " B for merged final states but found "
+						+			new File(mergerGroupCheckpointFile).length() +" B");
+			else 
+				// clean up mergee file states
+				for (String mergee : finalStates.keySet())
+					new File(this.getCheckpointFileNoTimestamp(mergee))
+							.delete();
+			return mergerGroupCheckpointFile;
+		} catch (IOException e) {
+			log.severe(this + " unable to merge mergee files");
+			e.printStackTrace();
+		} finally {
+			cleanup(fos);
+		}
+
+		return null;
+	}
+
+	// FIXME: unused. Makes a checkpoint URL out of a local filename.
+	protected String getCheckpointURL(String localFilename) {
 		String url = null;
 		try {
 			JSONObject jsonUrl = new JSONObject();
@@ -1282,10 +1391,17 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ System.currentTimeMillis(); // + ":" + epoch;
 	}
 
+	private String getCheckpointFileNoTimestamp(String mergee) {
+		return this.getCheckpointDir() + FINAL_CHECKPOINT_TRANSFER_DIR + "/"
+				+ mergee;
+	}
+
 	// garbage collection methods below for file system based checkpoints
 	private boolean deleteOldCheckpoints(final String rcGroupName, int keep) {
-		return deleteOldCheckpoints(getCheckpointDir(), rcGroupName, keep, this.fileSystemLock);
+		return deleteOldCheckpoints(getCheckpointDir(), rcGroupName, keep,
+				this.fileSystemLock);
 	}
+
 	/*
 	 * Deletes all but the most recent checkpoint for the RC group name. We
 	 * could track recency based on timestamps using either the timestamp in the
@@ -1293,7 +1409,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * checkpoint filename explicitly as we know it when this method is called
 	 * anyway.
 	 */
-	private static boolean deleteOldCheckpoints(final String cpDir, final String rcGroupName, int keep, Object lockMe) {
+	private static boolean deleteOldCheckpoints(final String cpDir,
+			final String rcGroupName, int keep, Object lockMe) {
 		File dir = new File(cpDir);
 		assert (dir.exists());
 		// get files matching the prefix for this rcGroupName's checkpoints
@@ -1309,10 +1426,22 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return allDeleted;
 	}
 
+	private static final long MAX_FINAL_STATE_AGE = Config
+			.getGlobalLong(PC.MAX_FINAL_STATE_AGE);
+
 	private static boolean deleteFile(File f, Object lockMe) {
-		synchronized(lockMe) {
-			return f.delete();
+		long age = 0;
+		if ((age = System.currentTimeMillis() - Filename.getLTS(f)) > MAX_FINAL_STATE_AGE) {
+			log.info(SQLReconfiguratorDB.class.getSimpleName()
+					+ " deleting old checkpoint file " + f.toPath()
+					+ " created " + age / 1000 + " (> "
+					+ PC.MAX_FINAL_STATE_AGE.toString() + "="
+					+ MAX_FINAL_STATE_AGE / 1000 + ") seconds back");
+			synchronized (lockMe) {
+				return f.delete();
+			}
 		}
+		return true;
 	}
 
 	private static Set<Filename> getAllButLatest(File[] files, int keep) {
@@ -1336,16 +1465,31 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			this.file = f;
 		}
 
+		// FIXME: should use the logical timestamp in filename
 		@Override
 		public int compareTo(SQLReconfiguratorDB.Filename o) {
-			long t1 = file.lastModified();
-			long t2 = o.file.lastModified();
+			long t1 = getLTS(file);
+			long t2 = getLTS(o.file);
+
 			if (t1 < t2)
 				return -1;
 			else if (t1 == t2)
 				return 0;
 			else
 				return 1;
+		}
+
+		private static long getLTS(File file) {
+			String[] tokens = file.toString().split("\\.");
+			assert (tokens[tokens.length - 1].matches("[0-9a-fA-F]*$")) : file;
+			try {
+				return SQLPaxosLogger.USE_HEX_TIMESTAMP ? Long.parseLong(
+						tokens[tokens.length - 1], 16) : Long
+						.valueOf(tokens[tokens.length - 1]);
+			} catch (NumberFormatException nfe) {
+				nfe.printStackTrace();
+			}
+			return file.lastModified();
 		}
 	}
 
@@ -1397,11 +1541,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(conn);
 		}
 		// must not return the nodeConfig record itself as an RC group
-		if(groups!=null) groups.remove(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
-				.toString());
+		if (groups != null)
+			groups.remove(AbstractReconfiguratorDB.RecordNames.RC_NODES
+					.toString());
 		return groups;
 	}
-	
+
 	/*
 	 * A reconfigurator needs two tables: one for all records and one for all
 	 * records with ongoing reconfigurations. A record contains the serviceName,
@@ -1410,10 +1555,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * demandProfile persistently as otherwise we will run out of memory.
 	 */
 	private boolean createTables() {
-		boolean createdRCRecordTable = false, createdPendingTable = false, 
-				createdDemandTable = false, createdNodeConfigTable = false, 
-				// for storing reverse mapping from actives to names
-				createdARTable = false;
+		boolean createdRCRecordTable = false, createdPendingTable = false, createdDemandTable = false, createdNodeConfigTable = false,
+		// for storing reverse mapping from actives to names
+		createdARTable = false;
 		// simply store everything in stringified form and pull all when needed
 		String cmdRCR = "create table "
 				+ getRCRecordTable()
@@ -1458,17 +1602,18 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ Columns.RC_NODE_ID.toString() + " varchar(" + MAX_NAME_SIZE
 				+ ") not null, " + Columns.INET_ADDRESS.toString()
 				+ " varchar(256), " + Columns.PORT.toString() + " int, "
-				+ Columns.NODE_CONFIG_VERSION.toString() + " int, " + 
-				Columns.IS_RECONFIGURATOR.toString() + " int, primary key("
+				+ Columns.NODE_CONFIG_VERSION.toString() + " int, "
+				+ Columns.IS_RECONFIGURATOR.toString() + " int, primary key("
 				+ Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.NODE_CONFIG_VERSION + "))";
-		
+
 		// FIXME: not needed
 		String cmdAR = "create table " + getARTable() + " ("
 				+ Columns.SERVICE_NAME.toString() + " varchar(" + MAX_NAME_SIZE
-				+ ") not null, " + Columns.AR_NODE_ID.toString()
-				+ " varchar(" + MAX_NAME_SIZE +"), primary key(" + Columns.AR_NODE_ID.toString()
-				+ ", " + Columns.SERVICE_NAME.toString() + "))";
+				+ ") not null, " + Columns.AR_NODE_ID.toString() + " varchar("
+				+ MAX_NAME_SIZE + "), primary key("
+				+ Columns.AR_NODE_ID.toString() + ", "
+				+ Columns.SERVICE_NAME.toString() + "))";
 
 		Statement stmt = null;
 		Connection conn = null;
@@ -1481,8 +1626,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			createdDemandTable = createTable(stmt, cmdDP, getDemandTable());
 			createdNodeConfigTable = createTable(stmt, cmdNC,
 					getNodeConfigTable());
-			createdARTable = createTable(stmt, cmdAR,
-					getARTable());
+			createdARTable = createTable(stmt, cmdAR, getARTable());
 			log.log(Level.INFO, "{0}{1}{2}{3}", new Object[] {
 					"Created tables ", getRCRecordTable(), " and ",
 					getPendingTable() });
@@ -1492,8 +1636,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					+ (createdPendingTable ? "" : getPendingTable())
 					+ (createdDemandTable ? "" : getDemandTable()) + " "
 					+ (createdNodeConfigTable ? "" : getNodeConfigTable())
-					+ (createdARTable ? "" : getARTable())
-					+ " ");
+					+ (createdARTable ? "" : getARTable()) + " ");
 			sqle.printStackTrace();
 		} finally {
 			cleanup(stmt);
@@ -1626,7 +1769,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	public void close() {
 		setClosed(true);
-		if (allClosed()) /*do nothing*/;
+		if (allClosed()) /* do nothing */
+			;
 		closeGracefully();
 	}
 
@@ -1765,8 +1909,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		rcDB.putReconfigurationRecord(rcRecord.setRCGroupName("RC0"));
 		ReconfigurationRecord<Integer> retrievedRecord = rcDB
 				.getReconfigurationRecord(name);
-		assert (retrievedRecord.toString().equals(rcRecord.toString())) : rcRecord + " != "
-				+ retrievedRecord;
+		assert (retrievedRecord.toString().equals(rcRecord.toString())) : rcRecord
+				+ " != " + retrievedRecord;
 	}
 
 	private static Request getRandomInterfaceRequest(final String name) {
@@ -1855,25 +1999,26 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			testRCRecordReadAfterWrite(name, rcDB);
 		}
 		for (int i = 0; i < numTests; i++) {
-			testDemandProfileUpdate(name, rcDB)
-			;
+			testDemandProfileUpdate(name, rcDB);
 		}
 
-		if(USE_DISK_MAP) rcDB.rcRecords.commit();
+		if (USE_DISK_MAP)
+			rcDB.rcRecords.commit();
 		rcDB.printRCTable();
 	}
+
 	@Override
 	public boolean addActiveReplica(NodeIDType node,
 			InetSocketAddress sockAddr, int version) {
 		return this.addToNodeConfig(node, sockAddr, version, false);
 	}
-	
+
 	@Override
 	public boolean addReconfigurator(NodeIDType node,
 			InetSocketAddress sockAddr, int version) {
 		return this.addToNodeConfig(node, sockAddr, version, true);
 	}
-	
+
 	private boolean addToNodeConfig(NodeIDType node,
 			InetSocketAddress sockAddr, int version, boolean isReconfigurator) {
 		String cmd = "insert into " + getNodeConfigTable() + " ("
@@ -1940,7 +2085,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private Integer getMaxNodeConfigVersion(boolean reconfigurators) {
 		String cmd = "select max(" + Columns.NODE_CONFIG_VERSION.toString()
 				+ ") from " + this.getNodeConfigTable() + " where "
-				+ Columns.IS_RECONFIGURATOR.toString() + (reconfigurators ? "=1" : "=0");
+				+ Columns.IS_RECONFIGURATOR.toString()
+				+ (reconfigurators ? "=1" : "=0");
 
 		Integer maxVersion = null;
 		PreparedStatement pstmt = null;
@@ -1964,8 +2110,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return maxVersion;
 	}
 
-	//@Override
-	private Map<NodeIDType, InetSocketAddress> getRCNodeConfig(boolean maxOnly, boolean reconfigurators) {
+	// @Override
+	private Map<NodeIDType, InetSocketAddress> getRCNodeConfig(boolean maxOnly,
+			boolean reconfigurators) {
 		Integer version = this.getMaxNodeConfigVersion(reconfigurators);
 		if (version == null)
 			return null;
@@ -1974,7 +2121,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		String cmd = "select " + Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.INET_ADDRESS.toString() + " from "
 				+ this.getNodeConfigTable() + " where "
-				+ Columns.IS_RECONFIGURATOR.toString() + (reconfigurators ? "=1" : "=0") + " and ("
+				+ Columns.IS_RECONFIGURATOR.toString()
+				+ (reconfigurators ? "=1" : "=0") + " and ("
 				+ Columns.NODE_CONFIG_VERSION.toString()
 				+ (maxOnly ? "=?" : ">=?") + ")";
 
@@ -2013,15 +2161,15 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 */
 	private void initAdjustSoftNodeConfig() {
 		// get node config containing all reconfigurators from DB
-		Map<NodeIDType, InetSocketAddress> rcMapAll = this
-				.getRCNodeConfig(false, true);
+		Map<NodeIDType, InetSocketAddress> rcMapAll = this.getRCNodeConfig(
+				false, true);
 		// if no hard copy, copy soft to hard and return
 		if (rcMapAll.isEmpty() && copySoftNodeConfigToDB())
 			return;
 
 		// else get NC record with the current and next set of reconfigurators
 		ReconfigurationRecord<NodeIDType> ncRecord = this
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString());
 		if (ncRecord == null)
 			return; // else we have something to do
@@ -2044,10 +2192,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			else if (!latestRCs.contains(node))
 				this.consistentNodeConfig.slateForRemovalReconfigurator(node);
 		log.log(Level.INFO,
-				"{0} read the following reconfigurator set from node config version {1} in DB: "
-						+ this.consistentNodeConfig.getReconfigurators(), this.getMaxNodeConfigVersion(true) );
+				"{0} read the following reconfigurator set from node config version {1} in DB: ",
+				new Object[] { this,
+						this.consistentNodeConfig.getReconfigurators(),
+						this.getMaxNodeConfigVersion(true) });
 	}
-	
+
 	private void initAdjustSoftActiveNodeConfig() {
 		// get node config containing all actives from DB
 		Map<NodeIDType, InetSocketAddress> arMapAll = this.getRCNodeConfig(
@@ -2059,11 +2209,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 		// else get NC record with the current and next set of actives
 		ReconfigurationRecord<NodeIDType> ncRecord = this
-				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
 						.toString());
 		if (ncRecord == null)
 			return; // else we have something to do
-
 
 		// get only the latest version actives
 		Set<NodeIDType> latestARs = ncRecord.getNewActives();
@@ -2072,8 +2221,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 		// add all nodes
 		for (NodeIDType node : arMapAll.keySet())
-			this.consistentNodeConfig.addActiveReplica(node,
-					arMapAll.get(node));
+			this.consistentNodeConfig
+					.addActiveReplica(node, arMapAll.get(node));
 		for (NodeIDType node : this.consistentNodeConfig.getActiveReplicas())
 			// remove outdated consistentNodeConfig entries
 			if (!arMapAll.containsKey(node))
@@ -2082,12 +2231,16 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			else if (!latestARs.contains(node))
 				this.consistentNodeConfig.slateForRemovalActive(node);
 		log.log(Level.INFO,
-				"{0} read the following active replica set from node config version {1} in DB: "
-						+ this.consistentNodeConfig.getActiveReplicas(), this.getMaxNodeConfigVersion(false));
+				"{0} read the following active replica set from node config version {1} in DB: ",
+				new Object[] { this,
+						this.consistentNodeConfig.getActiveReplicas(),
+						this.getMaxNodeConfigVersion(false) });
 	}
+
 	private boolean copySoftNodeConfigToDB() {
 		return this.copySoftNodeConfigToDB(true);
 	}
+
 	// copy soft to hard if no hard copy
 	private boolean copySoftNodeConfigToDB(boolean isReconfigurators) {
 		boolean added = true;
@@ -2179,7 +2332,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	@Override
 	public void setRCEpochs(ReconfigurationRecord<NodeIDType> ncRecord) {
 		if (!ncRecord.getName().equals(
-				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString()))
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString()))
 			return;
 		this.putReconfigurationRecord(ncRecord);
 	}
@@ -2251,7 +2404,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 										newActives).setState(name, -1,
 										RCStates.WAIT_ACK_STOP)) == null))
 					inserted.add(name);
-			
+
 			if (!insertedAll)
 				// rollback
 				for (String name : nameStates.keySet())
@@ -2261,8 +2414,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			return this.createReconfigurationRecordsDB(nameStates, newActives);
 	}
 
-	private boolean createReconfigurationRecordsDB(Map<String, String> nameStates,
-			Set<NodeIDType> newActives) {
+	private boolean createReconfigurationRecordsDB(
+			Map<String, String> nameStates, Set<NodeIDType> newActives) {
 		String insertCmd = "insert into " + getRCRecordTable() + " ("
 				+ Columns.RC_GROUP_NAME.toString() + ", "
 				+ Columns.STRINGIFIED_RECORD.toString() + ", "
@@ -2274,7 +2427,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		Set<String> batch = new HashSet<String>();
 		Set<String> committed = new HashSet<String>();
 		try {
-			if(conn==null) {
+			if (conn == null) {
 				conn = this.getDefaultConn();
 				conn.setAutoCommit(false);
 				insertRC = conn.prepareStatement(insertCmd);
@@ -2302,7 +2455,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				insertRC.addBatch();
 				batch.add(name);
 				i++;
-				if ((i + 1) % MAX_DB_BATCH_SIZE == 0 || (i + 1) == nameStates.size()) {
+				if ((i + 1) % MAX_DB_BATCH_SIZE == 0
+						|| (i + 1) == nameStates.size()) {
 					int[] executed = insertRC.executeBatch();
 					conn.commit();
 					insertRC.clearBatch();
@@ -2326,14 +2480,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(insertRC);
 			cleanup(conn);
 		}
-		
+
 		// rollback
 		if (!insertedAll) {
 			for (String name : nameStates.keySet())
 				if (committed.contains(name))
-				this.deleteReconfigurationRecord(name, 0);
+					this.deleteReconfigurationRecord(name, 0);
 		}
-		
+
 		return insertedAll;
 	}
 
@@ -2348,22 +2502,24 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	@Override
 	public boolean setStateMerge(Map<String, String> nameStates, int epoch,
 			RCStates state, Set<NodeIDType> newActives) {
-		if(USE_DISK_MAP) {
-			for(String name : nameStates.keySet()) {
-				ReconfigurationRecord<NodeIDType> record = this.rcRecords.get(name);
-				assert(record!=null && record.getUnclean()==0);
-				/* setStateMerge will print INFO logs and invoke the setPending
+		if (USE_DISK_MAP) {
+			for (String name : nameStates.keySet()) {
+				ReconfigurationRecord<NodeIDType> record = this.rcRecords
+						.get(name);
+				assert (record != null && record.getUnclean() == 0);
+				/*
+				 * setStateMerge will print INFO logs and invoke the setPending
 				 * DB call that is unnecessary overhead for batch creates.
 				 */
-				//this.setStateMerge(name, epoch, state, null); 
+				// this.setStateMerge(name, epoch, state, null);
 				record.setState(name, epoch, state).setActivesToNewActives();
 				this.putReconfigurationRecord(record);
 			}
 			return true;
-		}
-		else return this.setStateMergeDB(nameStates, epoch, state, newActives);
+		} else
+			return this.setStateMergeDB(nameStates, epoch, state, newActives);
 	}
-	
+
 	// used only by batch creation
 	private boolean setStateMergeDB(Map<String, String> nameStates, int epoch,
 			RCStates state, Set<NodeIDType> newActives) {
@@ -2376,7 +2532,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		Connection conn = null;
 		boolean updatedAll = true;
 		try {
-			if(conn==null) {
+			if (conn == null) {
 				conn = this.getDefaultConn();
 				conn.setAutoCommit(false);
 				updateRC = conn.prepareStatement(updateCmd);
@@ -2389,7 +2545,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			for (String name : nameStates.keySet()) {
 				ReconfigurationRecord<NodeIDType> record = new ReconfigurationRecord<NodeIDType>(
 						name, 0, newActives);
-				record.setState(name, 0, state/*RCStates.READY_READY*/).setActivesToNewActives();;
+				record.setState(name, 0, state/* RCStates.READY_READY */)
+						.setActivesToNewActives();
+				;
 				updateRC.setString(1, rcGroupName);
 				if (RC_RECORD_CLOB_OPTION)
 					updateRC.setClob(2, new StringReader(record.toString()));
@@ -2398,7 +2556,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				updateRC.setString(3, name);
 				updateRC.addBatch();
 				i++;
-				if ((i + 1) % MAX_DB_BATCH_SIZE == 0 || (i + 1) == nameStates.size()) {
+				if ((i + 1) % MAX_DB_BATCH_SIZE == 0
+						|| (i + 1) == nameStates.size()) {
 					int[] executed = updateRC.executeBatch();
 					conn.commit();
 					updateRC.clearBatch();
@@ -2422,7 +2581,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 		return updatedAll;
 	}
-	
+
 	private ResultSet cursorRS = null;
 	private PreparedStatement cursorPsmt = null;
 	private Connection cursorConn = null;
@@ -2433,19 +2592,25 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	public boolean initiateReadActiveRecords(NodeIDType active) {
 		if (this.cursorRS != null || this.closed)
 			return false;
-		
+
 		// need to commit all before making a full pass
 		this.rcRecords.commit();
-		
+
 		this.cursorActive = active;
 		Connection conn = null;
 		try {
 			if (conn == null) {
-				this.cursorPsmt = this.getPreparedStatement(
-						this.cursorConn = this.getDefaultConn(),
-						this.getRCRecordTable(), null,
-						Columns.STRINGIFIED_RECORD.toString(), " where " + Columns.SERVICE_NAME.toString() + " != '"
-						+ AbstractReconfiguratorDB.RecordNames.ACTIVE_NODE_CONFIG.toString()+"'");
+				this.cursorPsmt = this
+						.getPreparedStatement(
+								this.cursorConn = this.getDefaultConn(),
+								this.getRCRecordTable(),
+								null,
+								Columns.STRINGIFIED_RECORD.toString(),
+								" where "
+										+ Columns.SERVICE_NAME.toString()
+										+ " != '"
+										+ AbstractReconfiguratorDB.RecordNames.AR_NODES
+												.toString() + "'");
 			}
 			cursorRS = this.cursorPsmt.executeQuery();
 			assert (cursorRS != null && cursorRS.next());
@@ -2472,7 +2637,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 												.toString())),
 						this.consistentNodeConfig)).getActiveReplicas() != null
 						&& record.getActiveReplicas().contains(
-								this.cursorActive) && record.isReconfigurationReady())
+								this.cursorActive)
+						&& record.isReconfigurationReady())
 					return record;
 				else
 					log.log(Level.FINEST,
@@ -2496,5 +2662,4 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.cleanup(cursorPsmt);
 		return true;
 	}
-
 }

@@ -30,6 +30,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.StringifiableDefault;
+import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -51,7 +52,7 @@ public class StartEpoch<NodeIDType> extends
 		//
 		PREV_GROUP_NAME, NEWLY_ADDED_NODES, NODE_ID, SOCKET_ADDRESS, PREV_EPOCH,
 		//
-		IS_MERGE, INIT_TIME, MERGEES, FIRST_PREV_EPOCH_CANDIDATE, NAME_STATE_ARRAY
+		IS_MERGE, INIT_TIME, MERGEES, FIRST_PREV_EPOCH_CANDIDATE, NAME_STATE_ARRAY, PASSIVE
 	};
 
 	/**
@@ -116,6 +117,23 @@ public class StartEpoch<NodeIDType> extends
 	private NodeIDType firstPrevEpochCandidate = null;
 
 	private final Map<String, String> nameStates;
+	
+	// will just wait till replia group is created anyway
+	private final boolean passiveReplicaGroupCreation;
+
+	/**
+	 * @param initiator
+	 * @param serviceName
+	 * @param epochNumber
+	 * @param curNodes
+	 * @param passive
+	 */
+	public StartEpoch(NodeIDType initiator, String serviceName,
+			int epochNumber, Set<NodeIDType> curNodes, boolean passive) {
+		this(initiator, serviceName, epochNumber, curNodes, null, null, false,
+				-1, null, null, null, null, null, null, null, true, System
+						.currentTimeMillis());
+	}
 
 	/**
 	 * @param initiator
@@ -188,7 +206,7 @@ public class StartEpoch<NodeIDType> extends
 				startEpoch.isMerge, startEpoch.prevEpoch, startEpoch.creator,
 				startEpoch.receiver, startEpoch.forwarder, initialState,
 				startEpoch.nameStates, startEpoch.newlyAddedNodes,
-				startEpoch.mergees, startEpoch.initTime);
+				startEpoch.mergees, startEpoch.passiveReplicaGroupCreation, startEpoch.initTime);
 		this.firstPrevEpochCandidate = startEpoch.firstPrevEpochCandidate;
 	}
 
@@ -206,7 +224,7 @@ public class StartEpoch<NodeIDType> extends
 				startEpoch.receiver, startEpoch.forwarder,
 				startEpoch.initialState, startEpoch.nameStates,
 				startEpoch.newlyAddedNodes, startEpoch.mergees,
-				startEpoch.initTime);
+				startEpoch.passiveReplicaGroupCreation, startEpoch.initTime);
 		this.firstPrevEpochCandidate = startEpoch.firstPrevEpochCandidate;
 	}
 
@@ -247,7 +265,7 @@ public class StartEpoch<NodeIDType> extends
 		this(initiator, serviceName, epochNumber, curNodes, prevNodes,
 				prevGroupName, isMerge, prevEpoch, creator, receiver,
 				forwarder, initialState, nameStates, newlyAddedNodes, mergees,
-				System.currentTimeMillis());
+				false, System.currentTimeMillis());
 	}
 
 	private StartEpoch(NodeIDType initiator, String serviceName,
@@ -257,7 +275,7 @@ public class StartEpoch<NodeIDType> extends
 			InetSocketAddress receiver, InetSocketAddress forwarder,
 			String initialState, Map<String, String> nameStates,
 			Map<NodeIDType, InetSocketAddress> newlyAddedNodes,
-			Set<String> mergees, long initTime) {
+			Set<String> mergees, boolean passive, long initTime) {
 		super(initiator, ReconfigurationPacket.PacketType.START_EPOCH,
 				serviceName, epochNumber);
 		this.prevEpochGroup = prevNodes;
@@ -267,6 +285,7 @@ public class StartEpoch<NodeIDType> extends
 		this.isMerge = isMerge;
 		this.mergees = mergees;
 		this.initTime = initTime;
+		this.passiveReplicaGroupCreation = passive;
 
 		// ClientReconfigurationPacket fields
 		this.creator = creator;
@@ -274,7 +293,7 @@ public class StartEpoch<NodeIDType> extends
 		this.forwarder = forwarder;
 		this.initialState = initialState;
 		this.nameStates = nameStates;
-		
+
 		this.newlyAddedNodes = newlyAddedNodes;
 	}
 
@@ -335,6 +354,9 @@ public class StartEpoch<NodeIDType> extends
 		this.firstPrevEpochCandidate = json.has(Keys.FIRST_PREV_EPOCH_CANDIDATE
 				.toString()) ? unstringer.valueOf(json
 				.getString(Keys.FIRST_PREV_EPOCH_CANDIDATE.toString())) : null;
+				
+		this.passiveReplicaGroupCreation = json.has(Keys.PASSIVE.toString()) ? json
+				.getBoolean(Keys.PASSIVE.toString()) : false;
 	}
 
 	public JSONObject toJSONObjectImpl() throws JSONException {
@@ -368,6 +390,8 @@ public class StartEpoch<NodeIDType> extends
 					this.mapToArray(newlyAddedNodes));
 		json.putOpt(Keys.FIRST_PREV_EPOCH_CANDIDATE.toString(),
 				firstPrevEpochCandidate);
+		json.put(Keys.PASSIVE.toString(), this.passiveReplicaGroupCreation);
+		
 		return json;
 	}
 
@@ -436,12 +460,13 @@ public class StartEpoch<NodeIDType> extends
 						.equals(this.getServiceName()) || (this
 						.getEpochNumber() == this.getPrevEpochNumber() + 1)));
 	}
-	
+
 	/**
 	 * @return True if this is a batched create request.
 	 */
 	public boolean isBatchedCreate() {
-		return this.isInitEpoch() && this.nameStates!=null && !this.nameStates.isEmpty();
+		return this.isInitEpoch() && this.nameStates != null
+				&& !this.nameStates.isEmpty();
 	}
 
 	/**
@@ -494,11 +519,11 @@ public class StartEpoch<NodeIDType> extends
 	public String getInitialState() {
 		return initialState;
 	}
-	
+
 	/**
 	 * @return Name,state map for batched creates.
 	 */
-	public Map<String,String> getNameStates() {
+	public Map<String, String> getNameStates() {
 		return this.nameStates;
 	}
 
@@ -643,9 +668,54 @@ public class StartEpoch<NodeIDType> extends
 	}
 
 	/**
+	 * @return True if active node config change.
+	 */
+	public boolean isActiveNodeConfigChange() {
+		return this.getServiceName().equals(
+				AbstractReconfiguratorDB.RecordNames.AR_NODES
+						.toString());
+	}
+
+	/**
+	 * @return True if reconfigurator node config change.
+	 */
+	public boolean isRCNodeConfigChange() {
+		return this.getServiceName().equals(
+				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString());
+	}
+
+	/**
+	 * @return True if either active or reconfigurator node config change.
+	 */
+	public boolean isNodeConfigChange() {
+		return this.isActiveNodeConfigChange() || this.isRCNodeConfigChange();
+	}
+
+	/**
+	 * @return The subset of nodes in the previous epoch not present in the
+	 *         current (or next) epoch.
+	 */
+	public Set<NodeIDType> getDeletedNodes() {
+		Set<NodeIDType> diff = new HashSet<NodeIDType>();
+		if (this.hasPrevEpochGroup())
+			for (NodeIDType node : this.getPrevEpochGroup())
+				if (!this.hasCurEpochGroup()
+						|| !this.getCurEpochGroup().contains(node))
+					diff.add(node);
+		return diff;
+	}
+
+	/**
 	 * @return The socket address on which the initiating request was received.
 	 */
 	public InetSocketAddress getMyReceiver() {
 		return this.receiver;
+	}
+	
+	/**
+	 * @return True if passive replica group creation.
+	 */
+	public boolean isPassive() {
+		return this.passiveReplicaGroupCreation;
 	}
 }

@@ -40,7 +40,7 @@ public class TESTReconfigurationMain {
 			throws IOException {
 		Set<ReconfigurableNode<?>> createdNodes = new HashSet<ReconfigurableNode<?>>();
 		System.out.print("Creating reconfigurator(s) [ ");
-		for (int i = 0; i < Config.getGlobalInt(TRC.NUM_ACTIVES); i++) {
+		for (int i = 0; i < Config.getGlobalInt(TRC.NUM_RECONFIGURATORS); i++) {
 			createdNodes
 					.add(new DefaultReconfigurableNode(
 							Config.getGlobalString(TRC.RC_PREFIX) + i,
@@ -103,6 +103,14 @@ public class TESTReconfigurationMain {
 		//System.out.println(dnc.getNodeIDs());
 		reconfigurators = startReconfigurators(args);
 		actives = startActives(args);
+		
+		/*
+		 * This sleep seems necessary to give time for all connections to be set
+		 * up between reconfigurators, otherwise new NIO connections sometimes
+		 * bunch up and take a few seconds to finish, e.g., 5 reconfigurators
+		 * have 20 connections amongst them.
+		 */
+		Thread.sleep(4000);
 	}
 
 	/**
@@ -129,8 +137,10 @@ public class TESTReconfigurationMain {
 		TESTReconfigurationConfig.load();
 
 		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
-		for (Failure failure : result.getFailures())
+		for (Failure failure : result.getFailures()) {
 			System.out.println(failure.toString());
+			failure.getException().printStackTrace();
+		}
 
 	}
 }

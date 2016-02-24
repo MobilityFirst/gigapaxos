@@ -73,7 +73,7 @@ public class WaitAckDropEpoch<NodeIDType>
 	private final RepliconfigurableReconfiguratorDB<NodeIDType> DB;
 	private int numRestarts = 0;
 	private final long creationTime = System.currentTimeMillis();
-	private final boolean isNodeConfigChange;
+	private final Set<NodeIDType> ackers = new HashSet<NodeIDType>();
 
 	private final String key;
 
@@ -81,15 +81,13 @@ public class WaitAckDropEpoch<NodeIDType>
 
 	/**
 	 * @param startEpoch
-	 * @param prevGroup 
+	 * @param prevGroup
 	 * @param DB
 	 *            The getAllActive() call is a hack to be able to finish deletes
 	 *            quicker. This has safety violation risks upon name re-creation
 	 *            and is meant only for instrumentation.
 	 *            <p>
 	 * 
-	 *            FIXME: We should not drop the previous epoch final state for
-	 *            split/merge RC group reconfigurations.
 	 */
 	public WaitAckDropEpoch(StartEpoch<NodeIDType> startEpoch,
 			Set<NodeIDType> prevGroup,
@@ -103,20 +101,16 @@ public class WaitAckDropEpoch<NodeIDType>
 		 * the previous epoch state. This allows the initiating node to know if
 		 * all current reconfigurators are current.
 		 */
-		super(
-				startEpoch.getServiceName().equals(
-						AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG
-								.toString()) ? startEpoch.getCommonMembers()
-						: startEpoch.getPrevEpochGroup());
+		super(startEpoch.isRCNodeConfigChange() ? startEpoch.getCommonMembers()
+				: prevGroup != null ? prevGroup : startEpoch
+						.getPrevEpochGroup());
+		assert (prevGroup == null || !prevGroup.isEmpty());
+		assert(!DB.isRCGroupName(startEpoch.getServiceName()) );
+		// use prevGroup if one specified
 		this.prevGroup = prevGroup != null ? new HashSet<NodeIDType>(prevGroup)
 				: new HashSet<NodeIDType>();
 		this.DB = DB;
-		this.isNodeConfigChange = startEpoch.getServiceName().equals(
-				AbstractReconfiguratorDB.RecordNames.RC_NODE_CONFIG.toString());
-		/*
-		 * FIXME: dropEpoch service name should be previous group name for merge
-		 * and not be done at all for non-merge RC group change operations.
-		 */
+		// dropEpoch service name should be previous group name for merge
 		this.dropEpoch = new DropEpochFinalState<NodeIDType>(DB.getMyID(),
 				(startEpoch.isMerge() ? startEpoch.getPrevGroupName()
 						: startEpoch.getServiceName()),
@@ -128,7 +122,7 @@ public class WaitAckDropEpoch<NodeIDType>
 		this.myID = DB.getMyID();
 		this.key = this.refreshKey();
 		this.setPeriod(DB.isRCGroupName(startEpoch.getServiceName()) ? RESTART_PERIOD_RC_GROUP_NAMES
-				: this.isNodeConfigChange ? RESTART_PERIOD_NC_CHANGE
+				: startEpoch.isNodeConfigChange() ? RESTART_PERIOD_NC_CHANGE
 						: RESTART_PERIOD_SERVICE_NAMES);
 	}
 
@@ -145,15 +139,17 @@ public class WaitAckDropEpoch<NodeIDType>
 	public GenericMessagingTask<NodeIDType, ?>[] restart() {
 		this.DB.filterDeletedActives(this.prevGroup);
 		// send DropEpoch to all new actives and await acks from all?
-		log.log(Level.INFO, "{0} (re-)sending [{1} of {2}] {3} to {4}",
+		log.log(Level.INFO,
+				"{0} (re-)sending [{1} of {2}] {3} to {4}; (#ackers={5}; super_ackers={6})",
 				new Object[] {
 						this.refreshKey(),
 						this.numRestarts,
 						MAX_RESTARTS,
 						this.dropEpoch.getSummary(),
-						this.isNodeConfigChange ? startEpoch.getCommonMembers()
-								: this.prevGroup });
-
+						startEpoch.isRCNodeConfigChange() ? startEpoch
+								.getCommonMembers() : this.prevGroup,
+						this.ackers, this.waitfor.getResponded() });
+		
 		if ((// have something to drop in the first place
 				this.startEpoch.hasPrevEpochGroup()
 						&& !this.prevGroup.isEmpty()
@@ -162,20 +158,22 @@ public class WaitAckDropEpoch<NodeIDType>
 				// time limit on restarts to prevent ghost final state deletion
 				&& System.currentTimeMillis() - this.creationTime < ReconfigurationConfig
 						.getMaxFinalStateAge())
-				/* Or is node config change coz these drop epoch tasks are meant to ensure
-				 * that all reconfigurators have completed the node config change, so
-				 * they must go on for ever in order to be able to respond bacj with
-				 * success to the client.
+				/*
+				 * Or is node config change coz these drop epoch tasks are meant
+				 * to ensure that all reconfigurators have completed the node
+				 * config change, so they must go on for ever in order to be
+				 * able to respond bacj with success to the client.
 				 */
-				|| this.isNodeConfigChange) {
+				|| startEpoch.isNodeConfigChange()) {
 			return (new GenericMessagingTask<NodeIDType, DropEpochFinalState<NodeIDType>>(
-					this.isNodeConfigChange ? this.startEpoch
+					startEpoch.isRCNodeConfigChange() ? this.startEpoch
 							.getCommonMembers().toArray()
 							: this.prevGroup.toArray(), this.dropEpoch))
 					.toArray();
 		}
 		// else
-		log.info(this + " protocol task canceling itself ");
+		log.log(Level.FINE, "{0} protocol task canceling itself",
+				new Object[] { this.getKey() });
 		ProtocolExecutor.cancel(this);
 		return null;
 	}
@@ -229,7 +227,7 @@ public class WaitAckDropEpoch<NodeIDType>
 		log.log(Level.INFO, "{0} received {1}",
 				new Object[] { this.refreshKey(),
 						((AckDropEpochFinalState<String>) event).getSummary() });
-		this.prevGroup.remove(((AckDropEpochFinalState<NodeIDType>) event)
+		this.ackers.add(((AckDropEpochFinalState<NodeIDType>) event)
 				.getSender());
 		return true;
 	}
@@ -240,7 +238,7 @@ public class WaitAckDropEpoch<NodeIDType>
 	@Override
 	public GenericMessagingTask<NodeIDType, ?>[] handleThresholdEvent(
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		log.log(this.isNodeConfigChange ? Level.INFO : Level.FINE,
+		log.log(startEpoch.isNodeConfigChange() ? Level.INFO : Level.FINE,
 				"{0} received all ACKs for {1}{2}",
 				new Object[] {
 						this.refreshKey(),

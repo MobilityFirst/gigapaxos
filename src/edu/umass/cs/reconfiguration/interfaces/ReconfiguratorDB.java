@@ -197,10 +197,11 @@ public interface ReconfiguratorDB<NodeIDType> {
 	 * @param name
 	 * @param epoch
 	 * @param state
-	 * @param mergee
+	 * @param newActives 
+	 * @param mergees
 	 * @return True if state and mergees set successfully.
 	 */
-	public boolean setStateMerge(String name, int epoch, ReconfigurationRecord.RCStates state, Set<String> mergee);
+	public boolean setStateMerge(String name, int epoch, ReconfigurationRecord.RCStates state, Set<NodeIDType> newActives, Set<String> mergees);
 
 	/**
 	 * @param nameStates
@@ -251,7 +252,15 @@ public interface ReconfiguratorDB<NodeIDType> {
 	 * @return Whether successfully closed.
 	 */
 	public boolean closeReadActiveRecords();
-
+	
+	/**
+	 * @param finalStates
+	 * @param mergerGroup
+	 * @param epoch
+	 * @return True if successfully merged.
+	 */
+	public String fetchAndAggregateMergeeStates(Map<String, String> finalStates,
+			String mergerGroup, int epoch);
 	/**
 	 * @param callback
 	 */

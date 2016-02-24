@@ -44,7 +44,7 @@ import edu.umass.cs.utils.Waitfor;
  */
 public abstract class ThresholdProtocolTask<NodeIDType, EventType, KeyType>
 		implements SchedulableProtocolTask<NodeIDType, EventType, KeyType> {
-	private final Waitfor<NodeIDType> waitfor;
+	protected final Waitfor<NodeIDType> waitfor;
 	private final int threshold;
 	private final boolean autoCancel;
 	private boolean thresholdHandlerInvoked = false;
@@ -124,11 +124,13 @@ public abstract class ThresholdProtocolTask<NodeIDType, EventType, KeyType>
 					.updateHeardFrom(((ThresholdProtocolEvent<NodeIDType, ?, ?>) event)
 							.getSender());
 		GenericMessagingTask<NodeIDType, ?>[] mtasks = null;
-		if (this.waitfor.getHeardCount() >= this.threshold
+		// Math.min because sometimes members can be changed midway
+		if (this.waitfor.getHeardCount() >= Math.min(this.threshold,
+				this.waitfor.getMembers().size())
 				&& testAndInvokeThresholdHandler()) {
 			// got valid responses from threshold nodes
 			mtasks = this.handleThresholdEvent(ptasks);
-			if(autoCancel) {
+			if (autoCancel) {
 				if (GenericMessagingTask.isEmpty(mtasks) && ptasks[0] == null)
 					ProtocolExecutor.cancel(this);
 				else

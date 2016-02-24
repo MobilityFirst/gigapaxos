@@ -111,7 +111,7 @@ public class WaitEpochFinalState<NodeIDType>
 		if (!this.prevGroupIterator.hasNext())
 			return null;
 		this.sleepOptimization();
-		log.log(Level.INFO, "{0} initiating request for final epoch state {1}",
+		log.log(Level.INFO, "{0} requesting final epoch state {1}",
 				new Object[] { this, reqState.getSummary() });
 		// Try myself first if I am in both old and new groups
 		NodeIDType target = this.positionIterator();
@@ -209,7 +209,7 @@ public class WaitEpochFinalState<NodeIDType>
 			EpochFinalState<NodeIDType> state = (EpochFinalState<NodeIDType>) event;
 			if (!checkEpochFinalState(event))
 				break;
-			log.log(Level.INFO, "{0} received {1}; state=[{2}]", new Object[] {
+			log.log(Level.INFO, "{0} received {1}", new Object[] {
 					this, state.getSummary(), state.getState() });
 			handled = this.appCoordinator.createReplicaGroup(
 					this.startEpoch.getServiceName(),
@@ -277,6 +277,13 @@ public class WaitEpochFinalState<NodeIDType>
 							this.notifiees.get(node) });
 		}
 		return mtasks.toArray(mtasks.iterator().next().toArray());
+	}
+
+	/**
+	 * @return True if done.
+	 */
+	public boolean isDone() {
+		throw new RuntimeException();
 	}
 
 }

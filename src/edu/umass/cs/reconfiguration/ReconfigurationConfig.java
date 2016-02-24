@@ -32,6 +32,7 @@ import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
@@ -553,9 +554,15 @@ public class ReconfigurationConfig {
 		 Reconfigurator.getLogger().setLevel(Level.INFO);
 		 Reconfigurator.getLogger().addHandler(handler);
 		 Reconfigurator.getLogger().setUseParentHandlers(false);
+
 		 PaxosManager.getLogger().setLevel(Level.INFO);
 		 PaxosManager.getLogger().addHandler(handler);
 		 PaxosManager.getLogger().setUseParentHandlers(false);		 
+		 
+		 NIOTransport.getLogger().setLevel(Level.WARNING);
+		 NIOTransport.getLogger().addHandler(handler);
+		 NIOTransport.getLogger().setUseParentHandlers(false);		 
+
 	}
 	
 	private static CreateServiceName[] testMakeCreateNameRequest(String name,

@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -58,16 +58,17 @@ public class CommitWorker<NodeIDType> implements Runnable {
 			this.coordinate();
 			waitUntilNotified(RESTART_PERIOD);
 		}
-		log.info(this + " closing");
 	}
 
 	private boolean closed = false;
+
 	/**
 	 * 
 	 */
 	public void close() {
 		closed = true;
 	}
+
 	/**
 	 * @param request
 	 * @return True if enqueued for coordination.
@@ -148,7 +149,14 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	 */
 	public synchronized boolean executedCallback(
 			RCRecordRequest<NodeIDType> request, boolean handled) {
-		if (handled)
+		if (handled
+		/*
+		 * merges should be knocked off even if they fail because Reconfigurator
+		 * will respond appropriately to failed merges by restarting the
+		 * corresponding WaitAckStopEpoch sequence.
+		 */
+		//|| (this.pending.contains(request) && request.isReconfigurationMerge())
+		)
 			return this.executedCallback(request);
 		else
 		/*
@@ -161,10 +169,11 @@ public class CommitWorker<NodeIDType> implements Runnable {
 		 * invoke the callback even if handled is false. That still won't
 		 * enqueue the executed notification if there is no corresponding
 		 * pending request, but for service names, it is not possible for a node
-		 * to issue a RECONFIGURATION_COMPLETE request too early (as it is issued only upon
-		 * committing the intent and then receiving startEpoch acks), so
-		 * handled=false can only mean obviation, so the executed notification
-		 * can still be used to obviate a matching or lower pending request.
+		 * to issue a RECONFIGURATION_COMPLETE request too early (as it is
+		 * issued only upon committing the intent and then receiving startEpoch
+		 * acks), so handled=false can only mean obviation, so the executed
+		 * notification can still be used to obviate a matching or lower pending
+		 * request.
 		 */
 		if (request.getInitiator().equals(this.coordinator.getMyID())
 				&& (request.isReconfigurationComplete() || request
@@ -255,8 +264,11 @@ public class CommitWorker<NodeIDType> implements Runnable {
 			head = head == null ? request : head;
 			// try coordinate and set last attempted timestamp
 			if (repeatable(request)) {
-				log.log(Level.FINEST, "{0} coordinating request {1}",
-						new Object[] { this, request.getSummary(Level.FINEST) });
+				Level level = request.isReconfigurationMerge() ? Level.FINEST
+						: Level.FINEST;
+				log.log(level, "{0} coordinating request {1}", new Object[] {
+						this, request.getSummary(level) });
+
 				this.coordinate(request);
 				this.lastAttempts.put(request, System.currentTimeMillis());
 				oldestAttempt = Math.min(oldestAttempt,
@@ -342,9 +354,10 @@ public class CommitWorker<NodeIDType> implements Runnable {
 
 	/**
 	 * @param coordinator
-	 * @param callback 
+	 * @param callback
 	 */
-	public CommitWorker(AbstractReplicaCoordinator<?> coordinator, ReconfiguratorCallback callback) {
+	public CommitWorker(AbstractReplicaCoordinator<?> coordinator,
+			ReconfiguratorCallback callback) {
 		this.coordinator = coordinator;
 		this.callback = callback;
 		(new Thread(this)).start();

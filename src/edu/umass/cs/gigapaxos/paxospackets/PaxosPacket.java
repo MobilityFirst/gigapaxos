@@ -118,7 +118,7 @@ public abstract class PaxosPacket extends JSONPacket {
 		 * Slot requestID map used in batched accepts.
 		 */
 		S_QIDS,
-		
+
 		/**
 		 * Slot batch size.
 		 */
@@ -128,12 +128,12 @@ public abstract class PaxosPacket extends JSONPacket {
 		 * 
 		 */
 		NO_COALESCE,
-		
+
 		/**
 		 * To batch general paxos packets.
 		 */
-		PP, 
-		
+		PP,
+
 		/**
 		 * Used by accept reply to request undigested accept.
 		 */
@@ -238,13 +238,17 @@ public abstract class PaxosPacket extends JSONPacket {
 		 */
 		CHECKPOINT_REQUEST("CHECKPOINT_REQUEST", 23),
 		/**
-		 * 
+		 * Request to retrieve missing decisions. A replica sends out this
+		 * request when it has received a decision with slot number n+K but not
+		 * n for a sufficiently large K. The value of K is generally a constant
+		 * fixed at initialization time to a value based on the expected, normal
+		 * length of the outstanding request pipeline. However, a paxos instance
+		 * additionally tries to sync more aggressively at creation time, i.e.,
+		 * the effective K is small, e.g., 1, because it is more likely that
+		 * different instances got created at different times and some instances
+		 * missed some decisions but the gap is much smaller than the default K.
 		 */
-		SYNC_REQUEST("SYNC_REQUEST", 31),
-		/**
-		 * 
-		 */
-		SYNC_DECISIONS("SYNC_DECISIONS", 32),
+		SYNC_DECISIONS_REQUEST("SYNC_DECISIONS", 32),
 		/**
 		 * 
 		 */
@@ -259,12 +263,12 @@ public abstract class PaxosPacket extends JSONPacket {
 		 * 
 		 */
 		BATCHED_COMMIT("BATCHED_COMMIT", 35),
-		
+
 		/**
 		 * 
 		 */
 		BATCHED_ACCEPT("BATCHED_ACCEPT", 36),
-		
+
 		/**
 		 * 
 		 */
@@ -349,26 +353,28 @@ public abstract class PaxosPacket extends JSONPacket {
 		return PaxosPacketType.getPaxosPacketType(json
 				.getInt(PaxosPacket.Keys.PT.toString()));
 	}
+
 	/**
 	 * @param json
 	 * @return PaxosPacketType type
 	 * @throws JSONException
 	 */
-	public static PaxosPacketType getPaxosPacketType(net.minidev.json.JSONObject json)
-			throws JSONException {
-		assert(json!=null);
-		if(json
-				.get(PaxosPacket.Keys.PT.toString()) != null) 
-		return PaxosPacketType.getPaxosPacketType((Integer)json
-				.get(PaxosPacket.Keys.PT.toString()));
-		else return null;
+	public static PaxosPacketType getPaxosPacketType(
+			net.minidev.json.JSONObject json) throws JSONException {
+		assert (json != null);
+		if (json.get(PaxosPacket.Keys.PT.toString()) != null)
+			return PaxosPacketType.getPaxosPacketType((Integer) json
+					.get(PaxosPacket.Keys.PT.toString()));
+		else
+			return null;
 	}
 
 	protected abstract JSONObject toJSONObjectImpl() throws JSONException;
-	protected net.minidev.json.JSONObject toJSONSmartImpl() throws JSONException {
+
+	protected net.minidev.json.JSONObject toJSONSmartImpl()
+			throws JSONException {
 		return null;
 	}
-
 
 	/*
 	 * PaxosPacket has no no-arg constructor for a good reason. All classes
@@ -441,7 +447,7 @@ public abstract class PaxosPacket extends JSONPacket {
 
 		return json;
 	}
-	
+
 	/**
 	 * @return JSONObject representation for {@code this}.
 	 * @throws JSONException
@@ -458,11 +464,10 @@ public abstract class PaxosPacket extends JSONPacket {
 
 		// copy over child fields
 		net.minidev.json.JSONObject child = toJSONSmartImpl();
-		if(child != null) {
+		if (child != null) {
 			for (String name : (child).keySet())
 				json.put(name, child.get(name));
-		}
-		else 
+		} else
 			return null;
 
 		return json;
@@ -540,8 +545,8 @@ public abstract class PaxosPacket extends JSONPacket {
 		try {
 			// for the types below, we use json-smart
 			assert (this.packetType != PaxosPacketType.ACCEPT
-					&& this.packetType != PaxosPacketType.DECISION && this.packetType != PaxosPacketType.REQUEST 
-					&& this.packetType != PaxosPacketType.BATCHED_PAXOS_PACKET);
+					&& this.packetType != PaxosPacketType.DECISION
+					&& this.packetType != PaxosPacketType.REQUEST && this.packetType != PaxosPacketType.BATCHED_PAXOS_PACKET);
 			return this.toJSONObject().toString();
 		} catch (JSONException e) {
 			e.printStackTrace();
@@ -616,12 +621,14 @@ public abstract class PaxosPacket extends JSONPacket {
 		JSONObject jsonMsg = new JSONObject(msg);
 		return getPaxosPacket(jsonMsg);
 	}
+
 	/**
 	 * @param jsonMsg
 	 * @return PaxosPacket from JSON.
 	 * @throws JSONException
 	 */
-	public static PaxosPacket getPaxosPacket(JSONObject jsonMsg) throws JSONException {
+	public static PaxosPacket getPaxosPacket(JSONObject jsonMsg)
+			throws JSONException {
 		PaxosPacket paxosPacket = null;
 		PaxosPacketType type = PaxosPacket.getPaxosPacketType(jsonMsg);
 		switch (type) {
@@ -638,7 +645,7 @@ public abstract class PaxosPacket extends JSONPacket {
 			assert (false);
 		}
 		return paxosPacket;
-		
+
 	}
 	/************* End of type-specific methods *******************/
 }
