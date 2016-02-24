@@ -95,21 +95,21 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
 			throws IOException {
-                Reconfigurator.getLogger().info(
+                Reconfigurator.getLogger().fine(
 				this + " ssl mode " + sslMode);
-                Reconfigurator.getLogger().info(
+                Reconfigurator.getLogger().fine(
 				this + " client port offset " + clientPortOffset);
 		this.niot = (new MessageNIOTransport<String, String>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
 				// This will be set in the gigapaxos.properties file that we
 				// invoke the client using.
 				sslMode));
-		Reconfigurator.getLogger().info(
+		Reconfigurator.getLogger().fine(
 				this + " listening on " + niot.getListeningSocketAddress());
 		this.reconfigurators = ReconfigurationConfig.offsetSocketAddresses(
 				reconfigurators, clientPortOffset);
     
-		Reconfigurator.getLogger().info(
+		Reconfigurator.getLogger().fine(
 				this + " reconfigurators " + Arrays.toString(this.reconfigurators));
 	}
 
@@ -453,13 +453,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		Long lastQueriedTime = this.lastQueriedActives.get(name);
 		if (lastQueriedTime == null)
 			lastQueriedTime = 0L;
-                Reconfigurator.getLogger().info(this + " last quiried time for " 
+                Reconfigurator.getLogger().fine(this + " last quiried time for " 
                         + name + " is " + lastQueriedTime);
 		if (System.currentTimeMillis() - lastQueriedTime > MIN_RTX_INTERVAL
 				|| forceRefresh) {
 			if (forceRefresh)
 				this.activeReplicas.remove(name);
-                        Reconfigurator.getLogger().info(this + " sending actives request for " + name);
+                        Reconfigurator.getLogger().fine(this + " sending actives request for " + name);
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
 		}
