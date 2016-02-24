@@ -66,7 +66,7 @@ public class TESTPaxosConfig {
 	static {
 		load();
 	}
-	
+
 	private static final String TESTING_CONFIG_FILE_KEY = "testingConfig";
 	private static final String DEFAULT_TESTING_CONFIG_FILE = "testing.properties";
 
@@ -74,21 +74,23 @@ public class TESTPaxosConfig {
 	 * Gigapaxos testing config parameters.
 	 */
 	public static enum TC implements Config.DefaultValueEnum {
-		
+
 		/**
 		 * 
 		 */
 		NUM_NODES(10),
-		
+
 		/**
 		 * Default paxos group name prefix.
 		 */
-		TEST_GUID_PREFIX(Config.getGlobalString(PC.APPLICATION).replaceAll(".*\\.", "")),
-		
+		TEST_GUID_PREFIX(Config.getGlobalString(PC.APPLICATION).replaceAll(
+				".*\\.", "")),
+
 		/**
 		 * First paxos group name.
 		 */
-		TEST_GUID(Config.getGlobalString(PC.APPLICATION).replaceAll(".*\\.", "")+"0"),
+		TEST_GUID(Config.getGlobalString(PC.APPLICATION)
+				.replaceAll(".*\\.", "") + "0"),
 
 		/**
 		 * 
@@ -118,10 +120,10 @@ public class TESTPaxosConfig {
 		 * 
 		 */
 		NUM_CLIENTS(9),
-		
+
 		/**
-		 * Whether a testing client should be pinned to send request to 
-		 * a single server.
+		 * Whether a testing client should be pinned to send request to a single
+		 * server.
 		 */
 		PIN_CLIENT(true),
 
@@ -138,38 +140,38 @@ public class TESTPaxosConfig {
 		/**
 		 * Payload size in test requests.
 		 */
-		REQUEST_BAGGAGE_SIZE (10),
-		
+		REQUEST_BAGGAGE_SIZE(10),
+
 		/**
 		 * Whether the request is highly compressible. Otherwise, the request is
 		 * a bunch of random ascii characters from 0 to z. Non-ascii characters
 		 * result in inflated and unpredictable byte[] lengths, which screws up
 		 * testing.
 		 */
-		COMPRESSIBLE_REQUEST (false),
-		
+		COMPRESSIBLE_REQUEST(false),
+
 		/**
 		 * 
 		 */
-		OVERHEAD_TESTING (false),
-		
+		OVERHEAD_TESTING(false),
+
 		/**
 		 * to disable some exceptions/logging while testing
 		 */
 		MEMORY_TESTING(true),
-		
+
 		/**
 		 * Make the test app an absolute noop.
 		 */
-		ABSOLUTE_NOOP_APP (true),
-		
+		ABSOLUTE_NOOP_APP(true),
+
 		/**
 		 * Testing parameter that makes the testing app heavier-weight by doing
 		 * operations that result in roughly the specified latency (in
 		 * microseconds) per request.
 		 */
-		TEST_APP_DELAY (0), 
-		
+		TEST_APP_DELAY(0),
+
 		;
 
 		final Object defaultValue;
@@ -250,25 +252,28 @@ public class TESTPaxosConfig {
 	 */
 
 	private static final SampleNodeConfig<Integer> nodeConfig = new SampleNodeConfig<Integer>(
-			SampleNodeConfig.DEFAULT_START_PORT, Config.getGlobalInt(TC.TEST_START_NODE_ID), Config.getGlobalInt(TC.NUM_NODES));
+			SampleNodeConfig.DEFAULT_START_PORT,
+			Config.getGlobalInt(TC.TEST_START_NODE_ID),
+			Config.getGlobalInt(TC.NUM_NODES));
 	private static final HashMap<String, int[]> groups = new HashMap<String, int[]>();
 	private static int[] defaultGroup = new int[Config
 			.getGlobalInt(TC.NUM_NODES)];
 
 	private static void setupGroups() {
-		defaultGroup = new int[Math.min(3,  Config.getGlobalInt(TC.NUM_NODES))];
-		assert(defaultGroup.length>0) : Config.getGlobalInt(TC.NUM_NODES);
+		defaultGroup = new int[Math.min(3, Config.getGlobalInt(TC.NUM_NODES))];
+		assert (defaultGroup.length > 0) : Config.getGlobalInt(TC.NUM_NODES);
 		for (int i = 0; i < defaultGroup.length; i++)
 			defaultGroup[i] = Config.getGlobalInt(TC.TEST_START_NODE_ID) + i;
-		
+
 		setDefaultGroups(Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS));
 	}
 
 	// replies directly sendable by paxos via InterfaceClientRequest
-	private static boolean reply_to_client = false;//true;
+	private static boolean reply_to_client = false;// true;
 
 	private static boolean clean_db = Config
-			.getGlobalBoolean(PC.DISABLE_LOGGING) && !Config.getGlobalBoolean(PC.ENABLE_JOURNALING);
+			.getGlobalBoolean(PC.DISABLE_LOGGING)
+			&& !Config.getGlobalBoolean(PC.ENABLE_JOURNALING);
 
 	private static ArrayList<Object> failedNodes = new ArrayList<Object>();
 
@@ -303,7 +308,7 @@ public class TESTPaxosConfig {
 	public static void setSendReplyToClient(boolean b) {
 		reply_to_client = b;
 	}
-	
+
 	/**
 	 * 
 	 */
@@ -421,8 +426,8 @@ public class TESTPaxosConfig {
 	 */
 	public static int[] getGroup(String groupID) {
 		int[] members = groups.get(groupID);
-		assert(defaultGroup.length>0);
-		return members != null && members.length>0 ? members : defaultGroup;
+		assert (defaultGroup.length > 0);
+		return members != null && members.length > 0 ? members : defaultGroup;
 	}
 
 	/**
@@ -494,8 +499,7 @@ public class TESTPaxosConfig {
 	 * @param b
 	 */
 	@Deprecated
-	public static void setRecovered(int id, String paxosID,
-			boolean b) {
+	public static void setRecovered(int id, String paxosID, boolean b) {
 		if (paxosID.equals(Config.getGlobalString(TC.TEST_GUID))) {
 			recovered[id] = b;
 		}
@@ -522,7 +526,7 @@ public class TESTPaxosConfig {
 	@Deprecated
 	public synchronized static boolean isCommitted(long reqnum) {
 		assert (reqnum < MAX_TEST_REQS);
-		return committed[(int)reqnum];
+		return committed[(int) reqnum];
 	}
 
 	/**
@@ -530,7 +534,7 @@ public class TESTPaxosConfig {
 	 */
 	public synchronized static void execute(long reqnum) {
 		assert (reqnum >= 0);
-		executedAtAll[(int)reqnum] = true;
+		executedAtAll[(int) reqnum] = true;
 	}
 
 	/**
@@ -578,12 +582,14 @@ public class TESTPaxosConfig {
 		}
 		return found;
 	}
+
 	protected static NodeConfig<Integer> getFromPaxosConfig() {
 		return getFromPaxosConfig(false);
 	}
-	protected static NodeConfig<Integer> getFromPaxosConfig(final boolean clientFacing) {
-		final NodeConfig<String> defaultNC = PaxosConfig
-				.getDefaultNodeConfig();
+
+	protected static NodeConfig<Integer> getFromPaxosConfig(
+			final boolean clientFacing) {
+		final NodeConfig<String> defaultNC = PaxosConfig.getDefaultNodeConfig();
 		return new NodeConfig<Integer>() {
 
 			@Override
@@ -610,9 +616,9 @@ public class TESTPaxosConfig {
 			@Override
 			public InetAddress getNodeAddress(Integer id) {
 				return defaultNC.nodeExists(id.toString()) ? defaultNC
-						.getNodeAddress(id.toString()) : 
-							nodeConfig.getNodeAddress(id);
-							//SampleNodeConfig.getLocalAddress();
+						.getNodeAddress(id.toString()) : nodeConfig
+						.getNodeAddress(id);
+				// SampleNodeConfig.getLocalAddress();
 			}
 
 			@Override
@@ -625,9 +631,9 @@ public class TESTPaxosConfig {
 				return (defaultNC.nodeExists(id.toString()) ? defaultNC
 						.getNodePort(id.toString()) : nodeConfig
 						.getNodePort(id))
-						//+ (clientFacing ? Config
-							//	.getGlobalInt(PC.CLIENT_PORT_OFFSET) : 0)
-						;
+				// + (clientFacing ? Config
+				// .getGlobalInt(PC.CLIENT_PORT_OFFSET) : 0)
+				;
 			}
 
 			@Override
@@ -636,15 +642,16 @@ public class TESTPaxosConfig {
 				Set<Integer> intIDs = new HashSet<Integer>();
 				for (String s : nodes)
 					intIDs.add(Integer.valueOf(s));
-				for(int id : nodeConfig.getNodeIDs())
+				for (int id : nodeConfig.getNodeIDs())
 					intIDs.add(id);
 				return intIDs;
 			}
-			
+
 			public String toString() {
-				String s="";
-				for(Integer id : this.getNodeIDs()) {
-					s = (s + id+":"+this.getNodeAddress(id)+":"+this.getNodePort(id) + " " );
+				String s = "";
+				for (Integer id : this.getNodeIDs()) {
+					s = (s + id + ":" + this.getNodeAddress(id) + ":"
+							+ this.getNodePort(id) + " ");
 				}
 				return s;
 			}
@@ -656,16 +663,20 @@ public class TESTPaxosConfig {
 		Config.getConfig(TC.class).put(TC.NUM_NODES,
 				TESTPaxosConfig.getFromPaxosConfig().getNodeIDs().size());
 	}
-	
+
 	/**
 	 * @param level
 	 */
 	public static void setConsoleHandler(Level level) {
-		PaxosConfig.setConsoleHandler(level);
+		if (System.getProperty("java.util.logging.config.file") == null)
+			PaxosConfig.setConsoleHandler(level);
 	}
+
+	// take properties by default from file
 	protected static void setConsoleHandler() {
 		setConsoleHandler(Level.INFO);
 	}
+
 	/**
 	 * @param args
 	 */

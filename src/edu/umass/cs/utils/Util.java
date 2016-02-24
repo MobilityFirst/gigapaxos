@@ -487,12 +487,7 @@ public class Util {
 	private static void testGetInetSocketAddressFromString() {
 		assert (getInetSocketAddressFromString("10.0.1.50/10.0.1.50:24404")
 				.equals(new InetSocketAddress("10.0.1.50", 24404)));
-	}
-
-        private static void testGetPublicInetSocketAddressFromString() {
-		System.out.println(getInetSocketAddressFromString("publicIP:24404"));
-	}
-        
+	}        
         
 	private static void testGetInetAddressFromString()
 			throws UnknownHostException {

@@ -214,7 +214,9 @@ public class TESTPaxosMain {
 		// (new TESTPaxosMain()).testWithRecovery();
 
 		Result result = JUnitCore.runClasses(TESTPaxosMain.class);
-		for (Failure failure : result.getFailures())
+		for (Failure failure : result.getFailures()) {
 			System.out.println(failure.toString());
+			failure.getException().printStackTrace();
+		}
 	}
 }
