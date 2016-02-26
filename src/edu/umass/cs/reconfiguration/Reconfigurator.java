@@ -404,7 +404,7 @@ public class Reconfigurator<NodeIDType> implements
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 		log.log(!this.pendingBatchCreateParents.containsKey(create
 				.getServiceName()) ? Level.INFO : Level.INFO,
-				"{0} received {1} from client {2} {3}{4}",
+				"{0} received {1} from client {2} {3}",
 				new Object[] {
 						this,
 						create.getSummary(),
@@ -2268,7 +2268,7 @@ public class Reconfigurator<NodeIDType> implements
 
 	private boolean changeSplitMergeGroups(Set<NodeIDType> affectedNodes,
 			Set<NodeIDType> addNodes, Set<NodeIDType> deleteNodes) {
-		if (!amAffected(addNodes, deleteNodes))
+		if (!amAffected(addNodes, deleteNodes)) 
 			return false;
 
 		// get list of current RC groups from DB.
@@ -2358,7 +2358,7 @@ public class Reconfigurator<NodeIDType> implements
 			if (!isPresent(newRCGroup, affectedNodes))
 				continue; // don't trivial-reconfigure
 			else
-				log.log(Level.FINE,
+				log.log(Level.INFO,
 						"{0} finds {1} present in affected RC groups {2}",
 						new Object[] { this, newRCGroup, affectedNodes });
 			final Map<String, Set<String>> mergees = this.isMergerGroup(

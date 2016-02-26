@@ -167,7 +167,8 @@ public class TESTReconfigurationClient {
 		getRandomClient().sendRequest(request, new RequestCallback() {
 			@Override
 			public void handleResponse(Request response) {
-				outstanding.remove(request.getRequestID());
+				if (!(response instanceof ActiveReplicaError))
+					outstanding.remove(request.getRequestID());
 				synchronized (outstanding) {
 					outstanding.notify();
 				}
@@ -195,6 +196,11 @@ public class TESTReconfigurationClient {
 		});
 	}
 
+	private boolean testAppRequests(String[] names, int rounds)
+			throws NumberFormatException, IOException {
+		return this.testAppRequests(names, rounds, true);
+	}
+
 	/**
 	 * 
 	 * @param names
@@ -205,13 +211,14 @@ public class TESTReconfigurationClient {
 	 * @throws NumberFormatException
 	 * @throws IOException
 	 */
-	private boolean testAppRequests(String[] names, int rounds)
-			throws NumberFormatException, IOException {
+	private boolean testAppRequests(String[] names, int rounds,
+			boolean retryUntilSuccess) throws NumberFormatException,
+			IOException {
 		long t = System.currentTimeMillis();
 		int numReconfigurationsBefore = numReconfigurations;
 		boolean done = true;
 		for (int i = 0; i < rounds; i++) {
-			done = done && this.testAppRequests(names, true);
+			done = done && this.testAppRequests(names, retryUntilSuccess);
 			log.log(Level.INFO, "Completed round {0} of {1} of app requests",
 					new Object[] { i, rounds });
 		}
@@ -247,7 +254,8 @@ public class TESTReconfigurationClient {
 				log.log(Level.INFO, "Retrying {0} outstanding app requests",
 						new Object[] { outstanding.size() });
 				try {
-					Thread.sleep(Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
+					Thread.sleep(Config
+							.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -336,7 +344,12 @@ public class TESTReconfigurationClient {
 		Map<String, String> nameStates = new HashMap<String, String>();
 		for (int i = 0; i < names.length; i++)
 			nameStates.put(names[i], "some_initial_state" + i);
-		return testBatchCreate(nameStates, batchSize);
+		boolean created = testBatchCreate(nameStates, batchSize);
+		log.log(Level.FINE,
+				"Finished batch-creating {0} names with head name {1}",
+				new Object[] { names.length,
+						nameStates.keySet().iterator().next() });
+		return created;
 	}
 
 	private boolean testBatchCreate(Map<String, String> nameStates,
@@ -598,7 +611,7 @@ public class TESTReconfigurationClient {
 	 */
 	@Before
 	public void beforeTestMethod() {
-		System.out.print("\nTesting " + name.getMethodName() + "...");
+		System.out.print("\n" + name.getMethodName() + "...");
 	}
 
 	/**
@@ -610,6 +623,24 @@ public class TESTReconfigurationClient {
 	}
 
 	/**
+	 * Tests that a request to a random app name fails as expected.
+	 * 
+	 * @throws IOException
+	 * @throws NumberFormatException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test00_AppRequestFails() throws IOException,
+			NumberFormatException, InterruptedException {
+		boolean test = testAppRequests(generateRandomNames(1), 1, false);
+		Assert.assertEquals(test, false);
+		this.outstanding.clear();
+		success();
+	}
+
+	/**
+	 * Tests that a random name does not exist.
+	 * 
 	 * @throws IOException
 	 * @throws NumberFormatException
 	 * @throws InterruptedException
@@ -677,6 +708,9 @@ public class TESTReconfigurationClient {
 				.max(Config
 						.getGlobalInt(TRC.TEST_RECONFIGURATION_THROUGHPUT_NUM_APP_NAMES),
 						Config.getGlobalInt(TRC.TEST_NUM_APP_NAMES)));
+		log.log(Level.INFO,
+				"Initiating reconfiguration throughput test with {0} names",
+				new Object[] { names.length });
 		long t = System.currentTimeMillis();
 		int before = numReconfigurations;
 		Assert.assertEquals(

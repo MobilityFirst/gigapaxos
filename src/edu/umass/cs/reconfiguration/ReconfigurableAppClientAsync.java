@@ -95,9 +95,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
 			throws IOException {
-                Reconfigurator.getLogger().fine(
-				this + " ssl mode " + sslMode);
-                Reconfigurator.getLogger().fine(
+		Reconfigurator.getLogger().fine(this + " ssl mode " + sslMode);
+		Reconfigurator.getLogger().fine(
 				this + " client port offset " + clientPortOffset);
 		this.niot = (new MessageNIOTransport<String, String>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
@@ -108,9 +107,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				this + " listening on " + niot.getListeningSocketAddress());
 		this.reconfigurators = ReconfigurationConfig.offsetSocketAddresses(
 				reconfigurators, clientPortOffset);
-    
+
 		Reconfigurator.getLogger().fine(
-				this + " reconfigurators " + Arrays.toString(this.reconfigurators));
+				this + " reconfigurators "
+						+ Arrays.toString(this.reconfigurators));
 	}
 
 	/**
@@ -204,11 +204,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					callback.handleResponse(response);
 				} else if (response instanceof ClientReconfigurationPacket) {
 
+					if(response instanceof CreateServiceName)
+						log.info(this + " got back create response " + response);
+					
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
 							.remove(getKey((ClientReconfigurationPacket) response))) != null) {
 						callback.handleResponse(response);
 					}
-					// if RequestActiveReplicas, send pending requests
+					// if RequestActiveReplicas, send pending requests or unpend them
 					if (response instanceof RequestActiveReplicas)
 						try {
 							ReconfigurableAppClientAsync.this
@@ -453,34 +456,54 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		Long lastQueriedTime = this.lastQueriedActives.get(name);
 		if (lastQueriedTime == null)
 			lastQueriedTime = 0L;
-                Reconfigurator.getLogger().fine(this + " last quiried time for " 
-                        + name + " is " + lastQueriedTime);
+		Reconfigurator.getLogger().fine(
+				this + " last quiried time for " + name + " is "
+						+ lastQueriedTime);
 		if (System.currentTimeMillis() - lastQueriedTime > MIN_RTX_INTERVAL
 				|| forceRefresh) {
 			if (forceRefresh)
 				this.activeReplicas.remove(name);
-                        Reconfigurator.getLogger().fine(this + " sending actives request for " + name);
+			Reconfigurator.getLogger().fine(
+					this + " sending actives request for " + name);
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
 		}
 	}
 
+	// FIXME: untested
 	private void sendRequestsPendingActives(RequestActiveReplicas response)
 			throws IOException {
-		if (response.isFailed())
-			return;
 		Set<InetSocketAddress> actives = response.getActives();
-		if (actives == null || actives.size() == 0)
-			return;
-		this.activeReplicas.put(response.getServiceName(), actives);
+
+		if (actives != null)
+			this.activeReplicas.put(response.getServiceName(), actives);
 		if (this.requestsPendingActives.containsKey(response.getServiceName())) {
 			for (Iterator<RequestAndCallback> reqIter = this.requestsPendingActives
 					.get(response.getServiceName()).iterator(); reqIter
 					.hasNext();) {
 				RequestAndCallback rc = reqIter.next();
-				this.sendRequest(rc.request,
-						(InetSocketAddress) (Util.selectRandom(actives)),
-						rc.callback);
+				if (actives != null && !actives.isEmpty())
+					this.sendRequest(rc.request,
+							(InetSocketAddress) (Util.selectRandom(actives)),
+							rc.callback);
+				else {
+					// send error to all pending requests
+					LinkedBlockingQueue<RequestAndCallback> pendingRequests = this.requestsPendingActives
+							.remove(response.getServiceName());
+					if (pendingRequests != null) {
+						for (RequestAndCallback pendingRequest : pendingRequests)
+							pendingRequest.callback
+									.handleResponse(new ActiveReplicaError(
+											null, response.getServiceName(),
+											pendingRequest.request
+													.getRequestID())
+											.setResponseMessage("No active replicas found for name "
+													+ response.getServiceName()
+													+ " likely because the name doesn't exist or (less likely) because this name or  "
+													+ " active replicas or reconfigurators are being reconfigured."));
+						pendingRequests.clear();
+					}
+				}
 				reqIter.remove();
 			}
 		}

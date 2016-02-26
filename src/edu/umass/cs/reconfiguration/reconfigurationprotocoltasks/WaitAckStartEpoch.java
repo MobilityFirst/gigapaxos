@@ -91,8 +91,8 @@ public class WaitAckStartEpoch<NodeIDType>
 
 	@Override
 	public GenericMessagingTask<NodeIDType, ?>[] restart() {
-		log.log(Level.WARNING, MyLogger.FORMAT[2],
-				new Object[] { this.refreshKey(), " re-starting ",
+		log.log(Level.WARNING, "{0} re-starting {1};",
+				new Object[] { this.refreshKey(),
 						this.startEpoch.getSummary() });
 		// restart if not obviated; but quite after a threshold if majority
 		if (!this.amObviated()

@@ -779,10 +779,10 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * the current coordinator.
 	 */
 	private MessagingTask[] handleRequest(RequestPacket request) {
-		log.log(Level.FINE,
+		log.log(Level.INFO,
 				"{0}{1}{2}",
 				new Object[] { this, " Phase0/CLIENT_REQUEST: ",
-						request.getSummary(log.isLoggable(Level.FINE)) });
+						request.getSummary(log.isLoggable(Level.INFO)) });
 		RequestInstrumenter.received(request, request.getClientID(),
 				this.getMyID());
 		
@@ -850,12 +850,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				mtasks[0] = multicastAccept != null ? new MessagingTask(
 						this.groupMembers, multicastAccept) : null; // multicast
 				RequestInstrumenter.sent(multicastAccept, this.getMyID(), -1);
-				log.log(Level.FINER,
+				log.log(Level.INFO,
 						"{0} issuing accept {1} ",
 						new Object[] {
 								this,
 								multicastAccept.getSummary(log
-										.isLoggable(Level.FINER)) });
+										.isLoggable(Level.INFO)) });
 			}
 		} else if(!proposal.isBroadcasted()) { // else unicast to current coordinator
 			log.log(Level.FINER,

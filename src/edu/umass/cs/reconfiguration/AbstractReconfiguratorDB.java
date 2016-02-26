@@ -923,9 +923,12 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		NodeIDType hashNode = oldRing.getReplicatedServersArray(
 				this.getRCGroupName(addOrDelNode)).get(0);
 
-		//for (NodeIDType oldNode : ncRecord.getActiveReplicas()) 
+		ReconfigurationRecord<NodeIDType> ncRecord = this
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
+						.toString());
+		for (NodeIDType oldNode : ncRecord.getActiveReplicas()) 
 		{
-			if (oldRing.getReplicatedServers(this.getRCGroupName(rcNode))
+			if (oldRing.getReplicatedServers(this.getRCGroupName(oldNode))
 					.contains(hashNode)) {
 				affected = true;
 			}

@@ -145,7 +145,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 			Request request, ExecutedCallback callback) throws RequestParseException {
 		String proposee = this.propose(paxosGroupID, request, callback);
 		log.log(Level.FINE,
-				"{0} {1} request {2}:{3} [{4}] {5} to {6}",
+				"{0} {1} request {2}:{3} [{4}] {5} to {6} {7}",
 				new Object[] {
 						this,
 						(proposee != null ? "paxos-coordinated"
@@ -158,7 +158,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 						(request instanceof ReconfigurableRequest
 								&& ((ReconfigurableRequest) request)
 										.isStop() ? "[STOPPING]" : ""),
-						proposee });
+						proposee, this.getReplicaGroup(paxosGroupID) });
 		return proposee != null;
 	}
 

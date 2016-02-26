@@ -1085,8 +1085,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		setClosed(false); // setting open
 		initAdjustSoftNodeConfig();
 		initAdjustSoftActiveNodeConfig();
-		log.log(Level.INFO, "{0} proceeding with node config version {1}: "
-				+ this.consistentNodeConfig);
+		log.log(Level.INFO, "{0} proceeding with node config version {1}: ",
+				new Object[] { this, this.consistentNodeConfig});
 		return initCheckpointServer();
 	}
 

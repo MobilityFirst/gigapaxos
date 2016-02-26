@@ -931,9 +931,11 @@ public class PaxosManager<NodeIDType> {
 		if (pism != null) {
 			matched = true;
 			requestPacket.putPaxosID(paxosID, pism.getVersion());
-			log.log(Level.FINE, "{0} proposing to {1}: {2}",
+			
+			log.log(Level.INFO, "{0} proposing to {1}: {2}",
 					new Object[] { this, pism.getPaxosIDVersion(),
 							requestPacket.getSummary() });
+			
 			this.outstanding.enqueue(new RequestAndCallback(requestPacket,
 					callback));
 			this.handleIncomingPacket(requestPacket);

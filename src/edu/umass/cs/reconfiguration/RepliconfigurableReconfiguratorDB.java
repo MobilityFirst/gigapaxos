@@ -302,6 +302,10 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		NodeIDType hashNode = this.getOldConsistentHashRing()
 				.getReplicatedServersArray(this.app.getRCGroupName(node))
 				.get(0);
+		NodeIDType newHashNode = this.getNewConsistentHashRing()
+				.getReplicatedServersArray(this.app.getRCGroupName(node))
+				.get(0);
+
 		String hashGroup = this.app.getRCGroupName(hashNode);
 
 		Map<String, Set<NodeIDType>> myRCGroups = this.getOldRCGroups();
@@ -309,6 +313,8 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		for (String rcGroup : myRCGroups.keySet()) {
 			if (hashGroup.equals(rcGroup)
 					|| myRCGroups.get(rcGroup).contains(hashNode))
+				affected = true;
+			else if(myRCGroups.get(rcGroup).contains(newHashNode))
 				affected = true;
 		}
 		return affected;
