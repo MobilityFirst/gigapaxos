@@ -3,6 +3,7 @@ package edu.umass.cs.reconfiguration.testing;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -115,8 +116,8 @@ public class TESTReconfigurationClient {
 		this.reconfigurators = reconfigurators.keySet();
 	}
 
-	private String NAME = Config.getGlobalString(TRC.NAME_PREFIX);
-	private String INITIAL_STATE = "some_initial_state";
+	private static String NAME = Config.getGlobalString(TRC.NAME_PREFIX);
+	private static String INITIAL_STATE = "some_initial_state";
 
 	private static void monitorWait(boolean[] monitor, Long timeout) {
 		synchronized (monitor) {
@@ -138,7 +139,6 @@ public class TESTReconfigurationClient {
 		}
 	}
 
-	private final ConcurrentHashMap<Long, Request> outstanding = new ConcurrentHashMap<Long, Request>();
 	private static int numReconfigurations = 0;
 
 	private static synchronized void setNumReconfigurations(int numRC) {
@@ -149,17 +149,33 @@ public class TESTReconfigurationClient {
 		return clients[(int) (Math.random() * clients.length)];
 	}
 
-	private void testAppRequest(String name) throws NumberFormatException,
-			IOException {
-		this.testAppRequest(new AppRequest(name, Long.valueOf(name.replaceAll(
-				"[a-z]*", "")), "request_value",
-				AppRequest.PacketType.DEFAULT_APP_REQUEST, false));
+	private void testAppRequest(String name, Map<Long, Request> outstandingQ)
+			throws NumberFormatException, IOException {
+		this.testAppRequest(
+				new AppRequest(name,
+						Long.valueOf(name.replaceAll("[a-z]*", "")),
+						"request_value",
+						AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
+				outstandingQ);
 	}
 
-	private void testAppRequest(AppRequest request)
-			throws NumberFormatException, IOException {
+	/**
+	 * Tests an app request and synchronously waits for the response if
+	 * {@code outstandingQ} is null, else it asynchronously sends the request.
+	 * 
+	 * @param request
+	 * @param outstandingQ
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	private boolean testAppRequest(AppRequest request,
+			Map<Long, Request> outstandingQ) throws NumberFormatException,
+			IOException {
 		long t = System.currentTimeMillis();
-		this.outstanding.put(request.getRequestID(), request);
+		boolean[] success = new boolean[1];
+		if (outstandingQ != null)
+			outstandingQ.put(request.getRequestID(), request);
 		log.log(Level.INFO,
 				"Sending app request {0} for name {1}",
 				new Object[] { request.getClass().getSimpleName(),
@@ -167,11 +183,12 @@ public class TESTReconfigurationClient {
 		getRandomClient().sendRequest(request, new RequestCallback() {
 			@Override
 			public void handleResponse(Request response) {
-				if (!(response instanceof ActiveReplicaError))
-					outstanding.remove(request.getRequestID());
-				synchronized (outstanding) {
-					outstanding.notify();
-				}
+				if (outstandingQ != null)
+					synchronized (outstandingQ) {
+						if (!(response instanceof ActiveReplicaError))
+							outstandingQ.remove(request.getRequestID());
+						outstandingQ.notify();
+					}
 				DelayProfiler.updateDelay("appRequest", t);
 				if (response instanceof ActiveReplicaError) {
 					log.log(Level.INFO,
@@ -180,20 +197,28 @@ public class TESTReconfigurationClient {
 									ActiveReplicaError.class.getSimpleName(),
 									request.getServiceName(),
 									(System.currentTimeMillis() - t),
-									outstanding.size() });
+									outstandingQ != null ? outstandingQ.size()
+											: 0 });
 				}
 				if (response instanceof AppRequest) {
 					log.log(Level.INFO,
 							"Received response for app request to name {0} exists in {1}ms; |outstanding|={2}",
-							new Object[] { request.getServiceName(),
+							new Object[] {
+									request.getServiceName(),
 									(System.currentTimeMillis() - t),
-									outstanding.size() });
+									outstandingQ != null ? outstandingQ.size()
+											: 0 });
 					String reqValue = ((AppRequest) response).getValue();
 					assert (reqValue != null && reqValue.split(" ").length == 2) : reqValue;
 					setNumReconfigurations(Integer.valueOf(reqValue.split(" ")[1]));
+					success[0] = true;
 				}
+				monitorNotify(success[0]);
 			}
 		});
+		if (outstandingQ == null)
+			monitorWait(success, null);
+		return outstandingQ == null || success[0];
 	}
 
 	private boolean testAppRequests(String[] names, int rounds)
@@ -229,11 +254,11 @@ public class TESTReconfigurationClient {
 		return done;
 	}
 
-	private void testAppRequests(Collection<Request> requests, RateLimiter r)
+	private void testAppRequests(Map<Long, Request> requests, RateLimiter r)
 			throws NumberFormatException, IOException {
-		for (Request request : requests)
+		for (Request request : requests.values())
 			if (request instanceof AppRequest) {
-				testAppRequest((AppRequest) request);
+				testAppRequest((AppRequest) request, requests);
 				r.record();
 			}
 	}
@@ -242,17 +267,20 @@ public class TESTReconfigurationClient {
 			throws NumberFormatException, IOException {
 		RateLimiter r = new RateLimiter(
 				Config.getGlobalDouble(TRC.TEST_APP_REQUEST_RATE));
+		final ConcurrentHashMap<Long, Request> outstanding = new ConcurrentHashMap<Long, Request>();
+
 		for (int i = 0; i < names.length; i++) {
 			// non-blocking
-			this.testAppRequest(names[i]);
+			this.testAppRequest(names[i], outstanding);
 			r.record();
 		}
-		waitForAppResponses(Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
+		waitForAppResponses(Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT),
+				outstanding);
 		if (retryUntilSuccess) {
 			while (!outstanding.isEmpty()) {
-				testAppRequests(outstanding.values(), r);
 				log.log(Level.INFO, "Retrying {0} outstanding app requests",
 						new Object[] { outstanding.size() });
+				testAppRequests(outstanding, r);
 				try {
 					Thread.sleep(Config
 							.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
@@ -440,7 +468,8 @@ public class TESTReconfigurationClient {
 			InterruptedException {
 		long t = System.currentTimeMillis();
 		if (timeout == null)
-			timeout = Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT);
+			// timeout = Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT)
+			;
 		boolean[] success = new boolean[1];
 		log.log(Level.INFO, "Sending delete request for name {0}",
 				new Object[] { name });
@@ -472,17 +501,19 @@ public class TESTReconfigurationClient {
 			monitorWait(success, timeout);
 			if (!success[0])
 				Thread.sleep(Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT));
-		} while (!success[0]);
+		} while (!success[0]
+				&& (timeout == null || System.currentTimeMillis() - t < timeout));
 		return success[0];
 	}
 
-	private void waitForAppResponses(long duration) {
+	private void waitForAppResponses(long duration,
+			Map<Long, Request> outstandingQ) {
 		long t = System.currentTimeMillis(), remaining = duration;
-		while (!outstanding.isEmpty()
+		while (!outstandingQ.isEmpty()
 				&& (remaining = duration - (System.currentTimeMillis() - t)) > 0)
-			synchronized (outstanding) {
+			synchronized (outstandingQ) {
 				try {
-					outstanding.wait(remaining);
+					outstandingQ.wait(remaining);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -572,32 +603,23 @@ public class TESTReconfigurationClient {
 			this.clients[i].close();
 	}
 
-	private String generateRandomState() {
+	private static String generateRandomState() {
 		return INITIAL_STATE + (long) (Math.random() * Long.MAX_VALUE);
 	}
 
-	private String generateRandomName() {
-		return NAME + (long) (Math.random() * Long.MAX_VALUE);
+	private static String generateRandomName() {
+		return generateRandomName(NAME);
 	}
 
-	private String[] generateRandomNames(int n) {
+	private static String generateRandomName(String prefix) {
+		return prefix + (long) (Math.random() * Long.MAX_VALUE);
+	}
+
+	private static String[] generateRandomNames(int n) {
 		String[] names = new String[n];
 		for (int i = 0; i < n; i++)
 			names[i] = generateRandomName();
 		return names;
-	}
-
-	private boolean testBasic(String[] names) throws IOException,
-			NumberFormatException, InterruptedException {
-		DelayProfiler.clear();
-		boolean test = testNotExists(names)
-				&& testCreates(names)
-				&& testExists(names)
-				&& testAppRequests(names,
-						Config.getGlobalInt(TRC.TEST_NUM_REQUESTS_PER_NAME))
-				&& testDeletes(names) && testNotExists(names);
-		log.info("testBasic: " + DelayProfiler.getStats());
-		return test;
 	}
 
 	/**
@@ -630,11 +652,10 @@ public class TESTReconfigurationClient {
 	 * @throws InterruptedException
 	 */
 	@Test
-	public void test00_AppRequestFails() throws IOException,
+	public void test00_RandomNameAppRequestFails() throws IOException,
 			NumberFormatException, InterruptedException {
 		boolean test = testAppRequests(generateRandomNames(1), 1, false);
 		Assert.assertEquals(test, false);
-		this.outstanding.clear();
 		success();
 	}
 
@@ -646,10 +667,42 @@ public class TESTReconfigurationClient {
 	 * @throws InterruptedException
 	 */
 	@Test
-	public void test00_NotExists() throws IOException, NumberFormatException,
-			InterruptedException {
+	public void test00_RandomNameNotExists() throws IOException,
+			NumberFormatException, InterruptedException {
 		boolean test = testNotExists(generateRandomNames(10));
 		Assert.assertEquals(test, true);
+		success();
+	}
+
+	/**
+	 * Tests creation and deletion of a single name.
+	 * 
+	 * @throws IOException
+	 * @throws NumberFormatException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test00_CreateExistsDelete() throws IOException,
+			NumberFormatException, InterruptedException {
+		String[] names = generateRandomNames(1);
+		boolean test = testNotExists(names) && testCreates(names)
+				&& testDeletes(names);
+		Assert.assertEquals(test, true);
+		success();
+	}
+
+	/**
+	 * Tests that a delete of a random (non-existent) name fails.
+	 * 
+	 * @throws IOException
+	 * @throws NumberFormatException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test00_RandomNameDeleteFails() throws IOException,
+			NumberFormatException, InterruptedException {
+		boolean test = testDelete(generateRandomName(), 200L);
+		Assert.assertEquals(test, false);
 		success();
 	}
 
@@ -663,23 +716,31 @@ public class TESTReconfigurationClient {
 	 * @throws NumberFormatException
 	 */
 	@Test
-	public void test01_Basic() throws IOException, NumberFormatException,
-			InterruptedException {
-		boolean test = (testBasic(generateRandomNames(Config
-				.getGlobalInt(TRC.TEST_NUM_APP_NAMES))));
+	public void test01_BasicSequence() throws IOException,
+			NumberFormatException, InterruptedException {
+		String[] names = generateRandomNames(Config
+				.getGlobalInt(TRC.TEST_NUM_APP_NAMES));
+		DelayProfiler.clear();
+		boolean test = testNotExists(names)
+				&& testCreates(names)
+				&& testExists(names)
+				&& testAppRequests(names,
+						Config.getGlobalInt(TRC.TEST_NUM_REQUESTS_PER_NAME))
+				&& testDeletes(names) && testNotExists(names);
+		log.info(name.getMethodName() + DelayProfiler.getStats());
 		Assert.assertEquals(test, true);
 		success();
 	}
 
 	/**
-	 * Same as {@link #test01_Basic()} but with batch created names.
+	 * Same as {@link #test01_BasicSequence()} but with batch created names.
 	 * 
 	 * @throws IOException
 	 * @throws InterruptedException
 	 * @throws NumberFormatException
 	 */
 	@Test
-	public void test02_BatchedBasic() throws IOException,
+	public void test02_BatchedBasicSequence() throws IOException,
 			NumberFormatException, InterruptedException {
 		// test batched creates
 		String[] bNames = generateRandomNames(Config
@@ -726,8 +787,47 @@ public class TESTReconfigurationClient {
 			log.info("testReconfigurationThroughput stats: "
 					+ DelayProfiler.getStats());
 		}
+		// some sleep needed to ensure reconfigurations settle down
 		Thread.sleep(1000);
 		Assert.assertEquals(testDeletes(names) && testNotExists(names), true);
+		success();
+	}
+
+	/**
+	 * Deletion of a non-existent active replica fails.
+	 * 
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test20_RandomActiveReplicaDelete() throws IOException,
+			InterruptedException {
+		Assert.assertEquals(
+				testReconfigureActives(
+						null,
+						new HashSet<String>(Arrays
+								.asList(generateRandomNames(1))), null), true);
+		success();
+	}
+
+	/**
+	 * Addition of a random active replica succeeds (as it appears to other
+	 * nodes as simply failed). Nothing bad will happen as long as a majority of
+	 * replicas in each group is available.
+	 * 
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test20_RandomActiveReplicaAddDelete() throws IOException,
+			InterruptedException {
+		Map<String, InetSocketAddress> adds = new HashMap<String, InetSocketAddress>();
+		adds.put(generateRandomName(Config.getGlobalString(TRC.AR_PREFIX)),
+				new InetSocketAddress(61001));
+		Assert.assertEquals(testReconfigureActives(adds, null, null), true);
+		Assert.assertEquals(testReconfigureActives(null, adds.keySet(), null),
+				true);
+
 		success();
 	}
 
@@ -751,6 +851,7 @@ public class TESTReconfigurationClient {
 				&& this.testReconfigureActives(null, deletes.keySet(), null)
 				&& this.testDeletes(names);
 		if (test)
+			// store this for subsequent addition
 			justDeletedActives.putAll(deletes);
 		Assert.assertEquals(true, true); // no-op
 		success();
@@ -841,8 +942,8 @@ public class TESTReconfigurationClient {
 
 	protected TESTReconfigurationClient allTests() throws InterruptedException {
 		try {
-			test01_Basic();
-			test02_BatchedBasic();
+			test01_BasicSequence();
+			test02_BatchedBasicSequence();
 			test03_ReconfigurationThroughput();
 			test21_DeleteActiveReplica();
 			test22_AddActiveReplica();

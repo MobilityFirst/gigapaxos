@@ -87,7 +87,7 @@ public class TESTReconfigurationConfig {
 		/**
 		 * 
 		 */
-		NUM_ACTIVES(3),
+		NUM_ACTIVES(8),
 
 		/**
 		 * 
