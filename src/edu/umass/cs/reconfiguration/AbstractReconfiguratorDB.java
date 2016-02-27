@@ -260,8 +260,10 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 								true);
 			// wait for all local RC groups to be up to date
 			if (this.selfWait(rcRecReq)) {
-				log.info(this + " blocked upon " + rcRecReq.getSummary()
-						+ " when record = " + record.getSummary());
+				log.log(Level.INFO,
+						"{0} blocked upon {1}  when record = {2}",
+						new Object[] { this, rcRecReq.getSummary(),
+								record.getSummary() });
 				return false;
 			}
 			// delete lower node config versions from node config table

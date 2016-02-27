@@ -327,14 +327,33 @@ public class Reconfigurator<NodeIDType> implements
 		}
 	}
 
-	private ConcurrentHashMap<String, BatchCreateJobs> pendingBatchCreates = new ConcurrentHashMap<String, BatchCreateJobs>();
-	private ConcurrentHashMap<String, String> pendingBatchCreateParents = new ConcurrentHashMap<String, String>();
+	class PendingBatchCreates {
+		/**
+		 * Splits a batch creation jobs into smaller batch creates each of which
+		 * is consistent. The set {@link BatchCreateJobs#parts} holds those
+		 * parts.
+		 */
+		private ConcurrentHashMap<String, BatchCreateJobs> consistentBatchCreateJobs = new ConcurrentHashMap<String, BatchCreateJobs>();
+		/**
+		 * Maps the headname of a part to the overall head name of the original
+		 * client-issued batch create request.
+		 */
+		private ConcurrentHashMap<String, String> headnameToOverallHeadname = new ConcurrentHashMap<String, String>();
+	}
+
+	private PendingBatchCreates pendingBatchCreations = new PendingBatchCreates();
+
+	// private ConcurrentHashMap<String, BatchCreateJobs> pendingBatchCreates =
+	// new ConcurrentHashMap<String, BatchCreateJobs>();
+	// private ConcurrentHashMap<String, String> pendingBatchCreateParents = new
+	// ConcurrentHashMap<String, String>();
 
 	private void failLongPendingBatchCreate(String name, long timeout) {
-		for (Iterator<String> strIter = this.pendingBatchCreates.keySet()
-				.iterator(); strIter.hasNext();) {
+		for (Iterator<String> strIter = this.pendingBatchCreations.consistentBatchCreateJobs
+				.keySet().iterator(); strIter.hasNext();) {
 			String headName = strIter.next();
-			BatchCreateJobs jobs = this.pendingBatchCreates.get(headName);
+			BatchCreateJobs jobs = this.pendingBatchCreations.consistentBatchCreateJobs
+					.get(headName);
 			if (System.currentTimeMillis() - jobs.creationTime > timeout) {
 				Map<String, String> nameStates = jobs.original.nameStates;
 				Set<String> failedCreates = new HashSet<String>();
@@ -362,19 +381,21 @@ public class Reconfigurator<NodeIDType> implements
 	private static final long BATCH_CREATE_TIMEOUT = 30 * 1000;
 
 	private CreateServiceName updateAndCheckComplete(String batchCreateHeadName) {
-		String headName = this.pendingBatchCreateParents
+		String headName = this.pendingBatchCreations.headnameToOverallHeadname
 				.remove(batchCreateHeadName);
 		if (headName == null)
 			return null;
 		// else
-		BatchCreateJobs jobs = this.pendingBatchCreates.get(headName);
+		BatchCreateJobs jobs = this.pendingBatchCreations.consistentBatchCreateJobs
+				.get(headName);
 		jobs.remaining.remove(batchCreateHeadName);
 		if (jobs.remaining.isEmpty()) {
 			log.log(Level.INFO,
 					"{0} returning completed batch create with head name {1} with {2} parts and {3} total constituent names",
 					new Object[] { this, headName, jobs.parts.size(),
 							jobs.totalNames() });
-			return this.pendingBatchCreates.remove(headName).original;
+			return this.pendingBatchCreations.consistentBatchCreateJobs
+					.remove(headName).original;
 		}
 		// else
 		log.log(Level.INFO,
@@ -384,11 +405,18 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	private String updateAndCheckComplete(StartEpoch<NodeIDType> startEpoch) {
+		boolean hasBatchCreatePartJobs = this.pendingBatchCreations.headnameToOverallHeadname
+				.containsKey(startEpoch.getServiceName());
 		CreateServiceName original = this.updateAndCheckComplete(startEpoch
 				.getServiceName());
-		if (original == null)
+		if (original != null)
+			return original.getServiceName();
+		// remaining batch job parts
+		else if (hasBatchCreatePartJobs)
+			return null;
+		// no batch job parts to begin with
+		else
 			return startEpoch.getServiceName();
-		return original.getServiceName();
 	}
 
 	/**
@@ -402,8 +430,8 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleCreateServiceName(
 			CreateServiceName create,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		log.log(!this.pendingBatchCreateParents.containsKey(create
-				.getServiceName()) ? Level.INFO : Level.INFO,
+		log.log(!this.pendingBatchCreations.headnameToOverallHeadname
+				.containsKey(create.getServiceName()) ? Level.INFO : Level.INFO,
 				"{0} received {1} from client {2} {3}",
 				new Object[] {
 						this,
@@ -424,12 +452,12 @@ public class Reconfigurator<NodeIDType> implements
 		 */
 		if (create.isBatched()
 				&& !this.isLegitimateCreateRequest(create)
-				&& !this.pendingBatchCreates.containsKey(create
-						.getServiceName())
-				&& !this.pendingBatchCreateParents.containsKey(create
-						.getServiceName())) {
+				&& !this.pendingBatchCreations.consistentBatchCreateJobs
+						.containsKey(create.getServiceName())
+				&& !this.pendingBatchCreations.headnameToOverallHeadname
+						.containsKey(create.getServiceName())) {
 			BatchCreateJobs jobs = null;
-			this.pendingBatchCreates.put(
+			this.pendingBatchCreations.consistentBatchCreateJobs.put(
 					create.getServiceName(),
 					jobs = new BatchCreateJobs(create.getServiceName(), this
 							.makeCreateServiceNameBatches(create), create));
@@ -438,8 +466,8 @@ public class Reconfigurator<NodeIDType> implements
 					new Object[] { this, jobs.parts.size(), jobs.remaining,
 							jobs.totalNames() });
 			for (CreateServiceName part : jobs.parts) {
-				this.pendingBatchCreateParents.put(part.getServiceName(),
-						create.getServiceName());
+				this.pendingBatchCreations.headnameToOverallHeadname.put(
+						part.getServiceName(), create.getServiceName());
 				this.handleCreateServiceName(part, ptasks);
 			}
 
@@ -454,8 +482,8 @@ public class Reconfigurator<NodeIDType> implements
 			return null;
 		}
 		// responses for forwarded batch create jobs coming back
-		else if (this.pendingBatchCreateParents.containsKey(create
-				.getServiceName())
+		else if (this.pendingBatchCreations.headnameToOverallHeadname
+				.containsKey(create.getServiceName())
 				&& create.isForwarded()
 				&& create.getForwader().equals(
 						this.consistentNodeConfig
@@ -465,10 +493,11 @@ public class Reconfigurator<NodeIDType> implements
 					.getServiceName());
 			if (original != null)
 				// all done, send success response to client
-				this.sendClientReconfigurationPacket(create
-						.setResponseMessage("Successfully batch-created "
-								+ original.size() + " names with head name "
-								+ original.getServiceName()));
+				this.sendClientReconfigurationPacket(original.getHeadOnly()
+						.setResponseMessage(
+								"Successfully batch-created " + original.size()
+										+ " names with head name "
+										+ original.getServiceName()));
 			// else wait for more responses
 			return null;
 		}
@@ -2268,7 +2297,7 @@ public class Reconfigurator<NodeIDType> implements
 
 	private boolean changeSplitMergeGroups(Set<NodeIDType> affectedNodes,
 			Set<NodeIDType> addNodes, Set<NodeIDType> deleteNodes) {
-		if (!amAffected(addNodes, deleteNodes)) 
+		if (!amAffected(addNodes, deleteNodes))
 			return false;
 
 		// get list of current RC groups from DB.
@@ -2588,6 +2617,8 @@ public class Reconfigurator<NodeIDType> implements
 					log.log(Level.INFO,
 							"{0} interrupted while waiting on tasks {1}",
 							new Object[] { this, stopTasks });
+					throw new RuntimeException(
+							"Task to spawn merge/split fetch tasks interrupted");
 				}
 		}
 		log.log(Level.INFO,

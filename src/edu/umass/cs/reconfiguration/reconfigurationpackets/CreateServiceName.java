@@ -155,6 +155,14 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				.next());
 		this.failedCreates = failedCreates;
 	}
+	
+	/**
+	 * @return {@code this}with only head name and state.
+	 */
+	public CreateServiceName getHeadOnly() {
+		this.nameStates.clear();
+		return this;
+	}
 
 	/**
 	 * @param json

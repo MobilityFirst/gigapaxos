@@ -204,13 +204,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					callback.handleResponse(response);
 				} else if (response instanceof ClientReconfigurationPacket) {
 
-					if(response instanceof CreateServiceName)
-						log.info(this + " got back create response " + response);
-					
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
-							.remove(getKey((ClientReconfigurationPacket) response))) != null) {
+							.remove(getKey((ClientReconfigurationPacket) response))) != null) {						
 						callback.handleResponse(response);
-					}
+					} 
 					// if RequestActiveReplicas, send pending requests or unpend them
 					if (response instanceof RequestActiveReplicas)
 						try {
