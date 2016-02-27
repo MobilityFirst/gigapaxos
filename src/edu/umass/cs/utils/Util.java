@@ -405,12 +405,15 @@ public class Util {
 			}
 		};
 	}
-
-	public static Object suicide(String error) {
-		log.severe(error);
+	public static Object suicide(Logger logger, String error) {
+		logger.severe(error);
 		new RuntimeException(error).printStackTrace();
 		System.exit(1);
 		return null; // will never come here
+	}
+
+	public static Object suicide(String error) {
+		return suicide(log, error);
 	}
 
 	// transfer from one byte buffer to another without throwing exception

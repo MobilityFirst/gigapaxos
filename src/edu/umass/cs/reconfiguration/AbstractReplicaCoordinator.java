@@ -211,9 +211,10 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * app's support for stop requests even though a stop request is really
 	 * meaningless to an app.
 	 * 
-	 * FIXME: Should add support for response messaging here using the
+	 * Should we add support for response messaging here using the
 	 * ClientMessgenser and ClientRequest interfaces similar to that in
-	 * gigapaxos.
+	 * gigapaxos? No, because response messaging details are specific to the
+	 * coordination protocol.
 	 */
 	public boolean execute(Request request, boolean noReplyToClient) {
 
@@ -366,10 +367,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	/********************** Request propagation helper methods ******************/
 	/*
-	 * FIXME: This sendAllLazy method is concretized for JSON and is present
-	 * here only for convenience, so that inheritors can directly use it.
-	 * JSONObject is not needed anywhere else in this class and should ideally
-	 * not be in this class at all.
+	 * A simple utility method for lazy propagation, a simplistic coordination
+	 * protocol. This is the only place where this class uses Messenger.
 	 */
 	protected void sendAllLazy(Request request) throws IOException,
 			RequestParseException, JSONException {
@@ -378,7 +377,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 				+ getMyID() + " has no group for " + request.getServiceName();
 		GenericMessagingTask<NodeIDType, Object> mtask = new GenericMessagingTask<NodeIDType, Object>(
 				this.getReplicaGroup(request.getServiceName()).toArray(),
-				new JSONObject(request.toString()));
+				(request.toString()));
 		if (this.messenger == null)
 			return;
 		this.messenger.send(mtask);

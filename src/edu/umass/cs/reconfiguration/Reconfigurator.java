@@ -577,13 +577,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * 
 	 * @param rcRecReq
 	 * @param ptasks
-	 * @return Messaging task, typically null. We may spawn a protocol task but
-	 *         don't return it in {@code ptasks[0]} because we want to spawn it
-	 *         only if not already running. The spwanIfNotRunning check needs to
-	 *         be atomic in {@link ProtocolExecutor} but we currently have no
-	 *         meachanism to tell it to spawn {@code ptasks[0]} only if not
-	 *         already running. FIXME: This issue is straightforward to fix by
-	 *         supporting a spawnIfNotRunning flag in protocol task.
+	 * @return Messaging task, typically null unless TWO_PAXOS_RC.
 	 */
 	public GenericMessagingTask<NodeIDType, ?>[] handleRCRecordRequest(
 			RCRecordRequest<NodeIDType> rcRecReq,
@@ -622,14 +616,6 @@ public class Reconfigurator<NodeIDType> implements
 		} else
 			// commit until committed by default
 			this.repeatUntilObviated(rcRecReq);
-
-		if (rcRecReq.isReconfigurationMerge())
-			// stop mergee task obviated when reconfiguration merge proposed
-			// this.protocolExecutor.remove(getTaskKey(WaitAckStopEpoch.class,
-			// getMyID().toString(),
-			// rcRecReq.startEpoch.getPrevGroupName(),
-			// rcRecReq.startEpoch.getPrevEpochNumber()))
-			;
 
 		return mtask != null ? mtask.toArray() : null;
 	}
@@ -1736,14 +1722,13 @@ public class Reconfigurator<NodeIDType> implements
 							this.consistentNodeConfig
 									.getNodeSocketAddress(randomResponsibleRC) });
 
-			// FIXME: sometimes fails with non-replicateAll reconfigurators
-			assert (this.messenger.sendToAddress(
+			this.messenger.sendToAddress(
 					this.consistentNodeConfig
 							.getNodeSocketAddress(randomResponsibleRC),
 					request.setForwader(
 							this.consistentNodeConfig
 									.getNodeSocketAddress(getMyID()))
-							.toJSONObject()) > 0);
+							.toJSONObject());
 		} catch (IOException | JSONException e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
@@ -1931,13 +1916,9 @@ public class Reconfigurator<NodeIDType> implements
 
 	private static final String separator = "-------------------------------------------------------------------------";
 
-	// true only for easy testing
-	private boolean enableRCReconfigurationFromClient = true;
-
 	private void sendReconfigureRCNodeConfigConfirmationToInitiator(
 			RCRecordRequest<NodeIDType> rcRecReq) {
 		try {
-			// FIXME: can't put self or socket address as initiator here
 			ReconfigureRCNodeConfig<NodeIDType> response = new ReconfigureRCNodeConfig<NodeIDType>(
 					this.DB.getMyID(), rcRecReq.startEpoch.newlyAddedNodes,
 					this.diff(rcRecReq.startEpoch.prevEpochGroup,
@@ -1950,7 +1931,6 @@ public class Reconfigurator<NodeIDType> implements
 							ReconfigurationPacket.PacketType.RECONFIGURE_RC_NODE_CONFIG,
 							rcRecReq.startEpoch.creator, response.getSummary(),
 							separator });
-			// FIXME: use right socket address for self
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
 					response.toJSONObject());
 		} catch (IOException | JSONException e) {
@@ -1978,24 +1958,6 @@ public class Reconfigurator<NodeIDType> implements
 							rcRecReq.startEpoch.creator, separator });
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
 					response.toJSONObject());
-		} catch (IOException | JSONException e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
-					+ e.getMessage());
-			e.printStackTrace();
-		}
-	}
-
-	// FIXME: use or remove
-	protected void sendReconfigureRCNodeConfigErrorToInitiator(
-			ReconfigureRCNodeConfig<NodeIDType> changeRCReq) {
-		try {
-			log.log(Level.FINE, MyLogger.FORMAT[2],
-					new Object[] { this,
-							"sending ReconfigureRCNodeConfig error to",
-							changeRCReq.getIssuer() });
-			(enableRCReconfigurationFromClient ? this.getClientMessenger()
-					: this.messenger).sendToAddress(changeRCReq.getIssuer(),
-					changeRCReq.setFailed().toJSONObject());
 		} catch (IOException | JSONException e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
@@ -2237,7 +2199,6 @@ public class Reconfigurator<NodeIDType> implements
 		return true;
 	}
 
-	// FIXME: derive and include provably correct constraints here
 	private boolean isPermitted(ReconfigureRCNodeConfig<NodeIDType> changeRC) {
 
 		// if node is pending deletion from previous incarnation
@@ -2387,7 +2348,7 @@ public class Reconfigurator<NodeIDType> implements
 			if (!isPresent(newRCGroup, affectedNodes))
 				continue; // don't trivial-reconfigure
 			else
-				log.log(Level.INFO,
+				log.log(Level.FINE,
 						"{0} finds {1} present in affected RC groups {2}",
 						new Object[] { this, newRCGroup, affectedNodes });
 			final Map<String, Set<String>> mergees = this.isMergerGroup(
@@ -2590,7 +2551,7 @@ public class Reconfigurator<NodeIDType> implements
 		log.log(Level.INFO, "{0} starting wait on stop task monitors {1}",
 				new Object[] { this, stopTasks });
 
-		// FIXME: should start tasks inside synchronized
+		// FIXME: should start tasks inside synchronized?
 		for (WaitAckStopEpoch<NodeIDType> stopTask : stopTasks)
 			assert (this.protocolExecutor.spawnIfNotRunning(stopTask));
 
@@ -2646,6 +2607,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param ncRecord
 	 * @return A debug message for pretty-printing.
 	 */
+	@Deprecated
 	private String splitExistingGroups(
 			Map<String, Set<NodeIDType>> curRCGroups,
 			Map<String, Set<NodeIDType>> newRCGroups,
@@ -2719,6 +2681,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param ncRecord
 	 * @return A debug message for pretty-printing.
 	 */
+	@Deprecated
 	private String mergeExistingGroups(
 			Map<String, Set<NodeIDType>> curRCGroups,
 			Map<String, Set<NodeIDType>> newRCGroups,
@@ -2764,9 +2727,9 @@ public class Reconfigurator<NodeIDType> implements
 		 * anyway until at least one of them comes back up. So we can delete at
 		 * most as many nodes as the size of the reconfigurator replica group.
 		 * 
-		 * FIXME: Actually, the exact condition is weaker (something like we can
-		 * delete at most as many consecutive nodes as the size of the
-		 * reconfigurator replica group, but we need to formally prove the
+		 * Actually, the exact condition is weaker (something like we can delete
+		 * at most as many consecutive nodes as the size of the reconfigurator
+		 * replica group, but we need to formally prove the
 		 * necessity/sufficiency of this constraint). For now, simple and safe
 		 * is good enough.
 		 */
@@ -2811,9 +2774,9 @@ public class Reconfigurator<NodeIDType> implements
 				 * sequentially in the new epoch. It is also easy to look at the
 				 * RC record and determine if all the merges are done.
 				 * 
-				 * FIXME: It is better to first start a task to stop all mergee
-				 * groups (including the mergeGroup) and get a copy of their
-				 * final state on the local host and concatenate them into an
+				 * It is better to first start a task to stop all mergee groups
+				 * (including the mergeGroup) and get a copy of their final
+				 * state on the local host and concatenate them into an
 				 * initialState meant for the mergeGroup. This will obviate the
 				 * current design of having to coordinate merges individually in
 				 * the mergeGroup with a global state handle; each such
@@ -2844,6 +2807,9 @@ public class Reconfigurator<NodeIDType> implements
 				 * replicas while succeeding at others means that different
 				 * replicas may go from the same state S to different possible
 				 * next states, causing divergence.
+				 * 
+				 * The above design has now been implemented using the cleaner
+				 * isAggregatedMergeSplit design.
 				 */
 				this.protocolExecutor
 						.spawnIfNotRunning(new WaitAckStopEpoch<NodeIDType>(

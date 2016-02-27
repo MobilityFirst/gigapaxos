@@ -452,13 +452,6 @@ public class PaxosConfig {
 		DISABLE_CC(false),
 
 		/**
-		 * If true, we just approximately count outstanding instead of
-		 * maintaining an exact map with callbacks. Flag used for testing
-		 * overhead.
-		 */
-		COUNT_OUTSTANDING(false),
-
-		/**
 		 * If true, we use a garbage collected map that has higher overhead than
 		 * a regular map, but is still not a bottleneck.
 		 */
@@ -476,7 +469,7 @@ public class PaxosConfig {
 		 * Most of these will compromise safety.
 		 */
 
-		/******************* Start of testing options *******************/
+		/***************** Start of unsafe testing options *******************/
 		/**
 		 * Testing option.
 		 */
@@ -542,7 +535,7 @@ public class PaxosConfig {
 		 */
 		DISABLE_GET_LOGGED_MESSAGES(false),
 
-		/*********** End of testing options *****************/
+		/*********** End of unsafe testing options *****************/
 
 		/**
 		 * Whether journal entries should be synchronously indexed in the DB.
@@ -683,7 +676,10 @@ public class PaxosConfig {
 		/**
 		 * Broadcast requests at entry replica and use digests in accepts. This
 		 * makes a noticeable difference only when the number of groups is small
-		 * (like 1 or 2).
+		 * (like 1 or 2). For more groups, the reordering effects seem to hurt more
+		 * than help.
+		 * 
+		 * Disabled by default.
 		 */
 		DIGEST_REQUESTS(false),
 

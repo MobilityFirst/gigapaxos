@@ -643,7 +643,6 @@ public abstract class AbstractPaxosLogger {
 		}
 	}
 
-	// FIXME: Unused convenience container for a single checkpoint task.
 	protected class CheckpointTask {
 		final AbstractPaxosLogger logger;
 		final String paxosID;

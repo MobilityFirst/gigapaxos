@@ -23,6 +23,9 @@ import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
+import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -740,7 +743,7 @@ public class TESTReconfigurationClient {
 	 * @throws NumberFormatException
 	 */
 	@Test
-	public void test02_BatchedBasicSequence() throws IOException,
+	public void test02_BasicSequenceBatched() throws IOException,
 			NumberFormatException, InterruptedException {
 		// test batched creates
 		String[] bNames = generateRandomNames(Config
@@ -940,21 +943,6 @@ public class TESTReconfigurationClient {
 	private static Map<String, InetSocketAddress> justAddedRCs = new HashMap<String, InetSocketAddress>();
 	private static Map<String, InetSocketAddress> justDeletedActives = new HashMap<String, InetSocketAddress>();
 
-	protected TESTReconfigurationClient allTests() throws InterruptedException {
-		try {
-			test01_BasicSequence();
-			test02_BatchedBasicSequence();
-			test03_ReconfigurationThroughput();
-			test21_DeleteActiveReplica();
-			test22_AddActiveReplica();
-			test31_AddReconfigurator();
-			test32_DeleteReconfigurator();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return this;
-	}
-
 	/**
 	 * @throws IOException
 	 * @throws InterruptedException
@@ -973,17 +961,26 @@ public class TESTReconfigurationClient {
 		for (TESTReconfigurationClient client : allInstances)
 			client.close();
 		TESTReconfigurationMain.closeServers();
-
+	}
+	
+	public String toString() {
+		return TESTReconfigurationClient.class.getSimpleName();
 	}
 
 	/**
 	 * @param args
+	 * @throws IOException
+	 * @throws InterruptedException
 	 */
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException,
+			InterruptedException {
 		ReconfigurationConfig.setConsoleHandler();
 		TESTReconfigurationConfig.load();
 
-		setLoopbackMode(false);
-
+		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
+		for (Failure failure : result.getFailures()) {
+			System.out.println(failure.toString());
+			failure.getException().printStackTrace();
+		}
 	}
 }

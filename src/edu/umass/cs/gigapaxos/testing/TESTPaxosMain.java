@@ -91,6 +91,7 @@ public class TESTPaxosMain {
 	 * again with testRecovery=true will test recovery mode.
 	 */
 	public void testPaxos() {
+		TESTPaxosConfig.setSingleNodeTest();
 		try {
 			/*************** Setting up servers below ***************************/
 
@@ -159,8 +160,6 @@ public class TESTPaxosMain {
 	}
 
 	private static void processArgs(String[] args) {
-		// Only useful for local testing
-		TESTPaxosConfig.setSingleNodeTest();
 		PaxosManager.startWithCleanDB(TESTPaxosConfig.shouldCleanDB(args));
 	}
 
@@ -211,7 +210,7 @@ public class TESTPaxosMain {
 						+ "use TESTPaxosNode and TESTPaxosClient with the appropriate "
 						+ "configuration file.\nInitiating single-node test...\n");
 		TESTPaxosConfig.setAssertRSMInvariant(true);
-		// (new TESTPaxosMain()).testWithRecovery();
+		//(new TESTPaxosMain()).testWithRecovery();
 
 		Result result = JUnitCore.runClasses(TESTPaxosMain.class);
 		for (Failure failure : result.getFailures()) {

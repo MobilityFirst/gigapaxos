@@ -45,8 +45,6 @@ public class PaxosClientAsync {
 	private final ConcurrentHashMap<Long, RequestCallback> callbacks = new ConcurrentHashMap<Long, RequestCallback>();
 	private RequestCallback defaultCallback = null;
 
-	// FIXME: eventually garbage collect old requests
-
 	class ClientPacketDemultiplexer extends
 			AbstractPacketDemultiplexer<JSONObject> {
 		final PaxosClientAsync client;

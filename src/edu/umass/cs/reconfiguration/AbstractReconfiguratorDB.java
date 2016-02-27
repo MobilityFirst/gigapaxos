@@ -28,10 +28,12 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorDB;
@@ -49,14 +51,30 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.RCStates;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.DiskMap;
 
 /**
  * @author V. Arun
  * @param <NodeIDType>
+ * 
+ *            This class is the reconfigurator "application", essentially a
+ *            database. It is {@link Replicable} and {@link Reconfigurable} and
+ *            {@link ReconfiguratorDB}. {@link SQLReconfiguratorDB} is an
+ *            example of a class concretizing this class.
+ * 
+ *            It is actually not important for this database to be persistent
+ *            for safety reasons when paxos provides fault recovery, but we use
+ *            the disk because all records may not fit in memory. In fact,
+ *            {@link SQLReconfiguratorDB} currently uses {@link DiskMap} as the
+ *            default option that asynchronously swaps to disk in the
+ *            background.
+ * 
+ *            This class relies on reflection to automatically map incoming
+ *            reconfiguration packets to their respective handlers, but it only
+ *            expects to process two types of packets {@link RCRecordRequest}
+ *            and {@link StopEpoch}.
  */
-/*
- * Need to add fault tolerance support via paxos here.
- */
+
 public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		Repliconfigurable, ReconfiguratorDB<NodeIDType> {
 
@@ -517,6 +535,17 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return stop;
 	}
 
+	/**
+	 * @param name
+	 * @return Current epoch
+	 */
+	@Override
+	public synchronized Integer getEpoch(String name) {
+		ReconfigurationRecord<NodeIDType> record = this
+				.getReconfigurationRecord(name);
+		return (record != null ? record.getEpoch() : null);
+	}
+
 	@Override
 	public String getFinalState(String name, int epoch) {
 		throw new RuntimeException(
@@ -622,9 +651,6 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 
 	/*
 	 * Checks if all new RC groups are ready.
-	 * 
-	 * FIXME: This check should be done atomically, and we also need to check
-	 * for the new NC group itself existing.
 	 */
 	private boolean areRCChangesComplete() {
 		return this.areRCChangesCompleteDebug().isEmpty();
@@ -744,10 +770,11 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 	}
 
 	/*
-	 * FIXME: This method currently reconstructs a new consistent hashing
-	 * structure afresh each time it is called, which may be inefficient. But it
-	 * is unclear where we can store it in a manner that is safe, so we just
-	 * reconstruct it from the DB on demand.
+	 * This method currently reconstructs a new consistent hashing structure
+	 * afresh each time it is called, which may be inefficient. But it is
+	 * unclear where we can store it in a manner that is safe, so we just
+	 * reconstruct it from the DB on demand. It is used only while reconfiguring
+	 * reconfigurators, which is rare.
 	 */
 	protected Map<String, Set<NodeIDType>> getRCGroups(NodeIDType rc,
 			Set<NodeIDType> allRCs, boolean print) {
@@ -928,8 +955,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> ncRecord = this
 				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString());
-		for (NodeIDType oldNode : ncRecord.getActiveReplicas()) 
-		{
+		for (NodeIDType oldNode : ncRecord.getActiveReplicas()) {
 			if (oldRing.getReplicatedServers(this.getRCGroupName(oldNode))
 					.contains(hashNode)) {
 				affected = true;

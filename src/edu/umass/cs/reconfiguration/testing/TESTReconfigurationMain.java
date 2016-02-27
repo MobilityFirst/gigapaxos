@@ -27,9 +27,8 @@ import edu.umass.cs.utils.Config;
  *         operations like creation, request active replicas, app requests, and
  *         deletions with reconfigurations enabled.
  * 
- *         TODOS:
- *         (1) Add tests with different numbers of reconfigurators
- *         and actives.
+ *         TODOS: (1) Add tests with different numbers of reconfigurators and
+ *         actives.
  *
  */
 public class TESTReconfigurationMain {
@@ -76,16 +75,6 @@ public class TESTReconfigurationMain {
 		return createdNodes;
 	}
 
-	/**
-	 * @throws IOException
-	 * @throws InterruptedException
-	 */
-	@Test
-	public void test0() throws IOException, InterruptedException {
-		(new TESTReconfigurationClient(TESTReconfigurationConfig
-				.getLocalReconfigurators())).allTests().close();
-	}
-
 	private static Set<ReconfigurableNode<?>> reconfigurators = null,
 			actives = null;
 
@@ -100,10 +89,10 @@ public class TESTReconfigurationMain {
 		dnc = new DefaultNodeConfig<String>(
 				TESTReconfigurationConfig.getLocalActives(),
 				TESTReconfigurationConfig.getLocalReconfigurators());
-		//System.out.println(dnc.getNodeIDs());
+		// System.out.println(dnc.getNodeIDs());
 		reconfigurators = startReconfigurators(args);
 		actives = startActives(args);
-		
+
 		/*
 		 * This sleep seems necessary to give time for all connections to be set
 		 * up between reconfigurators, otherwise new NIO connections sometimes
@@ -125,6 +114,15 @@ public class TESTReconfigurationMain {
 		for (ReconfigurableNode<?> node : actives)
 			node.close();
 	}
+	
+	/**
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void allClientTests() throws IOException, InterruptedException {
+		TESTReconfigurationClient.main(new String[0]);
+	}
 
 	/**
 	 * @param args
@@ -133,14 +131,6 @@ public class TESTReconfigurationMain {
 	 */
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
-		ReconfigurationConfig.setConsoleHandler();
-		TESTReconfigurationConfig.load();
-
-		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
-		for (Failure failure : result.getFailures()) {
-			System.out.println(failure.toString());
-			failure.getException().printStackTrace();
-		}
-
+		TESTReconfigurationClient.main(args);
 	}
 }

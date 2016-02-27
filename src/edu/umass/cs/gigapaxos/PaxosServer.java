@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
  * Initial developer(s): V. Arun
  */
@@ -37,7 +37,11 @@ import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 
 /**
  * @author arun
- *
+ * 
+ *         This class is the main server-side class in typical usage scenarios
+ *         where the app itself is specified through an external configuration
+ *         properties file. 
+ * 
  */
 public class PaxosServer {
 	private final SSLMessenger<String, JSONObject> messenger;
@@ -58,8 +62,8 @@ public class PaxosServer {
 	}
 
 	private PaxosManager<String> startPaxosManager(
-			Messenger<String, JSONObject> messenger,
-			Replicable app, InetSocketAddress myAddress) {
+			Messenger<String, JSONObject> messenger, Replicable app,
+			InetSocketAddress myAddress) {
 		return new PaxosManager<String>(messenger.getMyID(),
 				PaxosConfig.getDefaultNodeConfig(), this.messenger, app, null,
 				true).initClientMessenger(myAddress);
@@ -67,8 +71,7 @@ public class PaxosServer {
 
 	protected static Set<InetSocketAddress> getDefaultServers() {
 		Set<InetSocketAddress> servers = new HashSet<InetSocketAddress>();
-		NodeConfig<String> nodeConfig = PaxosConfig
-				.getDefaultNodeConfig();
+		NodeConfig<String> nodeConfig = PaxosConfig.getDefaultNodeConfig();
 		for (String id : nodeConfig.getNodeIDs())
 			servers.add(new InetSocketAddress(nodeConfig.getNodeAddress(id),
 					nodeConfig.getNodePort(id)));
@@ -133,8 +136,7 @@ public class PaxosServer {
 					"At least one node ID must be specified as a command-line argument for starting "
 							+ PaxosServer.class.getSimpleName());
 		PaxosConfig.setConsoleHandler();
-		NodeConfig<String> nodeConfig = PaxosConfig
-				.getDefaultNodeConfig();
+		NodeConfig<String> nodeConfig = PaxosConfig.getDefaultNodeConfig();
 		PaxosConfig.sanityCheck(nodeConfig);
 		System.out.print("Starting paxos servers [ ");
 		for (String server : processArgs(args, nodeConfig)) {

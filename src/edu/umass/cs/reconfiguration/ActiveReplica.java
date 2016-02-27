@@ -149,7 +149,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				getMyID(), this.nodeConfig, this);
 		this.protocolExecutor.register(this.protocolTask.getDefaultTypes(),
 				this.protocolTask);
-		// FIXME: this is not doing much
 		this.appCoordinator.setMessenger(this.messenger);
 		this.noReporting = noReporting;
 		if (this.messenger.getClientMessenger() == null) // exactly once
@@ -334,10 +333,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			 * Stops are coordinated exactly once for a paxos group, so we must
 			 * always find a match here.
 			 * 
-			 * FIXME: Unless the app itself coordinated the stop in which case
+			 * Unless the app itself coordinated the stop in which case
 			 * this assert should not hold.
 			 */
-			assert (stopEpoch != null);
+			//assert (stopEpoch != null);
 		}
 	}
 
@@ -817,9 +816,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	/*
 	 * We may need to use a separate messenger for end clients if we use two-way
 	 * authentication between servers.
-	 * 
-	 * FIXME: The class casts below are bad and we probably need a cleaner way
-	 * to really support generic message types.
 	 */
 	@SuppressWarnings("unchecked")
 	private AddressMessenger<JSONObject> initClientMessenger() {

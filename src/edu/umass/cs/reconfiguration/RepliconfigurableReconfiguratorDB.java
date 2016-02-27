@@ -110,10 +110,6 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return record != null ? record.getActiveReplicas() : null;
 	}
 
-	/*
-	 * FIXME: need to prevent nodes from falling behind on node config changes
-	 * in the first place to prevent the severe log below.
-	 */
 	@Override
 	public boolean coordinateRequest(Request request, ExecutedCallback callback)
 			throws IOException, RequestParseException {
@@ -325,29 +321,6 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		return this.app.setRCEpochs(addNodes, deleteNodes);
 	}
 
-	/*
-	 * This method gets RC group names based on NodeConfig. This may in general
-	 * be different from the RC groups actually in the DB.
-	 * 
-	 * Could be a static method with nodeconfig arg.
-	 */
-	private Set<String> getNodeConfigRCGroupNames(
-			ConsistentReconfigurableNodeConfig<NodeIDType> nodeConfig) {
-		Set<String> groupNames = new HashSet<String>();
-		Set<NodeIDType> reconfigurators = nodeConfig.getReconfigurators();
-		// iterate over all nodes
-		for (NodeIDType node : reconfigurators)
-			// if I am present, add to return set
-			if (this.consistentNodeConfig.getReplicatedReconfigurators(
-					this.app.getRCGroupName(node)).contains(this.getMyID()))
-				groupNames.add(this.app.getRCGroupName(node));
-		return groupNames;
-	}
-
-	// FIXME: use or remove
-	protected Set<String> getNodeConfigRCGroupNames() {
-		return this.getNodeConfigRCGroupNames(this.consistentNodeConfig);
-	}
 
 	protected Map<String, Set<NodeIDType>> getOldRCGroups() {
 		return this.app.getOldRCGroups();
@@ -532,21 +505,6 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		this.app.delayedDeleteComplete();
 	}
 
-	/**
-	 * FIXME: Unsafe if the set of all actives can be out-of-date. This is meant
-	 * to be used only for testing purposes.
-	 * 
-	 * @return The set of all active replicas. This is used by WaitAckDropEpoch
-	 *         to force *all* active replica nodes, not just the previous
-	 *         epoch's active replicas, to drop any final state for the name
-	 *         before deleting it. We need this to speed up re-creations (delete
-	 *         followed by a creation of the same name) faster than
-	 *         MAX_FINAL_STATE_AGE time.
-	 */
-	public Set<NodeIDType> getAllActives() {
-		return this.consistentNodeConfig.getActiveReplicas();
-	}
-
 	protected int getCurNCEpoch() {
 		return this.getReconfigurationRecord(
 				AbstractReconfiguratorDB.RecordNames.RC_NODES.toString())
@@ -593,32 +551,6 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 				this.app.garbageCollectedDeletedNode(removedRC);
 				iter.remove();
 			}
-		}
-	}
-
-	/**
-	 * Waits until the specified group is ready with timeout specifying how
-	 * frequently we should check. A better alternative is to synchronized
-	 * explicitly over the exact event being waited for, which would obviate the
-	 * DB read based check.
-	 * 
-	 * FIXME: To be deprecated.
-	 * 
-	 * @param name
-	 * @param epoch
-	 * @param timeout
-	 */
-	public void waitReady(String name, int epoch, long timeout) {
-		synchronized (this.app) {
-			ReconfigurationRecord<NodeIDType> record = null;
-			while ((record = this.app.getReconfigurationRecord(name, epoch)) == null
-					|| (record.getEpoch() - epoch < 0))
-				try {
-					this.app.wait(timeout);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			;
 		}
 	}
 

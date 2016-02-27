@@ -148,8 +148,7 @@ public class PaxosManager<NodeIDType> {
 			.getGlobalBoolean(PC.USE_GC_MAP);
 
 	private class Outstanding {
-		int numOutstanding = 0;
-		int avgRequestSize = 0;
+		int totalRequestSize = 0;
 		long lastIncremented = System.currentTimeMillis();
 		ConcurrentHashMap<Long, RequestAndCallback> requests = USE_GC_MAP ? new GCConcurrentHashMap<Long, RequestAndCallback>(
 				new GCConcurrentHashMapCallback() {
@@ -164,7 +163,8 @@ public class PaxosManager<NodeIDType> {
 			assert (rc.request.getType() != PaxosPacketType.ACCEPT || rc.request
 					.hasRequestValue());
 			synchronized (this.requests) {
-				this.requests.putIfAbsent(rc.request.requestID, rc);
+				if(this.requests.putIfAbsent(rc.request.requestID, rc) == null)
+					totalRequestSize += rc.request.lengthEstimate();
 			}
 			this.lastIncremented = System.currentTimeMillis();
 		}
@@ -223,12 +223,13 @@ public class PaxosManager<NodeIDType> {
 		}
 	}
 
+	// called by PaxosInstanceStateMachine as execute callback
 	protected boolean executed(RequestPacket requestPacket, Request request,
 			boolean sendResponse) {
-		if (countNumOutstanding())
-			return false;
 		RequestAndCallback rc = this.outstanding.requests
 				.remove(requestPacket.requestID);
+		if (rc != null)
+			this.outstanding.totalRequestSize -= rc.request.lengthEstimate();
 		RequestInstrumenter.remove(requestPacket.requestID);
 		// only called if executed
 		if (rc != null && rc.callback != null)
@@ -931,21 +932,24 @@ public class PaxosManager<NodeIDType> {
 		if (pism != null) {
 			matched = true;
 			requestPacket.putPaxosID(paxosID, pism.getVersion());
-			
-			log.log(Level.INFO, "{0} proposing to {1}: {2}",
+
+			log.log(Level.FINE, "{0} proposing to {1}: {2}",
 					new Object[] { this, pism.getPaxosIDVersion(),
 							requestPacket.getSummary() });
-			
+
 			this.outstanding.enqueue(new RequestAndCallback(requestPacket,
 					callback));
 			this.handleIncomingPacket(requestPacket);
 		} else
 			log.log(Level.INFO,
 					"{0} could not find paxos instance {1} for request {2} with body {3}; "
-							+ " last known version was [{4}]", new Object[] {
-							this, paxosID, requestPacket.getSummary(),
-							Util.truncate(requestPacket.getRequestValues()[0], 64),
-							this.getVersion(paxosID) });
+							+ " last known version was [{4}]",
+					new Object[] {
+							this,
+							paxosID,
+							requestPacket.getSummary(),
+							Util.truncate(requestPacket.getRequestValues()[0],
+									64), this.getVersion(paxosID) });
 		return matched ? pism.getPaxosIDVersion() : null;
 	}
 
@@ -1253,45 +1257,15 @@ public class PaxosManager<NodeIDType> {
 		return this.outOfOrderLimit;
 	}
 
-	private static final boolean COUNT_NUM_OUTSTANDING = Config
-			.getGlobalBoolean(PC.COUNT_OUTSTANDING);
-
-	private static final boolean countNumOutstanding() {
-		return COUNT_NUM_OUTSTANDING;
-	}
-
-	protected void incrNumOutstanding(int n) {
-		if (!countNumOutstanding())
-			return;
-		if (Util.oneIn(10))
-			DelayProfiler.updateMovAvg("processing",
-					this.outstanding.numOutstanding);
-		synchronized (this.outstanding) {
-			this.outstanding.numOutstanding += n;
-		}
-	}
-
-	protected void decrNumOutstanding(int n) {
-		if (!countNumOutstanding())
-			return;
-		synchronized (this.outstanding) {
-			this.outstanding.numOutstanding -= n;
-		}
-	}
-
-	protected int getNumOutstandingOrQueued() {
-		return (countNumOutstanding() ? this.outstanding.numOutstanding
-				: this.outstanding.requests.size())
+	private int getNumOutstandingOrQueued() {
+		return (this.outstanding.requests.size())
 				+ this.requestBatcher.getQueueSize();
 	}
 
 	// queue of outstanding requests
-	protected void incrNumOutstanding(RequestPacket request) {
-		int count = request.setEntryReplicaAndReturnCount(this.myID);
-		if (countNumOutstanding()) {
-			this.incrNumOutstanding(request.getType() == PaxosPacketType.ACCEPT ? request
-					.batchSize() + 1 : count);
-		}
+	protected void incrOutstanding(RequestPacket request) {
+		request.setEntryReplicaAndReturnCount(this.myID);
+
 		// if (request.getEntryReplica() == getMyID())
 		this.outstanding.enqueue(new RequestAndCallback(request, null));
 		if (request.batchSize() > 0)
@@ -1301,25 +1275,6 @@ public class PaxosManager<NodeIDType> {
 		if (Util.oneIn(10))
 			DelayProfiler.updateMovAvg("outstanding",
 					this.outstanding.requests.size());
-	}
-
-	// FIXME: currently unused, but may be used to limit outstanding later
-	protected int updateRequestSize(RequestPacket request) {
-		synchronized (this.outstanding) {
-			return (this.outstanding.avgRequestSize = (int) (Util
-					.movingAverage(request.lengthEstimate(),
-							this.outstanding.avgRequestSize)));
-		}
-	}
-
-	/*
-	 * FIXME: The current way of maintaining the outstanding count is flawed and
-	 * may be incorrect under losses.
-	 */
-	protected void resetNumOutstanding() {
-		synchronized (this.outstanding) {
-			this.outstanding.numOutstanding = 0;
-		}
 	}
 
 	/**
@@ -1649,9 +1604,9 @@ public class PaxosManager<NodeIDType> {
 				}
 			}
 		} catch (JSONException | NumberFormatException e) {
-			// FIXME: should be able to replay remaining messages still
-			log.severe(this + " recovery interrupted while parsing "
-					+ paxosPacketString);
+			Util.suicide(log, this + " recovery interrupted while parsing "
+					+ paxosPacketString
+					+ ";\n Exiting because it is unsafe to continue recovery.");
 			e.printStackTrace();
 		}
 		this.paxosLogger.closeReadAll(); // releases lock
@@ -1823,10 +1778,11 @@ public class PaxosManager<NodeIDType> {
 	 * does not wipe out checkpoint state or app state, but does move the paxos
 	 * instance to corpses because it is as good as dead at this point.
 	 * 
-	 * FIXME: Why not just do a softCrash instead of corpsing out in the case of
+	 * Why not just do a softCrash instead of corpsing out in the case of
 	 * an app execution error? The instance might get re-created as a "missed
 	 * birthing" case, but that would still be safe and, maybe, the roll forward
-	 * this time around might succeed.
+	 * this time around might succeed. There isnt' a strong reason one way or 
+	 * the other.
 	 */
 	private void kill(PaxosInstanceStateMachine pism) {
 		this.kill(pism, true);
@@ -1902,15 +1858,17 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	/*
-	 * FIXME: need to support batched pausing, otherwise a deluge of pauses can
-	 * take a long time and slow down regular request processing. The current
-	 * design pauses one instance at time, which will hold up regular request
+	 * Pausing is like hibernate but without checkpointing or subsequent
+	 * recovery overhead.
+	 * 
+	 * We need batched pausing for efficiency, otherwise a deluge of pauses can
+	 * take a long time and slow down regular request processing. The method
+	 * below pauses one instance at time, which will hold up regular request
 	 * processing for that much time because of the synchronization below, but
 	 * if we pause in modest-sized batches, we will hold up regular request
 	 * processing for slightly longer but get done with pausing all pausable
 	 * instances much more quickly.
 	 */
-	// like hibernate but without checkpointing or subsequent recovery
 	protected HotRestoreInfo pause(PaxosInstanceStateMachine pism) {
 		if (pism == null || this.isClosed()
 				|| !this.pinstances.containsValue(pism) || !isPauseEnabled())
@@ -2361,7 +2319,7 @@ public class PaxosManager<NodeIDType> {
 					.getPaxosID());
 			if (pism == null
 					|| (pism.getVersion() - findGroup.getVersion()) < 0) {
-				// wait to see if it gets created anyway; FIXME: needed?
+				// wait to see if it gets created anyway;
 				this.timedWaitForExistence(findGroup.getPaxosID(),
 						findGroup.getVersion(),
 						Config.getGlobalInt(PC.WAIT_TO_GET_CREATED_TIMEOUT));
@@ -3077,7 +3035,10 @@ public class PaxosManager<NodeIDType> {
 							accept.ballot.coordinatorID, new AcceptReplyPacket(
 									PaxosManager.this.getMyID(), accept.ballot,
 									accept.slot,
-									// FIXME: wraparound
+									/* FIXME: wraparound means that maxCheckpointedSlot of 0 can be unsafe.
+									 * We need to get the correct value from the paxos instance. But for
+									 * now digests are not disabled by default, so this is okay.
+									 */
 									0, accept.requestID).setDigestRequest()
 									.putPaxosID(accept.getPaxosID(),
 											accept.getVersion())));
@@ -3103,6 +3064,7 @@ public class PaxosManager<NodeIDType> {
 						+ accept.getSummary());
 				e.printStackTrace();
 			}
+		this.outstanding.totalRequestSize -= request.lengthEstimate();
 		Level level = accept != null ? Level.INFO : Level.FINE;
 		PaxosManager.log.log(
 				level,

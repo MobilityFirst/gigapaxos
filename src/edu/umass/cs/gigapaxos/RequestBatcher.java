@@ -110,7 +110,7 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 
 		// increase outstanding count by requests entering through me
 		//this.paxosManager.incrNumOutstanding(task.setEntryReplicaAndReturnCount(this.paxosManager.getMyID()));
-		this.paxosManager.incrNumOutstanding(task.addDebugInfo("b", this.paxosManager.getMyID()));
+		this.paxosManager.incrOutstanding(task.addDebugInfo("b", this.paxosManager.getMyID()));
 		
 		LinkedBlockingQueue<RequestPacket> taskList = this.batched.get(task
 				.getPaxosID());

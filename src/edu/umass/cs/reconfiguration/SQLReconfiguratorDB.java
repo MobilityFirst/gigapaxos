@@ -111,7 +111,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final String PENDING_TABLE = "messages";
 	private static final String DEMAND_PROFILE_TABLE = "demand";
 	private static final String NODE_CONFIG_TABLE = "nodeconfig";
-	private static final String AR_TABLE = "nodeconfig";
 
 	private static final String LOG_DIRECTORY = Config
 			.getGlobalString(RC.RECONFIGURATION_DB_DIR);// "reconfiguration_DB";
@@ -234,7 +233,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					conn.setAutoCommit(false);
 					pstmt = conn.prepareStatement(updateCmd);
 				}
-				// FIXME: should move to putReconfigurationRecordIndividually
 				// removal
 				if (toCommit.get(name) == null) {
 					this.deleteReconfigurationRecord(name);
@@ -441,12 +439,13 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	@Override
 	public synchronized boolean setStateMerge(String name, int epoch,
-			ReconfigurationRecord.RCStates state, Set<NodeIDType> newActives, Set<String> mergees) {
+			ReconfigurationRecord.RCStates state, Set<NodeIDType> newActives,
+			Set<String> mergees) {
 		ReconfigurationRecord<NodeIDType> record = this
 				.getReconfigurationRecord(name);
 		if (record == null)
 			return false;
-		
+
 		log.log(Level.INFO,
 				"==============================> {0} {1} {2}:{3} -> {4}:{5} {6} {7} {8}",
 				new Object[] { this, record.getName(), record.getEpoch(),
@@ -555,9 +554,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.putReconfigurationRecord(record);
 
 		record = this.getReconfigurationRecord(name);
-		assert (!name
-				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
-						.toString()) || !record.getActiveReplicas().equals(
+		assert (!name.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
+				.toString()) || !record.getActiveReplicas().equals(
 				record.getNewActives()));
 		return true;
 	}
@@ -668,7 +666,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 		// else good to insert and set pending if needed
 		this.putReconfigurationRecord(record, rcGroupName);
-		if (!record.isReady()) // FIXME: READY
+		if (!record.isReady())
 			this.setPending(record.getName(), true, true);
 		log.log(Level.FINER,
 				"{0} inserted RC record named {1} to RC group {2}",
@@ -735,13 +733,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		// not necessary to delete demand right here
 		this.deleteReconfigurationRecord(name, this.getDemandTable());
 		return true;
-	}
-
-	@Override
-	public synchronized Integer getEpoch(String name) {
-		ReconfigurationRecord<NodeIDType> record = this
-				.getReconfigurationRecord(name);
-		return (record != null ? record.getEpoch() : null);
 	}
 
 	// This also sets newActives
@@ -844,13 +835,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * where the checkpoint state is actually stored. We assume that each RC
 	 * record in the checkpoint state is separated by a newline.
 	 * 
-	 * FIXME: clean up the design of this method to make it more readable. We
-	 * assume here that if state is not decodeable as a remote file handle or a
-	 * local file by that name does not exist, state must be the actual state
-	 * itself. This design is for having the convenience of treating the state
-	 * either as a large checkpoint handle or the state itself as appropriate.
-	 * But we need a more systematic way of distinguishing between handles and
-	 * actual state.
+	 * Need to clean up this method to make it more readable. We assume here
+	 * that if state is not decodeable as a remote file handle or a local file
+	 * by that name does not exist, state must be the actual state itself. This
+	 * design is for having the convenience of treating the state either as a
+	 * large checkpoint handle or the state itself as appropriate. But we need a
+	 * more systematic way of distinguishing between handles and actual state.
 	 */
 	private boolean updateState(String rcGroup, String state, String mergee) {
 		synchronized (this.stringLocker.get(rcGroup)) {
@@ -917,10 +907,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	/*
-	 * FIXME: to be implemented. Currently, by design, it makes no difference
+	 * FIXME: unimplemented. Currently, by design, it makes no difference
 	 * whether or not we delete the RC group state before replacing it because
 	 * of the nature of the RC group database. But paxos safety semantics
-	 * require us to do this, so we should.
+	 * require us to do this, so we probably should as a sanity check.
+	 * 
+	 * Verify claim or implement.
 	 */
 	private void wipeOutState(String rcGroup) {
 	}
@@ -1086,7 +1078,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		initAdjustSoftNodeConfig();
 		initAdjustSoftActiveNodeConfig();
 		log.log(Level.INFO, "{0} proceeding with node config version {1}: ",
-				new Object[] { this, this.consistentNodeConfig});
+				new Object[] { this, this.consistentNodeConfig });
 		return initCheckpointServer();
 	}
 
@@ -1197,14 +1189,15 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 	}
 
-	/*
-	 * FIXME: unused.
+	/**
+	 * TODO: unused because we now use {@link LargeCheckpointer}.
 	 * 
 	 * Sends request for and receives remote checkpoint file if correctly
 	 * formatted URL. If so, it returns a local filename. If not, it returns the
 	 * url back as-is.
 	 */
-	protected String getRemoteCheckpoint(String rcGroup, String url) {
+	@SuppressWarnings("unused")
+	private String getRemoteCheckpoint(String rcGroup, String url) {
 		if (url == null)
 			return url;
 		String filename = url;
@@ -1263,9 +1256,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				// read from sock, write to file
 				while ((nread = inStream.read(buf)) >= 0) {
 					/*
-					 * FIXME: need to ensure that the read won't block forever
-					 * if the remote endpoint crashes ungracefully and there is
-					 * no exception triggered here.
+					 * Need to ensure that the read won't block forever if the
+					 * remote endpoint crashes ungracefully and there is no
+					 * exception triggered here. But this method itself is
+					 * currently unused.
 					 */
 					nTotalRead += nread;
 					fos.write(buf, 0, nread);
@@ -1295,13 +1289,16 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * @param mergerGroupEpoch
 	 * @return Merged checkpoint filename.
 	 */
-	public String fetchAndAggregateMergeeStates(Map<String, String> finalStates,
-			String mergerGroup, int mergerGroupEpoch) {
+	public String fetchAndAggregateMergeeStates(
+			Map<String, String> finalStates, String mergerGroup,
+			int mergerGroupEpoch) {
 		String mergerGroupCheckpointFile = this
-				.getCheckpointFileNoTimestamp(mergerGroup+":"+mergerGroupEpoch);
+				.getCheckpointFileNoTimestamp(mergerGroup + ":"
+						+ mergerGroupEpoch);
 		for (String mergee : finalStates.keySet()) {
 			// mergee is name:epoch format
-			new File(this.getCheckpointFileNoTimestamp(mergee)).getParentFile().mkdirs();
+			new File(this.getCheckpointFileNoTimestamp(mergee)).getParentFile()
+					.mkdirs();
 			LargeCheckpointer.restoreCheckpointHandle(finalStates.get(mergee),
 					this.getCheckpointFileNoTimestamp(mergee));
 		}
@@ -1323,7 +1320,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 		FileOutputStream fos = null;
 		try {
-			fos = new FileOutputStream(mergerGroupCheckpointFile);	
+			fos = new FileOutputStream(mergerGroupCheckpointFile);
 			// merge each mergeeCheckpointFile into mergerGroupCheckpointFile
 			long totalSize = 0;
 			for (String mergee : finalStates.keySet()) {
@@ -1338,8 +1335,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			if (totalSize != new File(mergerGroupCheckpointFile).length())
 				log.severe(this + " expecting size " + totalSize
 						+ " B for merged final states but found "
-						+			new File(mergerGroupCheckpointFile).length() +" B");
-			else 
+						+ new File(mergerGroupCheckpointFile).length() + " B");
+			else
 				// clean up mergee file states
 				for (String mergee : finalStates.keySet())
 					new File(this.getCheckpointFileNoTimestamp(mergee))
@@ -1355,8 +1352,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return null;
 	}
 
-	// FIXME: unused. Makes a checkpoint URL out of a local filename.
-	protected String getCheckpointURL(String localFilename) {
+	/**
+	 * TODO: unused because we migrated to {@link LargeCheckpointer}.
+	 * 
+	 * @param localFilename
+	 * @return
+	 */
+	@SuppressWarnings("unused")
+	private String getCheckpointURL(String localFilename) {
 		String url = null;
 		try {
 			JSONObject jsonUrl = new JSONObject();
@@ -1465,7 +1468,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			this.file = f;
 		}
 
-		// FIXME: should use the logical timestamp in filename
 		@Override
 		public int compareTo(SQLReconfiguratorDB.Filename o) {
 			long t1 = getLTS(file);
@@ -1555,9 +1557,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * demandProfile persistently as otherwise we will run out of memory.
 	 */
 	private boolean createTables() {
-		boolean createdRCRecordTable = false, createdPendingTable = false, createdDemandTable = false, createdNodeConfigTable = false,
-		// for storing reverse mapping from actives to names
-		createdARTable = false;
+		boolean createdRCRecordTable = false, createdPendingTable = false, createdDemandTable = false, createdNodeConfigTable = false;
 		// simply store everything in stringified form and pull all when needed
 		String cmdRCR = "create table "
 				+ getRCRecordTable()
@@ -1607,14 +1607,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ Columns.RC_NODE_ID.toString() + ", "
 				+ Columns.NODE_CONFIG_VERSION + "))";
 
-		// FIXME: not needed
-		String cmdAR = "create table " + getARTable() + " ("
-				+ Columns.SERVICE_NAME.toString() + " varchar(" + MAX_NAME_SIZE
-				+ ") not null, " + Columns.AR_NODE_ID.toString() + " varchar("
-				+ MAX_NAME_SIZE + "), primary key("
-				+ Columns.AR_NODE_ID.toString() + ", "
-				+ Columns.SERVICE_NAME.toString() + "))";
-
 		Statement stmt = null;
 		Connection conn = null;
 		try {
@@ -1626,7 +1618,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			createdDemandTable = createTable(stmt, cmdDP, getDemandTable());
 			createdNodeConfigTable = createTable(stmt, cmdNC,
 					getNodeConfigTable());
-			createdARTable = createTable(stmt, cmdAR, getARTable());
 			log.log(Level.INFO, "{0}{1}{2}{3}", new Object[] {
 					"Created tables ", getRCRecordTable(), " and ",
 					getPendingTable() });
@@ -1635,8 +1626,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					+ (createdRCRecordTable ? "" : getRCRecordTable()) + " "
 					+ (createdPendingTable ? "" : getPendingTable())
 					+ (createdDemandTable ? "" : getDemandTable()) + " "
-					+ (createdNodeConfigTable ? "" : getNodeConfigTable())
-					+ (createdARTable ? "" : getARTable()) + " ");
+					+ (createdNodeConfigTable ? "" : getNodeConfigTable()));
 			sqle.printStackTrace();
 		} finally {
 			cleanup(stmt);
@@ -1814,10 +1804,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return NODE_CONFIG_TABLE + this.myID;
 	}
 
-	private String getARTable() {
-		return AR_TABLE + this.myID;
-	}
-
 	private void cleanup(FileWriter writer) {
 		try {
 			if (writer != null)
@@ -1978,33 +1964,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	public String toString() {
 		return "DerbyRCDB" + myID;
-	}
-
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		Util.assertAssertionsEnabled();
-		ReconfigurableSampleNodeConfig nc = new ReconfigurableSampleNodeConfig();
-		nc.localSetup(3);
-		ConsistentReconfigurableNodeConfig<Integer> consistentNodeConfig = new ConsistentReconfigurableNodeConfig<Integer>(
-				nc);
-		SQLReconfiguratorDB<Integer> rcDB = new SQLReconfiguratorDB<Integer>(
-				consistentNodeConfig.getReconfigurators().iterator().next(),
-				consistentNodeConfig);
-		String name = "name0";
-
-		int numTests = 100;
-		for (int i = 0; i < numTests; i++) {
-			testRCRecordReadAfterWrite(name, rcDB);
-		}
-		for (int i = 0; i < numTests; i++) {
-			testDemandProfileUpdate(name, rcDB);
-		}
-
-		if (USE_DISK_MAP)
-			rcDB.rcRecords.commit();
-		rcDB.printRCTable();
 	}
 
 	@Override
@@ -2600,17 +2559,16 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		Connection conn = null;
 		try {
 			if (conn == null) {
-				this.cursorPsmt = this
-						.getPreparedStatement(
-								this.cursorConn = this.getDefaultConn(),
-								this.getRCRecordTable(),
-								null,
-								Columns.STRINGIFIED_RECORD.toString(),
-								" where "
-										+ Columns.SERVICE_NAME.toString()
-										+ " != '"
-										+ AbstractReconfiguratorDB.RecordNames.AR_NODES
-												.toString() + "'");
+				this.cursorPsmt = this.getPreparedStatement(
+						this.cursorConn = this.getDefaultConn(),
+						this.getRCRecordTable(),
+						null,
+						Columns.STRINGIFIED_RECORD.toString(),
+						" where "
+								+ Columns.SERVICE_NAME.toString()
+								+ " != '"
+								+ AbstractReconfiguratorDB.RecordNames.AR_NODES
+										.toString() + "'");
 			}
 			cursorRS = this.cursorPsmt.executeQuery();
 			assert (cursorRS != null && cursorRS.next());
@@ -2662,4 +2620,34 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.cleanup(cursorPsmt);
 		return true;
 	}
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		Util.assertAssertionsEnabled();
+		ReconfigurableSampleNodeConfig nc = new ReconfigurableSampleNodeConfig();
+		nc.localSetup(3);
+		ConsistentReconfigurableNodeConfig<Integer> consistentNodeConfig = new ConsistentReconfigurableNodeConfig<Integer>(
+				nc);
+		SQLReconfiguratorDB<Integer> rcDB = new SQLReconfiguratorDB<Integer>(
+				consistentNodeConfig.getReconfigurators().iterator().next(),
+				consistentNodeConfig);
+		String name = "name0";
+
+		int numTests = 100;
+		for (int i = 0; i < numTests; i++) {
+			testRCRecordReadAfterWrite(name, rcDB);
+		}
+		for (int i = 0; i < numTests; i++) {
+			testDemandProfileUpdate(name, rcDB);
+		}
+		System.out.println("[success]");
+
+		if (USE_DISK_MAP)
+			rcDB.rcRecords.commit();
+		rcDB.printRCTable();
+		rcDB.close();
+	}
+
 }
