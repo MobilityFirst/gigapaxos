@@ -29,7 +29,8 @@ import edu.umass.cs.nio.GenericMessagingTask;
  * @param <NodeIDType>
  * @param <MessageType>
  */
-public interface Messenger<NodeIDType, MessageType> extends InterfaceNIOTransport<NodeIDType, MessageType>, AddressMessenger<MessageType> {
+public interface Messenger<NodeIDType, MessageType> extends InterfaceNIOTransport<NodeIDType, MessageType>
+{
 	  /**
 	 * @param mtask
 	 * @throws IOException

@@ -29,7 +29,9 @@ public interface AddressMessenger<MessageType> {
 	/**
 	 * @param isa
 	 * @param msg
-	 * @return The number of characters (not bytes) written.
+	 * @return Number of characters written. The number of characters is calculated 
+	 * by converting MessageType to a String. If MessageType is a byte[], then 
+	 * ISO-8859-1 encoding is used.
 	 * @throws IOException
 	 */
 	public int sendToAddress(InetSocketAddress isa, MessageType msg)

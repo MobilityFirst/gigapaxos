@@ -29,7 +29,8 @@ import edu.umass.cs.nio.SSLDataProcessingWorker;
  * @param <NodeIDType>
  * @param <MessageType>
  */
-public interface InterfaceNIOTransport<NodeIDType,MessageType> {
+public interface InterfaceNIOTransport<NodeIDType,MessageType> extends AddressMessenger<MessageType>
+{
 	/**
 	 * @param id The destination node ID.
 	 * @param msg The message to be sent.
