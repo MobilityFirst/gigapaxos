@@ -18,6 +18,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
+import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
@@ -281,6 +282,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			prev = this.callbacks.put(request.getRequestID(),
 					callback = new RequestAndCallback(request, callback));
 			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
+			log.log(Level.FINE,
+					"{0} sent request {1} to server {2}; [{3}]",
+					new Object[] {
+							this,
+							ReconfigurationConfig.getSummary(request,
+									log.isLoggable(Level.FINE)), server,
+							!sendFailed ? "success" : "failure" });
 		} finally {
 			if (sendFailed && prev == null) {
 				this.callbacks.remove(request.getRequestID(), callback);
@@ -387,6 +395,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		public void handleResponse(Request response) {
 			this.callback.handleResponse(response);
 		}
+		public String toString() {
+			return this.request instanceof SummarizableRequest ? ((SummarizableRequest) this.request)
+					.getSummary() : this.request.getServiceName()+":"+this.request.getRequestID();
+		}
 	}
 
 	/**
@@ -475,6 +487,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		if (actives != null)
 			this.activeReplicas.put(response.getServiceName(), actives);
 		if (this.requestsPendingActives.containsKey(response.getServiceName())) {
+			log.log(Level.FINE,
+					"{0} trying to release requests pending actives for {1} : {2}",
+					new Object[] {
+							this,
+							response.getSummary(),
+							Util.truncatedLog(this.requestsPendingActives
+									.get(response.getServiceName()), 8) });
 			for (Iterator<RequestAndCallback> reqIter = this.requestsPendingActives
 					.get(response.getServiceName()).iterator(); reqIter
 					.hasNext();) {
@@ -503,7 +522,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				}
 				reqIter.remove();
 			}
-		}
+		} else 
+			log.log(Level.INFO,
+					"{0} found no requests pending actives for {1}",
+					new Object[] { this, response.getSummary() });
 	}
 
 	/**

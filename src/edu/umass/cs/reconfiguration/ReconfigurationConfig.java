@@ -30,6 +30,7 @@ import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.nio.NIOTransport;
@@ -64,13 +65,17 @@ public class ReconfigurationConfig {
 		PaxosConfig.load();
 		PaxosConfig.load(ReconfigurationConfig.RC.class);
 	}
+
 	static {
 		load();
 	}
+
 	/**
 	 * 
 	 */
-	public static void noop() {}
+	public static void noop() {
+	}
+
 	/**
 	 * The default demand profile type is DemandProfile.class. This will
 	 * reconfigure once per request, so you probably want to use something else.
@@ -80,9 +85,9 @@ public class ReconfigurationConfig {
 	private static Class<?> getClassSuppressExceptions(String className) {
 		Class<?> clazz = null;
 		try {
-                   if (className != null && !"null".equals(className)) {
-			clazz = Class.forName(className);
-                   }
+			if (className != null && !"null".equals(className)) {
+				clazz = Class.forName(className);
+			}
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 		}
@@ -114,27 +119,26 @@ public class ReconfigurationConfig {
 		 * File where host:port for actives and reconfigurators is stored.
 		 */
 		HOSTS_FILE(PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE),
-		
-		/**
-		 * Directory where reconfiguration DB is maintained when an
-		 * embedded DB is used.
-		 */
-		RECONFIGURATION_DB_DIR ("reconfiguration_DB"),
 
 		/**
-		 * Prefix of the reconfiguration DB's name. The whole
-		 * name is obtained as this prefix concatenated with 
-		 * the node ID. 
+		 * Directory where reconfiguration DB is maintained when an embedded DB
+		 * is used.
 		 */
-		RECONFIGURATION_DB_PREFIX ("reconfiguration_DB"),
+		RECONFIGURATION_DB_DIR("reconfiguration_DB"),
+
+		/**
+		 * Prefix of the reconfiguration DB's name. The whole name is obtained
+		 * as this prefix concatenated with the node ID.
+		 */
+		RECONFIGURATION_DB_PREFIX("reconfiguration_DB"),
 
 		/**
 		 * {@link edu.umass.cs.gigapaxos.paxosutil.SQL.SQLType} type. Currently,
-		 * the only other alternative is "MYSQL". Note that this enum has the 
+		 * the only other alternative is "MYSQL". Note that this enum has the
 		 * same name as {@link edu.umass.cs.gigapaxos.PaxosConfig.PC#SQL_TYPE},
 		 * so the two are currently forced to use the same DB type.
 		 */
-		SQL_TYPE ("EMBEDDED_DERBY"),
+		SQL_TYPE("EMBEDDED_DERBY"),
 
 		/**
 		 * Whether reconfigurations should be performed even though
@@ -188,24 +192,24 @@ public class ReconfigurationConfig {
 		 * reconfiguration protocol.
 		 */
 		COMMIT_WORKER_RESTART_PERIOD(2000),
-		
+
 		/**
 		 * Default restart period for the stop epoch task. All other restart
 		 * periods are multiples of this time.
 		 */
-		STOP_TASK_RESTART_PERIOD (2000),
-		
+		STOP_TASK_RESTART_PERIOD(2000),
+
 		/**
 		 * Maximum string length of a demand profile message.
 		 */
-		MAX_DEMAND_PROFILE_SIZE ( 4096),
-		
+		MAX_DEMAND_PROFILE_SIZE(4096),
+
 		/**
-		 * Whether most recent demand report should be combined with
-		 * historic demand stats.
+		 * Whether most recent demand report should be combined with historic
+		 * demand stats.
 		 */
-		COMBINE_DEMAND_STATS (false), 
-		
+		COMBINE_DEMAND_STATS(false),
+
 		/**
 		 * If true, reconfiguration consists of committing an intent and then a
 		 * complete both via paxos. If false, reconfiguration for non-RC-group
@@ -215,40 +219,40 @@ public class ReconfigurationConfig {
 		 * complete message for a name gets lost, some replicas may not be able
 		 * to initiate further reconfigurations for the name. Using paxos does
 		 * not guarantee liveness either, but its in-built mechanisms allowing
-		 * laggard replicas to catch up combined with the CommitWorker
-		 * mechanism to try to commit the complete until successful ensures that
-		 * (1) the complete does indeed get eventually committed, and (2) all
-		 * replicas apply *all* state changes in the same order. The latter 
-		 * property may not hold if TWO_PAXOS_RC is false but is not necessary
-		 * for safety anyway.
+		 * laggard replicas to catch up combined with the CommitWorker mechanism
+		 * to try to commit the complete until successful ensures that (1) the
+		 * complete does indeed get eventually committed, and (2) all replicas
+		 * apply *all* state changes in the same order. The latter property may
+		 * not hold if TWO_PAXOS_RC is false but is not necessary for safety
+		 * anyway.
 		 * 
-		 * We don't allow RC group name or NODE_CONFIG changes to proceed with
-		 * a single paxos round because reconfigurations can get stuck if
-		 * a complete arrives a replica before the creation of the new paxos
-		 * group. The inefficiency of two paxos rounds hardly matters given
-		 * the high inherent overhead of RC group reconfigurations.
+		 * We don't allow RC group name or NODE_CONFIG changes to proceed with a
+		 * single paxos round because reconfigurations can get stuck if a
+		 * complete arrives a replica before the creation of the new paxos
+		 * group. The inefficiency of two paxos rounds hardly matters given the
+		 * high inherent overhead of RC group reconfigurations.
 		 */
 		TWO_PAXOS_RC(true),
-		
+
 		/**
 		 * 
 		 */
-		USE_DISK_MAP_RCDB (true),
-		
+		USE_DISK_MAP_RCDB(true),
+
 		/**
 		 * 
 		 */
-		DEFAULT_NUM_REPLICAS (3),
-		
+		DEFAULT_NUM_REPLICAS(3),
+
 		/**
 		 * 
 		 */
-		REPLICATE_ALL (true), 
+		REPLICATE_ALL(true),
 		/**
 		 * 
 		 */
 		MAX_BATCH_SIZE(10000),
-				
+
 		;
 
 		final Object defaultValue;
@@ -266,11 +270,11 @@ public class ReconfigurationConfig {
 	private static boolean reconfigureInPlace = Config
 			.getGlobalBoolean(RC.RECONFIGURE_IN_PLACE);
 
-	private static SSLDataProcessingWorker.SSL_MODES clientSSLMode = SSLDataProcessingWorker.SSL_MODES.valueOf(Config
-			.getGlobal(RC.CLIENT_SSL_MODE).toString());
+	private static SSLDataProcessingWorker.SSL_MODES clientSSLMode = SSLDataProcessingWorker.SSL_MODES
+			.valueOf(Config.getGlobal(RC.CLIENT_SSL_MODE).toString());
 
-	private static SSLDataProcessingWorker.SSL_MODES serverSSLMode = SSLDataProcessingWorker.SSL_MODES.valueOf(Config
-			.getGlobal(RC.SERVER_SSL_MODE).toString());
+	private static SSLDataProcessingWorker.SSL_MODES serverSSLMode = SSLDataProcessingWorker.SSL_MODES
+			.valueOf(Config.getGlobal(RC.SERVER_SSL_MODE).toString());
 
 	private static int clientPortOffset = Config
 			.getGlobalInt(RC.CLIENT_PORT_OFFSET);
@@ -489,7 +493,8 @@ public class ReconfigurationConfig {
 					Reconfigurator
 							.getLogger()
 							.severe("App "
-									+ ReconfigurationConfig.application.getSimpleName()
+									+ ReconfigurationConfig.application
+											.getSimpleName()
 									+ " must support a constructor with a single String[] argument"
 									+ " or the default constructor (with no arguments).");
 					System.exit(1);
@@ -506,24 +511,26 @@ public class ReconfigurationConfig {
 	 *         create of up to batchSize names and corresponds to the same RC
 	 *         group.
 	 */
-	public static CreateServiceName[] makeCreateNameRequest(Map<String,String> nameStates, int batchSize) {
-		return makeCreateNameRequest(nameStates, batchSize, 		
-						ReconfigurationConfig.getReconfiguratorIDs());
+	public static CreateServiceName[] makeCreateNameRequest(
+			Map<String, String> nameStates, int batchSize) {
+		return makeCreateNameRequest(nameStates, batchSize,
+				ReconfigurationConfig.getReconfiguratorIDs());
 	}
 
 	/**
 	 * @param nameStates
 	 * @param batchSize
-	 * @param reconfigurators 
+	 * @param reconfigurators
 	 * @return Array of CreateServiceName objects each of which is a batch
 	 *         create of up to batchSize names and corresponds to the same RC
 	 *         group.
 	 */
-	public static CreateServiceName[] makeCreateNameRequest(Map<String,String> nameStates, int batchSize, Set<String> reconfigurators) {
+	public static CreateServiceName[] makeCreateNameRequest(
+			Map<String, String> nameStates, int batchSize,
+			Set<String> reconfigurators) {
 		// each set in batches below corresponds to a different RC group
 		Collection<Set<String>> batches = ConsistentReconfigurableNodeConfig
-				.splitIntoRCGroups(nameStates.keySet(),
-						reconfigurators);
+				.splitIntoRCGroups(nameStates.keySet(), reconfigurators);
 
 		Set<CreateServiceName> creates = new HashSet<CreateServiceName>();
 		// each nameStatesCur batch is limited to batchSize
@@ -544,27 +551,26 @@ public class ReconfigurationConfig {
 		return creates.toArray(new CreateServiceName[0]);
 	}
 
-	
 	/**
 	 * 
 	 */
 	public static void setConsoleHandler() {
-		 ConsoleHandler handler = new ConsoleHandler();
-		 handler.setLevel(Level.INFO);
-		 Reconfigurator.getLogger().setLevel(Level.INFO);
-		 Reconfigurator.getLogger().addHandler(handler);
-		 Reconfigurator.getLogger().setUseParentHandlers(false);
+		ConsoleHandler handler = new ConsoleHandler();
+		handler.setLevel(Level.INFO);
+		Reconfigurator.getLogger().setLevel(Level.INFO);
+		Reconfigurator.getLogger().addHandler(handler);
+		Reconfigurator.getLogger().setUseParentHandlers(false);
 
-		 PaxosManager.getLogger().setLevel(Level.INFO);
-		 PaxosManager.getLogger().addHandler(handler);
-		 PaxosManager.getLogger().setUseParentHandlers(false);		 
-		 
-		 NIOTransport.getLogger().setLevel(Level.WARNING);
-		 NIOTransport.getLogger().addHandler(handler);
-		 NIOTransport.getLogger().setUseParentHandlers(false);		 
+		PaxosManager.getLogger().setLevel(Level.INFO);
+		PaxosManager.getLogger().addHandler(handler);
+		PaxosManager.getLogger().setUseParentHandlers(false);
+
+		NIOTransport.getLogger().setLevel(Level.WARNING);
+		NIOTransport.getLogger().addHandler(handler);
+		NIOTransport.getLogger().setUseParentHandlers(false);
 
 	}
-	
+
 	private static CreateServiceName[] testMakeCreateNameRequest(String name,
 			String state, int numRequests, int batchSize) {
 		Util.assertAssertionsEnabled();
@@ -583,12 +589,35 @@ public class ReconfigurationConfig {
 								: name0)));
 		return creates;
 	}
-	
+
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
 		testMakeCreateNameRequest("name", "some_state", 1000, 100);
+	}
+
+	/**
+	 * @param request
+	 * @param stringify
+	 * @return Stringifiable object if stringify
+	 */
+	public static Object getSummary(ClientRequest request, boolean stringify) {
+		if (stringify)
+			return getSummary(request);
+		return null;
+	}
+
+	/**
+	 * @param request
+	 * @return Stringifiable object.
+	 */
+	public static Object getSummary(ClientRequest request) {
+		return new Object() {
+			public String toString() {
+				return request.getServiceName() + ":" + request.getRequestID();
+			}
+		};
 	}
 
 	/**
@@ -598,10 +627,12 @@ public class ReconfigurationConfig {
 	 */
 	public static InetSocketAddress[] offsetSocketAddresses(
 			Set<InetSocketAddress> reconfigurators, int globalInt) {
-		InetSocketAddress[] offsetted = new InetSocketAddress[reconfigurators.size()];
-		int i=0;
-		for(InetSocketAddress isa : reconfigurators) {
-			offsetted[i++] = new InetSocketAddress(isa.getAddress(), isa.getPort() + globalInt);
+		InetSocketAddress[] offsetted = new InetSocketAddress[reconfigurators
+				.size()];
+		int i = 0;
+		for (InetSocketAddress isa : reconfigurators) {
+			offsetted[i++] = new InetSocketAddress(isa.getAddress(),
+					isa.getPort() + globalInt);
 		}
 		return offsetted;
 	}

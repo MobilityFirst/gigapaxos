@@ -97,7 +97,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 
 	public void stop() {
 		for (AbstractPacketDemultiplexer<?> pd : this.packetDemuxes)
-			pd.stop();
+			if(pd!=null) pd.stop();
 		this.executor.shutdownNow();
 	}
 
