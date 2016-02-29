@@ -171,7 +171,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		@Override
 		public boolean handleMessage(String strMsg) {
-
+                        Reconfigurator.getLogger().fine("Handling " +  strMsg);
 			Request response = null;
 			// first try parsing as app request
 			if ((response = this.parseAsAppRequest(strMsg)) == null)
