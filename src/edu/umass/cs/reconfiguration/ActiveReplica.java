@@ -224,7 +224,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
+                          
 				Request request = this.getRequest(jsonObject);
+                                Reconfigurator.getLogger().fine("App received: " +  request.toString());
 				// enqueue demand stats sending callback
 				if (request instanceof ReplicableRequest)
 					enqueue(new SenderAndRequest((ReplicableRequest) request,
