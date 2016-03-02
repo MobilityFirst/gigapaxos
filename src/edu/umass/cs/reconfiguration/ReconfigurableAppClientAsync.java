@@ -272,7 +272,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, InetSocketAddress server,
+          public Long sendRequest(ClientRequest request, InetSocketAddress server,
 			RequestCallback callback) throws IOException {
 		boolean sendFailed = false;
 		assert (request.getServiceName() != null);
@@ -280,6 +280,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		try {
 			prev = this.callbacks.put(request.getRequestID(),
 					callback = new RequestAndCallback(request, callback));
+                        Reconfigurator.getLogger().fine("Request: " +  request.toString());
 			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
 			log.log(Level.FINE,
 					"{0} sent request {1}:{2} to server {3}; [{4}]",
