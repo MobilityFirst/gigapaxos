@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
@@ -25,9 +23,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -76,6 +76,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 			nodes.add(unstringer.valueOf(strNode));
 		this.paxosManager.createPaxosInstance(name, nodes, null);
 	}
+
 	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
 			Stringifiable<NodeIDType> unstringer) {
 		this.paxosManager.createPaxosInstance(name, nodes, null);
@@ -88,8 +89,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	 * @param niot
 	 */
 	public PaxosReplicaCoordinator(Replicable app, NodeIDType myID,
-			Stringifiable<NodeIDType> unstringer,
-			Messenger<NodeIDType, ?> niot) {
+			Stringifiable<NodeIDType> unstringer, Messenger<NodeIDType, ?> niot) {
 		this(app, myID, unstringer, niot, null, true);
 	}
 
@@ -117,17 +117,18 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	@Override
 	public boolean coordinateRequest(Request request, ExecutedCallback callback)
 			throws IOException, RequestParseException {
-		return this.coordinateRequest(request.getServiceName(), request, callback);
+		return this.coordinateRequest(request.getServiceName(), request,
+				callback);
 	}
 
-	private String propose(String paxosID, Request request, ExecutedCallback callback) {
+	private String propose(String paxosID, Request request,
+			ExecutedCallback callback) {
 		String proposee = null;
 		if (request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop())
-			proposee = this.paxosManager
-					.proposeStop(paxosID,
-							((ReconfigurableRequest) request)
-									.getEpochNumber(), request, callback);
+			proposee = this.paxosManager.proposeStop(paxosID,
+					((ReconfigurableRequest) request).getEpochNumber(),
+					request, callback);
 		else
 			proposee = this.paxosManager.propose(paxosID, request, callback);
 		return proposee;
@@ -137,36 +138,28 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	/**
 	 * @param paxosGroupID
 	 * @param request
-	 * @param callback 
+	 * @param callback
 	 * @return True if successfully proposed to some epoch of paxosGroupID.
 	 * @throws RequestParseException
 	 */
-	public boolean coordinateRequest(String paxosGroupID,
-			Request request, ExecutedCallback callback) throws RequestParseException {
+	public boolean coordinateRequest(String paxosGroupID, Request request,
+			ExecutedCallback callback) throws RequestParseException {
 		String proposee = this.propose(paxosGroupID, request, callback);
-		log.log(Level.FINE,
-				"{0} {1} request {2}:{3} [{4}] {5} to {6} {7}",
-				new Object[] {
-						this,
-						(proposee != null ? "paxos-coordinated"
-								: "failed to paxos-coordinate"),
-						request.getServiceName(),
-						(request instanceof ReconfigurableRequest ? ((ReconfigurableRequest) request)
-								.getEpochNumber() : "[]"),
-						(request instanceof BasicReconfigurationPacket<?>) ? ((BasicReconfigurationPacket<?>) request)
-								.getSummary() : request.getRequestType(),
-						(request instanceof ReconfigurableRequest
-								&& ((ReconfigurableRequest) request)
-										.isStop() ? "[STOPPING]" : ""),
-						proposee, this.getReplicaGroup(paxosGroupID) });
+		Level level = Level.FINE;
+		log.log(level, "{0} {1} request {2} to {3}:{4}", new Object[] {
+				this,
+				(proposee != null ? "paxos-coordinated"
+						: "failed to paxos-coordinate"),
+				log.isLoggable(level) ? request.getSummary() : null,
+				proposee,
+				log.isLoggable(level) ? this.getReplicaGroup(paxosGroupID)
+						: null });
 		return proposee != null;
 	}
 
-	/*
-	 * This method always returns true as it will always succeed in either
+	/* This method always returns true as it will always succeed in either
 	 * creating the group with the requested epoch number or higher. In either
-	 * case, the caller should consider the operation a success.
-	 */
+	 * case, the caller should consider the operation a success. */
 	@Override
 	public boolean createReplicaGroup(String groupName, int epoch,
 			String state, Set<NodeIDType> nodes) {
@@ -183,7 +176,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 					+ " with state [" + state + "]"));
 		return createdOrExistsOrHigher;
 	}
-	
+
 	@Override
 	public boolean createReplicaGroup(Map<String, String> nameStates,
 			Set<NodeIDType> nodes) {
@@ -191,14 +184,12 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	}
 
 	public String toString() {
-		return this.getClass().getSimpleName() + getMyID();
+		return this.getClass().getSimpleName() + ":" + getMyID();
 	}
 
 	@Override
 	public Set<NodeIDType> getReplicaGroup(String serviceName) {
-		/*
-		 * if (this.paxosManager.isStopped(serviceName)) return null;
-		 */
+		/* if (this.paxosManager.isStopped(serviceName)) return null; */
 		return this.paxosManager.getReplicaGroup(serviceName);
 	}
 
@@ -242,19 +233,17 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		String state = stateContainer != null ? stateContainer.state : null;
 		log.log(Level.FINE,
 				"{0} received request for epoch final state {1}:{2}; returning [{3}];)",
-				new Object[] { this, name, epoch, state});
+				new Object[] { this, name, epoch, state });
 		return stateContainer;
 	}
 
-	/*
-	 * It is a bad idea to use this method with paxos replica coordination. It
+	/* It is a bad idea to use this method with paxos replica coordination. It
 	 * is never a good idea to set paxos-maintained state through anything but
 	 * paxos agreement, otherwise we may be violating safety. In the case of
 	 * initial state, we (must) have agreement already on the value of the
 	 * initial state, but we still need to have paxos initialize this state
 	 * atomically with the creation of the paxos instance before any
-	 * paxos-coordinated requests are executed.
-	 */
+	 * paxos-coordinated requests are executed. */
 	@Override
 	public void putInitialState(String name, int epoch, String state) {
 		throw new RuntimeException("This method should never have been called");
@@ -262,8 +251,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 
 	@Override
 	public boolean deleteFinalState(String name, int epoch) {
-		/*
-		 * Will also delete one previous version. Sometimes, a node can miss a
+		/* Will also delete one previous version. Sometimes, a node can miss a
 		 * drop epoch that arrived even before it created that epoch, in which
 		 * case, it would end up trying hard and succeeding at creating the
 		 * epoch that just got dropped by using the previous epoch final state
@@ -272,8 +260,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		 * 
 		 * Note: Usually deleting lower epochs in addition to the specified
 		 * epoch is harmless. There is at most one lower epoch final state at a
-		 * node anyway.
-		 */
+		 * node anyway. */
 		return this.paxosManager.deleteFinalState(name, epoch);
 	}
 
@@ -305,7 +292,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	public boolean existsOrHigher(String name, int epoch) {
 		return this.paxosManager.equalOrHigherVersionExists(name, epoch);
 	}
-	
+
 	public void stop() {
 		super.stop();
 		this.paxosManager.close();

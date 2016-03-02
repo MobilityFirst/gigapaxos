@@ -31,6 +31,7 @@ import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.json.ProtocolPacket;
 import edu.umass.cs.reconfiguration.Reconfigurator;
+import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.IntegerPacketTypeMap;
 
 /**
@@ -254,6 +255,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends ProtocolPacket<N
 		ReconfigurationPacket.PacketType rcType = null;
 		String packetClassesPackagePrefix = "edu.umass.cs.reconfiguration.reconfigurationpackets.";
 		try {
+			long t = System.nanoTime();
 			rcType = ReconfigurationPacket.PacketType.intToType.get(JSONPacket
 					.getPacketType(json));
 			if (rcType != null && getPacketTypeClassName(rcType) != null) {
@@ -263,6 +265,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends ProtocolPacket<N
 						.getConstructor(JSONObject.class, Stringifiable.class)
 						.newInstance(json, unstringer));
 			}
+			DelayProfiler.updateDelayNano("rc_reflection", t);
 		} catch (NoSuchMethodException nsme) {
 			nsme.printStackTrace();
 		} catch (InvocationTargetException ite) {

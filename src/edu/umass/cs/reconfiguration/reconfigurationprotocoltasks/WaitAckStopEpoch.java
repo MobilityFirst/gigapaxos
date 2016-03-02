@@ -81,6 +81,8 @@ public class WaitAckStopEpoch<NodeIDType>
 
 	protected static final Logger log = Reconfigurator.getLogger();
 
+	private static final int WARN_NUM_RESTARTS = 5;
+
 	/**
 	 * @param startEpoch
 	 * @param DB
@@ -124,7 +126,7 @@ public class WaitAckStopEpoch<NodeIDType>
 			return null;
 		}
 		// else
-		if (++restartCount % 2 == 0)
+		if (++restartCount > WARN_NUM_RESTARTS)
 			log.log(Level.WARNING, MyLogger.FORMAT[2],
 					new Object[] { this.refreshKey(), " resending ",
 							this.stopEpoch.getSummary() });
@@ -261,7 +263,7 @@ public class WaitAckStopEpoch<NodeIDType>
 		if (this.DB.isRCGroupName(this.startEpoch.getServiceName())) {
 			DelayProfiler.updateDelay("stopRCEpoch", this.initTime);
 		} else
-			DelayProfiler.updateDelay("stopServiceEpoch", this.initTime);
+			DelayProfiler.updateDelay(Reconfigurator.ProfilerKeys.stop_epoch.toString(), this.initTime);
 
 		log.log(Level.INFO, "{0} received ACK_{1} {2}", new Object[] { this,
 				this.stopEpoch.getSummary(),

@@ -284,15 +284,7 @@ public class Util {
 		if (tokens.length < 2) {
 			return null;
 		}
-                String ipString = tokens[0];
-                try {
-                  if (ipString.equals("publicIP")) {
-                    ipString = InetAddress.getLocalHost().getHostAddress();
-                  } 
-                } catch (UnknownHostException e) {
-                  return null;
-                }
-		return new InetSocketAddress(ipString, Integer.valueOf(tokens[1]));
+		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
 	}
 
 	public static InetAddress getInetAddressFromString(String s)

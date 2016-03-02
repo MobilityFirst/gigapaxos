@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationprotocoltasks;
 
 import java.util.Arrays;
@@ -49,10 +47,8 @@ public class WaitEpochFinalState<NodeIDType>
 		extends
 		ThresholdProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 
-	/*
-	 * This restart period can be small because if the state is large, we should
-	 * be sending summary handles instead anyway.
-	 */
+	/* This restart period can be small because if the state is large, we should
+	 * be sending summary handles instead anyway. */
 	private static final long RESTART_PERIOD = WaitAckStopEpoch.RESTART_PERIOD;
 
 	private final StartEpoch<NodeIDType> startEpoch;
@@ -62,10 +58,13 @@ public class WaitEpochFinalState<NodeIDType>
 
 	private Iterator<NodeIDType> prevGroupIterator;
 	private boolean first = true;
+	private int numRestarts = 0;
 
 	private final String key;
 
 	private static final Logger log = (Reconfigurator.getLogger());
+
+	private static final int WARN_NUM_RESTARTS = 4;
 
 	/**
 	 * @param myID
@@ -99,7 +98,7 @@ public class WaitEpochFinalState<NodeIDType>
 			this.prevGroupIterator = this.startEpoch.getPrevEpochGroup()
 					.iterator();
 		GenericMessagingTask<NodeIDType, ?>[] mtasks = start();
-		if (mtasks != null)
+		if (mtasks != null && ++numRestarts > WARN_NUM_RESTARTS)
 			log.log(Level.WARNING, MyLogger.FORMAT[2], new Object[] { getKey(),
 					" resending request to ", mtasks[0].recipients[0] });
 		return mtasks;
@@ -146,8 +145,7 @@ public class WaitEpochFinalState<NodeIDType>
 
 	private void sleepOptimization() {
 		try {
-			/*
-			 * FIXME: An optimization to wait a tiny bit to increase the
+			/* FIXME: An optimization to wait a tiny bit to increase the
 			 * likelihood that the previous epoch final state is readily
 			 * available at most any previous epoch replica so that we avoid a
 			 * restart timeout. For service names, this is not an issue because
@@ -156,8 +154,7 @@ public class WaitEpochFinalState<NodeIDType>
 			 * operations, the timeout may still be triggered as there is no
 			 * stop phase in a split operation. Ideally, we would sleep just
 			 * until the splittee group has been stopped, but we don't have an
-			 * easy way of determining that here.
-			 */
+			 * easy way of determining that here. */
 			if (this.startEpoch.getFirstPrevEpochCandidate() == null
 					|| this.startEpoch.isSplitOrMerge())
 				Thread.sleep(200);
@@ -199,18 +196,16 @@ public class WaitEpochFinalState<NodeIDType>
 		if (type == null)
 			return false;
 		boolean handled = false;
-		/*
-		 * handleEvent returns true only if replica group creation succeeds.
-		 * Note that replica group creation can fail because either
-		 */
+		/* handleEvent returns true only if replica group creation succeeds.
+		 * Note that replica group creation can fail because either */
 		switch (type) {
 		case EPOCH_FINAL_STATE:
 			@SuppressWarnings("unchecked")
 			EpochFinalState<NodeIDType> state = (EpochFinalState<NodeIDType>) event;
 			if (!checkEpochFinalState(event))
 				break;
-			log.log(Level.INFO, "{0} received {1}", new Object[] {
-					this, state.getSummary(), state.getState() });
+			log.log(Level.INFO, "{0} received {1}",
+					new Object[] { this, state.getSummary(), state.getState() });
 			handled = this.appCoordinator.createReplicaGroup(
 					this.startEpoch.getServiceName(),
 					this.startEpoch.getEpochNumber(), state.getState(),
@@ -260,15 +255,13 @@ public class WaitEpochFinalState<NodeIDType>
 			AckStartEpoch<NodeIDType> ackStartEpoch = new AckStartEpoch<NodeIDType>(
 					node, startEpoch.getServiceName(),
 					startEpoch.getEpochNumber(), this.appCoordinator.getMyID());
-			/*
-			 * Need to explicitly set key as ackStart is going to different
+			/* Need to explicitly set key as ackStart is going to different
 			 * task. This is really an abuse of protocoltask as protocoltask is
 			 * designed to relieve the developer of worrying about matching
 			 * packets to tasks. But we are aggregating different StartEpoch
 			 * requests into a single WaitEpochFinalState task, so we have to
 			 * key the responses going back to their (different) initiators
-			 * manually.
-			 */
+			 * manually. */
 			ackStartEpoch.setKey(this.notifiees.get(node));
 			mtasks.add(new GenericMessagingTask<NodeIDType, AckStartEpoch<NodeIDType>>(
 					node, ackStartEpoch));

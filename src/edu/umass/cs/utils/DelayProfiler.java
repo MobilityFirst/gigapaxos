@@ -1,6 +1,7 @@
 package edu.umass.cs.utils;
 
 import java.util.HashMap;
+import java.util.Set;
 
 /**
  * @author V. Arun
@@ -261,27 +262,36 @@ public class DelayProfiler {
 	 * @return Statistics as a string.
 	 */
 	public static String getStats() {
+		return getStats(null);
+	}
+
+	/**
+	 * @param fields 
+	 * @return Statistics as a string for fields in {@code fields}.
+	 */
+	public static String getStats(Set<String> fields) {
 		String s = "[ ";
-		s += statsHelper(averageMillis, "ms");
-		s += statsHelper(averageNanos, "ns");
-		s += statsHelper(averages, "");
-		s += statsHelper(counters, "");
-		s += statsHelper(instarates, "/s");
+		s += statsHelper(averageMillis, "ms", fields);
+		s += statsHelper(averageNanos, "ns", fields);
+		s += statsHelper(averages, "", fields);
+		s += statsHelper(counters, "", fields);
+		s += statsHelper(instarates, "/s", fields);
 
 		return (s + "]").replace(" | ]", " ]");
 	}
 
-	private static String statsHelper(HashMap<String, Double> map, String units) {
+	private static String statsHelper(HashMap<String, Double> map, String units, Set<String> fields) {
 		String s = "";
 		synchronized (map) {
 			for (String field : map.keySet()) {
+				if(fields!=null && !fields.contains(field)) continue;
 				boolean rateParam = lastArrivalNanos.containsKey(field);
 				s += (field
 						+ ":"
 						+ (!rateParam ? Util.df(map.get(field)) : Util
 								.df(getThroughput(field)))
 						+ "/"
-						+ (stdDevs.get(field) > 0 ? "+" : "")
+						+ (stdDevs.get(field) >= 0 ? "+" : "")
 						+ (!rateParam ? Util.df(stdDevs.get(field)) : Util
 								.df(1000 * 1000 * 1000.0 / stdDevs.get(field)))
 						+ (!rateParam ? units : "/s") + " | ");

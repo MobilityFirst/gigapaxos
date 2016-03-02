@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.testing;
 
 import java.io.BufferedReader;
@@ -147,18 +145,18 @@ public class TESTReconfigurationConfig {
 		/**
 		 * 
 		 */
-		TEST_RTX_TIMEOUT(2000),
-		
-		/**
-		 * 
-		 */
-		TEST_APP_REQUEST_TIMEOUT (2000),
+		TEST_RTX_TIMEOUT(TESTReconfigurationClient.DEFAULT_RTX_TIMEOUT),
 
 		/**
 		 * 
 		 */
-		TEST_EXISTS_TIMEOUT (1000),
-		
+		TEST_APP_REQUEST_TIMEOUT(TESTReconfigurationClient.DEFAULT_APP_REQUEST_TIMEOUT),
+
+		/**
+		 * 
+		 */
+		TEST_EXISTS_TIMEOUT(1000),
+
 		/**
 		 * 
 		 */

@@ -54,6 +54,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	static {
 		PaxosConfig.load();
 	}
+	
 	private static final boolean DEBUG = Config.getGlobalBoolean(PC.DEBUG);
 	public static final String NO_OP = Request.NO_OP;
 
@@ -1068,4 +1069,10 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public boolean isBroadcasted() {
 		return this.broadcasted==true;
 	}
+
+	@Override
+	public Object getSummary() {
+		return super.getSummary();
+	}
+
 }

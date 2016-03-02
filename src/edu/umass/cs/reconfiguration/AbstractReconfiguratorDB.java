@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.lang.reflect.InvocationTargetException;
@@ -175,11 +173,9 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return null;
 	}
 
-	/*
-	 * We want NC complete RCRecordRequest to be non-blocking during recovery.
+	/* We want NC complete RCRecordRequest to be non-blocking during recovery.
 	 * Otherwise, we may not even get started with finishPendingReconfigurations
-	 * that in turn may be required for unblocking the NC complete.
-	 */
+	 * that in turn may be required for unblocking the NC complete. */
 	private boolean uglyRecoveryHack(
 			final BasicReconfigurationPacket<NodeIDType> rcPacket,
 			boolean recovering) {
@@ -289,14 +285,15 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 			// garbage collect soft socket address mappings for deleted RC nodes
 			this.consistentNodeConfig.removeReconfiguratorsSlatedForRemoval();
 
-			log.log(Level.INFO,
-					"{0} NODE_CONFIG change complete; new reconfigurators = {1}",
-					new Object[] { this,
-							this.consistentNodeConfig.getReconfigurators() });
-			System.out.println(this + " NODE_CONFIG change "
+			String print = AbstractReconfiguratorDB.RecordNames.RC_NODES
+					.toString()
+					+ ":"
 					+ rcRecReq.getEpochNumber()
-					+ " complete; new reconfigurators = "
-					+ this.consistentNodeConfig.getReconfigurators());
+					+ "="
+					+ this.consistentNodeConfig.getReconfigurators() + "  ";
+			log.log(Level.INFO, "{0} {1}", new Object[] { this, print });
+			if (rcRecReq.getInitiator().equals(getMyID()))
+				System.out.print(print);
 		}
 
 		boolean handled = false;
@@ -429,10 +426,8 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		}
 	}
 
-	/*
-	 * Checks that oldGroup is current group and newGroup differs from old by
-	 * exactly one node.
-	 */
+	/* Checks that oldGroup is current group and newGroup differs from old by
+	 * exactly one node. */
 	private boolean isLegitimateNodeConfigChange(
 			RCRecordRequest<NodeIDType> rcRecReq,
 			ReconfigurationRecord<NodeIDType> record) {
@@ -455,11 +450,9 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return "RCDB" + myID;
 	}
 
-	/*
-	 * doNotReplyToClient for this "app" is a no-op as it never replies to some
+	/* doNotReplyToClient for this "app" is a no-op as it never replies to some
 	 * "client". All messaging is done by a single reconfigurator node. The DB
-	 * only reflects state changes.
-	 */
+	 * only reflects state changes. */
 	@Override
 	public boolean execute(Request request) {
 		return this.execute(request, false);
@@ -510,16 +503,14 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return null;
 	}
 
-	/*
-	 * Some methods below that throw a runtime exception saying that they should
+	/* Some methods below that throw a runtime exception saying that they should
 	 * have never been called are so because, with the current design, these
 	 * methods are subsumed by Reconfigurator and never directly called. The
 	 * current call chain is PacketDemultiplexer -> Reconfigurator ->
 	 * RepliconfigurableReconfigurator.handleIncoming(.) ->
 	 * this.handleRequest(.). The getRequest and getRequestTypes methods are
 	 * only used for demultiplexing and the set of packet types of this class
-	 * are a subset of those of Reconfigurator.
-	 */
+	 * are a subset of those of Reconfigurator. */
 
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
@@ -570,10 +561,8 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 	protected static final boolean TWO_PAXOS_RC = Config
 			.getGlobalBoolean(RC.TWO_PAXOS_RC);
 
-	/*
-	 * A transition using an RCRecordRequest is legitimate iff if takes a record
-	 * in the same epoch from READY
-	 */
+	/* A transition using an RCRecordRequest is legitimate iff if takes a record
+	 * in the same epoch from READY */
 	private boolean isLegitTransition(RCRecordRequest<NodeIDType> rcRecReq,
 			ReconfigurationRecord<NodeIDType> record) {
 		assert (record != null) : rcRecReq;
@@ -581,16 +570,14 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		// always ignore lower epochs
 		if (rcRecReq.getEpochNumber() - record.getEpoch() < 0)
 			return false;
-		/*
-		 * We need to consider both ==1 and >1 for epoch numbers as this
+		/* We need to consider both ==1 and >1 for epoch numbers as this
 		 * particular node may have missed a few epochs. The received RC record
 		 * must either initiate a reconfiguration or announce its completion
 		 * even when this replica is waiting on an ackStop for the preceding
 		 * epoch (something that is rare during gracious execution but can
 		 * happen if a secondary replica takes over and completes the
 		 * reconfiguration while the primary is still waiting for the previous
-		 * epoch to stop).
-		 */
+		 * epoch to stop). */
 		if (rcRecReq.getEpochNumber() - record.getEpoch() >= 1) {
 			// initiating reconfiguration to next epoch
 			return
@@ -599,41 +586,33 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 					.isReconfigurationIntent())
 			// waitAckStop and reconfiguration/delete complete or delete intent
 					|| ((record.getState().equals(RCStates.WAIT_ACK_STOP)
-					/*
-					 * It is possible that the reconfiguration intent or the
+					/* It is possible that the reconfiguration intent or the
 					 * uncoordinated createReconfigurationRecord step does not
 					 * happen at a node but it gets the paxos-coordinated
 					 * complete for the higher epoch, so we must allow a
 					 * transition from n-1:READY (as opposed to
 					 * n-1:WAIT_ACK_STOP) to n:READY. This can only happen when
-					 * isAggregatedMergeSplit.
-					 */
+					 * isAggregatedMergeSplit. */
 					|| (Reconfigurator.isAggregatedMergeSplit() && record
 							.getState().equals(RCStates.READY))) && (rcRecReq
 							.isReconfigurationComplete()
-					/*
-					 * Batch creation initializes records to -1:WAIT_ACK_STOP in
+					/* Batch creation initializes records to -1:WAIT_ACK_STOP in
 					 * order to avoid two update steps, so we need the intent to
-					 * be considered legitimate still.
-					 */
+					 * be considered legitimate still. */
 					|| rcRecReq.startEpoch.isBatchedCreate()))
 					// higher epoch possible only if legitimate
 					|| !TWO_PAXOS_RC;
-			/*
-			 * If a reconfiguration intent is allowed only from READY, we have a
+			/* If a reconfiguration intent is allowed only from READY, we have a
 			 * problem during recovery when reconfiguration completion is not
 			 * automatically rolled forward. So reconfiguration initiations will
 			 * fail because the current state won't be READY. Every
 			 * reconfiguration from after the most recent checkpoint will have
 			 * to be explicitly replayed again. One option is to allow
-			 * illegitimate transitions during recovery.
-			 */
+			 * illegitimate transitions during recovery. */
 		}
-		/*
-		 * In the same epoch, the only state change possible is by receiving an
+		/* In the same epoch, the only state change possible is by receiving an
 		 * RC record announcing reconfiguration completion while waiting for a
-		 * majority ackStarts.
-		 */
+		 * majority ackStarts. */
 		if (rcRecReq.getEpochNumber() - record.getEpoch() == 0) {
 			return
 			// waiting on ackStart and reconfiguration complete
@@ -649,9 +628,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return false;
 	}
 
-	/*
-	 * Checks if all new RC groups are ready.
-	 */
+	/* Checks if all new RC groups are ready. */
 	private boolean areRCChangesComplete() {
 		return this.areRCChangesCompleteDebug().isEmpty();
 	}
@@ -769,13 +746,11 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return diff;
 	}
 
-	/*
-	 * This method currently reconstructs a new consistent hashing structure
+	/* This method currently reconstructs a new consistent hashing structure
 	 * afresh each time it is called, which may be inefficient. But it is
 	 * unclear where we can store it in a manner that is safe, so we just
 	 * reconstruct it from the DB on demand. It is used only while reconfiguring
-	 * reconfigurators, which is rare.
-	 */
+	 * reconfigurators, which is rare. */
 	protected Map<String, Set<NodeIDType>> getRCGroups(NodeIDType rc,
 			Set<NodeIDType> allRCs, boolean print) {
 		assert (rc != null && allRCs != null);
@@ -873,13 +848,11 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return false;
 	}
 
-	/*
-	 * Insert next nodeConfig version into DB. We have the necessary nodeID info
+	/* Insert next nodeConfig version into DB. We have the necessary nodeID info
 	 * from the NODE_CONFIG reconfiguration record, but we do need
 	 * consistentNodeConfig for the corresponding InetSocketAddresses.
 	 * 
-	 * FIXME: This should probably be done atomically, not one record at a time.
-	 */
+	 * FIXME: This should probably be done atomically, not one record at a time. */
 	protected boolean updateDBNodeConfig(int version) {
 		ReconfigurationRecord<NodeIDType> ncRecord = this
 				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
@@ -939,11 +912,9 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return affectedNodes;
 	}
 
-	/*
-	 * Determines if rcNode's group needs to be reconfigured because of the
+	/* Determines if rcNode's group needs to be reconfigured because of the
 	 * addition or deletion of addOrDelNode. We need this to correctly track the
-	 * epoch numbers of all RC groups.
-	 */
+	 * epoch numbers of all RC groups. */
 	protected boolean isAffected(NodeIDType rcNode, NodeIDType addOrDelNode) {
 		if (addOrDelNode == null)
 			return false;

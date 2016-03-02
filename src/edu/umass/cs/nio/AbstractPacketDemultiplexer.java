@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import java.util.Arrays;
@@ -96,7 +94,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	@Deprecated
 	abstract protected MessageType getMessage(String message);
 
-	abstract protected MessageType processHeader(String message, NIOHeader header);
+	abstract protected MessageType processHeader(String message,
+			NIOHeader header);
 
 	private static final String DEFAULT_THREAD_NAME = AbstractPacketDemultiplexer.class
 			.getSimpleName();
@@ -139,13 +138,14 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		MessageType message = null;
 		try {
 			message = processHeader(msg, header);
-		} catch(Exception e) {e.printStackTrace(); return false;}
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
 		Integer type = getPacketType(message);
 		if (type == null || !this.demuxMap.containsKey(type)) {
-			/*
-			 * It is natural for some demultiplexers to not handle some packet
-			 * types, so it is not a "bad" thing that requires a warning log.
-			 */
+			/* It is natural for some demultiplexers to not handle some packet
+			 * types, so it is not a "bad" thing that requires a warning log. */
 			log.log(Level.FINE, "Ignoring unknown packet type: {0}", type);
 			return false;
 		}
@@ -155,6 +155,9 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			tasker.run();
 		else
 			try {
+				log.log(Level.FINEST,
+						"{0} invoking {1}.handleMessage on message {2}",
+						new Object[] { this, tasker.pd, message });
 				// task should still be non-blocking
 				executor.schedule(tasker, 0, TimeUnit.MILLISECONDS);
 			} catch (RejectedExecutionException ree) {
@@ -162,24 +165,26 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 					ree.printStackTrace();
 				return false;
 			}
-		/*
-		 * Note: executor.submit() consistently yields poorer performance than
+		/* Note: executor.submit() consistently yields poorer performance than
 		 * scheduling at 0 as above even though they are equivalent. Probably
-		 * garbage collection or heap optimization issues.
-		 */
+		 * garbage collection or heap optimization issues. */
 		return true;
 	}
+
 	protected boolean loopback(Object obj) {
-		if(!this.matchesType(obj)) return false;
-		@SuppressWarnings("unchecked") // checked above
-		MessageType message = (MessageType)obj;
+		if (!this.matchesType(obj))
+			return false;
+		@SuppressWarnings("unchecked")
+		// checked above
+		MessageType message = (MessageType) obj;
 		Integer type = getPacketType(message);
-		if (type == null || !this.demuxMap.containsKey(type)) 
+		if (type == null || !this.demuxMap.containsKey(type))
 			this.demuxMap.get(type).handleMessage(message);
 		return true;
 	}
+
 	abstract protected boolean matchesType(Object message);
-	
+
 	/**
 	 * @param msg
 	 * @return True if message order is preserved.
@@ -207,11 +212,13 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			PacketDemultiplexer<MessageType> pd) {
 		if (pd == null)
 			return;
-		if(this.demuxMap.containsKey(type)) throw new RuntimeException("re-regitering type " +type);
-		log.finest("Registering type " + type.getInt() + " with " + pd);
+		if (this.demuxMap.containsKey(type))
+			throw new RuntimeException("re-registering type " + type);
+		log.log(Level.INFO, "{0} registering type {1}:{2} {3}", new Object[] {
+				this, type, type.getInt(), (this != pd ? "with " + pd : "") });
 		this.demuxMap.put(type.getInt(), pd);
 	}
-	
+
 	/**
 	 * @return True if congested
 	 */
@@ -275,7 +282,6 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		this.orderPreservingTypes.add(type.getInt());
 	}
 
-
 	/**
 	 * Any created instance of AbstractPacketDemultiplexer or its inheritors
 	 * must be cleanly closed by invoking this stop method.
@@ -300,7 +306,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				pd.handleMessage(this.json);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
-					ree.printStackTrace(); 
+					ree.printStackTrace();
 			} catch (Exception e) {
 				e.printStackTrace(); // unless printed task will die silently
 			} catch (Error e) {

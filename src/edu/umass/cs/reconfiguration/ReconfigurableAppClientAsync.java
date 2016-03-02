@@ -172,7 +172,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		@Override
 		public boolean handleMessage(String strMsg) {
-                        Reconfigurator.getLogger().fine("Handling " +  strMsg);
+			Reconfigurator.getLogger().fine("Handling " + strMsg);
 			Request response = null;
 			// first try parsing as app request
 			if ((response = this.parseAsAppRequest(strMsg)) == null)
@@ -198,18 +198,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					ReconfigurableAppClientAsync.this.activeReplicas
 							.remove(((RequestAndCallback) callback).request
 									.getServiceName());
-					/*
-					 * auto-retransmitting can cause an infinite loop, so we
-					 * just throw the ball back to the app.
-					 */
+					/* auto-retransmitting can cause an infinite loop, so we
+					 * just throw the ball back to the app. */
 					callback.handleResponse(response);
 				} else if (response instanceof ClientReconfigurationPacket) {
 
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
-							.remove(getKey((ClientReconfigurationPacket) response))) != null) {						
+							.remove(getKey((ClientReconfigurationPacket) response))) != null) {
 						callback.handleResponse(response);
-					} 
-					// if RequestActiveReplicas, send pending requests or unpend them
+					}
+					// if RequestActiveReplicas, send pending requests or unpend
+					// them
 					if (response instanceof RequestActiveReplicas)
 						try {
 							ReconfigurableAppClientAsync.this
@@ -283,9 +282,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					callback = new RequestAndCallback(request, callback));
 			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
 			log.log(Level.FINE,
-					"{0} sent request {1} to server {2}; [{3}]",
+					"{0} sent request {1}:{2} to server {3}; [{4}]",
 					new Object[] {
 							this,
+							request.getRequestType(),
 							ReconfigurationConfig.getSummary(request,
 									log.isLoggable(Level.FINE)), server,
 							!sendFailed ? "success" : "failure" });
@@ -395,9 +395,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		public void handleResponse(Request response) {
 			this.callback.handleResponse(response);
 		}
+
 		public String toString() {
 			return this.request instanceof SummarizableRequest ? ((SummarizableRequest) this.request)
-					.getSummary() : this.request.getServiceName()+":"+this.request.getRequestID();
+					.getSummary() : this.request.getServiceName() + ":"
+					+ this.request.getRequestID();
 		}
 	}
 
@@ -465,15 +467,16 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		Long lastQueriedTime = this.lastQueriedActives.get(name);
 		if (lastQueriedTime == null)
 			lastQueriedTime = 0L;
-		Reconfigurator.getLogger().fine(
-				this + " last quiried time for " + name + " is "
-						+ lastQueriedTime);
+		Reconfigurator.getLogger().log(Level.FINE,
+				"{0} last queried time for {1} is {2}",
+				new Object[] { this, name, lastQueriedTime });
 		if (System.currentTimeMillis() - lastQueriedTime > MIN_RTX_INTERVAL
 				|| forceRefresh) {
 			if (forceRefresh)
 				this.activeReplicas.remove(name);
-			Reconfigurator.getLogger().fine(
-					this + " sending actives request for " + name);
+			Reconfigurator.getLogger().log(Level.FINE,
+					"{0} sending actives request for ",
+					new Object[] { this, name });
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
 		}
@@ -522,7 +525,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				}
 				reqIter.remove();
 			}
-		} else 
+		} else
 			log.log(Level.INFO,
 					"{0} found no requests pending actives for {1}",
 					new Object[] { this, response.getSummary() });

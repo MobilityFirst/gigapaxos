@@ -25,6 +25,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 
 /**
  * @author V. Arun
@@ -117,11 +118,10 @@ public abstract class AbstractDemandProfile {
 	 * @return The list of new IP addresses for the new placement. Returning
 	 *         null means no reconfiguration will happen. Returning a list that
 	 *         is the same as curActives means that a trivial reconfiguration
-	 *         will happen unless
-	 *         {@link ReconfigurationConfig#setReconfigureInPlace(boolean)} is
-	 *         set to false. If the returned list is different from
-	 *         {@code curActives}, a new list must be created within this
-	 *         method; the supplied {@code curActives} must not be modified.
+	 *         will happen unless {@link RC#RECONFIGURE_IN_PLACE} is set to
+	 *         false. If the returned list is different from {@code curActives},
+	 *         a new list must be created within this method; the supplied
+	 *         {@code curActives} must not be modified.
 	 */
 	public abstract ArrayList<InetAddress> shouldReconfigure(
 			ArrayList<InetAddress> curActives, InterfaceGetActiveIPs nodeConfig);

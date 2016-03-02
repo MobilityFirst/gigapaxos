@@ -230,6 +230,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 					enqueue(new SenderAndRequest((ReplicableRequest) request,
 							MessageNIOTransport.getSenderAddress(jsonObject)));
 
+				log.log(Level.FINE,
+						"{0} received app request {1}:{2}",
+						new Object[] {
+								this, request.getRequestType(),
+								request.getServiceName()
+										+ (request instanceof ClientRequest ? ":"
+												+ ((ClientRequest) request)
+														.getRequestID()
+												: "") });
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
 				if (handled) {

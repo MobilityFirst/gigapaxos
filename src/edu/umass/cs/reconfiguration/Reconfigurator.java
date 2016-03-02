@@ -131,6 +131,24 @@ public class Reconfigurator<NodeIDType> implements
 	public static final Logger getLogger() {
 		return log;
 	}
+	
+	/**
+	 * For profiling statistics in {@link DelayProfiler}.
+	 */
+	public static enum ProfilerKeys {
+		/**
+		 * 
+		 */
+		stop_epoch,
+		/**
+		 * 
+		 */
+		create,
+		/**
+		 * 
+		 */
+		delete,
+	};
 
 	/*
 	 * Any id-based communication requires NodeConfig and Messenger. In general,
@@ -194,7 +212,7 @@ public class Reconfigurator<NodeIDType> implements
 		try {
 			ReconfigurationPacket.PacketType rcType = ReconfigurationPacket
 					.getReconfigurationPacketType(jsonObject);
-			log.log(Level.FINE, "{0} received {1} {2} {3}", new Object[] {
+			log.log(Level.FINE, "{0} received {1} {2}", new Object[] {
 					this, rcType, jsonObject });
 			/*
 			 * This assertion is true only if TLS with mutual authentication is
@@ -1813,7 +1831,7 @@ public class Reconfigurator<NodeIDType> implements
 			return;
 		}
 
-		DelayProfiler.updateDelay("createServiceName",
+		DelayProfiler.updateDelay(ProfilerKeys.create.toString(),
 				rcRecReq.startEpoch.getInitTime());
 		try {
 			InetSocketAddress querier = this.getQuerier(rcRecReq);

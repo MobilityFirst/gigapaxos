@@ -72,10 +72,6 @@ public class DefaultNodeConfig<NodeIDType> implements
 				.getPort()
 				: this.reconfigurators.containsKey(id) ? this.reconfigurators
 						.get(id).getPort() : -1;
-		if (port == -1) {
-			Reconfigurator.getLogger()
-					.warning("No port found for nodeID " + id);
-		}
 		return port;
 	}
 

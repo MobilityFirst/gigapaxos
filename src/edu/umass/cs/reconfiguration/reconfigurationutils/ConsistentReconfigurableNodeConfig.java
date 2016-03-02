@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.net.InetAddress;
@@ -31,6 +29,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
@@ -62,15 +61,13 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	// need to refresh when nodeConfig changes
 	private final ConsistentHashing<NodeIDType> CH_AR;
 
-	/*
-	 * We need to track reconfigurators slated for removal separately because we
+	/* We need to track reconfigurators slated for removal separately because we
 	 * still need ID to socket address mappings for deleted nodes (e.g., in
 	 * order to do networking for completing deletion operations) but not
 	 * include deleted nodes in the consistent hash ring. Thus, the ring
 	 * transitions immediately to the new ring when reconfigurators are added or
 	 * slated for removal, but socket addresses for removal-slated nodes are
-	 * maintained until explicitly told to garbage collect them.
-	 */
+	 * maintained until explicitly told to garbage collect them. */
 	private Set<NodeIDType> reconfiguratorsSlatedForRemoval = new HashSet<NodeIDType>();
 	private Set<NodeIDType> activesSlatedForRemoval = new HashSet<NodeIDType>();
 
@@ -84,10 +81,8 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		this.activeReplicas = this.nodeConfig.getActiveReplicas();
 		this.reconfigurators = this.nodeConfig.getReconfigurators();
 		this.CH_RC = new ConsistentHashing<NodeIDType>(this.reconfigurators);
-		/*
-		 * The true flag means replicate_all, i.e., number of active replicas
-		 * chosen initially will be the set of all active replicas at that time.
-		 */
+		/* The true flag means replicate_all, i.e., number of active replicas
+		 * chosen initially will be the set of all active replicas at that time. */
 		this.CH_AR = new ConsistentHashing<NodeIDType>(this.activeReplicas,
 				Config.getGlobalBoolean(RC.REPLICATE_ALL));
 	}
@@ -314,8 +309,11 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	 */
 	public InetSocketAddress getNodeSocketAddress(NodeIDType id) {
 		InetAddress ip = this.nodeConfig.getNodeAddress(id);
-		return (ip != null ? new InetSocketAddress(ip,
-				this.nodeConfig.getNodePort(id)) : null);
+		int port = this.nodeConfig.getNodePort(id);
+		if (port == -1 && !this.isSlatedForRemoval(id))
+			Reconfigurator.getLogger()
+					.warning("No port found for nodeID " + id);
+		return (ip != null ? new InetSocketAddress(ip, port) : null);
 	}
 
 	/**
@@ -328,8 +326,16 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	 */
 	public InetSocketAddress getBindSocketAddress(NodeIDType id) {
 		InetAddress ip = this.nodeConfig.getBindAddress(id);
-		return (ip != null ? new InetSocketAddress(ip,
-				this.nodeConfig.getNodePort(id)) : null);
+		int port = this.nodeConfig.getNodePort(id);
+		if (port == -1 && !this.isSlatedForRemoval(id))
+			Reconfigurator.getLogger()
+					.warning("No port found for nodeID " + id);
+		return (ip != null ? new InetSocketAddress(ip, port) : null);
+	}
+
+	private boolean isSlatedForRemoval(NodeIDType id) {
+		return this.activesSlatedForRemoval.contains(id)
+				|| this.reconfiguratorsSlatedForRemoval.contains(id);
 	}
 
 	@Override

@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.interfaces;
 
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
@@ -45,4 +43,20 @@ public interface Request {
 	 * @return Returns this request serialized as a String.
 	 */
 	public String toString(); // must be explicitly overridden
+
+	/**
+	 * @return Summary
+	 */
+	default Object getSummary() {
+		return new Object() {
+			public String toString() {
+				return Request.this.getRequestType()
+						+ ":"
+						+ Request.this.getServiceName()
+						+ (Request.this instanceof RequestIdentifier ? ":"
+								+ ((RequestIdentifier) Request.this)
+										.getRequestID() : "");
+			}
+		};
+	}
 }

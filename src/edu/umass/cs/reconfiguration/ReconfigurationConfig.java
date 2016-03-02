@@ -146,7 +146,7 @@ public class ReconfigurationConfig {
 		 * identical to the current one. Useful for testing, but should be false
 		 * in production.
 		 */
-		RECONFIGURE_IN_PLACE(true),
+		RECONFIGURE_IN_PLACE(false),
 		/**
 		 * Default TLS authentication mode for client-server communication.
 		 * Here, "client" means an end-client, not the (more general) initiator
@@ -335,13 +335,6 @@ public class ReconfigurationConfig {
 	}
 
 	/**
-	 * @param b
-	 */
-	public static void setReconfigureInPlace(boolean b) {
-		reconfigureInPlace = b;
-	}
-
-	/**
 	 * @return True means in-place reconfigurations will still be conducted.
 	 */
 	public static boolean shouldReconfigureInPlace() {
@@ -351,6 +344,7 @@ public class ReconfigurationConfig {
 	/**
 	 * @param sslMode
 	 */
+	@Deprecated
 	public static void setClientSSLMode(
 			SSLDataProcessingWorker.SSL_MODES sslMode) {
 		clientSSLMode = sslMode;
@@ -366,6 +360,7 @@ public class ReconfigurationConfig {
 	/**
 	 * @param sslMode
 	 */
+	@Deprecated
 	public static void setServerSSLMode(
 			SSLDataProcessingWorker.SSL_MODES sslMode) {
 		serverSSLMode = sslMode;
@@ -389,6 +384,7 @@ public class ReconfigurationConfig {
 	/**
 	 * @param offset
 	 */
+	@Deprecated
 	public static void setClientPortOffset(int offset) {
 		clientPortOffset = offset;
 	}
@@ -411,24 +407,10 @@ public class ReconfigurationConfig {
 	}
 
 	/**
-	 * @param enable
-	 */
-	public static void setAggressiveDeletions(boolean enable) {
-		aggressiveDeletions = enable;
-	}
-
-	/**
 	 * @return True is aggressive reconfigurations are allowed.
 	 */
 	public static boolean aggressiveReconfigurationsAllowed() {
 		return aggressiveReconfigurations;
-	}
-
-	/**
-	 * @param enable
-	 */
-	public static void setAggressiveReconfigurations(boolean enable) {
-		aggressiveReconfigurations = enable;
 	}
 
 	private static String DEFAULT_RECONFIGURATOR_PREFIX = "reconfigurator.";
