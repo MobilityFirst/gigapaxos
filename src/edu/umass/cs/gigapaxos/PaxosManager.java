@@ -216,7 +216,7 @@ public class PaxosManager<NodeIDType> {
 		InetSocketAddress clientAddress = clientRequest.getClientAddress();
 		if (clientAddress != null && response != null) {
 			try {
-				this.send(clientAddress, response);
+				this.send(clientAddress, response, requestPacket.getListenAddress());
 			} catch (JSONException | IOException e) {
 				e.printStackTrace();
 			}
@@ -1713,9 +1713,9 @@ public class PaxosManager<NodeIDType> {
 		this.messenger.send(MessagingTask.getNonLoopback(mtask, myID));
 	}
 
-	protected void send(InetSocketAddress sockAddr, Request request)
-			throws JSONException, IOException {
-		this.messenger.sendClient(sockAddr, request);
+	protected void send(InetSocketAddress sockAddr, Request request,
+			InetSocketAddress listenSockAddr) throws JSONException, IOException {
+		this.messenger.sendClient(sockAddr, request, listenSockAddr);
 	}
 
 	/*

@@ -221,6 +221,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	private boolean stopped = false;
 
 	private final Thread me;
+	private final long meThreadId;
 	
 	/**
 	 * A flag to easily enable or disable SSL by default. CLEAR is not really a
@@ -253,18 +254,21 @@ public class NIOTransport<NodeIDType> implements Runnable,
 
 		(me = (new Thread(this))).setName(getClass().getSimpleName() + (myID != null ? myID : "[]"));
 		me.start();
+		this.meThreadId = me.getId();
 
 		if (!useSenderTask()) return;
-		(this.senderTask = new SenderTask()).setName(getClass().getSimpleName()
-				+ SenderTask.class.getSimpleName() + myID);
+		(this.senderTask = new SenderTask()).setName(
+				SenderTask.class.getSimpleName() + (myID!=null?myID:""));
 		this.senderTask.start();
 	}
 
 	/**
 	 * @param name
+	 * @return  {@code this}
 	 */
-	public void setName(String name) {
+	public NIOTransport<NodeIDType> setName(String name) {
 		this.me.setName(name);
+		return this;
 	}
 
 	/**
@@ -524,7 +528,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	 */
 	public synchronized void stop() {
 		this.stopped = true;
-		this.senderTask.close();
+		if(this.senderTask!=null) this.senderTask.close();
 		this.selector.wakeup();
 	}
 
@@ -773,6 +777,9 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		// if complete payload read, pass to worker
 		if (abbuf.bodyBuf != null && !abbuf.bodyBuf.hasRemaining()) {
 			bbuf.flip();
+			log.log(Level.FINEST, "{0}[thread{1}] read from socketChannel {2}",
+					new Object[] { this, Thread.currentThread().getId(),
+							socketChannel});
 			this.worker.processData(socketChannel, this.inflate(bbuf));
 			// clear header to prepare to read the next message
 			if (!bbuf.hasRemaining()) {
@@ -907,7 +914,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		}
 	}
 	
-	private static boolean useSenderTask = true;
+	private static boolean useSenderTask = false;
 	private static final boolean useSenderTask() {
 		return useSenderTask;
 	}
@@ -1069,10 +1076,23 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		}
 	}
 
-	// invokes wrap before nio write if SSL enabled
 	private int wrapWrite(SocketChannel socketChannel, ByteBuffer unencrypted)
 			throws IOException {
+		return this.wrapWrite(socketChannel, unencrypted, false);
+	}
+	// invokes wrap before nio write if SSL enabled
+	private int wrapWrite(SocketChannel socketChannel, ByteBuffer unencrypted, boolean sneakyDebug)
+			throws IOException {
 		assert (this.isHandshakeComplete(socketChannel));
+		long threadId = Thread.currentThread().getId();
+		log.log(Level.FINEST,
+				"{0}[thread{1}{2}]{3} writing out to socketChannel {4}",
+				new Object[] {
+						this,
+						threadId,
+						threadId != this.meThreadId && !sneakyDebug ? Thread.currentThread()
+								.getName() : "",
+						(sneakyDebug ? " sneakily" : ""), socketChannel });
 		if (this.isSSL())
 			return ((SSLDataProcessingWorker) this.worker).wrap(socketChannel,
 					unencrypted);
@@ -1187,7 +1207,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		if (channel != null && channel.isConnected()
 				&& this.isHandshakeComplete(channel)) {
 			try {
-				this.wrapWrite(channel, data);
+				this.wrapWrite(channel, data, true);
 				return true;
 			} catch (IOException e) {
 				if (!this.isDisconnected(isa)) {
@@ -1385,7 +1405,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 						| (isSSL() ? 0 : SelectionKey.OP_WRITE));
 			} catch (ClosedChannelException e) {
 				log.warning("Node"
-						+ myID
+						+ myID 
 						+ " failed to set interest ops immediately after accept()");
 				// do nothing
 			} catch (IOException e) {
@@ -1678,9 +1698,9 @@ public class NIOTransport<NodeIDType> implements Runnable,
 					.getInetAddress(), socketChannel.socket()
 					.getPort());
 			// cancel the channel's registration with selector
-			log.log(Level.INFO, "Node {0} failed to (re-)connect to {1}:{2}",
+			log.log(Level.INFO, "{0} failed to (re-)connect to {1}:{2}",
 					new Object[] {
-							this.myID,
+							this,
 							isa, e.getMessage() });
 			cleanup(key, socketChannel);
 			// clearPending will also drop outstanding data here
@@ -1712,7 +1732,9 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	}
 
 	public String toString() {
-		return this.getClass().getSimpleName() + (this.myID!=null ? this.myID : "[]");
+		return this.getClass().getSimpleName() +":"
+				+ (this.myID != null ? this.myID : "[]")
+				;
 	}
 
 	/*
@@ -1723,6 +1745,9 @@ public class NIOTransport<NodeIDType> implements Runnable,
 	@Override
 	public void handshakeComplete(SelectionKey key) {
 		try {
+			log.log(Level.FINE,
+					"{0} SSL handshake complete on {1}", new Object[] { this,
+							(SocketChannel) key.channel() });
 			this.wakeupSelector((InetSocketAddress) ((SocketChannel) key
 					.channel()).getRemoteAddress());
 		} catch (IOException e) {

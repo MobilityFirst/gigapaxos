@@ -114,9 +114,11 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 
 	/**
 	 * @param replicas
+	 * @return {@code this} with active replicas set to {@code replicas}.
 	 */
-	public void setActives(Set<InetSocketAddress> replicas) {
+	public ClientReconfigurationPacket setActives(Set<InetSocketAddress> replicas) {
 		this.actives = replicas;
+		return this;
 	}
 
 	/**

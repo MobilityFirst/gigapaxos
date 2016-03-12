@@ -199,7 +199,30 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	public ArrayList<InetAddress> getReplicatedActivesIPs(String name) {
 		return this.getNodeIPs(this.getReplicatedActives(name));
 	}
-
+	
+	/**
+	 * @param name
+	 * @param limit
+	 * @return Active replica addresses. 
+	 */
+	private Set<InetSocketAddress> getReplicatedActivesAddresses(String name,
+			int limit) {
+		Set<NodeIDType> actives = this.getReplicatedActives(name);
+		Set<InetSocketAddress> addresses = new HashSet<InetSocketAddress>();
+		int count = 0;
+		for (NodeIDType node : actives) {
+			addresses.add(this.getNodeSocketAddress(node));
+			if (++count == limit)
+				break;
+		}
+		return addresses;
+	}
+	/**
+	 * @return Random active replica address.
+	 */
+	public Set<InetSocketAddress> getRandomActiveReplica() {
+		return this.getReplicatedActivesAddresses(""+Math.random(), 1);
+	}
 	/**
 	 * This method maps a set of addresses, newAddresses, to a set of nodes such
 	 * that there is maximal overlap with the specified set of nodes, oldNodes.

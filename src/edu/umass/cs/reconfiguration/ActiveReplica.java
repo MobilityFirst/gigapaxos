@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
@@ -42,6 +40,7 @@ import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageNIOTransport;
+import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.AddressMessenger;
 import edu.umass.cs.nio.interfaces.Messenger;
@@ -126,11 +125,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private static final Logger log = (Reconfigurator.getLogger());
 
-	/*
-	 * Stores only those requests for which a callback is desired after
+	/* Stores only those requests for which a callback is desired after
 	 * (coordinated) execution. StopEpoch is the only example of such a request
-	 * in ActiveReplica.
-	 */
+	 * in ActiveReplica. */
 	private final CallbackMap<NodeIDType> callbackMap = new CallbackMap<NodeIDType>();
 
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
@@ -152,7 +149,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this.appCoordinator.setMessenger(this.messenger);
 		this.noReporting = noReporting;
 		if (this.messenger.getClientMessenger() == null) // exactly once
-			this.messenger.setClientMessenger(initClientMessenger());
+			this.messenger.setClientMessenger(initClientMessenger(false));
+		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR &&
+		// exactly once
+				this.messenger.getSSLClientMessenger() == null)
+			this.messenger.setSSLClientMessenger(initClientMessenger(true));
 		assert (this.messenger.getClientMessenger() != null);
 		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
@@ -165,12 +166,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	class SenderAndRequest {
-		InetSocketAddress isa;
-		ReplicableRequest request;
+		final InetSocketAddress csa;
+		final ReplicableRequest request;
+		final InetSocketAddress mysa;
 
-		SenderAndRequest(ReplicableRequest request, InetSocketAddress isa) {
-			this.isa = isa;
+		SenderAndRequest(ReplicableRequest request, InetSocketAddress isa,
+				InetSocketAddress mysa) {
+			this.csa = isa;
 			this.request = request;
+			this.mysa = mysa;
 		}
 	}
 
@@ -187,19 +191,20 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				senderAndRequest);
 	}
 
-	private SenderAndRequest dequeue(ReplicableRequest request) {
+	private SenderAndRequest dequeue(RequestIdentifier request) {
 		SenderAndRequest senderAndRequest = null;
 		if ((senderAndRequest = this.outstanding.remove(request.getRequestID())) != null) {
 			// send demand report
 			this.updateDemandStats(senderAndRequest.request,
-					senderAndRequest.isa.getAddress());
+					senderAndRequest.csa.getAddress());
 			// send response to originating client
 			if (request instanceof ClientRequest
 					&& ((ClientRequest) request).getResponse() != null) {
 				try {
 					((JSONMessenger<?>) this.messenger).sendClient(
-							senderAndRequest.isa,
-							((ClientRequest) request).getResponse());
+							senderAndRequest.csa,
+							((ClientRequest) request).getResponse(),
+							senderAndRequest.mysa);
 				} catch (IOException | JSONException e) {
 					e.printStackTrace();
 				}
@@ -224,23 +229,24 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
-                          
 				Request request = this.getRequest(jsonObject);
-                                Reconfigurator.getLogger().fine("App received: " +  request.toString());
-				// enqueue demand stats sending callback
-				if (request instanceof ReplicableRequest)
-					enqueue(new SenderAndRequest((ReplicableRequest) request,
-							MessageNIOTransport.getSenderAddress(jsonObject)));
-
 				log.log(Level.FINE,
 						"{0} received app request {1}:{2}",
 						new Object[] {
-								this, request.getRequestType(),
+								this,
+								request.getRequestType(),
 								request.getServiceName()
 										+ (request instanceof ClientRequest ? ":"
 												+ ((ClientRequest) request)
 														.getRequestID()
 												: "") });
+
+				// enqueue demand stats sending callback
+				if (request instanceof ReplicableRequest)
+					enqueue(new SenderAndRequest((ReplicableRequest) request,
+							MessageNIOTransport.getSenderAddress(jsonObject),
+							MessageNIOTransport.getReceiverAddress(jsonObject)));
+
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
 				if (handled) {
@@ -292,8 +298,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		if (request instanceof ReplicableRequest)
 			this.dequeue(((ReplicableRequest) request));
 
-		/*
-		 * We need to handle the callback in a separate thread, otherwise we
+		/* We need to handle the callback in a separate thread, otherwise we
 		 * risk sending the ackStop before the epoch final state has been
 		 * checkpointed that in turn has to happen strictly before the app
 		 * itself has dropped the state. If we send the ackStop early for a
@@ -313,17 +318,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		 * replica other than the one that sent the ackStop to the
 		 * reconfigurator as that other active replica may still be catching up.
 		 * But the point above is that this scenario can happen even with a
-		 * single replica, which is "wrong", unless we spawn a separate thread.
-		 */
+		 * single replica, which is "wrong", unless we spawn a separate thread. */
 		if (handled)
 			// protocol executor also allows us to just submit a Runnable
 			this.protocolExecutor.submit(new AckStopNotifier(request));
 	}
 
-	/*
-	 * This class is a task to notify reconfigurators of a successfully stopped
-	 * replica group. It deletes the replica group and then sends the ackStop.
-	 */
+	/* This class is a task to notify reconfigurators of a successfully stopped
+	 * replica group. It deletes the replica group and then sends the ackStop. */
 	class AckStopNotifier implements Runnable {
 		Request request;
 
@@ -340,14 +342,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						epoch);
 				sendAckStopEpoch(stopEpoch);
 			}
-			/*
-			 * Stops are coordinated exactly once for a paxos group, so we must
+			/* Stops are coordinated exactly once for a paxos group, so we must
 			 * always find a match here.
 			 * 
-			 * Unless the app itself coordinated the stop in which case
-			 * this assert should not hold.
-			 */
-			//assert (stopEpoch != null);
+			 * Unless the app itself coordinated the stop in which case this
+			 * assert should not hold. */
+			// assert (stopEpoch != null);
 		}
 	}
 
@@ -413,7 +413,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			return mtasks;
 		}
 		// else
-		if(startEpoch.isPassive()) {
+		if (startEpoch.isPassive()) {
 			// do nothing
 			return null;
 		}
@@ -421,14 +421,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		else if (startEpoch.noPrevEpochGroup()) {
 			boolean created = false;
 			try {
-			// createReplicaGroup is a local operation (but may fail)
-			 created = startEpoch.isBatchedCreate() ? this
-					.batchedCreate(startEpoch) : this.appCoordinator
-					.createReplicaGroup(startEpoch.getServiceName(),
-							startEpoch.getEpochNumber(),
-							startEpoch.getInitialState(),
-							startEpoch.getCurEpochGroup());
-			} catch(Error e) {
+				// createReplicaGroup is a local operation (but may fail)
+				created = startEpoch.isBatchedCreate() ? this
+						.batchedCreate(startEpoch) : this.appCoordinator
+						.createReplicaGroup(startEpoch.getServiceName(),
+								startEpoch.getEpochNumber(),
+								startEpoch.getInitialState(),
+								startEpoch.getCurEpochGroup());
+			} catch (Error e) {
 				log.severe(this
 						+ " received null state in non-passive startEpoch "
 						+ startEpoch);
@@ -444,22 +444,18 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			return mtasks; // and also send positive ack
 		}
 
-		/*
-		 * Else request previous epoch state using a threshold protocoltask. We
+		/* Else request previous epoch state using a threshold protocoltask. We
 		 * spawn WaitEpochFinalState as opposed to simply returning it in
 		 * ptasks[0] as otherwise we could end up creating tasks with duplicate
-		 * keys.
-		 */
+		 * keys. */
 		this.spawnWaitEpochFinalState(startEpoch);
 		return null; // no messaging if asynchronously fetching state
 	}
 
 	private static final boolean BATCH_CREATION = true;
 
-	/*
-	 * This could be optimized further by supporting batch creation in
-	 * PaxosManager.
-	 */
+	/* This could be optimized further by supporting batch creation in
+	 * PaxosManager. */
 	private boolean batchedCreate(StartEpoch<NodeIDType> startEpoch) {
 		boolean created = true;
 		if (BATCH_CREATION)
@@ -507,7 +503,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this.logEvent(stopEpoch);
 		if (this.stoppedOrMovedOn(stopEpoch))
 			return this.sendAckStopEpoch(stopEpoch).toArray(); // still send ack
-		if(!stopEpoch.shouldExecuteStop())
+		if (!stopEpoch.shouldExecuteStop())
 			return null;
 		// else coordinate stop with callback
 		this.callbackMap.addStopNotifiee(stopEpoch);
@@ -515,9 +511,13 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				stopEpoch.getServiceName(), stopEpoch.getEpochNumber());
 		log.log(Level.INFO,
 				"{0} coordinating {1} while replica group = {2}:{3} {4}",
-				new Object[] { this, stopEpoch.getSummary(), stopEpoch.getServiceName(), 
-				this.appCoordinator.getEpoch(stopEpoch.getServiceName()),
-						this.appCoordinator.getReplicaGroup(stopEpoch.getServiceName()) });
+				new Object[] {
+						this,
+						stopEpoch.getSummary(),
+						stopEpoch.getServiceName(),
+						this.appCoordinator.getEpoch(stopEpoch.getServiceName()),
+						this.appCoordinator.getReplicaGroup(stopEpoch
+								.getServiceName()) });
 		this.appCoordinator.handleIncoming(appStop, this);
 		return null; // need to wait until callback
 	}
@@ -556,11 +556,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	// drop any pending task (only WaitEpochFinalState possible) upon dropEpoch
 	private void garbageCollectPendingTasks(
 			DropEpochFinalState<NodeIDType> dropEpoch) {
-		/*
-		 * Can drop waiting on epoch final state of the epoch just before the
+		/* Can drop waiting on epoch final state of the epoch just before the
 		 * epoch being dropped as we don't have to bother starting the dropped
-		 * epoch after all.
-		 */
+		 * epoch after all. */
 		boolean removed = (this.protocolExecutor.remove(Reconfigurator
 				.getTaskKeyPrev(WaitEpochFinalState.class, dropEpoch, this
 						.getMyID().toString())) != null);
@@ -616,13 +614,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return "AR" + this.messenger.getMyID();
 	}
 
-	/*
-	 * ************ End of protocol task handler methods *************
-	 */
+	/* ************ End of protocol task handler methods ************* */
 
-	/*
-	 * ****************** Private methods below *******************
-	 */
+	/* ****************** Private methods below ******************* */
 
 	private boolean handRequestToApp(Request request) {
 		long t1 = System.currentTimeMillis();
@@ -670,16 +664,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		if (epoch != null)
 			if (epoch - packet.getEpochNumber() > 0)
 				return true;
-			/*
-			 * If state for this epoch exists and the replica group is not null,
+			/* If state for this epoch exists and the replica group is not null,
 			 * this is an active replica group, so we return true so that the
 			 * replica group is not created; else the replica group is stopped
 			 * locally and the only reason we got a re-creation request from
 			 * reconfigurators is because it is legitimate to do so (i..e, the
 			 * delete pending period has passed), so we return false so that the
 			 * replica group is created after forcibly wiping out previous epoch
-			 * final state that must be necessarily outdated at this point.
-			 */
+			 * final state that must be necessarily outdated at this point. */
 			else if (epoch == packet.getEpochNumber())
 				// active epoch
 				return (this.appCoordinator.getReplicaGroup(packet
@@ -716,13 +708,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return integers;
 	}
 
-	/*
-	 * Demand stats are updated upon every request. Demand reports are
+	/* Demand stats are updated upon every request. Demand reports are
 	 * dispatched to reconfigurators only if warranted by the shouldReport
 	 * method. This allows for reporting policies that locally aggregate some
 	 * stats based on a threshold number of requests before reporting to
-	 * reconfigurators.
-	 */
+	 * reconfigurators. */
 	private void updateDemandStats(Request request, InetAddress sender) {
 		if (this.noReporting)
 			return;
@@ -737,18 +727,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			report(this.demandProfiler.trim());
 	}
 
-	/*
-	 * Report demand stats to reconfigurators. This method will necessarily
-	 * result in a stats message being sent out to reconfigurators.
-	 */
+	/* Report demand stats to reconfigurators. This method will necessarily
+	 * result in a stats message being sent out to reconfigurators. */
 	private void report(AbstractDemandProfile demand) {
 		try {
 			NodeIDType reportee = selectReconfigurator(demand.getName());
 			assert (reportee != null);
-			/*
-			 * We don't strictly need the epoch number in demand reports, but it
-			 * is useful for debugging purposes.
-			 */
+			/* We don't strictly need the epoch number in demand reports, but it
+			 * is useful for debugging purposes. */
 			Integer epoch = this.appCoordinator.getEpoch(demand.getName());
 			GenericMessagingTask<NodeIDType, ?> mtask = new GenericMessagingTask<NodeIDType, Object>(
 					reportee, (new DemandReport<NodeIDType>(getMyID(),
@@ -760,11 +746,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 	}
 
-	/*
-	 * Returns a random reconfigurator. Util.selectRandom is designed to return
+	/* Returns a random reconfigurator. Util.selectRandom is designed to return
 	 * a value of the same type as the objects in the input set, so it is okay
-	 * to suppress the warning.
-	 */
+	 * to suppress the warning. */
 	@SuppressWarnings("unchecked")
 	private NodeIDType selectReconfigurator(String name) {
 		Set<NodeIDType> reconfigurators = this.getReconfigurators(name);
@@ -824,11 +808,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				: appStop;
 	}
 
-	/*
-	 * We may need to use a separate messenger for end clients if we use two-way
+	/* We may need to use a separate messenger for end clients if we use two-way
 	 * authentication between servers.
-	 */
-	@SuppressWarnings("unchecked")
+	 * 
+	 * TODO: unused, remove */
+	@SuppressWarnings({ "unchecked", "unused" })
+	@Deprecated
 	private AddressMessenger<JSONObject> initClientMessenger() {
 		AbstractPacketDemultiplexer<JSONObject> pd = null;
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
@@ -855,15 +840,75 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 							niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 									isa.getAddress(),
 									isa.getPort(),
-									/*
-									 * Client facing demultiplexer is single
+									/* Client facing demultiplexer is single
 									 * threaded to keep clients from
 									 * overwhelming the system with request
-									 * load.
-									 */
+									 * load. */
 									(pd = new ReconfigurationPacketDemultiplexer(
 											0)), ReconfigurationConfig
 											.getClientSSLMode()));
+					if (!niot.getListeningSocketAddress().equals(isa))
+						throw new IOException(
+								"Unable to listen on specified client facing socket address "
+										+ isa);
+				} else if (this.messenger.getClientMessenger() instanceof Messenger)
+					((Messenger<NodeIDType, ?>) this.messenger
+							.getClientMessenger())
+							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
+									0));
+				pd.register(this.appCoordinator.getAppRequestTypes(), this);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			log.severe(this + ":" + e.getMessage());
+			System.exit(1);
+		}
+		return cMsgr != null ? cMsgr
+				: (AddressMessenger<JSONObject>) this.messenger;
+	}
+
+	@SuppressWarnings("unchecked")
+	private AddressMessenger<JSONObject> initClientMessenger(boolean ssl) {
+		AbstractPacketDemultiplexer<JSONObject> pd = null;
+		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
+		Set<IntegerPacketType> appTypes = null;
+		if ((appTypes = this.appCoordinator.getAppRequestTypes()) == null
+				|| appTypes.isEmpty())
+			return null;
+		try {
+			int myPort = (this.nodeConfig.getNodePort(getMyID()));
+			if ((ssl ? getClientFacingSSLPort(myPort)
+					: getClientFacingClearPort(myPort)) != myPort) {
+				log.log(Level.INFO,
+						"{0} creating {1} client messenger at {2}:{3}",
+						new Object[] {
+								this,
+								ssl ? "SSL" : "",
+								this.nodeConfig.getBindAddress(getMyID()),
+								""
+										+ (ssl ? getClientFacingSSLPort(myPort)
+												: getClientFacingClearPort(myPort)) });
+
+				if (this.messenger.getClientMessenger() == null
+						|| this.messenger.getClientMessenger() != this.messenger) {
+					MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+					InetSocketAddress isa = new InetSocketAddress(
+							this.nodeConfig.getBindAddress(getMyID()),
+							ssl ? getClientFacingSSLPort(myPort)
+									: getClientFacingClearPort(myPort));
+					cMsgr = new JSONMessenger<InetSocketAddress>(
+							(niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
+									isa.getAddress(),
+									isa.getPort(),
+									/* Client facing demultiplexer is single
+									 * threaded to keep clients from
+									 * overwhelming the system with request
+									 * load. */
+									(pd = new ReconfigurationPacketDemultiplexer(
+											)), ssl ? ReconfigurationConfig
+											.getClientSSLMode()
+											: SSL_MODES.CLEAR)).setName(this.appCoordinator.app.toString()+":"+
+											(ssl?"SSL":"")+"ClientMessenger"));
 					if (!niot.getListeningSocketAddress().equals(isa))
 						throw new IOException(
 								"Unable to listen on specified client facing socket address "
@@ -893,7 +938,23 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 * @return The client facing port number corresponding to port.
 	 */
 	public static int getClientFacingPort(int port) {
-		return port + ReconfigurationConfig.getClientPortOffset();
+		return ReconfigurationConfig.getClientFacingPort(port);
+	}
+
+	/**
+	 * @param port
+	 * @return The client facing clear port corresponding to port.
+	 */
+	public static int getClientFacingClearPort(int port) {
+		return ReconfigurationConfig.getClientFacingClearPort(port);
+	}
+
+	/**
+	 * @param port
+	 * @return The client facing ssl port number corresponding to port.
+	 */
+	public static int getClientFacingSSLPort(int port) {
+		return ReconfigurationConfig.getClientFacingSSLPort(port);
 	}
 
 	private void logEvent(BasicReconfigurationPacket<NodeIDType> event) {

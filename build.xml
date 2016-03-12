@@ -155,6 +155,11 @@ haltonerror="on">
       <jvmarg value="-Djavax.net.debug=ssl"/>-->
       <jvmarg value="-ea"/>
       <jvmarg value="-Djava.util.logging.config.file=logging.properties"/>
+      <jvmarg value="-Djavax.net.ssl.trustStorePassword=qwerty"/>
+      <jvmarg value="-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"/>
+      <jvmarg value="-Djavax.net.ssl.keyStorePassword=qwerty"/>
+      <jvmarg value="-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks"/>
+      <jvmarg value="-DgigapaxosConfig=gigapaxos.properties"/>
       <classpath>
         <pathelement location="${build.test.classes.dir}"/>
       </classpath>
@@ -169,6 +174,25 @@ haltonerror="on">
     </junit>
   </target>
     
+ <target name="test" description="Runs the default integration test" 
+          depends="jar, compiletest">
+    <junit printsummary="yes" fork="yes" haltonfailure="on" showoutput="yes">
+      <test name="edu.umass.cs.reconfiguration.testing.TESTReconfigurationClient"/>
+      <formatter type="plain" usefile="false"/>
+      <jvmarg value="-ea"/>
+      <jvmarg value="-Djava.util.logging.config.file=logging.properties"/>
+      <jvmarg value="-Djavax.net.ssl.trustStorePassword=qwerty"/>
+      <jvmarg value="-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"/>
+      <jvmarg value="-Djavax.net.ssl.keyStorePassword=qwerty"/>
+      <jvmarg value="-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks"/>
+      <jvmarg value="-DgigapaxosConfig=gigapaxos.properties"/>
+      <classpath>
+        <pathelement location="${build.test.classes.dir}"/>
+      </classpath>
+      <!-- Make sure these libraries are included -->
+      <classpath refid="classpath.test" />
+    </junit>
+  </target>
 
   <target name="all" depends="clean,jar"
           description="build all files"/>

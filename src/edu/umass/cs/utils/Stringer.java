@@ -14,23 +14,40 @@ import java.util.HashSet;
  */
 public class Stringer {
 	final Object data;
+	final int offset;
+	final int length;
 
 	/**
 	 * @param data 
 	 */
 	public Stringer(byte[] data) {
 		this.data = data;
+		this.offset=0;
+		this.length=data.length;
 	}
+	/**
+	 * @param data
+	 * @param offset
+	 * @param length
+	 */
+	public Stringer(byte[] data, int offset, int length) {
+		this.data = data;
+		this.offset = offset;
+		this.length = length;
+	}
+
 	/**
 	 * @param data
 	 */
 	public Stringer(Object data) {
 		this.data = data;
+		this.offset=0;
+		this.length=0;
 	}
 
 	public String toString() {
 		if(data instanceof byte[])
-			return new String((byte[])data);
+			return new String((byte[])data, offset, length);
 		else if(data instanceof Integer[]) 
 			return (new HashSet<Integer>(Arrays.asList((Integer[])data))).toString();
 		return data.toString();

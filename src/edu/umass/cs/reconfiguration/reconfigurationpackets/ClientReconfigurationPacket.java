@@ -83,8 +83,23 @@ public abstract class ClientReconfigurationPacket extends
 	 */
 	public ClientReconfigurationPacket(InetSocketAddress initiator,
 			ReconfigurationPacket.PacketType type, String name, int epochNumber) {
+		this(initiator, type, name, epochNumber, null);
+	}
+
+	/**
+	 * myReceiver may need to be set at creation time in create/delete responses.
+	 * 
+	 * @param initiator
+	 * @param type
+	 * @param name
+	 * @param epochNumber
+	 * @param myReceiver
+	 */
+	public ClientReconfigurationPacket(InetSocketAddress initiator,
+			ReconfigurationPacket.PacketType type, String name, int epochNumber, InetSocketAddress myReceiver) {
 		super(initiator, type, name, epochNumber);
 		this.creator = initiator;
+		this.myReceiver = myReceiver;
 	}
 
 	/**
@@ -109,7 +124,11 @@ public abstract class ClientReconfigurationPacket extends
 		// ignores argument unstringer
 		super(json, ClientReconfigurationPacket.unstringer); 
 		this.setSender(JSONNIOTransport.getSenderAddress(json));
-		this.myReceiver = (JSONNIOTransport.getReceiverAddress(json));
+		// entry myReceiver for client request never overwritten
+		this.myReceiver = json.has(Keys.MY_RECEIVER.toString()) ? Util
+				.getInetSocketAddressFromString(json.getString(Keys.MY_RECEIVER
+						.toString())) : (JSONNIOTransport
+				.getReceiverAddress(json));
 		
 		this.failed = json.optBoolean(Keys.FAILED.toString());
 		this.recursiveRedirect = json.optBoolean(Keys.RECURSIVE_REDIRECT
@@ -303,6 +322,15 @@ public abstract class ClientReconfigurationPacket extends
 	public boolean isForwardable() {
 		return this.isRecursiveRedirectEnabled() && this.getForwader() == null;
 	}
+	
+	/**
+	 * @param myReceiver
+	 * @return {@code this} with modified myReceiver
+	 */
+	public ClientReconfigurationPacket setMyReceiver(InetSocketAddress myReceiver) {
+		this.myReceiver = myReceiver;
+		return this;
+	}
 
 	/**
 	 * @return True if forwarded.
@@ -323,6 +351,9 @@ public abstract class ClientReconfigurationPacket extends
 	}
 	
 	public String getSummary() {
-		return super.getSummary() + ":" + (this.isRequest() ? "Q":"R")+":"+this.getCreator() + ":"+this.getForwader();
+		return super.getSummary() + ":" + (this.isRequest() ? "Q" : "R") + ":"
+				+ this.getCreator() + ":" + this.getForwader() 
+				//+ "; rsa="+ this.getMyReceiver()
+				;
 	}
 }

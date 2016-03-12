@@ -771,9 +771,10 @@ public class PaxosConfig {
 		PaxosManager.getLogger().setLevel(level);
 		PaxosManager.getLogger().addHandler(handler);
 		PaxosManager.getLogger().setUseParentHandlers(false);
-		// NIOTransport.getLogger().setLevel(level);
-		// NIOTransport.getLogger().addHandler(handler);
-		// NIOTransport.getLogger().setUseParentHandlers(false);
+		
+		NIOTransport.getLogger().setLevel(level);
+		NIOTransport.getLogger().addHandler(handler);
+		NIOTransport.getLogger().setUseParentHandlers(false);
 
 	}
 

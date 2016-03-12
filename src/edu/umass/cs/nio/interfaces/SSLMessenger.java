@@ -17,6 +17,8 @@
  */
 package edu.umass.cs.nio.interfaces;
 
+import java.net.InetSocketAddress;
+
 /**
  * @author arun
  *
@@ -27,7 +29,7 @@ public interface SSLMessenger<NodeIDType, MessageType> extends
 		Messenger<NodeIDType, MessageType> {
 
 	/**
-	 * @return The client messenger if different from self.
+	 * @return Default client messenger if different from self.
 	 */
 	public AddressMessenger<MessageType> getClientMessenger();
 
@@ -37,4 +39,20 @@ public interface SSLMessenger<NodeIDType, MessageType> extends
 	public void setClientMessenger(
 			AddressMessenger<?> clientMessenger);
 
+	/**
+	 * @param sslClientMessenger
+	 */
+	public void setSSLClientMessenger(
+			AddressMessenger<?> sslClientMessenger);
+
+	/**
+	 * @return Default client messenger if different from self.
+	 */
+	public AddressMessenger<MessageType> getSSLClientMessenger();
+
+	/**
+	 * @param rcvSockAddr 
+	 * @return clientMessenger corresponding to (local) rcvSockAddr
+	 */
+	public AddressMessenger<MessageType> getClientMessenger(InetSocketAddress rcvSockAddr);
 }

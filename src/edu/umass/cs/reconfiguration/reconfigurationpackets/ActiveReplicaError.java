@@ -31,6 +31,18 @@ public class ActiveReplicaError extends ClientReconfigurationPacket {
 		this.requestID = requestID;
 		this.makeResponse();
 	}
+	
+	/**
+	 * @param name
+	 * @param requestID
+	 * @param crp
+	 */
+	public ActiveReplicaError(String name, long requestID, ClientReconfigurationPacket crp) {
+		super(name, crp);
+		this.type = ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR;
+		this.requestID = requestID;
+		makeResponse();
+	}
 
 	/**
 	 * @param json
@@ -48,7 +60,9 @@ public class ActiveReplicaError extends ClientReconfigurationPacket {
 	 * @throws JSONException
 	 */
 	public ActiveReplicaError(JSONObject json, Stringifiable<?> unstringer) throws JSONException {
-		this(json);
+		super(json, unstringer);
+		this.makeResponse();
+		this.requestID = json.getLong(Keys.REQUEST_ID.toString());
 	}
 
 	public JSONObject toJSONObjectImpl() throws JSONException {
@@ -62,5 +76,10 @@ public class ActiveReplicaError extends ClientReconfigurationPacket {
 	 */
 	public long getRequestID() {
 		return this.requestID;
+	}
+
+	@Override
+	public String getSummary() {
+		return super.getSummary() + ":" + ActiveReplicaError.this.requestID;
 	}
 }

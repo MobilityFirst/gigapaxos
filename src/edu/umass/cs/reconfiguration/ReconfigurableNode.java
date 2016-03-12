@@ -176,7 +176,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		messenger = (new JSONMessenger<NodeIDType>(
 				(niot = new MessageNIOTransport<NodeIDType, JSONObject>(
 						ReconfigurableNode.this.myID, nodeConfig,
-						(pd = new ReconfigurationPacketDemultiplexer()), true,
+						(pd = new ReconfigurationPacketDemultiplexer()
+								.setThreadName(ReconfigurableNode.this.myID
+										.toString())), true,
 						ReconfigurationConfig.getServerSSLMode()))));
 		if (!niot.getListeningSocketAddress().equals(isa)) {
 			Reconfigurator

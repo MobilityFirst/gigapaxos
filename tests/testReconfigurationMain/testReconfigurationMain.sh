@@ -6,7 +6,8 @@ IDE_BUILD_PATH=./build/classes/
 LIB_PATH=./lib/*
 ANT_BUILD_PATH=./dist/*
 CLASSPATH=.:$IDE_BUILD_PATH:$ANT_BUILD_PATH:$LIB_PATH
-SSH_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.keyStore=conf/keyStore/node100.jks -Djavax.net.ssl.trustStorePassword=qwerty -Djavax.net.ssl.trustStore=conf/trustStore/node100.jks"
+
+SSH_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.keyStore=conf/keyStore/node100.jks -Djavax.net.ssl.trustStorePassword=qwerty -Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"
 
 # kill existing instances
 KILL_TARGET=TESTReconfigurationMain

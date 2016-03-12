@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
 import java.net.InetAddress;
@@ -58,7 +56,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		STATE, /**
 		 * 
 		 */
-		NAME_STATE_ARRAY, 
+		NAME_STATE_ARRAY,
 		/**
 		 * 
 		 */
@@ -99,13 +97,19 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 * @param state
 	 * @param nameStates
 	 */
-	public CreateServiceName(InetSocketAddress initiator, String name,
-			int epochNumber, String state, Map<String, String> nameStates) {
+	private CreateServiceName(InetSocketAddress initiator, String name,
+			int epochNumber, String state, Map<String, String> nameStates,
+			InetSocketAddress myReceiver) {
 		super(initiator, ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME,
-				name, epochNumber);
+				name, epochNumber, myReceiver);
 		this.initialState = state;
 		this.nameStates = nameStates;
 		this.failedCreates = null;
+	}
+
+	private CreateServiceName(InetSocketAddress initiator, String name,
+			int epochNumber, String state, Map<String, String> nameStates) {
+		this(initiator, name, epochNumber, state, nameStates, null);
 	}
 
 	/**
@@ -116,7 +120,19 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 */
 	public CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state) {
-		this(initiator, name, epochNumber, state, null);
+		this(initiator, name, epochNumber, state, null, null);
+	}
+
+	/**
+	 * @param initiator
+	 * @param name
+	 * @param epochNumber
+	 * @param state
+	 * @param myReceiver
+	 */
+	public CreateServiceName(InetSocketAddress initiator, String name,
+			int epochNumber, String state, InetSocketAddress myReceiver) {
+		this(initiator, name, epochNumber, state, null, myReceiver);
 	}
 
 	/**
@@ -155,7 +171,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				.next());
 		this.failedCreates = failedCreates;
 	}
-	
+
 	/**
 	 * @return {@code this}with only head name and state.
 	 */

@@ -101,6 +101,11 @@ public interface InterfaceNIOTransport<NodeIDType,MessageType> extends AddressMe
 	 * @return Whether {@code node} got disconnected.
 	 */
 	public boolean isDisconnected(NodeIDType node);
+	
+	/**
+	 * @return Local socket address.
+	 */
+	public InetSocketAddress getListeningSocketAddress();
 
 	/**
 	 * @return True if stopped.

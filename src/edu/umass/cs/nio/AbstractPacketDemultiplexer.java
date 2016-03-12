@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -83,7 +84,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		return threadPoolSize;
 	}
 
-	private final ScheduledExecutorService executor;
+	private final ScheduledThreadPoolExecutor executor;
 	private final HashMap<Integer, PacketDemultiplexer<MessageType>> demuxMap = new HashMap<Integer, PacketDemultiplexer<MessageType>>();
 	private final Set<Integer> orderPreservingTypes = new HashSet<Integer>();
 	private static final Logger log = NIOTransport.getLogger();
@@ -108,7 +109,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	 *            setThreadPoolsize(int)}.
 	 */
 	public AbstractPacketDemultiplexer(int threadPoolSize) {
-		this.executor = Executors.newScheduledThreadPool(threadPoolSize,
+		this.executor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(threadPoolSize,
 				new ThreadFactory() {
 					@Override
 					public Thread newThread(Runnable r) {
@@ -128,8 +129,9 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		this(getThreadPoolSize());
 	}
 
-	protected void setThreadName(String name) {
+	protected AbstractPacketDemultiplexer<MessageType> setThreadName(String name) {
 		this.threadName = DEFAULT_THREAD_NAME + name;
+		return this;
 	}
 
 	// This method will be invoked by NIO
@@ -150,9 +152,14 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			return false;
 		}
 		Tasker tasker = new Tasker(message, this.demuxMap.get(type));
-		if (this.myThreadPoolSize == 0 || isOrderPreserving(message))
+		if (this.myThreadPoolSize == 0 || isOrderPreserving(message)) {
+			log.log(Level.FINE,
+					"{0} handling {1} message in selector thread; this can cause "
+							+ "deadlocks if the handler involves blocking operations",
+					new Object[] { this, type });
 			// task better be lightning quick
 			tasker.run();
+		}
 		else
 			try {
 				log.log(Level.FINEST,
@@ -214,7 +221,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			return;
 		if (this.demuxMap.containsKey(type))
 			throw new RuntimeException("re-registering type " + type);
-		log.log(Level.INFO, "{0} registering type {1}:{2} {3}", new Object[] {
+		log.log(Level.FINE, "{0} registering type {1}:{2} {3}", new Object[] {
 				this, type, type.getInt(), (this != pd ? "with " + pd : "") });
 		this.demuxMap.put(type.getInt(), pd);
 	}
@@ -234,7 +241,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	 */
 	public void register(Set<IntegerPacketType> types,
 			PacketDemultiplexer<MessageType> pd) {
-		log.info("Registering types " + types + " for " + pd);
+		log.log(Level.INFO, "{0} registering types {1} for {2}", new Object[] {
+				this, types, pd });
 		for (IntegerPacketType type : types)
 			register(type, pd);
 	}

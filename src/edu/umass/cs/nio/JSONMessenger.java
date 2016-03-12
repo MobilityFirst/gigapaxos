@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import java.io.IOException;
@@ -61,6 +59,7 @@ public class JSONMessenger<NodeIDType> implements
 	private final InterfaceNIOTransport<NodeIDType, JSONObject> nioTransport;
 	protected final ScheduledExecutorService execpool;
 	private AddressMessenger<JSONObject> clientMessenger;
+	private AddressMessenger<JSONObject> sslClientMessenger;
 
 	private final MessageNIOTransport<NodeIDType, JSONObject>[] workers;
 
@@ -165,7 +164,8 @@ public class JSONMessenger<NodeIDType> implements
 					sent = this.specialCaseSend(mtask.recipients[r], msgBytes,
 							useWorkers);
 				} catch (IOException e) {
-					if((e instanceof ClosedByInterruptException)) throw e;
+					if ((e instanceof ClosedByInterruptException))
+						throw e;
 					e.printStackTrace();
 					thrown = e;
 					continue; // remaining sends might succeed
@@ -193,7 +193,8 @@ public class JSONMessenger<NodeIDType> implements
 				}
 			}
 		}
-		if(thrown!=null) throw thrown;
+		if (thrown != null)
+			throw thrown;
 	}
 
 	// Note: stops underlying NIOTransport as well.
@@ -203,6 +204,10 @@ public class JSONMessenger<NodeIDType> implements
 		if (this.clientMessenger != null && this.clientMessenger != this
 				&& this.clientMessenger instanceof InterfaceNIOTransport)
 			((InterfaceNIOTransport<?, ?>) this.clientMessenger).stop();
+		if (this.sslClientMessenger != null && this.sslClientMessenger != this
+				&& this.sslClientMessenger instanceof InterfaceNIOTransport)
+			((InterfaceNIOTransport<?, ?>) this.sslClientMessenger).stop();
+
 		for (int i = 0; i < this.workers.length; i++)
 			if (this.workers[i] != null
 					&& !((MessageNIOTransport<?, ?>) workers[i]).isStopped()) {
@@ -347,6 +352,23 @@ public class JSONMessenger<NodeIDType> implements
 		return this.clientMessenger;
 	}
 
+	private AddressMessenger<JSONObject> getClientMessengerInternal() {
+		return this.clientMessenger != null ? this.clientMessenger
+				: (this.nioTransport instanceof JSONMessenger<?> ? ((JSONMessenger<?>) this.nioTransport)
+						.getClientMessenger() : this.clientMessenger);
+	}
+	@Override
+	public AddressMessenger<JSONObject> getSSLClientMessenger() {
+		return this.sslClientMessenger;
+	}
+	
+	private AddressMessenger<JSONObject> getSSLClientMessengerInternal() {
+		return this.sslClientMessenger != null ? this.sslClientMessenger
+				: (this.nioTransport instanceof JSONMessenger<?> ? ((JSONMessenger<?>) this.nioTransport)
+						.getSSLClientMessenger() : this.sslClientMessenger);
+	}
+
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public void setClientMessenger(AddressMessenger<?> clientMessenger) {
@@ -354,6 +376,15 @@ public class JSONMessenger<NodeIDType> implements
 			throw new IllegalStateException(
 					"Can not change client messenger once set");
 		this.clientMessenger = (AddressMessenger<JSONObject>) clientMessenger;
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public void setSSLClientMessenger(AddressMessenger<?> sslClientMessenger) {
+		if (this.sslClientMessenger != null)
+			throw new IllegalStateException(
+					"Can not change client messenger once set");
+		this.sslClientMessenger = (AddressMessenger<JSONObject>) sslClientMessenger;
 	}
 
 	class JSONObjectWrapper extends JSONObject {
@@ -381,16 +412,27 @@ public class JSONMessenger<NodeIDType> implements
 	 * 
 	 * @param sockAddr
 	 * @param message
+	 * @param listenSocketAddress 
+	 * @throws JSONException
+	 * @throws IOException
+	 */
+	public void sendClient(InetSocketAddress sockAddr, Object message,
+			InetSocketAddress listenSocketAddress) throws JSONException,
+			IOException {
+		AddressMessenger<JSONObject> msgr = this.getClientMessenger(listenSocketAddress);
+		(msgr != null ? msgr : this).sendToAddress(sockAddr,
+				new JSONObjectWrapper(message));
+	}
+
+	/**
+	 * @param sockAddr
+	 * @param message
 	 * @throws JSONException
 	 * @throws IOException
 	 */
 	public void sendClient(InetSocketAddress sockAddr, Object message)
 			throws JSONException, IOException {
-		AddressMessenger<JSONObject> msgr = this.getClientMessenger();
-		if (msgr == null && this.nioTransport instanceof JSONMessenger)
-			msgr = ((JSONMessenger<?>) this.nioTransport).getClientMessenger();
-		(msgr != null ? msgr : this).sendToAddress(sockAddr,
-				new JSONObjectWrapper(message));
+		this.sendClient(sockAddr, message, null);
 	}
 
 	@Override
@@ -413,8 +455,10 @@ public class JSONMessenger<NodeIDType> implements
 			throws IOException {
 		return this.nioTransport.sendToAddress(isa, msg);
 	}
-	
-	public boolean isStopped(){return this.nioTransport.isStopped();}
+
+	public boolean isStopped() {
+		return this.nioTransport.isStopped();
+	}
 
 	@Override
 	public boolean isDisconnected(NodeIDType node) {
@@ -425,4 +469,31 @@ public class JSONMessenger<NodeIDType> implements
 						|| (niot != null && niot.isDisconnected(node));
 		return disconnected;
 	}
+
+	@Override
+	public AddressMessenger<JSONObject> getClientMessenger(
+			InetSocketAddress listenSockAddr) {
+		AddressMessenger<JSONObject> msgr = this.getClientMessengerInternal();
+		if(listenSockAddr==null) return msgr; // default
+		if (msgr instanceof InterfaceNIOTransport
+				&& ((InterfaceNIOTransport<?, ?>) msgr)
+						.getListeningSocketAddress().equals(listenSockAddr))
+			return msgr;
+		// else
+		msgr = this.getSSLClientMessengerInternal();
+		if (msgr instanceof InterfaceNIOTransport
+				&& ((InterfaceNIOTransport<?, ?>) msgr)
+						.getListeningSocketAddress().equals(listenSockAddr))
+			return msgr;
+
+		assert(this.getListeningSocketAddress().equals(listenSockAddr));
+		
+		return this;
+	}
+
+	@Override
+	public InetSocketAddress getListeningSocketAddress() {
+		return this.nioTransport.getListeningSocketAddress();
+	}
+
 }

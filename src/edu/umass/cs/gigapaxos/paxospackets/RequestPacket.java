@@ -108,6 +108,12 @@ public class RequestPacket extends PaxosPacket implements Request,
 		 * Client socket address.
 		 */
 		CSA,
+		
+		/**
+		 * Listening socket address on which request received.
+		 * Used to decide which messenger to use to send back response.
+		 */
+		LSA,
 
 		/**
 		 * Boolean query flag to specify whether this request came into the system as
@@ -183,6 +189,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 	// the client address in string form
 	private InetSocketAddress clientAddress = null;
 
+	// the client address in string form
+	private InetSocketAddress listenAddress = null;
+
 	// the replica that first received this request
 	private int entryReplica = IntegerMap.NULL_INT_NODE;
 
@@ -253,6 +262,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 		// non-final fields
 		this.entryReplica = req.entryReplica;
 		this.clientAddress = req.clientAddress;
+		this.listenAddress = req.listenAddress;
 		this.shouldReturnRequestValue = req.shouldReturnRequestValue;
 		this.responseValue = req.responseValue;
 		this.digest = req.digest;
@@ -430,6 +440,10 @@ public class RequestPacket extends PaxosPacket implements Request,
 		this.clientAddress = (json.has(Keys.CSA.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.CSA
 						.toString())) : JSONNIOTransport.getSenderAddress(json));
+		this.listenAddress = (json.has(Keys.LSA.toString()) ? Util
+				.getInetSocketAddressFromString(json.getString(Keys.LSA
+						.toString())) : JSONNIOTransport.getSenderAddress(json));
+
 		this.entryReplica = json.getInt(PaxosPacket.NodeIDKeys.E.toString());
 		this.shouldReturnRequestValue = json.optBoolean(Keys.QF.toString());
 		
@@ -494,6 +508,11 @@ public class RequestPacket extends PaxosPacket implements Request,
 				.getInetSocketAddressFromString((String) (json.get(Keys.CSA
 						.toString()))) : JSONNIOTransport
 				.getSenderAddressJSONSmart(json));
+		this.listenAddress = (json.containsKey(Keys.LSA.toString()) ? Util
+				.getInetSocketAddressFromString((String) (json.get(Keys.LSA
+						.toString()))) : JSONNIOTransport
+				.getSenderAddressJSONSmart(json));
+
 		this.entryReplica = (Integer) json.get(PaxosPacket.NodeIDKeys.E
 				.toString());
                 this.shouldReturnRequestValue = json.containsKey(Keys.QF.toString()) ?  (Boolean) json.get(Keys.QF.toString()) : false;
@@ -548,6 +567,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 		json.put(PaxosPacket.NodeIDKeys.E.toString(), this.entryReplica);
 		if (this.clientAddress != null)
 			json.put(Keys.CSA.toString(), this.clientAddress);
+		if (this.listenAddress != null)
+			json.put(Keys.LSA.toString(), this.listenAddress);
+
 		if (this.shouldReturnRequestValue)
 			json.put(Keys.QF.toString(), this.shouldReturnRequestValue);
 		// convert latched along batch to json array
@@ -591,6 +613,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 		json.put(PaxosPacket.NodeIDKeys.E.toString(), this.entryReplica);
 		if (this.clientAddress != null)
 			json.put(Keys.CSA.toString(), this.clientAddress.toString());
+		if (this.listenAddress != null)
+			json.put(Keys.LSA.toString(), this.listenAddress.toString());
 		if (this.shouldReturnRequestValue)
 			json.put(Keys.QF.toString(), this.shouldReturnRequestValue);
 		// convert latched along batch to json array
@@ -649,6 +673,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 	public InetSocketAddress getClientAddress() {
 		return this.clientAddress;
+	}
+	public InetSocketAddress getListenAddress() {
+		return this.listenAddress;
 	}
 
 	public boolean isStopRequest() {

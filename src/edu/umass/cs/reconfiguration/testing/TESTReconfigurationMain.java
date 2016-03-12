@@ -82,7 +82,7 @@ public class TESTReconfigurationMain {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
-	@BeforeClass
+	// @BeforeClass
 	public static void startLocalServers() throws IOException,
 			InterruptedException {
 		String[] args = new String[0];
@@ -93,12 +93,10 @@ public class TESTReconfigurationMain {
 		reconfigurators = startReconfigurators(args);
 		actives = startActives(args);
 
-		/*
-		 * This sleep seems necessary to give time for all connections to be set
+		/* This sleep seems necessary to give time for all connections to be set
 		 * up between reconfigurators, otherwise new NIO connections sometimes
 		 * bunch up and take a few seconds to finish, e.g., 5 reconfigurators
-		 * have 20 connections amongst them.
-		 */
+		 * have 20 connections amongst them. */
 		Thread.sleep(4000);
 	}
 
@@ -106,7 +104,7 @@ public class TESTReconfigurationMain {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
-	@AfterClass
+	// @AfterClass
 	public static void closeServers() throws IOException, InterruptedException {
 		// all tests should be complete at this point
 		for (ReconfigurableNode<?> node : reconfigurators)
@@ -114,7 +112,7 @@ public class TESTReconfigurationMain {
 		for (ReconfigurableNode<?> node : actives)
 			node.close();
 	}
-	
+
 	/**
 	 * @throws IOException
 	 * @throws InterruptedException
@@ -131,6 +129,10 @@ public class TESTReconfigurationMain {
 	 */
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
-		TESTReconfigurationClient.main(args);
+		Result result = JUnitCore.runClasses(TESTReconfigurationMain.class);
+		for (Failure failure : result.getFailures()) {
+			System.out.println(failure.toString());
+			failure.getException().printStackTrace();
+		}
 	}
 }

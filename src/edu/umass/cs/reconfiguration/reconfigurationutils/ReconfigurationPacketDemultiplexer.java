@@ -36,6 +36,11 @@ public class ReconfigurationPacketDemultiplexer extends
 	public ReconfigurationPacketDemultiplexer(int numThreads) {
 		super(numThreads);
 	}
+	
+	public ReconfigurationPacketDemultiplexer setThreadName(String name) {
+		super.setThreadName(name);
+		return this;
+	}
 
 	@Override
 	public boolean handleMessage(JSONObject json) {

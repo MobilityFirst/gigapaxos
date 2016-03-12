@@ -35,6 +35,7 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
@@ -157,14 +158,14 @@ public class TESTReconfigurationClient {
 		return clients[(int) (Math.random() * clients.length)];
 	}
 
-	private void testAppRequest(String name, Map<Long, Request> outstandingQ)
+	private boolean testAppRequest(String name, Map<Long, Request> outstandingQ, Long timeout)
 			throws NumberFormatException, IOException {
-		this.testAppRequest(
+		return this.testAppRequest(
 				new AppRequest(name,
 						Long.valueOf(name.replaceAll("[a-z]*", "")),
 						"request_value",
 						AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
-				outstandingQ);
+				outstandingQ, timeout);
 	}
 
 	/**
@@ -178,7 +179,7 @@ public class TESTReconfigurationClient {
 	 * @throws IOException
 	 */
 	private boolean testAppRequest(AppRequest request,
-			Map<Long, Request> outstandingQ) throws NumberFormatException,
+			Map<Long, Request> outstandingQ, Long timeout) throws NumberFormatException,
 			IOException {
 		long t = System.currentTimeMillis();
 		boolean[] success = new boolean[1];
@@ -227,8 +228,8 @@ public class TESTReconfigurationClient {
 			}
 		});
 		if (outstandingQ == null)
-			monitorWait(success, null);
-		return outstandingQ == null || success[0];
+			monitorWait(success, timeout);
+		return outstandingQ != null || success[0];
 	}
 
 	private boolean testAppRequests(String[] names, int rounds)
@@ -269,7 +270,7 @@ public class TESTReconfigurationClient {
 			throws NumberFormatException, IOException {
 		for (Request request : requests.values())
 			if (request instanceof AppRequest) {
-				testAppRequest((AppRequest) request, requests);
+				testAppRequest((AppRequest) request, requests, null);
 				r.record();
 			}
 	}
@@ -282,7 +283,7 @@ public class TESTReconfigurationClient {
 
 		for (int i = 0; i < names.length; i++) {
 			// non-blocking
-			this.testAppRequest(names[i], outstanding);
+			this.testAppRequest(names[i], outstanding, null);
 			r.record();
 		}
 		waitForAppResponses(Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT),
@@ -683,13 +684,32 @@ public class TESTReconfigurationClient {
 	}
 
 	/**
+	 * @throws IOException
+	 */
+	@Test(timeout = DEFAULT_TIMEOUT)
+	public void test00_RequestRandomActive() throws IOException {
+		boolean test = testExists(Config.getGlobalString(RC.SPECIAL_NAME), true);
+		Assert.assertEquals(test, true); // should pass
+		success();
+	}
+	/**
+	 * @throws IOException
+	 */
+	@Test(timeout = DEFAULT_APP_REQUEST_TIMEOUT)
+	public void test00_AnycastRequest() throws IOException {
+		boolean test = testAppRequest(generateRandomName(), null, DEFAULT_TIMEOUT);
+		Assert.assertEquals(test, false); // should fail
+		success();
+	}
+
+	/**
 	 * Tests creation and deletion of a single name.
 	 * 
 	 * @throws IOException
 	 * @throws NumberFormatException
 	 * @throws InterruptedException
 	 */
-	@Test(timeout = DEFAULT_TIMEOUT)
+	@Test(timeout = 4 * DEFAULT_TIMEOUT)
 	public void test00_CreateExistsDelete() throws IOException,
 			NumberFormatException, InterruptedException {
 		String[] names = generateRandomNames(1);
@@ -994,7 +1014,8 @@ public class TESTReconfigurationClient {
 			InterruptedException {
 		ReconfigurationConfig.setConsoleHandler();
 		TESTReconfigurationConfig.load();
-		Config.getConfig(ReconfigurationConfig.RC.class).put(ReconfigurationConfig.RC.RECONFIGURE_IN_PLACE, true);
+		Config.getConfig(ReconfigurationConfig.RC.class).put(
+				ReconfigurationConfig.RC.RECONFIGURE_IN_PLACE, true);
 
 		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
 		for (Failure failure : result.getFailures()) {

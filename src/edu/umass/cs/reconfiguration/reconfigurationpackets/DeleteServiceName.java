@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
 import java.net.InetAddress;
@@ -56,8 +54,19 @@ public class DeleteServiceName extends ClientReconfigurationPacket {
 	 */
 	public DeleteServiceName(InetSocketAddress initiator, String name,
 			int epochNumber) {
+		this(initiator, name, epochNumber, null);
+	}
+
+	/**
+	 * @param initiator
+	 * @param name
+	 * @param epochNumber
+	 * @param myReceiver
+	 */
+	public DeleteServiceName(InetSocketAddress initiator, String name,
+			int epochNumber, InetSocketAddress myReceiver) {
 		super(initiator, ReconfigurationPacket.PacketType.DELETE_SERVICE_NAME,
-				name, epochNumber);
+				name, epochNumber, myReceiver);
 	}
 
 	/**
@@ -68,7 +77,7 @@ public class DeleteServiceName extends ClientReconfigurationPacket {
 	public DeleteServiceName(JSONObject json, Stringifiable<?> unstringer)
 			throws JSONException {
 		super(json, DeleteServiceName.unstringer); // ignores unstringer
-		//assert (this.getSender() != null) : json;
+		// assert (this.getSender() != null) : json;
 		// this.setSender(JSONNIOTransport.getSenderAddress(json));
 	}
 

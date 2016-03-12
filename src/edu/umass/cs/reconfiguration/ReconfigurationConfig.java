@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.lang.reflect.InvocationTargetException;
@@ -35,6 +33,7 @@ import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
+import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
@@ -58,10 +57,8 @@ public class ReconfigurationConfig {
 	 * 
 	 */
 	public static void load() {
-		/*
-		 * Both gigapaxos and reconfiguration take parameters from the same
-		 * properties file (default "gigapaxos.properties").
-		 */
+		/* Both gigapaxos and reconfiguration take parameters from the same
+		 * properties file (default "gigapaxos.properties"). */
 		PaxosConfig.load();
 		PaxosConfig.load(ReconfigurationConfig.RC.class);
 	}
@@ -173,6 +170,12 @@ public class ReconfigurationConfig {
 		 * client-server and server-server communication may be different.
 		 */
 		CLIENT_PORT_OFFSET(100),
+
+		/**
+		 * 
+		 */
+		CLIENT_PORT_SSL_OFFSET(200),
+
 		/**
 		 * True if deletes are completed based on probing all actives.
 		 * 
@@ -252,6 +255,11 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		MAX_BATCH_SIZE(10000),
+		
+		/**
+		 * Requesting actives returns a random active replica for this name.
+		 */
+		SPECIAL_NAME("*"),
 
 		;
 
@@ -276,8 +284,11 @@ public class ReconfigurationConfig {
 	private static SSLDataProcessingWorker.SSL_MODES serverSSLMode = SSLDataProcessingWorker.SSL_MODES
 			.valueOf(Config.getGlobal(RC.SERVER_SSL_MODE).toString());
 
-	private static int clientPortOffset = Config
+	private static int clientPortClearOffset = Config
 			.getGlobalInt(RC.CLIENT_PORT_OFFSET);
+
+	private static int clientPortSSLOffset = Config
+			.getGlobalInt(RC.CLIENT_PORT_SSL_OFFSET);
 
 	private static boolean aggressiveDeletions = Config
 			.getGlobalBoolean(RC.AGGRESSIVE_DELETIONS);
@@ -382,11 +393,39 @@ public class ReconfigurationConfig {
 	}
 
 	/**
-	 * @param offset
+	 * @return The client port offset, i.e., the port number that is to be added
+	 *         to the standard port in order to get the client-facing port. A
+	 *         nonzero offset is needed to support transport layer security
+	 *         between servers.
 	 */
-	@Deprecated
-	public static void setClientPortOffset(int offset) {
-		clientPortOffset = offset;
+	public static int getClientPortOffset() {
+		return getClientSSLMode() == SSL_MODES.CLEAR ? Config
+				.getGlobalInt(RC.CLIENT_PORT_OFFSET) : Config
+				.getGlobalInt(RC.CLIENT_PORT_SSL_OFFSET);
+	}
+
+	/**
+	 * @param port
+	 * @return Translates port to corresponding client facing port.
+	 */
+	public static int getClientFacingPort(int port) {
+		return port + getClientPortOffset();
+	}
+
+	/**
+	 * @param port
+	 * @return Translates port to corresponding client facing port.
+	 */
+	public static int getClientFacingClearPort(int port) {
+		return port + getClientPortClearOffset();
+	}
+
+	/**
+	 * @param port
+	 * @return Translates port to corresponding client facing port.
+	 */
+	public static int getClientFacingSSLPort(int port) {
+		return port + getClientPortSSLOffset();
 	}
 
 	/**
@@ -395,8 +434,18 @@ public class ReconfigurationConfig {
 	 *         nonzero offset is needed to support transport layer security
 	 *         between servers.
 	 */
-	public static int getClientPortOffset() {
-		return clientPortOffset;
+	public static int getClientPortSSLOffset() {
+		return clientPortSSLOffset;
+	}
+
+	/**
+	 * @return The client port offset, i.e., the port number that is to be added
+	 *         to the standard port in order to get the client-facing port. A
+	 *         nonzero offset is needed to support transport layer security
+	 *         between servers.
+	 */
+	public static int getClientPortClearOffset() {
+		return clientPortClearOffset;
 	}
 
 	/**
@@ -595,11 +644,7 @@ public class ReconfigurationConfig {
 	 * @return Stringifiable object.
 	 */
 	public static Object getSummary(ClientRequest request) {
-		return new Object() {
-			public String toString() {
-				return request.getServiceName() + ":" + request.getRequestID();
-			}
-		};
+		return request.getSummary();
 	}
 
 	/**

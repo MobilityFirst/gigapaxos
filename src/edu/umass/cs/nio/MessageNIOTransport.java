@@ -686,4 +686,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		return this.sendUnderlying(isa, msg);
 	}
 	
+	public MessageNIOTransport<NodeIDType,MessageType> setName(String name) {
+		super.setName(name);
+		return this;
+	}
 }

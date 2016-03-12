@@ -115,4 +115,8 @@ public class TrivialRepliconfigurable implements Repliconfigurable {
 				return ((Replicable)this.app).restore(name, state);
 		throw new RuntimeException("Can not get stop request for a non-replicable app");
 	}
+	
+	public String toString() {
+		return this.app.toString();
+	}
 }
