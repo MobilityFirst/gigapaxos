@@ -50,6 +50,7 @@ import edu.umass.cs.reconfiguration.SQLReconfiguratorDB;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationClient;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.StringLocker;
 import edu.umass.cs.utils.Util;
 
@@ -464,7 +465,7 @@ public class LargeCheckpointer {
 					public Thread newThread(Runnable r) {
 						Thread thread = Executors.defaultThreadFactory()
 								.newThread(r);
-						thread.setName(this.getClass().getSimpleName() + myID);
+						thread.setName(LargeCheckpointer.class.getSimpleName()+":" + myID);
 						return thread;
 					}
 				});
@@ -689,7 +690,7 @@ public class LargeCheckpointer {
 
 	/**
 	 */
-	public static class LargeCheckpointerTester {
+	public static class LargeCheckpointerTest extends DefaultTest {
 
 		private static final String NAME = "name";
 
@@ -765,7 +766,7 @@ public class LargeCheckpointer {
 	 */
 	public static void main(String[] args) {
 		Util.assertAssertionsEnabled();
-		Result result = JUnitCore.runClasses(LargeCheckpointerTester.class);
+		Result result = JUnitCore.runClasses(LargeCheckpointerTest.class);
 		for (Failure failure : result.getFailures()) {
 			System.out.println(failure.toString());
 			failure.getException().printStackTrace();

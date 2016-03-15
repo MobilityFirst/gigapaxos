@@ -442,7 +442,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 						.toString())) : JSONNIOTransport.getSenderAddress(json));
 		this.listenAddress = (json.has(Keys.LSA.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.LSA
-						.toString())) : JSONNIOTransport.getSenderAddress(json));
+						.toString())) : JSONNIOTransport.getReceiverAddress(json));
 
 		this.entryReplica = json.getInt(PaxosPacket.NodeIDKeys.E.toString());
 		this.shouldReturnRequestValue = json.optBoolean(Keys.QF.toString());
@@ -511,7 +511,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 		this.listenAddress = (json.containsKey(Keys.LSA.toString()) ? Util
 				.getInetSocketAddressFromString((String) (json.get(Keys.LSA
 						.toString()))) : JSONNIOTransport
-				.getSenderAddressJSONSmart(json));
+				.getReceiverAddressJSONSmart(json));
 
 		this.entryReplica = (Integer) json.get(PaxosPacket.NodeIDKeys.E
 				.toString());

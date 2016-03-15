@@ -30,6 +30,7 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -37,7 +38,9 @@ import edu.umass.cs.gigapaxos.paxosutil.RateLimiter;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
 import edu.umass.cs.nio.JSONNIOTransport;
+import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.NIOTransport;
+import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
@@ -112,7 +115,7 @@ public class TESTPaxosClient {
 			client.runReplyCount = 0;
 	}
 
-	private  JSONNIOTransport<Integer> niot;
+	private  MessageNIOTransport<Integer,JSONObject> niot;
 	private final NodeConfig<Integer> nc;
 	private final int myID;
 	private int totReqCount = 0;
@@ -281,8 +284,10 @@ public class TESTPaxosClient {
 	protected TESTPaxosClient(int id, NodeConfig<Integer> nc) throws IOException {
 		this.myID = id;
 		this.nc = (nc==null ? TESTPaxosConfig.getNodeConfig() : nc);
-		niot = (new JSONNIOTransport<Integer>(id, this.nc,
-				(new ClientPacketDemultiplexer(this)), true));
+		niot = (new MessageNIOTransport<Integer,JSONObject>(id, this.nc,
+				(new ClientPacketDemultiplexer(this)), true, SSLDataProcessingWorker.SSL_MODES
+				.valueOf(Config.getGlobalString(
+						PC.CLIENT_SSL_MODE))));
 		this.timer = new Timer(TESTPaxosClient.class.getSimpleName() + myID);
 	}
 	
@@ -307,13 +312,13 @@ public class TESTPaxosClient {
 		reqCounts.put(id, reqCounts.get(id)+1);
 	}
 
-	private static final int CLIENT_PORT_OFFSET = Config.getGlobalInt(PC.CLIENT_PORT_OFFSET);
+	private static final int CLIENT_PORT_OFFSET = PaxosConfig.getClientPortOffset();
 	//private static InterfaceNodeConfig<Integer> nc = TESTPaxosConfig.getFromPaxosConfig(true);
 	protected boolean sendRequest(int id, RequestPacket req)
 			throws IOException, JSONException {
 		assert(nc.getNodeAddress(id)!=null) : id;
 		log.log(Level.FINE, "Sending request to node {0}: {1} {2}", new Object[] {
-				id, nc.getNodeAddress(id)+":"+nc.getNodePort(id), req.getSummary() });
+				id, nc.getNodeAddress(id)+":"+nc.getNodePort(id)+CLIENT_PORT_OFFSET, req.getSummary() });
 		if (this.requests.put(req.requestID, req) != null)
 			return false; // collision in integer space
 		this.incrReqCount();

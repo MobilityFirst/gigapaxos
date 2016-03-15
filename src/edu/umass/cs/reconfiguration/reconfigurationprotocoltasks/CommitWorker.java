@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationprotocoltasks;
 
 import java.util.HashSet;
@@ -150,17 +148,15 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	public synchronized boolean executedCallback(
 			RCRecordRequest<NodeIDType> request, boolean handled) {
 		if (handled
-		/*
-		 * merges should be knocked off even if they fail because Reconfigurator
+		/* merges should be knocked off even if they fail because Reconfigurator
 		 * will respond appropriately to failed merges by restarting the
-		 * corresponding WaitAckStopEpoch sequence.
-		 */
-		//|| (this.pending.contains(request) && request.isReconfigurationMerge())
+		 * corresponding WaitAckStopEpoch sequence. */
+		// || (this.pending.contains(request) &&
+		// request.isReconfigurationMerge())
 		)
 			return this.executedCallback(request);
 		else
-		/*
-		 * For service names, it is possible (but very unlikely) that an
+		/* For service names, it is possible (but very unlikely) that an
 		 * executed notification arrives before a pending enqueue by a secondary
 		 * reconfigurator task. If so, if we don't enqueue the executed
 		 * notification, the enqueued pending request may be attempted forever
@@ -173,8 +169,7 @@ public class CommitWorker<NodeIDType> implements Runnable {
 		 * issued only upon committing the intent and then receiving startEpoch
 		 * acks), so handled=false can only mean obviation, so the executed
 		 * notification can still be used to obviate a matching or lower pending
-		 * request.
-		 */
+		 * request. */
 		if (request.getInitiator().equals(this.coordinator.getMyID())
 				&& (request.isReconfigurationComplete() || request
 						.isReconfigurationPrevDropComplete())
@@ -223,13 +218,10 @@ public class CommitWorker<NodeIDType> implements Runnable {
 			RCRecordRequest<NodeIDType> request) {
 		return this.isRCGroupName(request)
 
-		/*
-		 * Split intents are not coordinated at all.
-		 */
+		/* Split intents are not coordinated at all. */
 		// && !request.isSplitIntent()
 
-		/*
-		 * Merges are tricky coz although they are idempotent, they can be
+		/* Merges are tricky coz although they are idempotent, they can be
 		 * multiply successful, i.e., return handled=true (e.g., when merging
 		 * multiple RC groups sequentially). This means that merge execution
 		 * notifications may never be garbage collected if enqueued. If not
@@ -238,8 +230,7 @@ public class CommitWorker<NodeIDType> implements Runnable {
 		 * RC record has actually moved on). The only way to be certain of
 		 * obviation is to check the DB. We just enqueue for now to ensure
 		 * progress coz merges are rare operations anyway, so some uncollected
-		 * garbage is okay.
-		 */
+		 * garbage is okay. */
 
 		// && !request.isReconfigurationMerge()
 		;
@@ -360,7 +351,10 @@ public class CommitWorker<NodeIDType> implements Runnable {
 			ReconfiguratorCallback callback) {
 		this.coordinator = coordinator;
 		this.callback = callback;
-		(new Thread(this)).start();
+		Thread me;
+		(me = new Thread(this)).start();
+		me.setName(CommitWorker.class.getSimpleName() + ":"
+				+ coordinator.getMyID());
 	}
 
 	public String toString() {

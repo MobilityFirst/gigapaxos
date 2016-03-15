@@ -121,7 +121,9 @@ public class Reconfigurator<NodeIDType> implements
 	private final ConsistentReconfigurableNodeConfig<NodeIDType> consistentNodeConfig;
 	private final AggregateDemandProfiler demandProfiler = new AggregateDemandProfiler();
 	private final CommitWorker<NodeIDType> commitWorker;
+	private PendingBatchCreates pendingBatchCreations = new PendingBatchCreates();
 	private boolean recovering = true;
+
 
 	private static final Logger log = Logger.getLogger(Reconfigurator.class
 			.getName());
@@ -355,7 +357,6 @@ public class Reconfigurator<NodeIDType> implements
 		private ConcurrentHashMap<String, String> headnameToOverallHeadname = new ConcurrentHashMap<String, String>();
 	}
 
-	private PendingBatchCreates pendingBatchCreations = new PendingBatchCreates();
 
 	// private ConcurrentHashMap<String, BatchCreateJobs> pendingBatchCreates =
 	// new ConcurrentHashMap<String, BatchCreateJobs>();
@@ -1746,8 +1747,10 @@ public class Reconfigurator<NodeIDType> implements
 	private boolean forwardClientReconfigurationPacket(
 			ClientReconfigurationPacket request) {
 		try {
-			Set<NodeIDType> responsibleRCs = this.consistentNodeConfig
-					.getReplicatedReconfigurators(request.getServiceName());
+			Set<NodeIDType> responsibleRCs = this.DB.removeDead(this.consistentNodeConfig
+					.getReplicatedReconfigurators(request.getServiceName()));
+			if(responsibleRCs.isEmpty()) return false;
+			
 			@SuppressWarnings("unchecked")
 			NodeIDType randomResponsibleRC = (NodeIDType) (responsibleRCs
 					.toArray()[(int) (Math.random() * responsibleRCs.size())]);
@@ -1786,8 +1789,8 @@ public class Reconfigurator<NodeIDType> implements
 			if (querier.equals(response.getCreator())) {
 				// only response can go back to client
 				log.log(Level.INFO,
-						"{0} sending client RESPONSE {1}:{2} to client {3}",
-						new Object[] { this, response,
+						"{0} sending client RESPONSE {1}:{2} back to client",
+						new Object[] { this, response.getSummary(),
 								response.getResponseMessage(), querier });
 				(this.getClientMessenger(response.getMyReceiver()))
 						.sendToAddress(querier, response.toJSONObject());
@@ -1862,7 +1865,7 @@ public class Reconfigurator<NodeIDType> implements
 			// need to use different messengers for client and forwarder
 			if (querier.equals(rcRecReq.startEpoch.creator)) {
 				log.log(Level.INFO,
-						"{0} sending creation confirmation {1} to client {2}",
+						"{0} sending creation confirmation {1} back to client",
 						new Object[] { this, response.getSummary(), querier });
 				// this.getClientMessenger()
 				(this.getMessenger(rcRecReq.startEpoch.getMyReceiver()))
@@ -1907,7 +1910,7 @@ public class Reconfigurator<NodeIDType> implements
 
 			if (querier.equals(rcRecReq.startEpoch.creator)) {
 				log.log(Level.FINE,
-						"{0} sending deletion confirmation {1} to client {2}",
+						"{0} sending deletion confirmation {1} back to client",
 						new Object[] { this, response.getSummary(), querier });
 				// this.getClientMessenger()
 				(this.getMessenger(rcRecReq.startEpoch.getMyReceiver()))

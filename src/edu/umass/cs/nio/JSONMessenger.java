@@ -94,7 +94,7 @@ public class JSONMessenger<NodeIDType> implements
 						public Thread newThread(Runnable r) {
 							Thread thread = Executors.defaultThreadFactory()
 									.newThread(r);
-							thread.setName(this.getClass().getSimpleName()
+							thread.setName(JSONMessenger.class.getSimpleName()
 									+ niot.getMyID() + thread.getName());
 							return thread;
 						}
@@ -109,7 +109,8 @@ public class JSONMessenger<NodeIDType> implements
 				this.workers[i] = new MessageNIOTransport<NodeIDType, JSONObject>(
 						null, this.getNodeConfig(),
 						this.nioTransport.getSSLMode());
-				this.workers[i].setName(getMyID() + "-send_worker" + i);
+				this.workers[i].setName(JSONMessenger.class.getSimpleName()
+						+ niot.getMyID() + "_send_worker" + i);
 			} catch (IOException e) {
 				this.workers[i] = null;
 				e.printStackTrace();
@@ -486,7 +487,8 @@ public class JSONMessenger<NodeIDType> implements
 						.getListeningSocketAddress().equals(listenSockAddr))
 			return msgr;
 
-		assert(this.getListeningSocketAddress().equals(listenSockAddr));
+		assert (this.getListeningSocketAddress().equals(listenSockAddr)) : this
+				.getListeningSocketAddress() + " != " + listenSockAddr;
 		
 		return this;
 	}

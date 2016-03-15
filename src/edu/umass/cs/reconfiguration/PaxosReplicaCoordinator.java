@@ -293,6 +293,14 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		return this.paxosManager.equalOrHigherVersionExists(name, epoch);
 	}
 
+	/**
+	 * @param nodes
+	 * @return Same as {@link PaxosManager#removeDead(Set)}.
+	 */
+	public Set<NodeIDType> removeDead(Set<NodeIDType> nodes) {
+		return this.paxosManager.removeDead(nodes);
+	}
+
 	public void stop() {
 		super.stop();
 		this.paxosManager.close();

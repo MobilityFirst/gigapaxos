@@ -845,7 +845,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 									 * overwhelming the system with request
 									 * load. */
 									(pd = new ReconfigurationPacketDemultiplexer(
-											0)), ReconfigurationConfig
+											)), ReconfigurationConfig
 											.getClientSSLMode()));
 					if (!niot.getListeningSocketAddress().equals(isa))
 						throw new IOException(

@@ -1092,7 +1092,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					public Thread newThread(Runnable r) {
 						Thread thread = Executors.defaultThreadFactory()
 								.newThread(r);
-						thread.setName(this.getClass().getSimpleName() + myID);
+						thread.setName(SQLReconfiguratorDB.class.getSimpleName() + myID);
 						return thread;
 					}
 				});

@@ -7,10 +7,10 @@ package edu.umass.cs.gigapaxos.interfaces;
  *         requests in gigapaxos.
  *
  */
-public interface SummarizableRequest extends Request {
+public interface SummarizableRequest extends Request, Summarizable {
 	/**
 	 * @return A compact summary generally in the format name:epoch:type and any
 	 *         additional relevant information.
 	 */
-	public String getSummary();
+	public Object getSummary();
 }

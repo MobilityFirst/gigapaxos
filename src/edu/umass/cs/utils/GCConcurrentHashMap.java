@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 
 package edu.umass.cs.utils;
 
@@ -23,6 +21,11 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.junit.Test;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
+import org.junit.runner.notification.Failure;
 
 /**
  * @author arun
@@ -107,14 +110,16 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 	private long minGCInterval = DEFAULT_GC_TIMEOUT;
 
 	/**
-	 * @param timeout 
+	 * @param timeout
 	 */
 	public synchronized void tryGC(long timeout) {
 		this.GC(timeout);
 	}
+
 	private synchronized void GC() {
 		this.GC(this.gcTimeout);
 	}
+
 	private synchronized void GC(long timeout) {
 		if (System.currentTimeMillis() - this.lastGCTime < this.minGCInterval)
 			return;
@@ -126,8 +131,7 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 				.hasNext();) {
 			K key = iterK.next();
 			Long time = this.putTimes.get(key);
-			if (time != null
-					&& (System.currentTimeMillis() - time > timeout)) {
+			if (time != null && (System.currentTimeMillis() - time > timeout)) {
 				iterK.remove();
 				V value = this.remove(key);
 				if (value != null)
@@ -141,47 +145,63 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 	}
 
 	/**
-	 * @param args
-	 * @throws InterruptedException
+	 *
 	 */
-	public static void main(String[] args) throws InterruptedException {
-		Util.assertAssertionsEnabled();
-		GCConcurrentHashMap<String, Integer> map1 = new GCConcurrentHashMap<String, Integer>(
-				new GCConcurrentHashMapCallback() {
+	public static class GCConcurrentHashMapTest extends DefaultTest {
+		/**
+		 * @throws InterruptedException
+		 */
+		@Test
+		public void testMain() throws InterruptedException {
+			Util.assertAssertionsEnabled();
+			GCConcurrentHashMap<String, Integer> map1 = new GCConcurrentHashMap<String, Integer>(
+					new GCConcurrentHashMapCallback() {
 
-					@Override
-					public void callbackGC(Object key, Object value) {
-						// System.out.println("GC: " + key + ", " + value);
-					}
+						@Override
+						public void callbackGC(Object key, Object value) {
+							// System.out.println("GC: " + key + ", " + value);
+						}
 
-				}, 100);
-		map1.setGCThresholdSize(1000);
-		ConcurrentHashMap<String, Integer> map2 = new ConcurrentHashMap<String, Integer>();
-		Map<String, Integer> map = map1;
-		HashMap<String, Integer> hmap = new HashMap<String, Integer>();
-		int n = 1000 * 1000;
-		String prefix = "random";
-		long t = System.currentTimeMillis();
-		for (int i = 0; i < n; i++) {
-			(map != null ? map : hmap).put(prefix + i, i);
-			assert ((map != null ? map : hmap).containsKey(prefix + i));
-			int sizeThreshold = 8000;
-			if (i >= sizeThreshold)
-				map.remove(prefix + (i - sizeThreshold));
+					}, 100);
+			map1.setGCThresholdSize(1000);
+			ConcurrentHashMap<String, Integer> map2 = new ConcurrentHashMap<String, Integer>();
+			Map<String, Integer> map = map1;
+			HashMap<String, Integer> hmap = new HashMap<String, Integer>();
+			int n = 1000 * 1000;
+			String prefix = "random";
+			long t = System.currentTimeMillis();
+			for (int i = 0; i < n; i++) {
+				(map != null ? map : hmap).put(prefix + i, i);
+				assert ((map != null ? map : hmap).containsKey(prefix + i));
+				int sizeThreshold = 8000;
+				if (i >= sizeThreshold)
+					map.remove(prefix + (i - sizeThreshold));
+			}
+			long t2 = System.currentTimeMillis();
+			System.out.println("delay = " + (t2 - t) + "; rate = "
+					+ (n / (t2 - t) + "K/s") + "; numGC = " + map1.numGC
+					+ "; numGCAttempts = " + map1.numGCAttempts);
+			System.out.println("size = " + map.size());
+			Thread.sleep(1500);
+			(map != null ? map : hmap).put(prefix + (n + 1),
+					(int) (Math.random() * Integer.MAX_VALUE));
+			for (int i = 0; i < n; i++)
+				assert (!map1.containsKey(prefix + i)
+						|| !map1.putTimes.containsKey(prefix + i) || (t2
+						- map1.putTimes.get(prefix + i) < map1.gcTimeout)) : prefix
+						+ i;
+			assert (map1 != null && map2 != null);
 		}
-		long t2 = System.currentTimeMillis();
-		System.out.println("delay = " + (t2 - t) + "; rate = "
-				+ (n / (t2 - t) + "K/s") + "; numGC = " + map1.numGC
-				+ "; numGCAttempts = " + map1.numGCAttempts);
-		System.out.println("size = " + map.size());
-		Thread.sleep(1500);
-		(map != null ? map : hmap).put(prefix + (n + 1),
-				(int) (Math.random() * Integer.MAX_VALUE));
-		for (int i = 0; i < n; i++)
-			assert (!map1.containsKey(prefix + i)
-					|| !map1.putTimes.containsKey(prefix + i) || (t2
-					- map1.putTimes.get(prefix + i) < map1.gcTimeout)) : prefix
-					+ i;
-		assert (map1 != null && map2 != null);
 	}
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		Util.assertAssertionsEnabled();
+		Result result = JUnitCore.runClasses(GCConcurrentHashMapTest.class);
+		for (Failure failure : result.getFailures())
+			System.out.println(failure.toString());
+	}
+
 }

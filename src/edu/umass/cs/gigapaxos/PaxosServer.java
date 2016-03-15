@@ -135,6 +135,7 @@ public class PaxosServer {
 			throw new RuntimeException(
 					"At least one node ID must be specified as a command-line argument for starting "
 							+ PaxosServer.class.getSimpleName());
+		PaxosConfig.load();
 		PaxosConfig.setConsoleHandler();
 		NodeConfig<String> nodeConfig = PaxosConfig.getDefaultNodeConfig();
 		PaxosConfig.sanityCheck(nodeConfig);

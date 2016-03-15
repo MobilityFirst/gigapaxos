@@ -331,6 +331,26 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		}
 		return null;
 	}
+	/**
+	 * @param json
+	 * @return Same as {@link #getReceiverAddress(JSONObject)}
+	 */
+	public static InetSocketAddress getReceiverAddressJSONSmart(net.minidev.json.JSONObject json) {
+		try {
+			InetAddress address = (json.containsKey(MessageNIOTransport.RCVR_IP_FIELD) ? Util
+					.getInetAddressFromString((String)json
+							.get(MessageNIOTransport.RCVR_IP_FIELD))
+					: null);
+			int port = (json.containsKey(MessageNIOTransport.RCVR_PORT_FIELD) ? (Integer)json
+					.get(MessageNIOTransport.RCVR_PORT_FIELD) : -1);
+			if (address != null && port > 0) {
+				return new InetSocketAddress(address, port);
+			}
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
 
 	/**
 	 * @param json

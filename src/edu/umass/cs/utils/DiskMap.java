@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 
 package edu.umass.cs.utils;
 
@@ -35,6 +33,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import org.junit.Test;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
+import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.paxosutil.LogIndex;
 
@@ -194,18 +197,18 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 
 	/**
 	 * @param inMemoryCapacity
-	 *            Capacity for in-memory map. If the in-memory map size
-	 *            reaches this value, GC forcibly kicks in. 
+	 *            Capacity for in-memory map. If the in-memory map size reaches
+	 *            this value, GC forcibly kicks in.
 	 */
 	public DiskMap(int inMemoryCapacity) {
 		this.map = USE_LINKED_HASH_MAP ? Collections
 				.synchronizedMap(new LinkedHashMap<K, V>(16, (float) 0.75, true))
 				: new ConcurrentHashMap<K, V>();
-				this.externalMap=false;
+		this.externalMap = false;
 		this.capacityEstimate = inMemoryCapacity;
 		this.initPeriodicGC();
 	}
-	
+
 	private final boolean externalMap;
 
 	/**
@@ -280,15 +283,13 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			this.initOnetimeGC();
 		return value;
 	}
-	
+
 	private boolean isSingleLinkedHashMap() {
 		return USE_LINKED_HASH_MAP && !this.externalMap;
 	}
 
-	/*
-	 * No synchronization needed here because concurrent insertions are not
-	 * fatal as stats only affects GC-related performance.
-	 */
+	/* No synchronization needed here because concurrent insertions are not
+	 * fatal as stats only affects GC-related performance. */
 	private void markActive(Object key) {
 		if (isSingleLinkedHashMap())
 			return;
@@ -318,20 +319,24 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		}
 		return prev;
 	}
-	
+
 	boolean recordPuts = false;
 	private Set<K> concurrentPuts = new HashSet<K>();
+
 	private synchronized void recordPut(K key) {
-		if(recordingPuts())
+		if (recordingPuts())
 			concurrentPuts.add(key);
 	}
+
 	private synchronized void startRecordingPuts() {
 		recordPuts = true;
 	}
+
 	private synchronized void stopRecordingPuts() {
 		recordPuts = false;
 		this.concurrentPuts.clear();
 	}
+
 	private synchronized boolean recordingPuts() {
 		return recordPuts;
 	}
@@ -360,12 +365,10 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		return value;
 	}
 
-	/*
-	 * There is seemingly no easy way to get the key of type K from the supplied
+	/* There is seemingly no easy way to get the key of type K from the supplied
 	 * key of type Object. So this method has to iterate over all entries to get
 	 * the key in the map. If it is a MultiArrayMap, we can just get the key
-	 * from the value.
-	 */
+	 * from the value. */
 	@SuppressWarnings("unchecked")
 	private Map<K, V> removeEntry(Object key) {
 		if (this.map.containsKey(key)) {
@@ -519,10 +522,8 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		}
 	}
 
-	/*
-	 * Pauses long idle entries. This method can be called both by the client or
-	 * by the GC thread but allows only one GC to proceed at any time.
-	 */
+	/* Pauses long idle entries. This method can be called both by the client or
+	 * by the GC thread but allows only one GC to proceed at any time. */
 	@SuppressWarnings("unchecked")
 	private void GC(boolean strict) {
 		synchronized (this) {
@@ -539,11 +540,9 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			this.ongoingGC = true;
 		}
 		long t = System.currentTimeMillis();
-		/*
-		 * stats is directly traversed only if it is a LinkedHashMap, otherwise
+		/* stats is directly traversed only if it is a LinkedHashMap, otherwise
 		 * we iterate over the underlying in-memory map and use stats to get
-		 * last active times instead.
-		 */
+		 * last active times instead. */
 		if (this.stats != null && this.stats instanceof LinkedHashMap) {
 			while (this.map.size() >= this.capacityEstimate
 					&& this.pauseQ.isEmpty()) {
@@ -561,17 +560,14 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				}
 			}
 		}
-		/*
-		 * One and only underlying, in-memory LinkedHashMap, the default and the
-		 * cleanest, good enough option.
-		 */
+		/* One and only underlying, in-memory LinkedHashMap, the default and the
+		 * cleanest, good enough option. */
 		else if (isSingleLinkedHashMap()) {
 			while (this.map.size() >= this.capacityEstimate
 					&& this.pauseQ.isEmpty()) {
 				// need to check for concurrent modification
 				try {
-					/*
-					 * Synchronization is needed for correctness here as we can
+					/* Synchronization is needed for correctness here as we can
 					 * not rely on a concurrent modification exception to be
 					 * thrown. Without synchronization, enqueuePause's
 					 * iterator.remove() could remove a newer value from the
@@ -582,8 +578,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 					 * property that an iterator.remove() will not succeed if
 					 * corresponding entry has been modified in anyway since the
 					 * entry's value was retrieved) or need to explicitly
-					 * synchronize the iteration itself like below.
-					 */
+					 * synchronize the iteration itself like below. */
 					synchronized (this) {
 						for (Iterator<Map.Entry<K, V>> iterE = this.map
 								.entrySet().iterator(); iterE.hasNext();) {
@@ -629,7 +624,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				for (K key : committed) {
 					synchronized (this) {
 						// concurrent puts should not be removed
-						if(!this.concurrentPuts.contains(key))
+						if (!this.concurrentPuts.contains(key))
 							this.map.remove(key, this.pauseQ.remove(key));
 						if (this.stats != null)
 							this.stats.remove(key);
@@ -673,8 +668,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		return null;
 	}
 
-	/*
-	 * There is no way to ensure that the value pointed to in the map is not
+	/* There is no way to ensure that the value pointed to in the map is not
 	 * modified after it has been paused to disk. It does not help to verify
 	 * that the value pointed to is the same as the serialized value paused to
 	 * disk as the value pointed to in the map could be modified by a caller
@@ -684,8 +678,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	 * 
 	 * The caller is forced to reckon with the possibility that any
 	 * modifications to the value object may be lost unless the caller
-	 * explicitly invokes a put subsequently.
-	 */
+	 * explicitly invokes a put subsequently. */
 
 	@SuppressWarnings("unchecked")
 	private Map<K, V> extractIterableMap(ConcurrentMap<K, V> m, int size) {
@@ -758,12 +751,15 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	/**
 	 * Will stop the GC thread but will have no other effect. The map can
 	 * continue to be used with the same semantics.
-	 * @param commitAll 
+	 * 
+	 * @param commitAll
 	 */
 	public void close(boolean commitAll) {
 		this.GC.shutdown();
-		if(commitAll) this.commitAll(this.map, false);
+		if (commitAll)
+			this.commitAll(this.map, false);
 	}
+
 	/**
 	 * 
 	 */
@@ -771,101 +767,13 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		close(false);
 	}
 
-	private static class KeyableString extends LogIndex implements
-			Keyable<String> {
-		/**
-		 * 
-		 */
-		private static final long serialVersionUID = 1L;
-		final String key;
-
-		// final String value;
-
-		KeyableString(String k) {
-			super(k, 0);
-			this.key = k;
-			// this.value = v;
-		}
-
-		@Override
-		public String getKey() {
-			return key;
-		}
-	}
-
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		int dbSize = 4000 * 1000;
-		ConcurrentHashMap<String, KeyableString> db = new ConcurrentHashMap<String, KeyableString>(
-				dbSize);
-		MultiArrayMap<String, KeyableString> gt = new MultiArrayMap<String, KeyableString>(
-				dbSize);
-		boolean sleep = false;
-		int capacity = 1000000;
-		DiskMap<String, KeyableString> dmap = new DiskMap<String, KeyableString>(
-				capacity) {
-
-			@Override
-			public Set<String> commit(Map<String, KeyableString> toCommit)
-					throws IOException {
-				try {
-					if (sleep)
-						Thread.sleep(toCommit.size());
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				db.putAll(toCommit);
-				return new HashSet<String>(toCommit.keySet());
-			}
-
-			@Override
-			public KeyableString restore(String key) throws IOException {
-				try {
-					if (sleep)
-						Thread.sleep(1);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				return db.get(key);
-			}
-		};
-		long t = System.currentTimeMillis(), t1 = t;
-		System.out.println("Starting test with dbSize=" + dbSize);
-		int count = 0, resetCount = 0;
-		int freq = 100000;
-		while (true) {
-			int i = count % dbSize;// (int) (Math.random() * (dbSize));
-			count++;
-			resetCount++;
-			if (count % freq == 0) {
-				System.out.println("after "
-						+ count
-						+ ": put/get rate = "
-						+ Util.df(resetCount * 1000.0
-								/ (System.currentTimeMillis() - t1))
-						+ DelayProfiler.getStats() + "; in-memory-size = "
-						+ dmap.map.size() + ": dbSize = " + db.size()
-						+ "; gtSize = " + gt.size());
-				t1 = System.currentTimeMillis();
-				resetCount = 0;
-			}
-
-			if (Math.random() < 0.5) {
-				KeyableString ks = new KeyableString(i + "");
-				dmap.put(i + "", ks);
-				ks.add(i, 2, 102, 3, "file" + i, 123, 4567);
-				gt.put(i + "", ks);
-			} else {
-				KeyableString retrieved = dmap.get(i + "");
-				KeyableString real = gt.get(i + "");
-				assert ((retrieved == null && real == null) || (retrieved != null
-						&& real != null && retrieved.equals(real))) : retrieved
-						+ " != " + real + " at count=" + count;
-			}
-			assert (dmap.map.size() <= capacity) : dmap.map.size();
-		}
-		// dmap.close();
+		Util.assertAssertionsEnabled();
+		Result result = JUnitCore.runClasses(DiskMapTest.class);
+		for (Failure failure : result.getFailures())
+			System.out.println(failure.toString());
 	}
 }

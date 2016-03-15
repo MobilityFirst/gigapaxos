@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
@@ -238,14 +236,35 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		protected AbstractReplicaCoordinator<String> createAppCoordinator() {
 			return super.createApp(null, super.nodeConfig);
 		}
-		
+
 		public String toString() {
 			return super.toString();
 		}
 	}
-	
+
 	public String toString() {
 		return "Node" + this.myID;
+	}
+
+	// get all nodes to be started via main
+	private static Set<String> getAllNodes(String[] args) {
+		boolean startAll = false;
+		Set<String> nodeIDs = new HashSet<String>();
+		for (String arg : args) {
+			if (arg.equals(ReconfigurationConfig.CommandArgs.START_ALL
+					.toString()))
+				startAll = true;
+		}
+		if (startAll) {
+			nodeIDs.addAll(ReconfigurationConfig.getReconfiguratorIDs());
+			nodeIDs.addAll(PaxosConfig.getActives().keySet());
+		} else
+			for (int i = args.length - 1; i >= 0; i--)
+				if (ReconfigurationConfig.getReconfiguratorIDs().contains(
+						args[i])
+						|| PaxosConfig.getActives().keySet().contains(args[i]))
+					nodeIDs.add(args[i]);
+		return nodeIDs;
 	}
 
 	/**
@@ -258,7 +277,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @throws IOException
 	 */
 	public static void main(String[] args) throws IOException {
-		Util.assertAssertionsEnabled();
+		// Util.assertAssertionsEnabled();
 		ReconfigurationConfig.setConsoleHandler();
 
 		if (args.length == 0)
@@ -270,17 +289,17 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
 		System.out.print("Creating node(s) [ ");
-		for (int i = args.length - 1; i >= 0 && nodeConfig.nodeExists(args[i]); i--)
-			if (nodeConfig.nodeExists(args[i])) {
-				System.out.print(args[i] + ":"
-						+ nodeConfig.getNodeAddress(args[i]) + ":"
-						+ nodeConfig.getNodePort(args[i]) + " ");
-				new DefaultReconfigurableNode(args[i],
-				// must use a different nodeConfig for each
-						new DefaultNodeConfig<String>(PaxosConfig.getActives(),
-								ReconfigurationConfig.getReconfigurators()),
-						args, false);
-			}
+		for (String node : getAllNodes(args))
+		// if (nodeConfig.nodeExists(args[i]))
+		{
+			System.out.print(node + ":" + nodeConfig.getNodeAddress(node) + ":"
+					+ nodeConfig.getNodePort(node) + " ");
+			new DefaultReconfigurableNode(node,
+			// must use a different nodeConfig for each
+					new DefaultNodeConfig<String>(PaxosConfig.getActives(),
+							ReconfigurationConfig.getReconfigurators()), args,
+					false);
+		}
 		System.out.println("]");
 	}
 }

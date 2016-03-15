@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
 import java.net.InetAddress;
@@ -48,7 +46,7 @@ public abstract class ClientReconfigurationPacket extends
 		BasicReconfigurationPacket<InetSocketAddress> {
 
 	private static enum Keys {
-		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY
+		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY, CREATE_TIME
 	};
 
 	/**
@@ -75,6 +73,8 @@ public abstract class ClientReconfigurationPacket extends
 	// whether this is a request as opposed to a respose
 	private boolean isRequest = true;
 
+	private long createTime = System.currentTimeMillis();
+
 	/**
 	 * @param initiator
 	 * @param type
@@ -87,7 +87,8 @@ public abstract class ClientReconfigurationPacket extends
 	}
 
 	/**
-	 * myReceiver may need to be set at creation time in create/delete responses.
+	 * myReceiver may need to be set at creation time in create/delete
+	 * responses.
 	 * 
 	 * @param initiator
 	 * @param type
@@ -96,7 +97,8 @@ public abstract class ClientReconfigurationPacket extends
 	 * @param myReceiver
 	 */
 	public ClientReconfigurationPacket(InetSocketAddress initiator,
-			ReconfigurationPacket.PacketType type, String name, int epochNumber, InetSocketAddress myReceiver) {
+			ReconfigurationPacket.PacketType type, String name,
+			int epochNumber, InetSocketAddress myReceiver) {
 		super(initiator, type, name, epochNumber);
 		this.creator = initiator;
 		this.myReceiver = myReceiver;
@@ -122,14 +124,16 @@ public abstract class ClientReconfigurationPacket extends
 	public ClientReconfigurationPacket(JSONObject json,
 			Stringifiable<?> unstringer) throws JSONException {
 		// ignores argument unstringer
-		super(json, ClientReconfigurationPacket.unstringer); 
+		super(json, ClientReconfigurationPacket.unstringer);
+		/* Won't have sender address in ReconfigurableAppClientAsync because it
+		 * used String, not JSONObject as MessageType. */
 		this.setSender(JSONNIOTransport.getSenderAddress(json));
 		// entry myReceiver for client request never overwritten
 		this.myReceiver = json.has(Keys.MY_RECEIVER.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.MY_RECEIVER
 						.toString())) : (JSONNIOTransport
 				.getReceiverAddress(json));
-		
+
 		this.failed = json.optBoolean(Keys.FAILED.toString());
 		this.recursiveRedirect = json.optBoolean(Keys.RECURSIVE_REDIRECT
 				.toString());
@@ -152,19 +156,19 @@ public abstract class ClientReconfigurationPacket extends
 				.getInetSocketAddressFromString(json.getString(Keys.CREATOR
 						.toString())) : null;
 
-		/*
-		 * Auto-insert if client sets creator to null. It is usually convenient
+		/* Auto-insert if client sets creator to null. It is usually convenient
 		 * for clients to set the initiator simply as null. But then we lose
 		 * information about the original sender. There is no way in
 		 * ProtocolPacket by design to explicitly set the initiator after
 		 * creation time, so we explicitly maintain a creator here that has the
 		 * same meaning as initiator but is guaranteed to be non-null at any
-		 * node receiving this packet.
-		 */
+		 * node receiving this packet. */
 		if (this.creator == null)
 			this.creator = this.getSender();
 
 		this.isRequest = json.getBoolean(Keys.IS_QUERY.toString());
+
+		this.createTime = json.getLong(Keys.CREATE_TIME.toString());
 	}
 
 	/**
@@ -193,6 +197,7 @@ public abstract class ClientReconfigurationPacket extends
 		if (this.creator != null)
 			json.put(Keys.CREATOR.toString(), this.creator.toString());
 		json.put(Keys.IS_QUERY.toString(), this.isRequest);
+		json.put(Keys.CREATE_TIME.toString(), this.createTime);
 		return json;
 	}
 
@@ -290,6 +295,7 @@ public abstract class ClientReconfigurationPacket extends
 	public InetSocketAddress getForwader() {
 		return this.forwarder;
 	}
+
 	/**
 	 * @return The socket address of the forwarding node.
 	 */
@@ -322,12 +328,13 @@ public abstract class ClientReconfigurationPacket extends
 	public boolean isForwardable() {
 		return this.isRecursiveRedirectEnabled() && this.getForwader() == null;
 	}
-	
+
 	/**
 	 * @param myReceiver
 	 * @return {@code this} with modified myReceiver
 	 */
-	public ClientReconfigurationPacket setMyReceiver(InetSocketAddress myReceiver) {
+	public ClientReconfigurationPacket setMyReceiver(
+			InetSocketAddress myReceiver) {
 		this.myReceiver = myReceiver;
 		return this;
 	}
@@ -349,11 +356,18 @@ public abstract class ClientReconfigurationPacket extends
 	public boolean isRedirectedResponse() {
 		return this.forwarder != null && !this.isRequest();
 	}
-	
+
+	/**
+	 * @return Creation timestamp.
+	 */
+	public long getCreateTime() {
+		return this.createTime;
+	}
+
 	public String getSummary() {
 		return super.getSummary() + ":" + (this.isRequest() ? "Q" : "R") + ":"
-				+ this.getCreator() + ":" + this.getForwader() 
-				//+ "; rsa="+ this.getMyReceiver()
-				;
+				+ this.getCreator() + ":" + this.getForwader()
+				+ (this.isFailed()? ":FAILED":"")
+		;
 	}
 }

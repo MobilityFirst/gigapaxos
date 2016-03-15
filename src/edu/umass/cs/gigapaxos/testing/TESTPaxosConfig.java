@@ -103,7 +103,7 @@ public class TESTPaxosConfig {
 		/**
 		 * starting ID for clients
 		 */
-		TEST_CLIENT_ID(200),
+		TEST_CLIENT_ID(500),
 		/**
 		 * Number of pre_configured groups for testing. An arbitrarily higher
 		 * number of additional groups can be created. These preconfigured

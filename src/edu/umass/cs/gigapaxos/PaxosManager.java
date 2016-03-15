@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -54,6 +52,7 @@ import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
+import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
@@ -163,7 +162,7 @@ public class PaxosManager<NodeIDType> {
 			assert (rc.request.getType() != PaxosPacketType.ACCEPT || rc.request
 					.hasRequestValue());
 			synchronized (this.requests) {
-				if(this.requests.putIfAbsent(rc.request.requestID, rc) == null)
+				if (this.requests.putIfAbsent(rc.request.requestID, rc) == null)
 					totalRequestSize += rc.request.lengthEstimate();
 			}
 			this.lastIncremented = System.currentTimeMillis();
@@ -216,7 +215,8 @@ public class PaxosManager<NodeIDType> {
 		InetSocketAddress clientAddress = clientRequest.getClientAddress();
 		if (clientAddress != null && response != null) {
 			try {
-				this.send(clientAddress, response, requestPacket.getListenAddress());
+				this.send(clientAddress, response,
+						requestPacket.getListenAddress());
 			} catch (JSONException | IOException e) {
 				e.printStackTrace();
 			}
@@ -249,13 +249,11 @@ public class PaxosManager<NodeIDType> {
 	// need this to be static so DB can be closed gracefully
 	private static int processing = 0;
 
-	/*
-	 * Note: PaxosManager itself maintains no NIO transport instance as it
+	/* Note: PaxosManager itself maintains no NIO transport instance as it
 	 * delegates all communication related activities to other objects.
 	 * PaxosManager is only responsible for managing state for and
 	 * demultiplexing incoming packets to a number of paxos instances at this
-	 * node.
-	 */
+	 * node. */
 
 	private static Logger log = Logger.getLogger(PaxosManager.class.getName());
 
@@ -403,8 +401,7 @@ public class PaxosManager<NodeIDType> {
 				PaxosInstanceStateMachine.ENABLE_NULL_CHECKPOINT_STATE);
 	}
 
-	/*
-	 * We need to be careful with pause/unpause and createPaxosInstance as there
+	/* We need to be careful with pause/unpause and createPaxosInstance as there
 	 * are potential cyclic dependencies. The call chain is as below, where
 	 * "info" is the information needed to create a paxos instance. The
 	 * notation"->?" means the call may or may not happen, which is why the
@@ -423,8 +420,7 @@ public class PaxosManager<NodeIDType> {
 	 * be successful
 	 * 
 	 * On incoming packet: handleIncomingPacket() -> getInstance(paxosID) ->?
-	 * unpause(paxosID) ->? createPaxosInstance(info)
-	 */
+	 * unpause(paxosID) ->? createPaxosInstance(info) */
 
 	/**
 	 * Returns members of this paxos instance if it is active, and null
@@ -556,14 +552,12 @@ public class PaxosManager<NodeIDType> {
 		return created;
 	}
 
-	/*
-	 * Synchronized in order to prevent duplicate instance creation under
+	/* Synchronized in order to prevent duplicate instance creation under
 	 * concurrency. This is the only method that can actually create a paxos
 	 * instance. All other methods just call this method eventually.
 	 * 
 	 * private because it ensures that initialState!=null and missedBirthing are
-	 * not both true.
-	 */
+	 * not both true. */
 	private synchronized PaxosInstanceStateMachine createPaxosInstance(
 			String paxosID, int version, Set<NodeIDType> gms, Replicable app,
 			String initialState, HotRestoreInfo hri, boolean tryRestore,
@@ -617,11 +611,9 @@ public class PaxosManager<NodeIDType> {
 				"{0} successfully {1} paxos instance {2}",
 				new Object[] { this, hri != null ? "unpaused" : "created",
 						pism.getPaxosIDVersion() });
-		/*
-		 * Note: rollForward can not be done inside the instance as we first
+		/* Note: rollForward can not be done inside the instance as we first
 		 * need to update the instance map here so that networking--even
-		 * trivially sending message to self--works.
-		 */
+		 * trivially sending message to self--works. */
 		assert (hri == null || hasRecovered());
 		if (hri == null) // not hot restore
 			rollForward(paxosID);
@@ -837,10 +829,8 @@ public class PaxosManager<NodeIDType> {
 			this.handlePaxosPacket(pp);
 	}
 
-	/*
-	 * If RequestPacket, hand over to batcher that will then call
-	 * handleIncomingPacketInternal on batched requests.
-	 */
+	/* If RequestPacket, hand over to batcher that will then call
+	 * handleIncomingPacketInternal on batched requests. */
 	private void enqueueRequest(PaxosPacket pp) {
 		PaxosPacketType type = pp.getType();
 		if ((type.equals(PaxosPacketType.REQUEST) || type
@@ -933,7 +923,7 @@ public class PaxosManager<NodeIDType> {
 			matched = true;
 			requestPacket.putPaxosID(paxosID, pism.getVersion());
 
-			log.log(Level.FINE, "{0} proposing to {1}: {2}",
+			log.log(Level.INFO, "{0} proposing to {1}: {2}",
 					new Object[] { this, pism.getPaxosIDVersion(),
 							requestPacket.getSummary() });
 
@@ -1120,8 +1110,7 @@ public class PaxosManager<NodeIDType> {
 	 *         when null checkpoint state is enabled.
 	 */
 	public StringContainer getFinalState(String paxosID, int version) {
-		/*
-		 * The wait below is a hack to force a little wait through
+		/* The wait below is a hack to force a little wait through
 		 * synchronization. If a stop request is being executed concurrently
 		 * while a getFinalState request arrives, it is better for the stop
 		 * request to finish and the final checkpoint to be created before we
@@ -1129,8 +1118,7 @@ public class PaxosManager<NodeIDType> {
 		 * response for getEpochFinalCheckpointState here and the requester of
 		 * the checkpoint is forced to time out and resend the request after a
 		 * coarse-grained timeout. This wait is just an optimization and is not
-		 * necessary for safety.
-		 */
+		 * necessary for safety. */
 		this.synchronizedNoop(paxosID, version);
 		return this.paxosLogger.getEpochFinalCheckpointState(paxosID, version);
 	}
@@ -1192,37 +1180,51 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public PaxosManager<NodeIDType> initClientMessenger(
 			InetSocketAddress myAddress) {
+		PaxosManager<NodeIDType> pm = this.initClientMessenger(myAddress, false);
+		if(SSL_MODES.valueOf(Config.getGlobalString(PC.CLIENT_SSL_MODE)) != SSL_MODES.CLEAR)
+			pm = pm.initClientMessenger(myAddress, true);
+		return pm;
+	}
+	/**
+	 * @param myAddress
+	 * @param ssl 
+	 * @return {@code this}
+	 */
+	private PaxosManager<NodeIDType> initClientMessenger(
+			InetSocketAddress myAddress, boolean ssl) {
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
 
 		try {
-			int clientPortOffset = Config.getGlobalInt(PC.CLIENT_PORT_OFFSET);
+			int clientPortOffset = ssl ? Config.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET) :
+				Config.getGlobalInt(PC.CLIENT_PORT_OFFSET);
 			if (clientPortOffset > 0) {
 				log.log(Level.INFO,
-						"Creating client messenger at {0}:{1}",
+						"Creating client messenger at {0}:{1}; offset={2}",
 						new Object[] { myAddress.getAddress(),
-								(myAddress.getPort() + clientPortOffset) });
+								(myAddress.getPort() + clientPortOffset), clientPortOffset });
 
 				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
 				InetSocketAddress isa = new InetSocketAddress(
-						myAddress.getAddress(), myAddress.getPort());
+						myAddress.getAddress(), myAddress.getPort() + clientPortOffset);
 				cMsgr = new JSONMessenger<InetSocketAddress>(
 						niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 								myAddress.getAddress(),
 								(myAddress.getPort() + clientPortOffset),
-								/*
-								 * Client facing demultiplexer is single
+								/* Client facing demultiplexer is single
 								 * threaded to keep clients from overwhelming
-								 * the system with request load.
-								 */
+								 * the system with request load. */
 								(new PaxosPacketDemultiplexerJSON(0, true)),
-								SSLDataProcessingWorker.SSL_MODES
-										.valueOf(Config.getGlobal(
-												PC.CLIENT_SSL_MODE).toString())));
+								ssl ? SSLDataProcessingWorker.SSL_MODES
+										.valueOf(Config.getGlobalString(
+												PC.CLIENT_SSL_MODE)) : SSL_MODES.CLEAR));
 				if (!niot.getListeningSocketAddress().equals(isa))
 					throw new IOException(
 							"Unable to listen on specified socket address at "
 									+ isa);
-				this.messenger.setClientMessenger(cMsgr);
+				if (ssl)
+					this.messenger.setSSLClientMessenger(cMsgr);
+				else
+					this.messenger.setClientMessenger(cMsgr);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -1368,20 +1370,16 @@ public class PaxosManager<NodeIDType> {
 	 * Gracefully closes PaxosManager.
 	 */
 	public void close() {
-		/*
-		 * The static method closeAll sets the closed flag so as to prevent any
-		 * further new packet processing across all instances of PaxosManager.
-		 */
+		/* The static method closeAll sets the closed flag so as to prevent any
+		 * further new packet processing across all instances of PaxosManager. */
 		closeAll();
 
-		/*
-		 * The static method waitToFinishAll waits until the static method
+		/* The static method waitToFinishAll waits until the static method
 		 * getProcessing returns true, i.e., there is some PaxosManager that has
 		 * started processing a packet (via handlePaxosMessage) but not finished
 		 * processing it. Once closeAll returns and then waitToFinishAll
 		 * returns, there can be no ongoing or future packet processing by any
-		 * instance of PaxosManager in this JVM.
-		 */
+		 * instance of PaxosManager in this JVM. */
 		waitToFinishAll();
 
 		/* Close logger, FD, messenger, request batcher, executor */
@@ -1516,14 +1514,12 @@ public class PaxosManager<NodeIDType> {
 		return Config.getGlobalBoolean(PC.HIBERNATE_OPTION);
 	}
 
-	/*
-	 * For each paxosID in the logs, this method creates the corresponding paxos
+	/* For each paxosID in the logs, this method creates the corresponding paxos
 	 * instance and rolls it forward from the last checkpointed state.
 	 * 
 	 * Synchronized because this method invokes an incremental read on the
 	 * database that currently does not support parallelism. But the
-	 * "synchronized" qualifier here is not necessary for correctness.
-	 */
+	 * "synchronized" qualifier here is not necessary for correctness. */
 	private synchronized void initiateRecovery() {
 		boolean found = false;
 		int groupCount = 0, freq = 1;
@@ -1570,12 +1566,10 @@ public class PaxosManager<NodeIDType> {
 		while (this.paxosLogger.initiateReadMessages())
 			; // acquires lock
 		String paxosPacketString = null;
-		/*
-		 * Set packetizer for logger. We need this in order to have the benefits
+		/* Set packetizer for logger. We need this in order to have the benefits
 		 * of caching the original string form of received accepts to reduce
 		 * serialization overhead. Without a packetizer, the logger doesn't know
-		 * how to convert string node IDs to integers.
-		 */
+		 * how to convert string node IDs to integers. */
 		this.paxosLogger
 				.setPacketizer(new AbstractPaxosLogger.PaxosPacketizer() {
 
@@ -1678,9 +1672,7 @@ public class PaxosManager<NodeIDType> {
 				pism.garbageCollectDecisions(entry.getValue());
 	}
 
-	/*
-	 * All messaging is done using PaxosMessenger and MessagingTask. This method
-	 */
+	/* All messaging is done using PaxosMessenger and MessagingTask. This method */
 	protected void send(MessagingTask mtask, boolean coalesce, boolean logMsg)
 			throws JSONException, IOException {
 		if (mtask == null)
@@ -1718,8 +1710,7 @@ public class PaxosManager<NodeIDType> {
 		this.messenger.sendClient(sockAddr, request, listenSockAddr);
 	}
 
-	/*
-	 * A clean kill completely removes all trace of the paxos instance (unlike
+	/* A clean kill completely removes all trace of the paxos instance (unlike
 	 * pause or hibernate or an unclean kill). The copy of the instance kept in
 	 * corpses will not be revived; in fact, is there temporarily only to make
 	 * sure that the instance does not get re-created as a "missed birthing"
@@ -1737,8 +1728,7 @@ public class PaxosManager<NodeIDType> {
 	 * move pism to corpses, all of which kill does.
 	 * 
 	 * Invariant: Only a paxos instance currently inserted in the map can be
-	 * killed.
-	 */
+	 * killed. */
 	protected synchronized void kill(PaxosInstanceStateMachine pism,
 			boolean clean) {
 		assert (pism != null);
@@ -1746,12 +1736,10 @@ public class PaxosManager<NodeIDType> {
 			throw new PaxosInstanceDestructionException(this
 					+ " has already been closed");
 
-		/*
-		 * Do nothing if existing version not same as kill target. Note that if
+		/* Do nothing if existing version not same as kill target. Note that if
 		 * existing is null, we still kill pism. It is unlikely but possible for
 		 * existing to be null, say, because the instance pism just got paused,
-		 * but for pism or this paxos manager to issue a kill immediately after.
-		 */
+		 * but for pism or this paxos manager to issue a kill immediately after. */
 		PaxosInstanceStateMachine existing = this
 				.getInstance(pism.getPaxosID());
 		if (existing != null && (pism.getVersion() - existing.getVersion() < 0)) {
@@ -1772,18 +1760,15 @@ public class PaxosManager<NodeIDType> {
 		this.notifyUponKill();
 	}
 
-	/*
-	 * Default kill is clean. Unclean kill is used by PaxosInstanceStateMachine
+	/* Default kill is clean. Unclean kill is used by PaxosInstanceStateMachine
 	 * when it is unable to execute an app request successfully. An unclean kill
 	 * does not wipe out checkpoint state or app state, but does move the paxos
 	 * instance to corpses because it is as good as dead at this point.
 	 * 
-	 * Why not just do a softCrash instead of corpsing out in the case of
-	 * an app execution error? The instance might get re-created as a "missed
-	 * birthing" case, but that would still be safe and, maybe, the roll forward
-	 * this time around might succeed. There isnt' a strong reason one way or 
-	 * the other.
-	 */
+	 * Why not just do a softCrash instead of corpsing out in the case of an app
+	 * execution error? The instance might get re-created as a "missed birthing"
+	 * case, but that would still be safe and, maybe, the roll forward this time
+	 * around might succeed. There isnt' a strong reason one way or the other. */
 	private void kill(PaxosInstanceStateMachine pism) {
 		this.kill(pism, true);
 	}
@@ -1795,11 +1780,9 @@ public class PaxosManager<NodeIDType> {
 		this.pinstances.remove(pism.getPaxosID());
 	}
 
-	/*
-	 * For testing. Similar to hibernate but without forcing a checkpoint and
+	/* For testing. Similar to hibernate but without forcing a checkpoint and
 	 * followed immediately by a restore from the most recent (but possibly
-	 * still quite old) checkpoint.
-	 */
+	 * still quite old) checkpoint. */
 	protected void crashAndRecover(PaxosInstanceStateMachine pism) {
 		if (pism == null || this.isClosed()
 				|| !this.pinstances.containsValue(pism))
@@ -1857,8 +1840,7 @@ public class PaxosManager<NodeIDType> {
 		return pism;
 	}
 
-	/*
-	 * Pausing is like hibernate but without checkpointing or subsequent
+	/* Pausing is like hibernate but without checkpointing or subsequent
 	 * recovery overhead.
 	 * 
 	 * We need batched pausing for efficiency, otherwise a deluge of pauses can
@@ -1867,8 +1849,7 @@ public class PaxosManager<NodeIDType> {
 	 * processing for that much time because of the synchronization below, but
 	 * if we pause in modest-sized batches, we will hold up regular request
 	 * processing for slightly longer but get done with pausing all pausable
-	 * instances much more quickly.
-	 */
+	 * instances much more quickly. */
 	protected HotRestoreInfo pause(PaxosInstanceStateMachine pism) {
 		if (pism == null || this.isClosed()
 				|| !this.pinstances.containsValue(pism) || !isPauseEnabled())
@@ -1880,10 +1861,8 @@ public class PaxosManager<NodeIDType> {
 		long pauseInitTime = System.currentTimeMillis();
 		HotRestoreInfo hri = pism.tryPause();
 		if (hri != null) {
-			/*
-			 * crash means the same as removing from pinstances as well as
-			 * activePaxii for an already stopped paxos instance.
-			 */
+			/* crash means the same as removing from pinstances as well as
+			 * activePaxii for an already stopped paxos instance. */
 			assert (pism.isStopped());
 			this.softCrash(pism);
 			if (Util.oneIn(Integer.MAX_VALUE))
@@ -1912,10 +1891,8 @@ public class PaxosManager<NodeIDType> {
 		}
 	};
 
-	/*
-	 * Batched pausing can speed up pause throughput by leveraging batching in a
-	 * database. It doesn't help unpausing though.
-	 */
+	/* Batched pausing can speed up pause throughput by leveraging batching in a
+	 * database. It doesn't help unpausing though. */
 	protected synchronized Set<String> pause(
 			Map<String, PaxosInstanceStateMachine> pauseBatch, boolean dequeue) {
 		if (this.isClosed() || !isPauseEnabled())
@@ -1967,16 +1944,14 @@ public class PaxosManager<NodeIDType> {
 			return restored;
 
 		long unpauseInitTime = System.currentTimeMillis();
-		/*
-		 * stringLocker allows concurrent unpause of different paxosIDs while
+		/* stringLocker allows concurrent unpause of different paxosIDs while
 		 * serializing unpause attempts of the same paxosID. We need to
 		 * serialize unpause attempts to the same paxosID as otherwise, even if
 		 * paused state exists, only the first unpause attempt will retrieve it
 		 * but one of the latter attempts that found no paused state could still
 		 * race ahead causing getInstance to return null resulting in a packet
 		 * drop even though the instance exists locally. Such packet drops will
-		 * not affect safety but it is good to avoid them.
-		 */
+		 * not affect safety but it is good to avoid them. */
 		synchronized (this.stringLocker.get(paxosID)) {
 			HotRestoreInfo hri = this.paxosLogger.unpause(paxosID);
 			if (hri != null) {
@@ -2000,10 +1975,8 @@ public class PaxosManager<NodeIDType> {
 		return restored;
 	}
 
-	/*
-	 * Create paxos instance restoring app state from checkpoint if any and roll
-	 * forward.
-	 */
+	/* Create paxos instance restoring app state from checkpoint if any and roll
+	 * forward. */
 	private PaxosInstanceStateMachine recover(String paxosID, int version,
 			int id, Set<NodeIDType> members, Replicable app, String state) {
 		log.log(Level.FINE, "{0} {1}:{2} {3} recovering", new Object[] { this,
@@ -2019,16 +1992,14 @@ public class PaxosManager<NodeIDType> {
 		return this.recover(paxosID, version, id, members, app, null);
 	}
 
-	/*
-	 * After rollForward, recovery is complete. In particular, we don't have to
+	/* After rollForward, recovery is complete. In particular, we don't have to
 	 * wait for any more processing of messages, e.g., out of order decisions to
 	 * "settle", because the only important thing is to replay and process
 	 * ACCEPTs and PREPAREs so as to bring the acceptor state up to speed, which
 	 * is a purely local and non-blocking sequence of operations. Coordinator
 	 * state in general is not recoverable; the easiest way to recover it is to
 	 * simply call checkRunForCoordinator, which will happen automatically upon
-	 * the receipt of any external packet.
-	 */
+	 * the receipt of any external packet. */
 	private void rollForward(String paxosID) {
 		if (/* !ONE_PASS_RECOVERY || */this.hasRecovered()) {
 			log.log(Level.FINE, "{0} {1} about to roll forward", new Object[] {
@@ -2049,8 +2020,7 @@ public class PaxosManager<NodeIDType> {
 			return;
 		}
 		assert (pp.getPaxosID() != null);
-		/*
-		 * If it is possible for there to be no initial state checkpoint, under
+		/* If it is possible for there to be no initial state checkpoint, under
 		 * missed birthing, an acceptor may incorrectly report its gcSlot as -1,
 		 * and if a majority do so (because that majority consists all of missed
 		 * birthers), a coordinator may propose a proposal for slot 0 even
@@ -2058,8 +2028,7 @@ public class PaxosManager<NodeIDType> {
 		 * the initial state. So we can not support ambiguity in whether there
 		 * is initial state or not. If we force initial state checkpoints (even
 		 * null state checkpoints) to always exist, so that missed birthers can
-		 * always set the initial gcSlot to 0.
-		 */
+		 * always set the initial gcSlot to 0. */
 		if (!this.isNullCheckpointStateEnabled()) {
 			this.logPacketDrop(pp);
 			return;
@@ -2077,11 +2046,9 @@ public class PaxosManager<NodeIDType> {
 				new Object[] { this, pp.getSummary() });
 	}
 
-	/*
-	 * The two methods, heardFrom and isNodeUp, below are the only ones that
+	/* The two methods, heardFrom and isNodeUp, below are the only ones that
 	 * invoke nodeMap.get(int). They are only invoked after the corresponding
-	 * NodeIDType is already inserted in the map.
-	 */
+	 * NodeIDType is already inserted in the map. */
 	protected void heardFrom(int id) {
 		try {
 			this.FD.heardFrom(this.integerMap.get(id));
@@ -2376,8 +2343,7 @@ public class PaxosManager<NodeIDType> {
 	private static final double PAUSE_RATE_LIMIT = Config
 			.getGlobalDouble(PC.PAUSE_RATE_LIMIT);
 
-	/*
-	 * We currently make a periodic pass over all active instances to sync and
+	/* We currently make a periodic pass over all active instances to sync and
 	 * check for deactivation. However, deactivation can be delegated to a
 	 * general-purpose DiskMap like structure and can be done more efficiently
 	 * in *expectation* than a full active sweep (at a ~2x higher memory cost)
@@ -2389,8 +2355,7 @@ public class PaxosManager<NodeIDType> {
 	 * down the critical path. The bad case for a sweep is when most of the
 	 * mapped instances are active, so the sweeps end up being redundant; it is
 	 * unclear if this actually affects performance much given the low priority
-	 * hint for the thread and the explict rate limit.
-	 */
+	 * hint for the thread and the explict rate limit. */
 	private void syncAndDeactivate() {
 		if (isClosed() || this.pinstances.size() == 0)
 			return;
@@ -2419,8 +2384,7 @@ public class PaxosManager<NodeIDType> {
 							/ FORCE_PAUSE_FACTOR)) {
 				log.log(Level.FINER, "{0} trying to pause {1} [{2}]",
 						new Object[] { this, paxosID, pism });
-				/*
-				 * The sync below ensures that, at least once every deactivation
+				/* The sync below ensures that, at least once every deactivation
 				 * period, we sync decisions for an active paxos instance. This
 				 * is handy when a paxos instance is not caught up but doesn't
 				 * get any new messages either, say, because nothing new is
@@ -2466,8 +2430,7 @@ public class PaxosManager<NodeIDType> {
 				 * add one message to every 6 expected messages (for 2 paxos
 				 * commits) at this replica, a ~15% overhead. But with such a
 				 * low outOfOrder threshold, we should not be having a large
-				 * number of paxos instances in the first place.
-				 */
+				 * number of paxos instances in the first place. */
 				this.syncPaxosInstance(pism, false);
 				// rate limit if well under capacity
 				if (this.pinstances.size() < this.pinstances.capacity() / 2)
@@ -2520,10 +2483,8 @@ public class PaxosManager<NodeIDType> {
 		}
 	}
 
-	/*
-	 * Both deactivates, i.e., removes temporary active paxos state, and pauses,
-	 * i.e., swaps safety-critical paxos state to disk.
-	 */
+	/* Both deactivates, i.e., removes temporary active paxos state, and pauses,
+	 * i.e., swaps safety-critical paxos state to disk. */
 	private class Deactivator implements Runnable {
 		public void run() {
 			Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
@@ -2710,27 +2671,21 @@ public class PaxosManager<NodeIDType> {
 		PaxosManager<Integer>[] pms = new PaxosManager[numNodes];
 		TESTPaxosApp[] apps = new TESTPaxosApp[numNodes];
 
-		/*
-		 * We always test with the first member crashed. This also ensures that
+		/* We always test with the first member crashed. This also ensures that
 		 * the system is fault-tolerant to the failure of the default
 		 * coordinator, which in our policy is the first (or lowest numbered)
-		 * node.
-		 */
+		 * node. */
 		TESTPaxosConfig.crash(members[0]);
-		/*
-		 * We disable sending replies to client in PaxosManager's unit-test. To
+		/* We disable sending replies to client in PaxosManager's unit-test. To
 		 * test with clients, we rely on other tests in TESTPaxosMain
 		 * (single-machine) or on TESTPaxosNode and TESTPaxosClient for
-		 * distributed testing.
-		 */
+		 * distributed testing. */
 		TESTPaxosConfig.setSendReplyToClient(false);
 
-		/*
-		 * This setting is "guilty until proven innocent", i.e., each node will
+		/* This setting is "guilty until proven innocent", i.e., each node will
 		 * start out assuming that all other nodes are dead. This is probably
 		 * too pessimistic as it will cause every node to run for coordinator
-		 * when it starts up but is good for testing.
-		 */
+		 * when it starts up but is good for testing. */
 		FailureDetection.setParanoid();
 
 		// Set up paxos managers and apps with nio
@@ -2746,10 +2701,8 @@ public class PaxosManager<NodeIDType> {
 		System.out.println("Initiated all " + numNodes
 				+ " paxos managers with failure detectors..\n");
 
-		/*
-		 * We don't rigorously test with multiple groups as they are
-		 * independent, but this is useful for memory testing.
-		 */
+		/* We don't rigorously test with multiple groups as they are
+		 * independent, but this is useful for memory testing. */
 		int numPaxosGroups = 2;
 		String[] names = new String[numPaxosGroups];
 		for (int i = 0; i < names.length; i++)
@@ -2775,11 +2728,9 @@ public class PaxosManager<NodeIDType> {
 		}
 		Thread.sleep(1000);
 
-		/*
-		 * Wait for all paxos managers to finish recovery. Recovery is finished
+		/* Wait for all paxos managers to finish recovery. Recovery is finished
 		 * when initiateRecovery() is complete. At this point, all the paxos
-		 * groups at that node would have also rolled forward.
-		 */
+		 * groups at that node would have also rolled forward. */
 		int maxRecoverySlot = -1;
 		int maxRecoveredNode = -1;
 		for (int i = 0; i < numNodes; i++) {
@@ -2825,10 +2776,8 @@ public class PaxosManager<NodeIDType> {
 		}
 		/************* End ClientRequestTask **************************/
 
-		/*
-		 * Create and schedule requests. All requests are scheduled immediately
-		 * to test concurrency
-		 */
+		/* Create and schedule requests. All requests are scheduled immediately
+		 * to test concurrency */
 		int numRequests = 1000;
 		RequestPacket[] reqs = new RequestPacket[numRequests];
 		ScheduledFuture<?>[] futures = new ScheduledFuture[numRequests];
@@ -2852,12 +2801,10 @@ public class PaxosManager<NodeIDType> {
 				continue;
 			}
 		}
-		/*
-		 * Any exceptions below could occur because of exceptions inside paxos.
+		/* Any exceptions below could occur because of exceptions inside paxos.
 		 * Scheduling a request will invoke PaxosManager.propose() that will
 		 * cause it to send the request to the corresponding
-		 * PaxosInstanceStateMachine.
-		 */
+		 * PaxosInstanceStateMachine. */
 		log.info("Waiting for request scheduling to complete.");
 		for (int i = 0; i < numRequests; i++) {
 			try {
@@ -2870,11 +2817,9 @@ public class PaxosManager<NodeIDType> {
 		log.info("Request scheduling complete; numExceptions=" + numExceptions);
 		Thread.sleep(1000);
 
-		/*
-		 * Wait for scheduled requests to finish being processed by paxos. We
+		/* Wait for scheduled requests to finish being processed by paxos. We
 		 * check for this by checking that at least one node has executed up to
-		 * the slot number maxRecoverySlot + numRequests.
-		 */
+		 * the slot number maxRecoverySlot + numRequests. */
 		while (apps[maxRecoveredNode].getNumCommitted(names[0]) < maxRecoverySlot
 				+ numRequests) {
 			apps[maxRecoveredNode].waitToFinish();
@@ -2883,11 +2828,9 @@ public class PaxosManager<NodeIDType> {
 		log.info("Node" + maxRecoveredNode + " has executed up to slot "
 				+ (maxRecoverySlot + numRequests));
 
-		/*
-		 * The code below waits for all uncrashed replicas to finish executing
+		/* The code below waits for all uncrashed replicas to finish executing
 		 * up to the same slot and will then assert the SMR invariant, i.e.,
-		 * they all made the same state transitions up to that slot.
-		 */
+		 * they all made the same state transitions up to that slot. */
 		int numCommitted = 0;
 		for (int i = 0; i < numNodes; i++) {
 			for (int j = i + 1; j < numNodes; j++) {
@@ -2928,11 +2871,9 @@ public class PaxosManager<NodeIDType> {
 			}
 		}
 
-		/*
-		 * Print preempted requests if any. These could happen during
+		/* Print preempted requests if any. These could happen during
 		 * coordinator changes. Preempted requests are converted to no-ops and
-		 * forwarded to the current presumed coordinator by paxos.
-		 */
+		 * forwarded to the current presumed coordinator by paxos. */
 		String preemptedReqs = "[ ";
 		int numPreempted = 0;
 		for (int i = 0; i < numRequests; i++) {
@@ -3011,11 +2952,9 @@ public class PaxosManager<NodeIDType> {
 				.getMessageDigest()) : multicastAccept;
 	}
 
-	/*
-	 * Callback for timed out digested accept. Will send a nack accept reply in
+	/* Callback for timed out digested accept. Will send a nack accept reply in
 	 * order to try to get the sender to send the undigested accept. The
-	 * digested accept will be discarded in any case after this callback.
-	 */
+	 * digested accept will be discarded in any case after this callback. */
 	private void callbackDigestedAcceptTimeout(AcceptPacket accept) {
 		try {
 			PaxosManager.log.log(
@@ -3035,10 +2974,11 @@ public class PaxosManager<NodeIDType> {
 							accept.ballot.coordinatorID, new AcceptReplyPacket(
 									PaxosManager.this.getMyID(), accept.ballot,
 									accept.slot,
-									/* FIXME: wraparound means that maxCheckpointedSlot of 0 can be unsafe.
-									 * We need to get the correct value from the paxos instance. But for
-									 * now digests are not disabled by default, so this is okay.
-									 */
+									/* FIXME: wraparound means that
+									 * maxCheckpointedSlot of 0 can be unsafe.
+									 * We need to get the correct value from the
+									 * paxos instance. But for now digests are
+									 * not disabled by default, so this is okay. */
 									0, accept.requestID).setDigestRequest()
 									.putPaxosID(accept.getPaxosID(),
 											accept.getVersion())));
@@ -3075,5 +3015,17 @@ public class PaxosManager<NodeIDType> {
 						request.getSummary(log.isLoggable(level)),
 						accept != null ? accept.getSummary(log
 								.isLoggable(level)) : "" });
+	}
+
+	/**
+	 * @param nodes
+	 * @return Modified argument after filtering out dead nodes using
+	 *         information from its failure detector.
+	 */
+	public Set<NodeIDType> removeDead(Set<NodeIDType> nodes) {
+		for (NodeIDType node : nodes)
+			if (!this.FD.isNodeUp(node))
+				nodes.remove(node);
+		return nodes;
 	}
 }

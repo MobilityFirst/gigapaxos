@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 
 package edu.umass.cs.gigapaxos;
 
@@ -26,20 +24,23 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageNIOTransport;
+import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.nioutils.NIOHeader;
+import edu.umass.cs.utils.Config;
 
 /**
  * @author arun
  *
  */
 public class PaxosClientAsync {
-	
+
 	protected final InetSocketAddress[] servers;
 	private final MessageNIOTransport<String, JSONObject> niot;
 	private final ConcurrentHashMap<Long, RequestCallback> callbacks = new ConcurrentHashMap<Long, RequestCallback>();
@@ -66,8 +67,9 @@ public class PaxosClientAsync {
 				if (callbacks.containsKey((long) response.requestID))
 					callbacks.remove((long) response.requestID).handleResponse(
 							response);
-				else if(PaxosClientAsync.this.defaultCallback  !=null)
-					PaxosClientAsync.this.defaultCallback.handleResponse(response);
+				else if (PaxosClientAsync.this.defaultCallback != null)
+					PaxosClientAsync.this.defaultCallback
+							.handleResponse(response);
 
 			return true;
 		}
@@ -109,7 +111,7 @@ public class PaxosClientAsync {
 		}
 
 	}
-	
+
 	/**
 	 * @param callback
 	 * @return The previous value of the default callback if any.
@@ -207,8 +209,11 @@ public class PaxosClientAsync {
 	 */
 	public PaxosClientAsync(Set<InetSocketAddress> servers) throws IOException {
 		this.niot = (new MessageNIOTransport<String, JSONObject>(null, null,
-				(new ClientPacketDemultiplexer(this)), true));
-		this.servers = servers.toArray(new InetSocketAddress[0]);
+				(new ClientPacketDemultiplexer(this)), true,
+				SSL_MODES.valueOf(Config.getGlobalString(PC.CLIENT_SSL_MODE))));
+		this.servers = PaxosConfig.offsetSocketAddresses(servers,
+				PaxosConfig.getClientPortOffset()).toArray(
+				new InetSocketAddress[0]);
 	}
 
 	/**

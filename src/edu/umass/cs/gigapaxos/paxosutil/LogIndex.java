@@ -9,12 +9,14 @@ import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.junit.Test;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.Keyable;
 import edu.umass.cs.utils.Pausable;
 
@@ -146,7 +148,8 @@ public class LogIndex implements Keyable<String>, Serializable, Pausable {
 		// the only time after initialization when minLogfile is updated
 		if (!this.log.isEmpty())
 			this.minLogfile = this.log.get(0).logfile;
-		else this.minLogfile = null;
+		else
+			this.minLogfile = null;
 	}
 
 	/**
@@ -315,7 +318,8 @@ public class LogIndex implements Keyable<String>, Serializable, Pausable {
 	 *         last commit to disk.
 	 */
 	public String getMinLogfile() {
-		return (this.log==null || this.log.isEmpty()) ? null : this.minLogfile;
+		return (this.log == null || this.log.isEmpty()) ? null
+				: this.minLogfile;
 	}
 
 	/**
@@ -366,31 +370,33 @@ public class LogIndex implements Keyable<String>, Serializable, Pausable {
 		};
 	}
 
-	/**
-	 * @param args
-	 * @throws JSONException
-	 * @throws IOException
-	 */
-	public static void main(String[] args) throws JSONException, IOException {
-		LogIndex logIndex = new LogIndex("paxos0", 3);
-		// logIndex.add(1, 2, 102, 3, "file1", 345, 1100);
-		// logIndex.add(2, 2, 102, 3, "file1", 1445, 1200);
-		System.out.println(logIndex.toString());
-		LogIndex restored = new LogIndex(new JSONArray(logIndex.toString()));
-		System.out.println(restored);
-		assert (logIndex.toString().equals(restored.toString()));
-		System.out.println(new String(SQLPaxosLogger.inflate(SQLPaxosLogger
-				.deflate(logIndex.toString().getBytes("ISO-8859-1"))),
-				"ISO-8859-1"));
-	}
-	
-	static {PaxosConfig.load();}
-
 	private static final long DEACTIVATION_PERIOD = Config
 			.getGlobalLong(PC.DEACTIVATION_PERIOD);
 
 	@Override
 	public boolean isPausable() {
 		return System.currentTimeMillis() - this.lastActive > DEACTIVATION_PERIOD;
+	}
+
+	/**
+	 *
+	 */
+	public static class LogIndexTest extends DefaultTest {
+		/**
+		 * @throws JSONException
+		 * @throws IOException
+		 */
+		@Test
+		public void testRestore() throws JSONException, IOException {
+			LogIndex logIndex = new LogIndex("paxos0", 3);
+			System.out.println(logIndex.toString());
+			LogIndex restored = new LogIndex(new JSONArray(logIndex.toString()));
+			System.out.println(restored);
+			assert (logIndex.toString().equals(restored.toString()));
+			System.out.println(new String(SQLPaxosLogger.inflate(SQLPaxosLogger
+					.deflate(logIndex.toString().getBytes("ISO-8859-1"))),
+					"ISO-8859-1"));
+		}
+
 	}
 }

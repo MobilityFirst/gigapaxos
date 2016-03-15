@@ -252,7 +252,7 @@ public class NIOTransport<NodeIDType> implements Runnable,
 		this.worker = this.getWorker(worker, sslMode);
 		this.selector = this.initSelector(mySockAddr);
 
-		(me = (new Thread(this))).setName(getClass().getSimpleName() + (myID != null ? myID : "[]"));
+		(me = (new Thread(this))).setName(getClass().getSimpleName() + ":"+ (myID != null ? myID : "[]"));
 		me.start();
 		this.meThreadId = me.getId();
 
@@ -1537,7 +1537,8 @@ public class NIOTransport<NodeIDType> implements Runnable,
 			// try wildcard IP
 			serverChannel.socket().bind(new InetSocketAddress(isa.getPort()));
 		}
-		log.log(Level.INFO, "{0} listening on channel {1}", new Object[]{this, serverChannel});
+		log.log(Level.INFO, "{0} listening on channel {1} with ssl mode {2}",
+				new Object[] { this, serverChannel, this.getSSLMode() });
 		
 		if (isSSL())
 			// only for logging purposes

@@ -255,7 +255,7 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		MAX_BATCH_SIZE(10000),
-		
+
 		/**
 		 * Requesting actives returns a random active replica for this name.
 		 */
@@ -581,6 +581,16 @@ public class ReconfigurationConfig {
 		}
 		return creates.toArray(new CreateServiceName[0]);
 	}
+	
+	/**
+	 * Command-line options
+	 */
+	public static enum CommandArgs {
+		/**
+		 * 
+		 */
+		START_ALL
+	};
 
 	/**
 	 * 
@@ -647,20 +657,4 @@ public class ReconfigurationConfig {
 		return request.getSummary();
 	}
 
-	/**
-	 * @param reconfigurators
-	 * @param globalInt
-	 * @return Socket addresses with the port offset added to each element.
-	 */
-	public static InetSocketAddress[] offsetSocketAddresses(
-			Set<InetSocketAddress> reconfigurators, int globalInt) {
-		InetSocketAddress[] offsetted = new InetSocketAddress[reconfigurators
-				.size()];
-		int i = 0;
-		for (InetSocketAddress isa : reconfigurators) {
-			offsetted[i++] = new InetSocketAddress(isa.getAddress(),
-					isa.getPort() + globalInt);
-		}
-		return offsetted;
-	}
 }

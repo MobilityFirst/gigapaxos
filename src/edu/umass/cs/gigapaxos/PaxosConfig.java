@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
 import java.io.IOException;
@@ -33,6 +31,7 @@ import org.json.JSONException;
 import edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
+import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.utils.Config;
@@ -67,7 +66,7 @@ public class PaxosConfig {
 	public static void load(Class<?> type) {
 		try {
 			Config.register(type, GIGAPAXOS_CONFIG_FILE_KEY,
-						DEFAULT_GIGAPAXOS_CONFIG_FILE);
+					DEFAULT_GIGAPAXOS_CONFIG_FILE);
 		} catch (IOException e) {
 			// ignore as default will still be used
 		}
@@ -107,9 +106,9 @@ public class PaxosConfig {
 	private static Class<?> getClassSuppressExceptions(String className) {
 		Class<?> clazz = null;
 		try {
-                  if (className != null && !"null".equals(className)) {
-			clazz = Class.forName(className);
-                  }
+			if (className != null && !"null".equals(className)) {
+				clazz = Class.forName(className);
+			}
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 		}
@@ -136,7 +135,12 @@ public class PaxosConfig {
 		/**
 		 * Default offset for the client facing port.
 		 */
-		CLIENT_PORT_OFFSET(00),
+		CLIENT_PORT_OFFSET(100),
+
+		/**
+		 * Default offset for the client facing ssl port.
+		 */
+		CLIENT_PORT_SSL_OFFSET(200),
 
 		/**
 		 * Verbose debugging and request instrumentation
@@ -676,8 +680,8 @@ public class PaxosConfig {
 		/**
 		 * Broadcast requests at entry replica and use digests in accepts. This
 		 * makes a noticeable difference only when the number of groups is small
-		 * (like 1 or 2). For more groups, the reordering effects seem to hurt more
-		 * than help.
+		 * (like 1 or 2). For more groups, the reordering effects seem to hurt
+		 * more than help.
 		 * 
 		 * Disabled by default.
 		 */
@@ -763,6 +767,31 @@ public class PaxosConfig {
 	}
 
 	/**
+	 * @return Default client port offset based on whether ssl is enabled.
+	 */
+	public static int getClientPortOffset() {
+		if (SSL_MODES.valueOf(Config.getGlobalString(PC.CLIENT_SSL_MODE)) == SSL_MODES.CLEAR)
+			return Config.getGlobalInt(PC.CLIENT_PORT_OFFSET);
+		else
+			return Config.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET);
+	}
+	
+	/**
+	 * @param servers
+	 * @param globalInt
+	 * @return Socket addresses with the port offset added to each element.
+	 */
+	public static Set<InetSocketAddress> offsetSocketAddresses(
+			Set<InetSocketAddress> servers, int globalInt) {
+		Set<InetSocketAddress> offsetted = new HashSet<InetSocketAddress>();
+		for (InetSocketAddress isa : servers) {
+			offsetted.add(new InetSocketAddress(isa.getAddress(), isa.getPort()
+					+ globalInt));
+		}
+		return offsetted;
+	}
+
+	/**
 	 * @param level
 	 */
 	public static void setConsoleHandler(Level level) {
@@ -771,7 +800,7 @@ public class PaxosConfig {
 		PaxosManager.getLogger().setLevel(level);
 		PaxosManager.getLogger().addHandler(handler);
 		PaxosManager.getLogger().setUseParentHandlers(false);
-		
+
 		NIOTransport.getLogger().setLevel(level);
 		NIOTransport.getLogger().addHandler(handler);
 		NIOTransport.getLogger().setUseParentHandlers(false);
@@ -779,15 +808,17 @@ public class PaxosConfig {
 	}
 
 	protected static void setConsoleHandler() {
-		setConsoleHandler(Level.INFO);
+		if (System.getProperty("java.util.logging.config.file") == null)
+			setConsoleHandler(Level.INFO);
 	}
-	
+
 	@SuppressWarnings({ "javadoc", "unchecked", "rawtypes" })
 	public static void sanityCheck(NodeConfig nodeConfig) throws IOException {
 		for (Object n : nodeConfig.getNodeIDs()) {
 			for (Object m : nodeConfig.getNodeIDs())
-				if (!n.equals(m) && nodeConfig.getNodeAddress(n).equals(
-						nodeConfig.getNodeAddress(m))
+				if (!n.equals(m)
+						&& nodeConfig.getNodeAddress(n).equals(
+								nodeConfig.getNodeAddress(m))
 						&& (nodeConfig.getNodePort(n) == nodeConfig
 								.getNodePort(m) || nodeConfig.getNodePort(n)
 								+ Config.getGlobalInt(PC.CLIENT_PORT_OFFSET) == nodeConfig

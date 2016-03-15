@@ -271,7 +271,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			@Override
 			public Thread newThread(Runnable r) {
 				Thread thread = Executors.defaultThreadFactory().newThread(r);
-				thread.setName(strID);
+				thread.setName(SQLPaxosLogger.class.getSimpleName()+":"+strID);
 				return thread;
 			}
 		}); // new Timer(strID);

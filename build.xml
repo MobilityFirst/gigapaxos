@@ -135,6 +135,14 @@
     <fail message="You must run this target with -Dtest=TestName"/>
   </target>
 
+  <target name="ensure-pkg-name" unless="pkg">
+    <fail message="You must run this target with -Dpkg=pattern"/>
+  </target>
+
+  <target name="ensure-class-name" unless="class">
+    <fail message="You must run this target with -Dclass=classname"/>
+  </target>
+
   <target name="compiletest" depends="compile" description="Compile all the test files">
     <mkdir dir="${build.test.dir}" />
     <mkdir dir="${build.test.classes.dir}" />
@@ -149,7 +157,7 @@
   <target name="runtest" description="Runs the test you specify on the command line with -Dtest=" 
           depends="compiletest, ensure-test-name">
     <junit printsummary="withOutAndErr" fork="yes" showoutput="true"
-haltonerror="on"> 
+haltonfailure="on"> 
       <!--      <jvmarg value="-Djavax.net.ssl.trustStorePassword=qwerty"/>
       <jvmarg value="-Djavax.net.ssl.trustStore=conf/trustStore/node100.jks"/>
       <jvmarg value="-Djavax.net.debug=ssl"/>-->
@@ -171,9 +179,33 @@ haltonerror="on">
           <include name="**/${test}.java"/>
         </fileset>
       </batchtest>
+      <batchtest>
+        <fileset dir="${build.test.classes.dir}">
+          <include name="**/${test}/*Test.class"/>
+        </fileset>
+      </batchtest>
     </junit>
   </target>
     
+<target name="run" description="Runs the test you specify on the
+command line with -Dclass=" 
+          depends="jar, compiletest, ensure-class-name">
+    <java classname="${class}"> 
+      <jvmarg value="-ea"/>
+      <jvmarg value="-Djava.util.logging.config.file=logging.properties"/>
+      <jvmarg value="-Djavax.net.ssl.trustStorePassword=qwerty"/>
+      <jvmarg value="-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"/>
+      <jvmarg value="-Djavax.net.ssl.keyStorePassword=qwerty"/>
+      <jvmarg value="-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks"/>
+      <jvmarg value="-DgigapaxosConfig=gigapaxos.properties"/>
+      <classpath>
+        <pathelement location="${build.test.classes.dir}"/>
+      </classpath>
+      <!-- Make sure these libraries are included -->
+      <classpath refid="classpath.test" />
+    </java>
+  </target>
+   
  <target name="test" description="Runs the default integration test" 
           depends="jar, compiletest">
     <junit printsummary="yes" fork="yes" haltonfailure="on" showoutput="yes">

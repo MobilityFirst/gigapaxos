@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -11,8 +10,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
- * the License.
- */
+ * the License. */
 package edu.umass.cs.utils;
 
 import java.io.File;
@@ -330,28 +328,29 @@ public class Util {
 		throw new RuntimeException("Asserts not enabled; exiting");
 	}
 
-	/*
-	 * The methods below return an Object with a toString method so that the
+	/* The methods below return an Object with a toString method so that the
 	 * string won't actually get created until its toString method is invoked.
-	 * This is useful to optimize logging.
-	 */
+	 * This is useful to optimize logging. */
 
-	public static Object truncate(final String str, final int size) {
+	public static Object truncate(final Object obj, final int size) {
 		return new Object() {
 			@Override
 			public String toString() {
+				String str = obj.toString();
 				return str == null || str.length() <= size ? str
-						: str != null ? str.substring(0, size) +"[..truncated]" : null;
+						: str != null ? str.substring(0, size)
+								+ "[..truncated]" : null;
 			}
 		};
 	}
 
-	public static Object truncate(final String str, final int prefixSize,
+	public static Object truncate(final Object obj, final int prefixSize,
 			final int suffixSize) {
 		final int size = prefixSize + suffixSize;
 		return new Object() {
 			@Override
 			public String toString() {
+				String str = obj.toString();
 				return str == null || str.length() < size ? str
 						: str != null ? str.substring(0, prefixSize) + "[...]"
 								+ str.substring(str.length() - suffixSize)
@@ -397,6 +396,7 @@ public class Util {
 			}
 		};
 	}
+
 	public static Object suicide(Logger logger, String error) {
 		logger.severe(error);
 		new RuntimeException(error).printStackTrace();
@@ -482,8 +482,8 @@ public class Util {
 	private static void testGetInetSocketAddressFromString() {
 		assert (getInetSocketAddressFromString("10.0.1.50/10.0.1.50:24404")
 				.equals(new InetSocketAddress("10.0.1.50", 24404)));
-	}        
-        
+	}
+
 	private static void testGetInetAddressFromString()
 			throws UnknownHostException {
 		assert (getInetAddressFromString("10.0.1.50/10.0.1.50:24404")
@@ -528,10 +528,11 @@ public class Util {
 			;
 		return allArray[index];
 	}
+
 	public static InetSocketAddress offsetPort(InetSocketAddress isa, int offset) {
 		return new InetSocketAddress(isa.getAddress(), isa.getPort() + offset);
 	}
-	
+
 	public static Set<?> removeFromSetCopy(Set<?> set, Object element) {
 		if (set != null && element != null) {
 			Set<?> copy = new HashSet<>(set);
@@ -542,11 +543,11 @@ public class Util {
 	}
 
 	public static Set<?> removeFromSet(Set<?> set, Object element) {
-		if(set!=null && element!=null) 
+		if (set != null && element != null)
 			set.remove(element);
 		return set;
 	}
-	
+
 	// return s1 - s2
 	public static Set<Object> diff(Set<?> s1, Set<?> s2) {
 		Set<Object> diff = new HashSet<Object>();
@@ -562,17 +563,33 @@ public class Util {
 		testGetInetSocketAddressFromString();
 		testGetInetAddressFromString();
 		testToBytesAndBack();
+		System.out.println(recursiveFind("/Users/arun/gigapaxos/src/",
+				".*paxosutil"));
 		System.out.println("SUCCESS!");
-                //testGetPublicInetSocketAddressFromString();
+		// testGetPublicInetSocketAddressFromString();
+		System.out.println(Util.class.getClassLoader().getResource(".")
+				.toString().replace("file:", ""));
 	}
 
 	public static boolean recursiveRemove(File file) {
 		boolean deleted = true;
-		for(File f : file.listFiles()) 
-			if(f.isFile()) 
+		for (File f : file.listFiles())
+			if (f.isFile())
 				deleted = deleted && f.delete();
-			else recursiveRemove(f);
+			else
+				recursiveRemove(f);
 		return deleted && file.delete();
+	}
+
+	public static ArrayList<String> recursiveFind(String dir, String regex) {
+		ArrayList<String> matches = new ArrayList<String>();
+		for (File f : new File(dir).listFiles()) {
+			if (f.toString().matches(regex))
+				matches.add(f.toString());
+			if (f.isDirectory())
+				matches.addAll(recursiveFind(f.toString(), regex));
+		}
+		return matches;
 	}
 
 	public static void wipeoutFile(String filename) throws IOException {
@@ -582,5 +599,13 @@ public class Util {
 		} finally {
 			writer.close();
 		}
+	}
+
+	public static Set<InetAddress> socketAddressesToInetAddresses(
+			InetSocketAddress[] sockAddrs) {
+		InetAddress[] IPs = new InetAddress[sockAddrs.length];
+		for (int i = 0; i < sockAddrs.length; i++)
+			IPs[i] = sockAddrs[i].getAddress();
+		return new HashSet<InetAddress>(Arrays.asList(IPs));
 	}
 }

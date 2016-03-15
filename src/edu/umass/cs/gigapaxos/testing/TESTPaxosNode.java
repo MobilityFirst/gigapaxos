@@ -1,32 +1,34 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.testing;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Set;
 
+import org.json.JSONObject;
+
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.deprecated.ReplicableDeprecated;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.JSONNIOTransport;
+import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.NIOTransport;
+import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
 import edu.umass.cs.utils.Config;
@@ -44,7 +46,8 @@ public class TESTPaxosNode {
 	private TESTPaxosApp app = null;
 
 	// A server must have an id
-	TESTPaxosNode(int id, NodeConfig<Integer> nc, boolean local) throws IOException {
+	TESTPaxosNode(int id, NodeConfig<Integer> nc, boolean local)
+			throws IOException {
 		this.myID = id;
 		pm = startPaxosManagerAndApp(id, nc, local);
 		assert (pm != null);
@@ -52,22 +55,27 @@ public class TESTPaxosNode {
 
 	/**
 	 * @param id
-	 * @throws IOException 
+	 * @throws IOException
 	 */
 	public TESTPaxosNode(int id) throws IOException {
 		this(id, TESTPaxosConfig.getNodeConfig(), true);
 	}
 
-	private PaxosManager<Integer> startPaxosManagerAndApp(int id, NodeConfig<Integer> nc, boolean local) {
+	private PaxosManager<Integer> startPaxosManagerAndApp(int id,
+			NodeConfig<Integer> nc, boolean local) {
 		try {
 			// shared between app and paxos manager only for testing
-			JSONNIOTransport<Integer> niot = null;
-			this.pm = new PaxosManager<Integer>(id, nc,
-					(niot = new JSONNIOTransport<Integer>(id, nc,
-							new PacketDemultiplexerDefault(), true)),
+			MessageNIOTransport<Integer, JSONObject> niot = null;
+			this.pm = new PaxosManager<Integer>(
+					id,
+					nc,
+					(niot = new MessageNIOTransport<Integer, JSONObject>(id,
+							nc, new PacketDemultiplexerDefault(), true,
+							SSLDataProcessingWorker.SSL_MODES.valueOf(Config
+									.getGlobal(PC.SERVER_SSL_MODE).toString()))),
 					(this.app = new TESTPaxosApp(niot)), null, true);
-				pm.initClientMessenger(new InetSocketAddress(nc
-						.getNodeAddress(myID), nc.getNodePort(myID)));
+			pm.initClientMessenger(new InetSocketAddress(nc
+					.getNodeAddress(myID), nc.getNodePort(myID)));
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 		}
@@ -147,8 +155,8 @@ public class TESTPaxosNode {
 		// last arg is always node ID
 		int myID = -1;
 		try {
-			myID = (args != null && args.length > 0 ? Integer.parseInt(args[args.length-1])
-					: -1);
+			myID = (args != null && args.length > 0 ? Integer
+					.parseInt(args[args.length - 1]) : -1);
 		} catch (NumberFormatException nfe) {
 		}
 		assert (myID != -1) : "Need an integer node ID as the last argument";
@@ -168,19 +176,21 @@ public class TESTPaxosNode {
 	public static void main(String[] args) {
 		try {
 			TESTPaxosConfig.setConsoleHandler();
-			NIOTransport.setUseSenderTask(Config.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));
+			NIOTransport.setUseSenderTask(Config
+					.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));
 			int myID = processArgs(args);
-			TESTPaxosNode me = new TESTPaxosNode(myID, TESTPaxosConfig.getFromPaxosConfig(), false);
+			TESTPaxosNode me = new TESTPaxosNode(myID,
+					TESTPaxosConfig.getFromPaxosConfig(), false);
 
 			// Creating default groups
 			int numGroups = Config.getGlobalInt(TC.NUM_GROUPS);
-			System.out
-					.println("Creating "
-							+ Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS)
-							+ " default groups");
+			System.out.println("Creating "
+					+ Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS)
+					+ " default groups");
 			me.createDefaultGroupInstances();
 			System.out.println("Creating "
-					+ (numGroups - Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
+					+ (numGroups - Config
+							.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
 					+ " additional non-default groups");
 			me.createNonDefaultGroupInstanes(numGroups);
 
