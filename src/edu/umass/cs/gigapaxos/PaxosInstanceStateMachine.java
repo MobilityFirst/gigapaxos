@@ -760,7 +760,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * the current coordinator.
 	 */
 	private MessagingTask[] handleRequest(RequestPacket request) {
-		log.log(Level.INFO,
+		log.log(Level.FINE,
 				"{0}{1}{2}",
 				new Object[] { this, " Phase0/CLIENT_REQUEST: ",
 						request.getSummary(log.isLoggable(Level.FINE)) });
@@ -832,7 +832,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				mtasks[0] = multicastAccept != null ? new MessagingTask(
 						this.groupMembers, multicastAccept) : null; // multicast
 				RequestInstrumenter.sent(multicastAccept, this.getMyID(), -1);
-				log.log(Level.INFO,
+				log.log(Level.FINER,
 						"{0} issuing accept {1} ",
 						new Object[] {
 								this,
@@ -1518,7 +1518,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			while ((inorderDecision = this.paxosState
 					.putAndRemoveNextExecutable(loggedDecision)) != null) {
 				log.log(inorderDecision.isStopRequest() ? Level.FINE
-						: Level.INFO, "{0} received in-order commit {1} {2}",
+						: Level.FINE, "{0} received in-order commit {1} {2}",
 						new Object[] { this, inorderDecision.slot,
 								inorderDecision.getSummary() });
 				String pid = this.getPaxosID();
