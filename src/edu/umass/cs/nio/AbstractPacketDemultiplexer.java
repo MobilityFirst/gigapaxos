@@ -148,7 +148,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		if (type == null || !this.demuxMap.containsKey(type)) {
 			/* It is natural for some demultiplexers to not handle some packet
 			 * types, so it is not a "bad" thing that requires a warning log. */
-			log.log(Level.FINE, "Ignoring unknown packet type: {0}", type);
+			log.log(Level.FINER, "Ignoring unknown packet type: {0}", type);
 			return false;
 		}
 		Tasker tasker = new Tasker(message, this.demuxMap.get(type));
@@ -264,8 +264,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	 */
 	public void register(IntegerPacketType[] types,
 			PacketDemultiplexer<MessageType> pd) {
-		log.info("Registering types "
-				+ (new HashSet<Object>(Arrays.asList(types))) + " for " + pd);
+		log.info(pd + " registering types "
+				+ (new HashSet<Object>(Arrays.asList(types))));
 		for (Object type : types)
 			register((IntegerPacketType) type, pd);
 	}

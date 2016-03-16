@@ -1747,8 +1747,11 @@ public class Reconfigurator<NodeIDType> implements
 	private boolean forwardClientReconfigurationPacket(
 			ClientReconfigurationPacket request) {
 		try {
-			Set<NodeIDType> responsibleRCs = this.DB.removeDead(this.consistentNodeConfig
-					.getReplicatedReconfigurators(request.getServiceName()));
+			Set<NodeIDType> responsibleRCs = this.DB
+					.removeDead(new HashSet<NodeIDType>(
+							this.consistentNodeConfig
+									.getReplicatedReconfigurators(request
+											.getServiceName())));
 			if(responsibleRCs.isEmpty()) return false;
 			
 			@SuppressWarnings("unchecked")

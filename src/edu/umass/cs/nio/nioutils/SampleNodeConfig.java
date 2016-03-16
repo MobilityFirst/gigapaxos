@@ -1,23 +1,19 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
-/*
- * Copyright (C) 2014 University of Massachusetts All Rights Reserved
- */
+ * Initial developer(s): V. Arun */
+/* Copyright (C) 2014 University of Massachusetts All Rights Reserved */
 package edu.umass.cs.nio.nioutils;
 
 import java.net.InetAddress;
@@ -42,8 +38,7 @@ import org.json.JSONException;
  *            is also especially convenient for a local (single-machine) setup.
  *            This class is mainly useful for quick testing.
  */
-public class SampleNodeConfig<NodeIDType> implements
-		NodeConfig<NodeIDType> {
+public class SampleNodeConfig<NodeIDType> implements NodeConfig<NodeIDType> {
 
 	/**
 	 * The default starting port number beyond which nodes automatically get
@@ -51,7 +46,7 @@ public class SampleNodeConfig<NodeIDType> implements
 	 */
 	public static final int DEFAULT_START_PORT = 2000;
 	private boolean local = false;
-	private HashMap<NodeIDType, InetAddress> nmap = new HashMap<NodeIDType, InetAddress>();;
+	private HashMap<NodeIDType, InetAddress> nmap = new HashMap<NodeIDType, InetAddress>();
 	private final int defaultPort;
 
 	/**
@@ -61,9 +56,10 @@ public class SampleNodeConfig<NodeIDType> implements
 	public SampleNodeConfig(int defaultPort) {
 		this.defaultPort = defaultPort;
 	}
+
 	/**
 	 * @param defaultPort
-	 * @param startNodeID 
+	 * @param startNodeID
 	 * @param numLocalNodes
 	 */
 	public SampleNodeConfig(int defaultPort, int startNodeID, int numLocalNodes) {
@@ -95,7 +91,8 @@ public class SampleNodeConfig<NodeIDType> implements
 	 * set of integer node IDs explicitly. In the former case, nNodes from 0 to
 	 * nNodes-1 will the node IDs. In the latter case, the explicit set of node
 	 * IDs will be used.
-	 * @param startNodeID 
+	 * 
+	 * @param startNodeID
 	 * 
 	 * @param nNodes
 	 *            Number of nodes created.
@@ -103,10 +100,11 @@ public class SampleNodeConfig<NodeIDType> implements
 	@SuppressWarnings("unchecked")
 	public void localSetup(int startNodeID, int nNodes) {
 		local = true;
-		for (Integer i = startNodeID; i < nNodes+startNodeID; i++) {
+		for (Integer i = startNodeID; i < nNodes + startNodeID; i++) {
 			this.add((NodeIDType) i, getLocalAddress());
 		}
 	}
+
 	/**
 	 * @param nNodes
 	 */
@@ -130,8 +128,8 @@ public class SampleNodeConfig<NodeIDType> implements
 		InetAddress addr = nmap.get(ID);
 		return addr != null ? addr : (local ? getLocalAddress() : null);
 	}
-        
-        @Override
+
+	@Override
 	public InetAddress getBindAddress(NodeIDType ID) {
 		InetAddress addr = nmap.get(ID);
 		return addr != null ? addr : (local ? getLocalAddress() : null);
@@ -152,6 +150,7 @@ public class SampleNodeConfig<NodeIDType> implements
 		}
 		return port;
 	}
+
 	/**
 	 * @param ID
 	 * @return Port + default offset.
@@ -159,7 +158,7 @@ public class SampleNodeConfig<NodeIDType> implements
 	public static int getPort(int ID) {
 		int maxPort = 65536;
 		int port = (DEFAULT_START_PORT + ID) % maxPort;
-		if (port < 0) 
+		if (port < 0)
 			port = (port + maxPort) % maxPort;
 		return port;
 	}
@@ -173,8 +172,11 @@ public class SampleNodeConfig<NodeIDType> implements
 
 	/**
 	 * Add node with id mapped to IP and an auto-selected port number.
-	 * @param id Node id.
-	 * @param IP IP address.
+	 * 
+	 * @param id
+	 *            Node id.
+	 * @param IP
+	 *            IP address.
 	 */
 	public void add(NodeIDType id, InetAddress IP) {
 		nmap.put(id, IP);
@@ -185,9 +187,9 @@ public class SampleNodeConfig<NodeIDType> implements
 	 */
 	public void addLocal(NodeIDType id) {
 		local = true;
-		nmap.put(id, getLocalAddress());
+		this.add(id, getLocalAddress());
+		// nmap.put(id, getLocalAddress());
 	}
-
 
 	/**
 	 * Pretty prints this node config information.
@@ -206,7 +208,7 @@ public class SampleNodeConfig<NodeIDType> implements
 		NodeIDType node = null;
 		Iterator<NodeIDType> nodeIter = this.nmap.keySet().iterator();
 		if (nodeIter.hasNext() && (node = nodeIter.next()) != null) {
-			if (node instanceof String) {
+			if (node instanceof String && this.nmap.containsKey(nodeAsString)) {
 				return (NodeIDType) nodeAsString;
 			} else if (node instanceof Integer) {
 				return (NodeIDType) (Integer.valueOf(nodeAsString.trim()));
@@ -253,7 +255,7 @@ public class SampleNodeConfig<NodeIDType> implements
 		}
 		return localAddr;
 	}
-	
+
 	/**
 	 * 
 	 */

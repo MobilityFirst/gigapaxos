@@ -37,6 +37,7 @@ import edu.umass.cs.gigapaxos.paxospackets.StatePacket;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.ConsumerBatchTask;
 import edu.umass.cs.gigapaxos.paxosutil.HotRestoreInfo;
+import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
 import edu.umass.cs.gigapaxos.paxosutil.LogMessagingTask;
 import edu.umass.cs.gigapaxos.paxosutil.MessagingTask;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosMessenger;
@@ -82,6 +83,8 @@ public abstract class AbstractPaxosLogger {
 	
 	private AbstractPaxosLogger.PaxosPacketizer packetizer = null;
 
+	private PaxosPacketStringifier paxosPacketStringifier = null;
+
 	private static Logger log = Logger.getLogger(AbstractPaxosLogger.class
 			.getName());
 
@@ -110,12 +113,21 @@ public abstract class AbstractPaxosLogger {
 	protected static abstract class PaxosPacketizer {
 		abstract protected PaxosPacket stringToPaxosPacket(String str) throws JSONException;
 	}
+	protected static abstract class PaxosPacketStringifier {
+		abstract protected String paxosPacketToString(PaxosPacket paxosPacket);
+	}
 	
 	protected void setPacketizer(AbstractPaxosLogger.PaxosPacketizer packetizer) {
 		this.packetizer = packetizer;
 	}
 	protected AbstractPaxosLogger.PaxosPacketizer getPacketizer() {
 		return this.packetizer;
+	}
+	protected void setPaxosPacketStringifier(PaxosPacketStringifier integerMap) {
+		this.paxosPacketStringifier = integerMap;
+	}
+	protected PaxosPacketStringifier getPaxosPacketStringifier() {
+		return this.paxosPacketStringifier;
 	}
 
 	/* ************ Start of non-extensible methods ********************* */

@@ -79,6 +79,7 @@ import java.net.InetSocketAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -616,7 +617,7 @@ public class PaxosManager<NodeIDType> {
 		 * trivially sending message to self--works. */
 		assert (hri == null || hasRecovered());
 		if (hri == null) // not hot restore
-			rollForward(paxosID);
+			rollForward(paxosID, version);
 		// to sync decisions initially if needed or if missed birthing
 		this.syncPaxosInstance(pism, missedBirthing);
 
@@ -1180,14 +1181,16 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public PaxosManager<NodeIDType> initClientMessenger(
 			InetSocketAddress myAddress) {
-		PaxosManager<NodeIDType> pm = this.initClientMessenger(myAddress, false);
-		if(SSL_MODES.valueOf(Config.getGlobalString(PC.CLIENT_SSL_MODE)) != SSL_MODES.CLEAR)
+		PaxosManager<NodeIDType> pm = this
+				.initClientMessenger(myAddress, false);
+		if (SSL_MODES.valueOf(Config.getGlobalString(PC.CLIENT_SSL_MODE)) != SSL_MODES.CLEAR)
 			pm = pm.initClientMessenger(myAddress, true);
 		return pm;
 	}
+
 	/**
 	 * @param myAddress
-	 * @param ssl 
+	 * @param ssl
 	 * @return {@code this}
 	 */
 	private PaxosManager<NodeIDType> initClientMessenger(
@@ -1195,17 +1198,20 @@ public class PaxosManager<NodeIDType> {
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
 
 		try {
-			int clientPortOffset = ssl ? Config.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET) :
-				Config.getGlobalInt(PC.CLIENT_PORT_OFFSET);
+			int clientPortOffset = ssl ? Config
+					.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET) : Config
+					.getGlobalInt(PC.CLIENT_PORT_OFFSET);
 			if (clientPortOffset > 0) {
 				log.log(Level.INFO,
 						"Creating client messenger at {0}:{1}; offset={2}",
 						new Object[] { myAddress.getAddress(),
-								(myAddress.getPort() + clientPortOffset), clientPortOffset });
+								(myAddress.getPort() + clientPortOffset),
+								clientPortOffset });
 
 				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
 				InetSocketAddress isa = new InetSocketAddress(
-						myAddress.getAddress(), myAddress.getPort() + clientPortOffset);
+						myAddress.getAddress(), myAddress.getPort()
+								+ clientPortOffset);
 				cMsgr = new JSONMessenger<InetSocketAddress>(
 						niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 								myAddress.getAddress(),
@@ -1214,9 +1220,9 @@ public class PaxosManager<NodeIDType> {
 								 * threaded to keep clients from overwhelming
 								 * the system with request load. */
 								(new PaxosPacketDemultiplexerJSON(0, true)),
-								ssl ? SSLDataProcessingWorker.SSL_MODES
-										.valueOf(Config.getGlobalString(
-												PC.CLIENT_SSL_MODE)) : SSL_MODES.CLEAR));
+								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
+										.getGlobalString(PC.CLIENT_SSL_MODE))
+										: SSL_MODES.CLEAR));
 				if (!niot.getListeningSocketAddress().equals(isa))
 					throw new IOException(
 							"Unable to listen on specified socket address at "
@@ -1566,22 +1572,79 @@ public class PaxosManager<NodeIDType> {
 		while (this.paxosLogger.initiateReadMessages())
 			; // acquires lock
 		String paxosPacketString = null;
-		/* Set packetizer for logger. We need this in order to have the benefits
+		/**
+		 * Set packetizer for logger. We need this in order to have the benefits
 		 * of caching the original string form of received accepts to reduce
 		 * serialization overhead. Without a packetizer, the logger doesn't know
-		 * how to convert string node IDs to integers. */
+		 * how to convert original string node IDs (that came over the network)
+		 * in the logged messages to integer IDs. The alternative would be to
+		 * just store integer IDs in logged messages (trusting that we will
+		 * always be able to have IntegerMap be able to convert back to the
+		 * original node IDs because checkpoint recovery happens before
+		 * rolling forward logs), but that means we wouldn't have the
+		 * stringified caching optimization.
+		 */
 		this.paxosLogger
 				.setPacketizer(new AbstractPaxosLogger.PaxosPacketizer() {
 
 					@Override
 					protected PaxosPacket stringToPaxosPacket(String str) {
 						try {
-							return PaxosPacket.getPaxosPacket(PaxosManager.this
+							PaxosPacket pp= PaxosPacket.getPaxosPacket(PaxosManager.this
 									.fixNodeStringToInt(new JSONObject(str)));
+							assert(pp!=null) : str;
+							return pp;
 						} catch (JSONException e) {
 							e.printStackTrace();
 						}
 						return null;
+					}
+				});
+
+		/**
+		 * We need this for {@link SQLPaxosLogger} for logging messages with int
+		 * IDs converted back to the original string IDs. The logger will invoke
+		 * stringToPaxosPacket(String) above while reading logged messages from
+		 * disk. Disk I/O is no different from network I/O in that integer IDs
+		 * have meaning outside of PaxosInstanceStateMachine soft state. 
+		 * 
+		 * We don't always have to convert int to string IDs because if we have
+		 * {@code stringified} already stored, it is already in a network-friendly 
+		 * form.
+		 */
+		this.paxosLogger
+				.setPaxosPacketStringifier(new AbstractPaxosLogger.PaxosPacketStringifier() {
+
+					@Override
+					protected String paxosPacketToString(PaxosPacket paxosPacket) {
+						PaxosPacket.PaxosPacketType type = paxosPacket
+								.getType();
+						String stringified = null;
+						// three loggable types
+						if (type == PaxosPacket.PaxosPacketType.ACCEPT
+								|| type == PaxosPacket.PaxosPacketType.PREPARE
+								|| type == PaxosPacket.PaxosPacketType.DECISION) {
+							if (paxosPacket instanceof RequestPacket
+									&& (stringified = ((RequestPacket) paxosPacket)
+											.getStringifiedSelf()) != null)
+								return stringified;
+							else
+								try {
+									net.minidev.json.JSONObject jsonSmart = paxosPacket
+											.toJSONSmart();
+									stringified = jsonSmart != null ? PaxosManager.this.messenger
+											.fixNodeIntToString(jsonSmart)
+											.toString() :
+									// prepares don't have toJSONSmartImpl()
+											paxosPacket.toString();
+								} catch (JSONException je) {
+									// exception will never be thrown
+									assert(false);
+									// at least use default toString in any case
+									stringified = paxosPacket.toString();
+								}
+						}
+						return stringified;
 					}
 				});
 
@@ -1963,7 +2026,7 @@ public class PaxosManager<NodeIDType> {
 						this.myApp, null, hri, false);
 				// if (restored != null) restored.markActive();
 			} else
-				log.log(Level.FINE, "{0} unable to unpause instance {1}",
+				log.log(Level.FINEST, "{0} unable to unpause instance {1}",
 						new Object[] { this, paxosID });
 		}
 		this.stringLocker.remove(paxosID);
@@ -2000,10 +2063,10 @@ public class PaxosManager<NodeIDType> {
 	 * state in general is not recoverable; the easiest way to recover it is to
 	 * simply call checkRunForCoordinator, which will happen automatically upon
 	 * the receipt of any external packet. */
-	private void rollForward(String paxosID) {
+	private void rollForward(String paxosID, int version) {
 		if (/* !ONE_PASS_RECOVERY || */this.hasRecovered()) {
-			log.log(Level.FINE, "{0} {1} about to roll forward", new Object[] {
-					this, paxosID });
+			log.log(Level.FINE, "{0} about to roll forward {1}:{2}", new Object[] {
+					this, paxosID,version });
 			AbstractPaxosLogger.rollForward(paxosLogger, paxosID, messenger);
 			PaxosInstanceStateMachine pism = (this.getInstance(paxosID, true,
 					false));
@@ -2455,7 +2518,7 @@ public class PaxosManager<NodeIDType> {
 						+ " average_deactivation_delay = {5}",
 				new Object[] { this, paused.size(),
 						Util.truncatedLog(paused, PRINT_LOG_SIZE),
-						this.pinstances.size(),
+						this.pinstances.size() < 10 ? Arrays.asList(this.pinstances.keySet().toArray()) : this.pinstances.size(),
 						Util.nmu(DelayProfiler.get("pause")),
 						Util.ms(DelayProfiler.get("deactivation")) });
 	}
@@ -2612,7 +2675,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	public String toString() {
-		return this.getClass().getSimpleName() + this.integerMap.get(myID);
+		return this.getClass().getSimpleName() + ":"+this.integerMap.get(myID);
 	}
 
 	protected String intToString(int id) {
@@ -2624,8 +2687,9 @@ public class PaxosManager<NodeIDType> {
 	 * @return Logger used by PaxosManager.
 	 */
 	public static Logger getLogger() {
-		return Logger.getLogger(PaxosManager.class.getName().replace(
-				"PaxosManager", ""));
+		return Logger.getLogger(PaxosManager.class.getName()
+				.replace("PaxosManager", "")
+				);
 	}
 
 	private void testingInitialization() {
@@ -3023,9 +3087,9 @@ public class PaxosManager<NodeIDType> {
 	 *         information from its failure detector.
 	 */
 	public Set<NodeIDType> removeDead(Set<NodeIDType> nodes) {
-		for (NodeIDType node : nodes)
-			if (!this.FD.isNodeUp(node))
-				nodes.remove(node);
+		for (Iterator<NodeIDType> iter = nodes.iterator(); iter.hasNext();)
+			if (!this.FD.isNodeUp(iter.next()))
+				iter.remove();
 		return nodes;
 	}
 }

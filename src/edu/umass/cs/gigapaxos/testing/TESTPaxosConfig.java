@@ -114,7 +114,7 @@ public class TESTPaxosConfig {
 		 * Total number of paxos groups. Groups beyond preconfigured groups will
 		 * have a fixed default group membership.
 		 */
-		NUM_GROUPS(10000),
+		NUM_GROUPS(1000),
 
 		/**
 		 * 
@@ -130,7 +130,7 @@ public class TESTPaxosConfig {
 		/**
 		 * 
 		 */
-		NUM_REQUESTS(25000),
+		NUM_REQUESTS(2500),
 
 		/**
 		 * 

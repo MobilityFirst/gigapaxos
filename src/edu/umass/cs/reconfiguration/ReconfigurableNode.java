@@ -300,6 +300,6 @@ public abstract class ReconfigurableNode<NodeIDType> {
 							ReconfigurationConfig.getReconfigurators()), args,
 					false);
 		}
-		System.out.println("]");
+		System.out.println("]; all servers ready");
 	}
 }

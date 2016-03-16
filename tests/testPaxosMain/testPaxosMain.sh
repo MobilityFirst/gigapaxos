@@ -2,7 +2,7 @@
 LOGFILE=/tmp/log
 # set this path to use binaries directly from IDE set to build
 # automatically instead of  having to recompile using ant
-IDE_BUILD_PATH=./build/classes/:./lib/*
+#IDE_BUILD_PATH=./build/classes/:./lib/*
 ANT_BUILD_PATH=./dist/*
 CLASSPATH=.:$IDE_BUILD_PATH:$ANT_BUILD_PATH
 

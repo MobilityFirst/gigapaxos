@@ -1034,7 +1034,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	private String toString(PaxosPacket packet) {
-		return packet.toString();
+		return this.getPaxosPacketStringifier() != null ? this
+				.getPaxosPacketStringifier().paxosPacketToString(packet): 
+					packet.toString();
 	}
 
 	// various options for performance testng below

@@ -346,6 +346,7 @@ public class Util {
 
 	public static Object truncate(final Object obj, final int prefixSize,
 			final int suffixSize) {
+		if(obj==null) return null;
 		final int size = prefixSize + suffixSize;
 		return new Object() {
 			@Override

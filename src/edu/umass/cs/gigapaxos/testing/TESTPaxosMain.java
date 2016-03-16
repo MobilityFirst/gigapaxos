@@ -90,7 +90,7 @@ public class TESTPaxosMain {
 	 * closing all nodes and associated paxos managers. Calling this method
 	 * again with testRecovery=true will test recovery mode.
 	 */
-	public void testPaxos() {
+	public void testPaxos(boolean recovery) {
 		TESTPaxosConfig.setSingleNodeTest();
 		try {
 			/*************** Setting up servers below ***************************/
@@ -156,7 +156,7 @@ public class TESTPaxosMain {
 	}
 
 	public void testPaxosAfterRecovery() {
-		testPaxos();
+		testPaxos(true);
 	}
 
 	private static void processArgs(String[] args) {
@@ -190,7 +190,7 @@ public class TESTPaxosMain {
 				* Config.getGlobalInt(TC.NUM_NODES) * 0.3 / 1000);
 		Assert.assertTrue("Increase the timeout for this test to at least "
 				+ runtimeEstimate * 1000, timeoutMillis >= runtimeEstimate);
-		testPaxos();
+		testPaxos(false);
 		Thread.sleep(1000);
 		System.out
 				.println("\n############### Testing with recovery ################\n");

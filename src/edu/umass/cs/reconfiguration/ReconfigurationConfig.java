@@ -593,23 +593,30 @@ public class ReconfigurationConfig {
 	};
 
 	/**
+	 * @param level 
 	 * 
 	 */
-	public static void setConsoleHandler() {
+	public static void setConsoleHandler(Level level) {
 		ConsoleHandler handler = new ConsoleHandler();
-		handler.setLevel(Level.INFO);
-		Reconfigurator.getLogger().setLevel(Level.INFO);
+		handler.setLevel(level);
+		Reconfigurator.getLogger().setLevel(level);
 		Reconfigurator.getLogger().addHandler(handler);
 		Reconfigurator.getLogger().setUseParentHandlers(false);
 
-		PaxosManager.getLogger().setLevel(Level.INFO);
+		PaxosManager.getLogger().setLevel(level);
 		PaxosManager.getLogger().addHandler(handler);
 		PaxosManager.getLogger().setUseParentHandlers(false);
 
-		NIOTransport.getLogger().setLevel(Level.WARNING);
+		NIOTransport.getLogger().setLevel(level);
 		NIOTransport.getLogger().addHandler(handler);
 		NIOTransport.getLogger().setUseParentHandlers(false);
-
+	}
+	/**
+	 * 
+	 */
+	public static void setConsoleHandler() {
+		if (System.getProperty("java.util.logging.config.file") == null)
+			setConsoleHandler(Level.INFO);
 	}
 
 	private static CreateServiceName[] testMakeCreateNameRequest(String name,

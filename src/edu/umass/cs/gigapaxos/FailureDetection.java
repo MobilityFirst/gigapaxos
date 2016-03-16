@@ -98,7 +98,7 @@ public class FailureDetection<NodeIDType> {
 	private ConcurrentHashMap<NodeIDType, Long> lastHeardFrom;
 	private HashMap<NodeIDType, ScheduledFuture<PingTask>> futures;
 
-	private static Logger log = Logger.getLogger(FailureDetection.class
+	private static Logger log = Logger.getLogger(PaxosManager.class
 			.getName());
 
 	FailureDetection(NodeIDType id,

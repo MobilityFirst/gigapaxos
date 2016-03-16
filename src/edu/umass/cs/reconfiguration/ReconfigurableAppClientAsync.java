@@ -143,6 +143,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				(this.reconfigurators) });
 		this.redirector = new E2ELatencyAwareRedirector(
 				this.niot.getListeningSocketAddress());
+		
+		this.checkConnectivity();
 	}
 
 	/**
@@ -286,8 +288,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		@Override
 		protected String processHeader(String message, NIOHeader header) {
-			log.log(Level.FINEST, "{0} received message from {1}", new Object[] {
-					this, header.sndr });
+			log.log(Level.FINEST, "{0} received message from {1}",
+					new Object[] { this, header.sndr });
 			return message;
 		}
 
@@ -646,6 +648,66 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
+	// blocking connectivity check
+	protected boolean checkConnectivity(long timeout) {
+		Object monitor = new Object();
+		boolean[] success = new boolean[1];
+		long id;
+		try {
+			this.sendRequest(
+					new RequestActiveReplicas(
+							(id = (long) (Math.random() * Long.MAX_VALUE)) + ""),
+					new RequestCallback() {
+						@Override
+						public void handleResponse(Request response) {
+							// any news is good news
+							success[0] = true;
+							synchronized (monitor) {
+								monitor.notify();
+							}
+						}
+					});
+
+			log.log(Level.INFO, "{0} sent connectivity check {1}",
+					new Object[] { this, id });
+
+			if (!success[0])
+				synchronized (monitor) {
+					monitor.wait(timeout);
+				}
+		} catch (InterruptedException | IOException e) {
+			return false;
+		}
+		if (success[0])
+			log.info(this + " connectivity check " + id + " successful");
+		return success[0];
+	}
+
+	protected boolean checkConnectivity(long attemptTimeout, int numAttempts) {
+		int attempts = 0;
+		while (attempts++ < numAttempts)
+			if (this.checkConnectivity(attemptTimeout)) {
+				return true;
+			} else {
+				System.out
+						.print((attempts == 1 ? "Retrying connection check..."
+								: "") + attempts + " ");
+				this.checkConnectivity(attemptTimeout);
+			}
+		return false;
+	}
+
+	private static final long CONNECTIVITY_CHECK_TIMEOUT = 4000;
+	private static final String CONNECTION_CHECK_ERROR = "Unable to connect to any reconfigurator";
+
+	/**
+	 * @throws IOException
+	 */
+	public void checkConnectivity() throws IOException {
+		if (!this.checkConnectivity(CONNECTIVITY_CHECK_TIMEOUT, 1))
+			throw new IOException(CONNECTION_CHECK_ERROR);
+	}
+
 	/**
 	 * 
 	 */
@@ -664,5 +726,30 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		return this.getClass().getSimpleName()
 				+ (this.niot != null ? this.niot.getListeningSocketAddress()
 						.getPort() : "");
+	}
+	
+	static class AsyncClient extends ReconfigurableAppClientAsync {
+		
+		AsyncClient() throws IOException {}
+		
+		@Override
+		public Request getRequest(String stringified)
+				throws RequestParseException {
+			return null;
+		}
+
+		@Override
+		public Set<IntegerPacketType> getRequestTypes() {
+			return new HashSet<IntegerPacketType>();
+		}
+	}
+	/**
+	 * @param args
+	 * @throws IOException
+	 * @throws InterruptedException 
+	 */
+	public static void main(String[] args) throws IOException, InterruptedException {
+		ReconfigurableAppClientAsync client = new AsyncClient();
+		client.close();
 	}
 }

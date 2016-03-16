@@ -47,7 +47,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 	final Executor taskWorkers;
 
 	final SelectionKey key;
-	private static final Logger log = NIOTransport.getLogger();
+	private static final Logger log = Logger.getLogger(NIOTransport.class.getName());
 
 	/**
 	 * @param key
@@ -182,13 +182,12 @@ public abstract class AbstractNIOSSL implements Runnable {
 				@Override
 				public void run() {
 					try {
-						log.log(Level.FINE, MyLogger.FORMAT[1], new Object[] {
+						log.log(Level.FINEST, MyLogger.FORMAT[1], new Object[] {
 								"async SSL task: ", sslTask });
 						long t0 = System.nanoTime();
 						sslTask.run();
-						log.log(Level.FINE, MyLogger.FORMAT[2], new Object[] {
-								"async SSL task took: ",
-								(System.nanoTime() - t0) / 1000000, "ms" });
+						log.log(Level.FINE, "async SSL task {0} took {1}ms", new Object[] {
+								sslTask, (System.nanoTime() - t0) / 1000000 });
 
 						// continue handling I/O
 						AbstractNIOSSL.this.run();

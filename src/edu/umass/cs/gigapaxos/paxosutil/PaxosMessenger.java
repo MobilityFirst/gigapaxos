@@ -139,6 +139,9 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 		return objects;
 	}
 
+	public static final boolean useJSONSmart() {
+		return USE_JSON_SMART;
+	}
 	private static final boolean USE_JSON_SMART = !Config.getGlobalString(PC.JSON_LIBRARY).equals("org.json");
 	private GenericMessagingTask<NodeIDType, ?> toGeneric(
 			MessagingTask mtask) throws JSONException {
@@ -149,9 +152,8 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 				toObjects(mtask.msgs));
 	}
 	
-
 	// convert int to NodeIDType to String
-	private JSONObject fixNodeIntToString(JSONObject json) throws JSONException {
+	public JSONObject fixNodeIntToString(JSONObject json) throws JSONException {
 		if (!ENABLE_INT_STRING_CONVERSION || IntegerMap.allInt())
 			return json;
 		if (json.has(PaxosPacket.NodeIDKeys.B.toString())) {
@@ -181,7 +183,7 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 		return json;
 	}
 	
-	private net.minidev.json.JSONObject fixNodeIntToString(
+	public net.minidev.json.JSONObject fixNodeIntToString(
 			net.minidev.json.JSONObject jsonSmart) {
 		if (!ENABLE_INT_STRING_CONVERSION || IntegerMap.allInt())
 			return jsonSmart;
