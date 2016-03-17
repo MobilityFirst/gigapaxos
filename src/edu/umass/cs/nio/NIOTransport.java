@@ -736,8 +736,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			
 			// socket closed by remote end
 			if (numRead == -1) {
-				log.log(Level.FINE, "{0} read {1} off of channel {2}",
-						new Object[] { this, new Stringer(bbuf.array()),
+				log.log(Level.FINE, "{0} read off of channel {!}",
+						new Object[] { this,
 								socketChannel });
 				cleanup(key, socketChannel);
 			}

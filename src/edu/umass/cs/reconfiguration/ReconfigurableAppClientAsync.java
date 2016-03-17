@@ -66,7 +66,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	final GCConcurrentHashMapCallback defaultGCCallback = new GCConcurrentHashMapCallback() {
 		@Override
 		public void callbackGC(Object key, Object value) {
-			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
+			logr.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
 					key, value });
 		}
 	};
@@ -81,7 +81,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						((RequestAndCallback) value).serverSentTo,
 						System.currentTimeMillis()
 								- ((RequestAndCallback) value).sentTime);
-			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
+			logr.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
 					key, value });
 		}
 	};
@@ -108,7 +108,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	final GCConcurrentHashMap<String, Long> lastQueriedActives = new GCConcurrentHashMap<String, Long>(
 			defaultGCCallback, DEFAULT_GC_TIMEOUT);
 
-	protected static final Logger log = Reconfigurator.getLogger();
+	private static final Logger logr = Reconfigurator.getLogger();
 
 	/**
 	 * The constructor specifies the default set of reconfigurators. This set
@@ -121,30 +121,47 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param reconfigurators
 	 * @param sslMode
 	 * @param clientPortOffset
+	 * @param checkConnectivity
+	 *            If true, a connectivity check with at least one reconfigurator
+	 *            will be enforced and an exception will be thrown if
+	 *            unsuccessful.
 	 * @throws IOException
 	 */
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
-			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
-			throws IOException {
+			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset,
+			boolean checkConnectivity) throws IOException {
 		this.sslMode = sslMode;
 		(this.niot = (new MessageNIOTransport<String, String>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
 				// This will be set in the gigapaxos.properties file that we
 				// invoke the client using.
 				sslMode))).setName(this.toString());
-		log.log(Level.INFO,
+		logr.log(Level.INFO,
 				"{0} listening on {1}; ssl mode = {2}; client port offset = {3}",
 				new Object[] { this, niot.getListeningSocketAddress(),
 						this.sslMode, clientPortOffset });
 		this.reconfigurators = (PaxosConfig.offsetSocketAddresses(
 				reconfigurators, clientPortOffset));
 
-		log.log(Level.FINE, "{0} reconfigurators={1}", new Object[] { this,
+		logr.log(Level.FINE, "{0} reconfigurators={1}", new Object[] { this,
 				(this.reconfigurators) });
 		this.redirector = new E2ELatencyAwareRedirector(
 				this.niot.getListeningSocketAddress());
-		
-		this.checkConnectivity();
+
+		if (checkConnectivity)
+			this.checkConnectivity();
+	}
+
+	/**
+	 * @param reconfigurators
+	 * @param sslMode
+	 * @param clientPortOffset
+	 * @throws IOException
+	 */
+	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
+			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
+			throws IOException {
+		this(reconfigurators, sslMode, clientPortOffset, false);
 	}
 
 	/**
@@ -154,7 +171,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators)
 			throws IOException {
 		this(reconfigurators, ReconfigurationConfig.getClientSSLMode(),
-				(ReconfigurationConfig.getClientPortOffset()));
+				(ReconfigurationConfig.getClientPortOffset()), false);
 	}
 
 	/**
@@ -288,7 +305,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		@Override
 		protected String processHeader(String message, NIOHeader header) {
-			log.log(Level.FINEST, "{0} received message from {1}",
+			logr.log(Level.FINEST, "{0} received message from {1}",
 					new Object[] { this, header.sndr });
 			return message;
 		}
@@ -322,12 +339,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							.setServerSentTo(server));
 			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
 			Level level = Level.INFO;
-			log.log(level,
+			logr.log(level,
 					"{0} sent request {1} to server {2}; [{3}]",
 					new Object[] {
 							this,
 							ReconfigurationConfig.getSummary(request,
-									log.isLoggable(level)), server,
+									logr.isLoggable(level)), server,
 							!sendFailed ? "success" : "failure" });
 		} finally {
 			if (sendFailed && prev == null) {
@@ -336,19 +353,6 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			}
 		}
 		return request.getRequestID();
-	}
-
-	/**
-	 * @param request
-	 * @param callback
-	 * @throws IOException
-	 */
-	public void sendRequest(ClientReconfigurationPacket request,
-			RequestCallback callback) throws IOException {
-		// assert (request.getServiceName() != null);
-		// overwrite the most recent callback
-		this.callbacksCRP.put(getKey(request), callback);
-		this.sendRequest(request);
 	}
 
 	/**
@@ -405,11 +409,31 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						.getClientPortSSLOffset()), rcPacket.toString());
 	}
 
+	/**
+	 * @param request
+	 * @param callback
+	 * @throws IOException
+	 */
+	public void sendRequest(ClientReconfigurationPacket request,
+			RequestCallback callback) throws IOException {
+		this.sendRequest(request, callback,
+				this.redirector.getNearest(this.reconfigurators));
+	}
+
 	private void sendRequest(ClientReconfigurationPacket request)
 			throws IOException {
-		InetSocketAddress dest = this.redirector
-				.getNearest(this.reconfigurators);// getRandom(this.reconfigurators);
-		this.niot.sendToAddress(dest, request.toString());
+		this.sendRequest(request, null,
+				this.redirector.getNearest(this.reconfigurators));
+	}
+
+	private void sendRequest(ClientReconfigurationPacket request,
+			RequestCallback callback, InetSocketAddress reconfigurator)
+			throws IOException {
+		if (callback != null)
+			this.callbacksCRP.put(getKey(request), callback);
+		this.niot.sendToAddress(reconfigurator != null ? reconfigurator
+				: this.redirector.getNearest(reconfigurators), request
+				.toString());
 	}
 
 	private InetSocketAddress getRandom(InetSocketAddress[] isas) {
@@ -579,13 +603,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			this.activeReplicas.remove(response.getServiceName());
 
 		if (!this.requestsPendingActives.containsKey(response.getServiceName())) {
-			log.log(Level.INFO,
+			logr.log(Level.INFO,
 					"{0} found no requests pending actives for {1}",
 					new Object[] { this, response.getSummary() });
 			return;
 		}
 		// else
-		log.log(Level.FINE,
+		logr.log(Level.FINE,
 				"{0} trying to release requests pending actives for {1} : {2}",
 				new Object[] {
 						this,
@@ -615,7 +639,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 													.selectRandom(actives)),
 									rc.callback);
 						} catch (IOException e) {
-							log.log(Level.WARNING,
+							logr.log(Level.WARNING,
 									"{0} encountered IOException while trying "
 											+ "to release requests pending {1}",
 									new Object[] { this, response.getSummary() });
@@ -623,7 +647,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						}
 					else {
 						// or send error to all pending requests
-						log.log(Level.INFO,
+						logr.log(Level.INFO,
 								"{0} returning {1} to pending request callbacks {2}",
 								new Object[] {
 										this,
@@ -648,8 +672,16 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
-	// blocking connectivity check
-	protected boolean checkConnectivity(long timeout) {
+	/**
+	 * Connectivity check with reconfigurator {@code address} that will block
+	 * for up to {@code timeout} duration. If {@code address} is null, the check
+	 * will be performed against a random reconfigurator.
+	 * 
+	 * @param timeout
+	 * @param address
+	 * @return
+	 */
+	protected boolean checkConnectivity(long timeout, InetSocketAddress address) {
 		Object monitor = new Object();
 		boolean[] success = new boolean[1];
 		long id;
@@ -666,9 +698,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								monitor.notify();
 							}
 						}
-					});
+					},
+					address != null ? address : this
+							.getRandom(this.reconfigurators
+									.toArray(new InetSocketAddress[0])));
 
-			log.log(Level.INFO, "{0} sent connectivity check {1}",
+			logr.log(Level.INFO, "{0} sent connectivity check {1}",
 					new Object[] { this, id });
 
 			if (!success[0])
@@ -679,33 +714,54 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return false;
 		}
 		if (success[0])
-			log.info(this + " connectivity check " + id + " successful");
+			logr.info(this + " connectivity check " + id + " successful");
 		return success[0];
 	}
 
-	protected boolean checkConnectivity(long attemptTimeout, int numAttempts) {
+	/**
+	 * Connectivity check that will be attempted up to {@code numAttempts} times
+	 * each with a timeout of {@code attemptTimeout} with the reconfigurator
+	 * {@code address}. If {@code address} is null, a random reconfigurator will
+	 * be chosen for each attempt.
+	 * 
+	 * @param attemptTimeout
+	 * @param numAttempts
+	 * @param address
+	 * @return
+	 */
+	protected boolean checkConnectivity(long attemptTimeout, int numAttempts,
+			InetSocketAddress address) {
 		int attempts = 0;
 		while (attempts++ < numAttempts)
-			if (this.checkConnectivity(attemptTimeout)) {
+			if (this.checkConnectivity(attemptTimeout, address)) {
 				return true;
 			} else {
 				System.out
 						.print((attempts == 1 ? "Retrying connection check..."
 								: "") + attempts + " ");
-				this.checkConnectivity(attemptTimeout);
+				this.checkConnectivity(attemptTimeout, address);
 			}
 		return false;
 	}
 
-	private static final long CONNECTIVITY_CHECK_TIMEOUT = 4000;
+	/**
+	 * Default connectivity check timeout.
+	 */
+	public static final long CONNECTIVITY_CHECK_TIMEOUT = 4000;
 	private static final String CONNECTION_CHECK_ERROR = "Unable to connect to any reconfigurator";
 
 	/**
+	 * A connectivity check with every known reconfigurator each with a default
+	 * timeout of {@link #CONNECTIVITY_CHECK_TIMEOUT}.
+	 * 
 	 * @throws IOException
 	 */
 	public void checkConnectivity() throws IOException {
-		if (!this.checkConnectivity(CONNECTIVITY_CHECK_TIMEOUT, 1))
-			throw new IOException(CONNECTION_CHECK_ERROR);
+		for (InetSocketAddress address : this.reconfigurators)
+			if (this.checkConnectivity(CONNECTIVITY_CHECK_TIMEOUT, 1, address))
+				return;
+
+		throw new IOException(CONNECTION_CHECK_ERROR);
 	}
 
 	/**
@@ -727,11 +783,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				+ (this.niot != null ? this.niot.getListeningSocketAddress()
 						.getPort() : "");
 	}
-	
+
 	static class AsyncClient extends ReconfigurableAppClientAsync {
-		
-		AsyncClient() throws IOException {}
-		
+
+		AsyncClient() throws IOException {
+		}
+
 		@Override
 		public Request getRequest(String stringified)
 				throws RequestParseException {
@@ -743,12 +800,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return new HashSet<IntegerPacketType>();
 		}
 	}
+
 	/**
 	 * @param args
 	 * @throws IOException
-	 * @throws InterruptedException 
+	 * @throws InterruptedException
 	 */
-	public static void main(String[] args) throws IOException, InterruptedException {
+	public static void main(String[] args) throws IOException,
+			InterruptedException {
 		ReconfigurableAppClientAsync client = new AsyncClient();
 		client.close();
 	}
