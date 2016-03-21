@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import org.json.JSONException;
@@ -26,9 +24,7 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
  * @author V. Arun
  */
 
-/*
- * An abstract class that all json packets should extend.
- */
+/* An abstract class that all json packets should extend. */
 public abstract class JSONPacket {
 	/**
 	 * JSON key for the integer packet type.
@@ -77,8 +73,8 @@ public abstract class JSONPacket {
 		}
 		return null;
 	}
-	
-	/* ********************* static helper methods below *******************/
+
+	/* ********************* static helper methods below ****************** */
 
 	/**
 	 * @param json
@@ -92,7 +88,7 @@ public abstract class JSONPacket {
 		else
 			return null;
 	}
-	
+
 	/**
 	 * Puts type into json.
 	 * 
@@ -106,17 +102,29 @@ public abstract class JSONPacket {
 			e.printStackTrace();
 		}
 	}
+
 	/**
 	 * Puts type.getInt() into json.
 	 * 
 	 * @param json
 	 * @param type
 	 */
-	public static final void putPacketType(JSONObject json, IntegerPacketType type) {
+	public static final void putPacketType(JSONObject json,
+			IntegerPacketType type) {
 		try {
 			json.put(PACKET_TYPE, type.getInt());
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
+	}
+
+	/**
+	 * @param str
+	 * @return True if {@code str} could possibly (but not necessarily) be in
+	 *         JSON format. This sanity check is quicker compared to taking a
+	 *         JSONException hit.
+	 */
+	public static final boolean couldBeJSON(String str) {
+		return str.startsWith("{") || str.startsWith("[");
 	}
 }

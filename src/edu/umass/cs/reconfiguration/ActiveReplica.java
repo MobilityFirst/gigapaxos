@@ -48,6 +48,7 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
@@ -73,6 +74,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.CallbackMap;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.GCConcurrentHashMap;
 import edu.umass.cs.utils.GCConcurrentHashMapCallback;
@@ -169,12 +171,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		final InetSocketAddress csa;
 		final ReplicableRequest request;
 		final InetSocketAddress mysa;
+		final long recvTime;
 
 		SenderAndRequest(ReplicableRequest request, InetSocketAddress isa,
-				InetSocketAddress mysa) {
+				InetSocketAddress mysa, long recvTime) {
 			this.csa = isa;
 			this.request = request;
 			this.mysa = mysa;
+			this.recvTime = recvTime;
 		}
 	}
 
@@ -197,6 +201,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			// send demand report
 			this.updateDemandStats(senderAndRequest.request,
 					senderAndRequest.csa.getAddress());
+			if (INSTRUMENT_APP)
+				DelayProfiler.updateDelay(appNameReplicableRequest, 
+						senderAndRequest.recvTime);
+
 			// send response to originating client
 			if (request instanceof ClientRequest
 					&& ((ClientRequest) request).getResponse() != null) {
@@ -213,6 +221,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return senderAndRequest;
 	}
 
+	private static final String appName = ReconfigurationConfig.application.getSimpleName();
+	private static final String appNameReplicableRequest = appName+".Replicable";
+	private static final String appNameLocalRequest = appName+".Local";
+	
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
@@ -229,6 +241,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
+				long recvTime = System.currentTimeMillis();
 				Request request = this.getRequest(jsonObject);
 				log.log(Level.FINE,
 						"{0} received app request {1}:{2}",
@@ -245,7 +258,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				if (request instanceof ReplicableRequest)
 					enqueue(new SenderAndRequest((ReplicableRequest) request,
 							MessageNIOTransport.getSenderAddress(jsonObject),
-							MessageNIOTransport.getReceiverAddress(jsonObject)));
+							MessageNIOTransport.getReceiverAddress(jsonObject),recvTime));
 
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
@@ -255,7 +268,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						updateDemandStats(request,
 								MessageNIOTransport
 										.getSenderInetAddress(jsonObject));
+						if (INSTRUMENT_APP)
+							DelayProfiler.updateDelay(appNameLocalRequest,
+									recvTime);
 					}
+					// else do nothing until coordinated
 				} else {
 					// if failed, dequeue useless enqueue
 					if (request instanceof ReplicableRequest)
@@ -270,6 +287,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 									((ClientRequest) request).getRequestID())
 									.toJSONObject());
 				}
+				if (Util.oneIn(10))
+					log.log(Level.INFO, "{0} {1}", new Object[] { this,
+							DelayProfiler.getStats() });
 			}
 		} catch (RequestParseException rpe) {
 			rpe.printStackTrace();
@@ -278,6 +298,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 		return false; // neither reconfiguration packet nor app request
 	}
+	
+	private static final boolean INSTRUMENT_APP = true;
 
 	// special case optimization for RequestPacket
 	private Request getRequest(JSONObject jsonObject)

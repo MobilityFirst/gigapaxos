@@ -46,8 +46,22 @@ public abstract class ClientReconfigurationPacket extends
 		BasicReconfigurationPacket<InetSocketAddress> {
 
 	private static enum Keys {
-		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY, CREATE_TIME
+		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, 
+		
+		RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY, 
+		
+		CREATE_TIME, RESPONSE_CODE
 	};
+
+	/**
+	 *
+	 */
+	public static enum ResponseCodes {
+		/**
+		 * If a name being created already exists.
+		 */
+		DUPLICATE_ERROR,
+	}
 
 	/**
 	 * Unstringer needed to handle client InetSocketAddresses as opposed to
@@ -72,8 +86,9 @@ public abstract class ClientReconfigurationPacket extends
 	private InetSocketAddress myReceiver = null;
 	// whether this is a request as opposed to a respose
 	private boolean isRequest = true;
-
+	// creation time of this request
 	private long createTime = System.currentTimeMillis();
+	private ResponseCodes responseCode = null;
 
 	/**
 	 * @param initiator
@@ -169,6 +184,9 @@ public abstract class ClientReconfigurationPacket extends
 		this.isRequest = json.getBoolean(Keys.IS_QUERY.toString());
 
 		this.createTime = json.getLong(Keys.CREATE_TIME.toString());
+		
+		this.responseCode = json.has(Keys.RESPONSE_CODE.toString()) ? ResponseCodes
+				.valueOf(json.getString(Keys.RESPONSE_CODE.toString())) : null;
 	}
 
 	/**
@@ -198,6 +216,8 @@ public abstract class ClientReconfigurationPacket extends
 			json.put(Keys.CREATOR.toString(), this.creator.toString());
 		json.put(Keys.IS_QUERY.toString(), this.isRequest);
 		json.put(Keys.CREATE_TIME.toString(), this.createTime);
+		if (this.responseCode != null)
+			json.put(Keys.RESPONSE_CODE.toString(), this.responseCode);
 		return json;
 	}
 
@@ -209,12 +229,23 @@ public abstract class ClientReconfigurationPacket extends
 	/**
 	 * Sets as failed and marks as response.
 	 * 
+	 * @param code
+	 * 
+	 * @return Returns this after setting as failed.
+	 */
+	public ClientReconfigurationPacket setFailed(ResponseCodes code) {
+		this.failed = true;
+		this.isRequest = false;
+		if (code != null)
+			this.responseCode = code;
+		return this;
+	}
+
+	/**
 	 * @return Returns this after setting as failed.
 	 */
 	public ClientReconfigurationPacket setFailed() {
-		this.failed = true;
-		this.isRequest = false;
-		return this;
+		return this.setFailed(null);
 	}
 
 	/**
@@ -241,6 +272,13 @@ public abstract class ClientReconfigurationPacket extends
 	 */
 	public String getResponseMessage() {
 		return this.responseMessage;
+	}
+
+	/**
+	 * @return Response code.
+	 */
+	public ResponseCodes getResponseCode() {
+		return this.responseCode;
 	}
 
 	/**
@@ -367,7 +405,6 @@ public abstract class ClientReconfigurationPacket extends
 	public String getSummary() {
 		return super.getSummary() + ":" + (this.isRequest() ? "Q" : "R") + ":"
 				+ this.getCreator() + ":" + this.getForwader()
-				+ (this.isFailed()? ":FAILED":"")
-		;
+				+ (this.isFailed() ? ":FAILED" : "");
 	}
 }

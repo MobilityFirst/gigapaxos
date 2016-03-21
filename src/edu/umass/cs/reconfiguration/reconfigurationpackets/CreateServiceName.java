@@ -57,10 +57,13 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		 * 
 		 */
 		NAME_STATE_ARRAY,
+		
 		/**
-		 * 
+		 * Set of names in a batch create that could not be created or could not
+		 * be confirmed as having been successfully created (but could have gotten
+		 * created after all).
 		 */
-		FAILED_CREATES
+		FAILED_CREATES,
 	};
 
 	/**

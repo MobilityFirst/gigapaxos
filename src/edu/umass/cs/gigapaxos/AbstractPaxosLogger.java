@@ -263,6 +263,8 @@ public abstract class AbstractPaxosLogger {
 		s += "---------------END log------------------";
 		return s;
 	}
+	
+	protected static String appName=PaxosConfig.application.getSimpleName();
 
 	protected void stop() {
 		this.batchLogger.stop();

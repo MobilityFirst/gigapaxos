@@ -382,7 +382,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(pstmt, recordRS);
 			cleanup(conn);
 		}
-		DelayProfiler.updateDelay("DB.getReconfigurationRecord", t0);
+		DelayProfiler.updateDelay("getrcrecord", t0);
 		return rcRecord;
 	}
 

@@ -563,7 +563,7 @@ public class Reconfigurator<NodeIDType> implements
 		// record already exists, so return error message
 		else
 			this.sendClientReconfigurationPacket(create
-					.setFailed()
+					.setFailed(ClientReconfigurationPacket.ResponseCodes.DUPLICATE_ERROR)
 					.setResponseMessage(
 							"Can not (re-)create an already "
 									+ (record.isDeletePending() ? "deleted name until "

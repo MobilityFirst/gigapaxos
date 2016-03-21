@@ -2,49 +2,76 @@ package edu.umass.cs.utils;
 
 import java.util.HashMap;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author V. Arun
  */
 public class DelayProfiler {
-	private static HashMap<String, Double> averageMillis = new HashMap<String, Double>();
-	private static HashMap<String, Double> averageNanos = new HashMap<String, Double>();
-	private static HashMap<String, Double> averages = new HashMap<String, Double>();
-	private static HashMap<String, Double> stdDevs = new HashMap<String, Double>();
-	private static HashMap<String, Double> counters = new HashMap<String, Double>();
-	private static HashMap<String, Double> instarates = new HashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> averageMillis = new ConcurrentHashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> averageNanos = new ConcurrentHashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> averages = new ConcurrentHashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> stdDevs = new ConcurrentHashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> counters = new ConcurrentHashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> instarates = new ConcurrentHashMap<String, Double>();
 
-	private static HashMap<String, Double> lastArrivalNanos = new HashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> lastArrivalNanos = new ConcurrentHashMap<String, Double>();
 
-	private static HashMap<String, Double> lastRecordedNanos = new HashMap<String, Double>();
-	private static HashMap<String, Double> lastCount = new HashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> lastRecordedNanos = new ConcurrentHashMap<String, Double>();
+	private static ConcurrentHashMap<String, Double> lastCount = new ConcurrentHashMap<String, Double>();
+
+	private static boolean enabled = true;
+	
+	/**
+	 * Will enable instrumentation (true by default)
+	 */
+	public static void enable() {
+		enabled = true;
+	}
+	/**
+	 * Will disable instrumentation.
+	 */
+	public static void disable() {
+		enabled = false;
+	}
 
 	/**
 	 * @param field
 	 * @param map
+	 * @return True if inserted.
 	 */
-	public static void register(String field, HashMap<String, Double> map) {
+	public static boolean register(String field,
+			ConcurrentMap<String, Double> map) {
+		if(!enabled) return false;
 		synchronized (map) {
 			if (map.containsKey(field))
-				return;
-			if(map == lastRecordedNanos) map.put(field, (double)System.nanoTime());
-			else map.put(field, 0.0);
+				return true;
+			if (map == lastRecordedNanos)
+				map.put(field, (double) System.nanoTime());
+			else
+				//map.put(field, 0.0)
+				;
 		}
 		synchronized (stdDevs) {
 			stdDevs.put(field, 0.0);
 		}
+		return false;
 	}
 
 	/**
 	 * @param field
 	 * @param time
-	 * @param alpha 
+	 * @param alpha
 	 */
 	public static void updateDelay(String field, double time, double alpha) {
+		if(!enabled) return;
 		double delay;
 		long endTime = System.currentTimeMillis();
 		synchronized (averageMillis) {
 			register(field, averageMillis); // register if not registered
+			averageMillis.putIfAbsent(field, endTime - time);
 			delay = averageMillis.get(field);
 			delay = Util.movingAverage(endTime - time, delay, alpha);
 			averageMillis.put(field, delay);
@@ -56,6 +83,7 @@ public class DelayProfiler {
 			stdDevs.put(field, dev);
 		}
 	}
+
 	/**
 	 * @param field
 	 * @param time
@@ -69,10 +97,12 @@ public class DelayProfiler {
 	 * @param time
 	 */
 	public static void updateDelayNano(String field, double time) {
+		if(!enabled) return;
 		double delay;
 		long endTime = System.nanoTime();
 		synchronized (averageNanos) {
 			register(field, averageNanos); // register if not registered
+			averageNanos.putIfAbsent(field, endTime - time);
 			delay = averageNanos.get(field);
 			delay = Util.movingAverage(endTime - time, delay);
 			averageNanos.put(field, delay);
@@ -91,18 +121,19 @@ public class DelayProfiler {
 	 * @param n
 	 */
 	public static void updateDelayNano(String field, long time, int n) {
+		if(!enabled) return;
 		for (int i = 0; i < n; i++)
-			updateDelayNano(field,
-					System.nanoTime()
-							- (System.nanoTime() - time) * 1.0 / n);
+			updateDelayNano(field, System.nanoTime()
+					- (System.nanoTime() - time) * 1.0 / n);
 	}
-	
+
 	/**
 	 * @param field
 	 * @param time
 	 * @param n
 	 */
 	public static void updateDelay(String field, long time, int n) {
+		if(!enabled) return;
 		for (int i = 0; i < n; i++)
 			updateDelay(field,
 					System.currentTimeMillis()
@@ -116,11 +147,12 @@ public class DelayProfiler {
 	public static double get(String field) {
 		synchronized (averageMillis) {
 			return averageMillis.containsKey(field) ? averageMillis.get(field)
-					: averageNanos.containsKey(field) ? averageNanos.get(field) :
-						averages.containsKey(field) ? averages.get(field) :
-							counters.containsKey(field) ? counters.get(field) :
-								instarates.containsKey(field) ? instarates.get(field) :
-									0.0;
+					: averageNanos.containsKey(field) ? averageNanos.get(field)
+							: averages.containsKey(field) ? averages.get(field)
+									: counters.containsKey(field) ? counters
+											.get(field) : instarates
+											.containsKey(field) ? instarates
+											.get(field) : 0.0;
 		}
 	}
 
@@ -138,9 +170,12 @@ public class DelayProfiler {
 	 * @param alpha
 	 */
 	public static void updateMovAvg(String field, double sample, double alpha) {
+		if(!enabled) return;
+
 		double value;
 		synchronized (averages) {
 			register(field, averages); // register if not registered
+			averages.putIfAbsent(field, sample);
 			// update value
 			value = averages.get(field);
 			value = Util.movingAverage(sample, value);
@@ -159,18 +194,24 @@ public class DelayProfiler {
 	 * @param incr
 	 */
 	public static void updateCount(String field, int incr) {
+		if(!enabled) return;
+
 		synchronized (counters) {
 			register(field, counters);
+			counters.putIfAbsent(field, 0D);
 			double value = counters.get(field);
 			value += incr;
 			counters.put(field, value);
 		}
 	}
+
 	/**
 	 * @param field
 	 * @param value
 	 */
 	public static void updateValue(String field, double value) {
+		if(!enabled) return;
+
 		synchronized (counters) {
 			register(field, counters);
 			counters.put(field, value);
@@ -180,19 +221,25 @@ public class DelayProfiler {
 	/**
 	 * @param field
 	 * @param numArrivals
-	 * @param samplingFactor 
+	 * @param samplingFactor
 	 */
-	public static void updateInterArrivalTime(String field, int numArrivals, int samplingFactor) {
+	public static void updateInterArrivalTime(String field, int numArrivals,
+			int samplingFactor) {
 		updateInterArrivalTime(field, numArrivals, samplingFactor, Util.ALPHA);
 	}
+
 	/**
 	 * @param field
 	 * @param numArrivals
-	 * @param samplingFactor 
-	 * @param alpha 
+	 * @param samplingFactor
+	 * @param alpha
 	 */
-	public static void updateInterArrivalTime(String field, int numArrivals, int samplingFactor, double alpha) {
-		if(!Util.oneIn(samplingFactor)) return;
+	public static void updateInterArrivalTime(String field, int numArrivals,
+			int samplingFactor, double alpha) {
+		if(!enabled) return;
+
+		if (!Util.oneIn(samplingFactor))
+			return;
 		synchronized (lastArrivalNanos) {
 			register(field, lastArrivalNanos);
 			long curTime = System.nanoTime();
@@ -201,10 +248,11 @@ public class DelayProfiler {
 			if (value == 0)
 				value = curTime;
 			DelayProfiler.updateMovAvg(field, (curTime - (long) value)
-					/ (numArrivals*samplingFactor));
+					/ (numArrivals * samplingFactor));
 			lastArrivalNanos.put(field, System.nanoTime() * 1.0);
 		}
 	}
+
 	/**
 	 * @param field
 	 * @param numArrivals
@@ -212,21 +260,25 @@ public class DelayProfiler {
 	public static void updateInterArrivalTime(String field, int numArrivals) {
 		updateInterArrivalTime(field, numArrivals, 1);
 	}
-	
+
 	/**
 	 * @param field
 	 * @param numArrivals
-	 * @param samplingFactor 
+	 * @param samplingFactor
 	 */
-	public static void updateRate(String field, int numArrivals, int samplingFactor) {
-		if(!Util.oneIn(samplingFactor)) return;
+	public static void updateRate(String field, int numArrivals,
+			int samplingFactor) {
+		if(!enabled) return;
+
+		if (!Util.oneIn(samplingFactor))
+			return;
 		register(field, lastCount);
 		register(field, lastRecordedNanos);
 		register(field, instarates);
 		synchronized (lastCount) {
 			double count = lastCount.get(field) + samplingFactor;
 			if (count == numArrivals) {
-				instarates.put(field, numArrivals*1000*1000*1000.0
+				instarates.put(field, numArrivals * 1000 * 1000 * 1000.0
 						/ (System.nanoTime() - lastRecordedNanos.get(field)));
 				lastCount.put(field, (double) 0);
 				lastRecordedNanos.put(field, (double) System.nanoTime());
@@ -234,7 +286,7 @@ public class DelayProfiler {
 				lastCount.put(field, count);
 		}
 	}
-	
+
 	/**
 	 * @param field
 	 * @param numArrivals
@@ -248,8 +300,10 @@ public class DelayProfiler {
 	 * @return Throughput calculated from interarrival time.
 	 */
 	public static double getThroughput(String field) {
-		return averages.containsKey(field) && averages.get(field) > 0 ? 1000 * 1000 * 1000.0 / (averages.get(field)) : 0;
+		return averages.containsKey(field) && averages.get(field) > 0 ? 1000 * 1000 * 1000.0 / (averages
+				.get(field)) : 0;
 	}
+
 	/**
 	 * @param field
 	 * @return Moving average of instantaneous rate.
@@ -266,7 +320,7 @@ public class DelayProfiler {
 	}
 
 	/**
-	 * @param fields 
+	 * @param fields
 	 * @return Statistics as a string for fields in {@code fields}.
 	 */
 	public static String getStats(Set<String> fields) {
@@ -280,21 +334,28 @@ public class DelayProfiler {
 		return (s + "]").replace(" | ]", " ]");
 	}
 
-	private static String statsHelper(HashMap<String, Double> map, String units, Set<String> fields) {
+	private static String statsHelper(ConcurrentMap<String, Double> map,
+			String units, Set<String> fields) {
 		String s = "";
-		synchronized (map) {
-			for (String field : map.keySet()) {
-				if(fields!=null && !fields.contains(field)) continue;
+		TreeMap<String, Double> treeMap = new TreeMap<String, Double>(map);
+		synchronized (treeMap) {
+			for (String field : treeMap.keySet()) {
+				if (fields != null && !fields.contains(field))
+					continue;
 				boolean rateParam = lastArrivalNanos.containsKey(field);
 				s += (field
 						+ ":"
-						+ (!rateParam ? Util.df(map.get(field)) : Util
-								.df(getThroughput(field)))
+						+ (!rateParam ? Util.df(units.equals("ns") ? treeMap
+								.get(field) / 1000.0 : treeMap.get(field))
+								: Util.df(getThroughput(field)))
 						+ "/"
 						+ (stdDevs.get(field) >= 0 ? "+" : "")
-						+ (!rateParam ? Util.df(stdDevs.get(field)) : Util
-								.df(1000 * 1000 * 1000.0 / stdDevs.get(field)))
-						+ (!rateParam ? units : "/s") + " | ");
+						+ (!rateParam ? Util.df(units.equals("ns") ? stdDevs
+								.get(field) / 1000.0 : treeMap.get(field))
+								: Util.df(1000 * 1000 * 1000.0 / stdDevs
+										.get(field)))
+						+ (!rateParam ? units.equals("ns") ? "us" : units
+								: "/s") + " | ");
 			}
 		}
 		return s;

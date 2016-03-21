@@ -265,4 +265,8 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 
 		return true;
 	}
+	
+	public String toString() {
+		return NoopApp.class.getSimpleName();
+	}
 }

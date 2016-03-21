@@ -1375,7 +1375,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			// conn.commit();
 			incrTotalCheckpoints();
 
-			DelayProfiler.updateDelay("checkpoint", t1);
+			DelayProfiler.updateDelay(appName+".checkpoint", t1);
 			// why can't insertCP.toString() return the query string? :/
 			if (shouldLogCheckpoint())
 				log.log(Level.INFO,

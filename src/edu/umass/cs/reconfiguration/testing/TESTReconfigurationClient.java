@@ -168,6 +168,8 @@ public class TESTReconfigurationClient {
 				outstandingQ, timeout);
 	}
 
+	private static final String appName = ReconfigurationConfig.application.getSimpleName();
+	
 	/**
 	 * Tests an app request and synchronously waits for the response if
 	 * {@code outstandingQ} is null, else it asynchronously sends the request.
@@ -198,7 +200,7 @@ public class TESTReconfigurationClient {
 							outstandingQ.remove(request.getRequestID());
 						outstandingQ.notify();
 					}
-				DelayProfiler.updateDelay(ProfilerKeys.app_request.toString(),
+				DelayProfiler.updateDelay(appName+".e2e",
 						t);
 				if (response instanceof ActiveReplicaError) {
 					log.log(Level.INFO,

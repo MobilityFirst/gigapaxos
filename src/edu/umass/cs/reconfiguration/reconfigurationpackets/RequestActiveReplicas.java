@@ -43,8 +43,15 @@ import edu.umass.cs.nio.nioutils.StringifiableDefault;
  */
 public class RequestActiveReplicas extends ClientReconfigurationPacket {
 
-	private static enum Keys {
-		ACTIVE_REPLICAS
+	/**
+	 *
+	 */
+	public static enum Keys {
+		/**
+		 * Active replica set.
+		 */
+		ACTIVE_REPLICAS,
+		
 	};
 
 	/**
