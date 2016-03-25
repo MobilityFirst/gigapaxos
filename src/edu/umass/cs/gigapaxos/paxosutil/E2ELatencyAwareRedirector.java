@@ -30,10 +30,13 @@ import edu.umass.cs.utils.Util;
 public class E2ELatencyAwareRedirector implements NearestServerSelector {
 
 	static final double PROBE_RATIO = 0.05;
+	static final long MIN_PROBE_TIME = 10 * 1000;
 
 	final ConcurrentHashMap<InetSocketAddress, Double> e2eLatencies = new ConcurrentHashMap<InetSocketAddress, Double>();
+	final ConcurrentHashMap<InetSocketAddress, Long> lastProbed = new ConcurrentHashMap<InetSocketAddress, Long>();
 	final InetSocketAddress myAddress;
 	private double probeRatio = PROBE_RATIO;
+	private long minProbeTime = MIN_PROBE_TIME;
 
 	/**
 	 * 
@@ -60,14 +63,17 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 				addresses));
 		for (InetSocketAddress address : shuffled) {
 			// probe with probability probeRatio
-			if (probe /* && !this.e2eLatencies.containsKey(address) */)
+			if (probe && !this.recentlyProbed(address)) {
+				// assumes that querier will use this address
+				this.lastProbed.put(address, System.currentTimeMillis());
 				return address;
+			}
 			if (closest == null)
 				closest = address;
 			Double latency = this.e2eLatencies.get(address);
 			closestLatency = this.e2eLatencies.get(closest);
 			// else pick latency if lower or current address unknown
-			if (latency != null 
+			if (latency != null
 			// will pick last (random) address initially
 					&& (closestLatency != null && latency < closestLatency)) {
 				closest = address;
@@ -75,6 +81,12 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 			}
 		}
 		return closest;
+	}
+
+	private boolean recentlyProbed(InetSocketAddress isa) {
+		Long lastProbedTime = null;
+		return (lastProbedTime = this.lastProbed.get(isa)) != null
+				&& System.currentTimeMillis() - lastProbedTime > this.minProbeTime;
 	}
 
 	/**
@@ -205,7 +217,8 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 				addresses[i] = new InetSocketAddress("127.0.0.1", base + i);
 			Set<InetSocketAddress> set1 = new HashSet<InetSocketAddress>(
 					Arrays.asList(addresses[1], addresses[2], addresses[3]));
-			redirector.learnSample(addresses[1], (addresses[1].getPort()-base)*10);
+			redirector.learnSample(addresses[1],
+					(addresses[1].getPort() - base) * 10);
 			InetSocketAddress closest;
 			System.out.println("closest="
 					+ (closest = redirector.getNearest(set1)) + " "
@@ -213,8 +226,9 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 			int tries = 1000, yesCount = 0;
 			for (int i = 0; i < tries; i++) {
 				InetSocketAddress isa = null;
-				yesCount += ((isa = redirector.getNearest(set1)).equals(addresses[1])) ? 1 : 0;
-				redirector.learnSample(isa, (isa.getPort()-base)*10);
+				yesCount += ((isa = redirector.getNearest(set1))
+						.equals(addresses[1])) ? 1 : 0;
+				redirector.learnSample(isa, (isa.getPort() - base) * 10);
 			}
 			// factor 2 is for some safety but can still be exceeded
 			String result = "expected=" + tries * (1 - PROBE_RATIO)
@@ -225,6 +239,20 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 					* (1 - 2 * PROBE_RATIO)));
 			System.out.println(result + allOK);
 		}
+	}
+
+	/**
+	 * @param time
+	 */
+	public void setMinProbeTime(long time) {
+		this.minProbeTime = time;
+	}
+
+	/**
+	 * @param ratio
+	 */
+	public void setProbeRatio(double ratio) {
+		this.probeRatio = ratio;
 	}
 
 	/**

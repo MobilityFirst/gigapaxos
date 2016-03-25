@@ -111,7 +111,18 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	};
 
-	// used to forget replicas that cause a timeout
+	/**
+	 * Used to slowly forget replicas that cause a timeout. Using a moving
+	 * average learner in {@link #e2eRedirector} means that a single timeout
+	 * will not necessarily immediately exclude that replica. Furthermore,
+	 * because of probing, some requests may still go to such "long latency"
+	 * replicas that have actually failed. Note that excluding such replicas for
+	 * a limited time doesn't prevent them from being probed again after that
+	 * time. Unless we do active probing, we have to either direct some requests
+	 * to failed replicas or be reconciled to not ever using them again even
+	 * after they recover.
+	 * 
+	 */
 	final GCConcurrentHashMapCallback appGCCallback = new GCConcurrentHashMapCallback() {
 		@Override
 		public void callbackGC(Object key, Object value) {

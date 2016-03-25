@@ -222,5 +222,4 @@ public class PaxosClientAsync {
 	public PaxosClientAsync() throws IOException {
 		this(PaxosServer.getDefaultServers());
 	}
-
 }

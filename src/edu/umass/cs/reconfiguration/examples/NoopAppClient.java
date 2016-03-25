@@ -69,6 +69,7 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 		for (int i = 0; i < numNames; i++) {
 			final String name = namePrefix
 					+ ((int) (Math.random() * Integer.MAX_VALUE));
+			System.out.println("Creating name");
 			client.sendRequest(new CreateServiceName(name, initialState),
 					new RequestCallback() {
 
