@@ -16,18 +16,19 @@
 # to all remote machines from the local host. With recursive_install
 # disabled, passwordless ssh is required only from the local host to
 # all remote hosts, but not from the first to the rest.
-recursive_install=1
+recursive_install=0
 
 package_name=gigapaxos #GNS
 # absolute path of the install on the local host
 local_install_dir=~/$package_name 
 
-remote_user=arun #ec2-user
+remote_user=ec2-user
 
 # need self-hostname for ec2 installation if recursive_install is 1
 install_host=lime
 
-# relative to remote home
+# relative to remote home. Currently, remote_install_dir has to be the
+# same as local_install_dir.
 remote_install_dir=$package_name 
 
 # Regular expression for local jars to be transferred. This regex is
@@ -39,7 +40,7 @@ local_jar_files=dist/$package_name-[0-9].[0-9]*.jar
 # local_install_dir.
 transfer_list="$local_jar_files\
   gigapaxos.properties testing.properties\
-  tests scripts"
+  logging.properties tests scripts"
 
 # disabling warnings to prevent manual override; can supply ssh keys
 # here if needed, but they must be the same on the local host and on
@@ -71,14 +72,18 @@ cmd_suffix=" -c"
 
 log_file_prefix=/tmp/log
 
+pkg_prefix=edu.umass.cs.
+
 # can specify executable and hosts file as $1 and $2 provided
 # first argument is not "kill" or "-c"
 if [[ ! -z $1 && ! $1 == "kill" ]]; then
   if [[ ! -z $1 ]]; then
     gigapaxos_properties=$1;
+    transfer_list="$transfer_list $1"
   fi
   if [[ ! -z $2 ]]; then
     testing_properties=$2
+    transfer_list="$transfer_list $2"
   fi
   if [[ ! -z $3 ]]; then
     paxos_server=$3
@@ -91,7 +96,8 @@ if [[ ! -z $1 && ! $1 == "kill" ]]; then
   fi
 fi
 
-client_kill_targets=$client_kill_targets"\|"`echo $paxos_client/sed s/".*\.//g`
+
+client_kill_targets=$client_kill_targets"\|"`echo $paxos_client|sed s/".*\."//g`
 
 tmp_paxos_server=`cat $testing_properties|grep SERVER_BINARY|awk -F "=" '{print $2}'`
 if [[ ! -z $tmp_paxos_server ]]; then
@@ -108,13 +114,14 @@ if [[ ! -z $tmp_cmd_suffix ]]; then
   cmd_suffix=$tmp_cmd_suffix
 fi
 
+
 run_server_cmd="cd; cd $remote_install_dir;\
   "$cmd_prefix"\
   java -ea -Xmx4096M -cp ./$local_jar_files \
   -DgigapaxosConfig=$gigapaxos_properties\
   -DtestingConfig=$testing_properties\
   -Djava.util.logging.config.file=logging.properties\
-   edu.umass.cs.$paxos_server\
+   $pkg_prefix$paxos_server\
   "$cmd_suffix
 run_client_cmd="cd; cd $remote_install_dir;\
   "$cmd_prefix"\
@@ -122,7 +129,7 @@ run_client_cmd="cd; cd $remote_install_dir;\
   -DgigapaxosConfig=$gigapaxos_properties\
   -DtestingConfig=$testing_properties\
   -Djava.util.logging.config.file=logging.properties\
-   edu.umass.cs.$paxos_client\
+   $pkg_prefix$paxos_client\
    "$cmd_suffix
 
 hosts=`cat $local_install_dir/$gigapaxos_properties|grep -v "^#"|\
@@ -237,8 +244,8 @@ if [[ $recursive_install == 1 ]]; then
   if [[ `hostname -f` == $install_host && $first_host != "localhost" && $first_host != "127.0.0.1" ]]; then
     # execute myself on the first remote host and exit
     echo [`hostname`] "$SSH" $remote_user@$first_host\
-       "$remote_install_dir/$me $1 $2&"
-    $SSH $remote_user@$first_host "$remote_install_dir/$me $1 $2"&
+       "$remote_install_dir/$me $1 $2 &"
+    $SSH $remote_user@$first_host "$remote_install_dir/$me $1 $2" &
     #echo [`hostname`] Installing remote servers other than $first_host; echo
 
     start_clients "local"
@@ -285,6 +292,10 @@ echo $host
       "$run_server_cmd $node_id 2>$log_file_prefix$node_id "&
 done
 
+
+exit
+# stuff below is not needed unless we want to start the client
+# recursively from the first remote host
 
 echo; echo; echo "[`hostname`] (Re-)starting client(s)"
 if [[ $recursive_install == "1" && $first_host != "localhost" && $first_host != "127.0.0.1" ]]; then

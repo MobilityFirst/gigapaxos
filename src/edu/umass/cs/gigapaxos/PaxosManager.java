@@ -726,8 +726,12 @@ public class PaxosManager<NodeIDType> {
 				return false;
 			// if(!clientFacing) return false;
 			boolean congested = PaxosManager.this.isCongested();
-			log.info(this + " congested; rate limiting requests from "
-					+ header.sndr.getAddress());
+			if (congested)
+				log.log(Level.FINE,
+						"{0} congested; rate limiting requests from {1}; {2}>{3}",
+						new Object[] { this, header.sndr.getAddress(),
+								PaxosManager.this.getNumOutstandingOrQueued(),
+								MAX_OUTSTANDING_REQUESTS });
 			return congested;
 		}
 
@@ -1201,21 +1205,21 @@ public class PaxosManager<NodeIDType> {
 			int clientPortOffset = ssl ? Config
 					.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET) : Config
 					.getGlobalInt(PC.CLIENT_PORT_OFFSET);
-			if (clientPortOffset > 0) {
-				log.log(Level.INFO,
-						"Creating client messenger at {0}:{1}; offset={2}",
-						new Object[] { myAddress.getAddress(),
-								(myAddress.getPort() + clientPortOffset),
-								clientPortOffset });
 
-				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
-				InetSocketAddress isa = new InetSocketAddress(
+			if (clientPortOffset > 0) {
+				InetSocketAddress myAddressOffsetted = new InetSocketAddress(
 						myAddress.getAddress(), myAddress.getPort()
 								+ clientPortOffset);
+				log.log(Level.INFO,
+						"Creating client messenger at {0}; (offset={1}, {2})",
+						new Object[] { myAddressOffsetted, clientPortOffset, ssl?"SSL":""});
+
+				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+
 				cMsgr = new JSONMessenger<InetSocketAddress>(
 						niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
-								myAddress.getAddress(),
-								(myAddress.getPort() + clientPortOffset),
+								myAddressOffsetted.getAddress(),
+								(myAddressOffsetted.getPort()),
 								/* Client facing demultiplexer is single
 								 * threaded to keep clients from overwhelming
 								 * the system with request load. */
@@ -1223,10 +1227,13 @@ public class PaxosManager<NodeIDType> {
 								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 										.getGlobalString(PC.CLIENT_SSL_MODE))
 										: SSL_MODES.CLEAR));
-				if (!niot.getListeningSocketAddress().equals(isa))
-					throw new IOException(
-							"Unable to listen on specified socket address at "
-									+ isa);
+				if (!niot.getListeningSocketAddress()
+						.equals(myAddressOffsetted))
+					// FIXME: will throw false positive exception on EC2
+					// throw new IOException(
+					// "Unable to listen on specified socket address at "
+					// + isa + " != " + niot.getListeningSocketAddress())
+					;
 				if (ssl)
 					this.messenger.setSSLClientMessenger(cMsgr);
 				else

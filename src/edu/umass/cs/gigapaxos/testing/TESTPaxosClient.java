@@ -317,8 +317,8 @@ public class TESTPaxosClient {
 	protected boolean sendRequest(int id, RequestPacket req)
 			throws IOException, JSONException {
 		assert(nc.getNodeAddress(id)!=null) : id;
-		log.log(Level.FINE, "Sending request to node {0}: {1} {2}", new Object[] {
-				id, nc.getNodeAddress(id)+":"+nc.getNodePort(id)+CLIENT_PORT_OFFSET, req.getSummary() });
+		log.log(Level.FINE, "Sending request to node {0}:{1}:{2} {2}", new Object[] {
+				id, nc.getNodeAddress(id), nc.getNodePort(id), req.getSummary() });
 		if (this.requests.put(req.requestID, req) != null)
 			return false; // collision in integer space
 		this.incrReqCount();
@@ -326,7 +326,7 @@ public class TESTPaxosClient {
 				System.currentTimeMillis());
 
 		// no retransmission send
-		while (this.sendToID(id, req.toJSONObject()) <= 0) {
+		while (this.niot.sendToID(id, req.toJSONObject()) <= 0) {
 			try {
 				Thread.sleep(req.lengthEstimate()/RequestPacket.SIZE_ESTIMATE + 1);
 			} catch (InterruptedException e) {

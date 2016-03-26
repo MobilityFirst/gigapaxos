@@ -478,16 +478,16 @@ public class JSONMessenger<NodeIDType> implements
 		if(listenSockAddr==null) return msgr; // default
 		if (msgr instanceof InterfaceNIOTransport
 				&& ((InterfaceNIOTransport<?, ?>) msgr)
-						.getListeningSocketAddress().equals(listenSockAddr))
+						.getListeningSocketAddress().getPort()==(listenSockAddr.getPort()))
 			return msgr;
 		// else
 		msgr = this.getSSLClientMessengerInternal();
 		if (msgr instanceof InterfaceNIOTransport
 				&& ((InterfaceNIOTransport<?, ?>) msgr)
-						.getListeningSocketAddress().equals(listenSockAddr))
+						.getListeningSocketAddress().getPort()==(listenSockAddr.getPort()))
 			return msgr;
 
-		assert (this.getListeningSocketAddress().equals(listenSockAddr)) : this
+		assert (this.getListeningSocketAddress().getPort()==(listenSockAddr.getPort())) : this
 				.getListeningSocketAddress() + " != " + listenSockAddr;
 		
 		return this;

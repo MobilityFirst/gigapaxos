@@ -626,13 +626,14 @@ public class TESTPaxosConfig {
 				return this.getNodeAddress(id);
 			}
 
+			int clientPortOffset = Config
+					 .getGlobalInt(PC.CLIENT_PORT_OFFSET);
 			@Override
 			public int getNodePort(Integer id) {
 				return (defaultNC.nodeExists(id.toString()) ? defaultNC
 						.getNodePort(id.toString()) : nodeConfig
 						.getNodePort(id))
-				// + (clientFacing ? Config
-				// .getGlobalInt(PC.CLIENT_PORT_OFFSET) : 0)
+				 + (clientFacing ? clientPortOffset : 0)
 				;
 			}
 
