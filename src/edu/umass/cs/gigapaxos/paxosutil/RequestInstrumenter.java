@@ -40,8 +40,7 @@ public class RequestInstrumenter {
 	/**
 	 * This class is a no-op unless DEBUG is turned on
 	 * */
-	@SuppressWarnings("unused")
-	public static final boolean DEBUG = false && Config.getGlobalBoolean(PC.DEBUG);
+	public static final boolean DEBUG = Config.getGlobalBoolean(PC.DEBUG);
 
 	private static final HashMap<Long, String> map = new HashMap<Long, String>();
 

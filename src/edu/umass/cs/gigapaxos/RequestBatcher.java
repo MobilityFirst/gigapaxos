@@ -96,10 +96,10 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 	
 	private int avgNumQGroups = 1;
 
-	// max time for which the dequeueing thread will wait 
+	// max time for which the dequeueing thread will wait
 	private static final long MAX_BATCH_SLEEP_DURATION = 10;
-	// min delay for enqueue/dequeue to happen at all
-	private static final long MIN_AGREEMENT_LATENCY_FOR_BATCHING = 10;
+	// if batching enabled, min delay for enqueue/dequeue to happen at all
+	private static final long MIN_AGREEMENT_LATENCY_FOR_BATCHING = 0;
 	// max queued groups after which we stop any batch sleeps
 	private static final int MAX_GROUPS_FOR_BATCH_SLEEP = 5;
 	// FIXME: currently not actually used in throttleExcessiveLoad

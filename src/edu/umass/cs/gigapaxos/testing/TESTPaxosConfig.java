@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.testing;
 
 import java.io.BufferedReader;
@@ -172,7 +170,49 @@ public class TESTPaxosConfig {
 		 */
 		TEST_APP_DELAY(0),
 
-		;
+		/**
+		 * Whether a capacity probe should be done as opposed to doing two test
+		 * runs with fixed load values.
+		 */
+		PROBE_CAPACITY(true),
+
+		/**
+		 * 
+		 */
+		PROBE_INIT_LOAD(50000),
+
+		/**
+		 * Duration of each capacity probe in seconds.
+		 */
+		PROBE_RUN_DURATION(10),
+
+		/**
+		 * Fraction of load above which the response rate must be for the
+		 * capacity probe to be considered successful.
+		 */
+		PROBE_LOAD_THRESHOLD(0.95),
+
+		/**
+		 * Factor by which capacity probe load will be increased in each step.
+		 */
+		PROBE_LOAD_INCREASE_FACTOR(1.1),
+
+		/**
+		 * Threshold on average response time for a probe run to be considered
+		 * successful.
+		 */
+		PROBE_LATENCY_THRESHOLD(1000),
+
+		/**
+		 * Maximum number of consecutive failures afte which a capacity probe
+		 * will be given up.
+		 */
+		PROBE_MAX_CONSECUTIVE_FAILURES(8), 
+		
+		/**
+		 * Stop after these many probe runs.
+		 */
+		PROBE_MAX_RUNS (50), ;
 
 		final Object defaultValue;
 
@@ -214,11 +254,9 @@ public class TESTPaxosConfig {
 		setupGroups();
 	}
 
-	/*
-	 * This will assert the RSM invariant upon execution of every request. It is
+	/* This will assert the RSM invariant upon execution of every request. It is
 	 * meaningful only in a single node test and consumes some cycles, so it
-	 * should be disabled in production runs.
-	 */
+	 * should be disabled in production runs. */
 	private static boolean assertRSMInvariant = false;
 
 	/**
@@ -626,15 +664,14 @@ public class TESTPaxosConfig {
 				return this.getNodeAddress(id);
 			}
 
-			int clientPortOffset = Config
-					 .getGlobalInt(PC.CLIENT_PORT_OFFSET);
+			int clientPortOffset = Config.getGlobalInt(PC.CLIENT_PORT_OFFSET);
+
 			@Override
 			public int getNodePort(Integer id) {
 				return (defaultNC.nodeExists(id.toString()) ? defaultNC
 						.getNodePort(id.toString()) : nodeConfig
 						.getNodePort(id))
-				 + (clientFacing ? clientPortOffset : 0)
-				;
+						+ (clientFacing ? clientPortOffset : 0);
 			}
 
 			@Override

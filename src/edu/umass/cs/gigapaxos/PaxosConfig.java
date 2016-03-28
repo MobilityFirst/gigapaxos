@@ -385,6 +385,11 @@ public class PaxosConfig {
 		ENABLE_INSTRUMENTATION(true),
 
 		/**
+		 * Whether DelayProfiler should be enabled.
+		 */
+		DELAY_PROFILER(true),
+		
+		/**
 		 * 
 		 */
 		JSON_LIBRARY("json.smart"),

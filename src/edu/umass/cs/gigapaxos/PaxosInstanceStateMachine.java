@@ -1437,6 +1437,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			return this.log && instrument(sampleInt);
 		}
 	};
+	
+	private static final int AGREEMENT_LATENCY_SAMPLING = 100;
+	private static final int EXECUTION_LATENCY_SAMPLING = 100;
 
 	/* The three actions--(1) extracting the next slot request from the
 	 * acceptor, (2) having the app execute the request, and (3) checkpoint if
@@ -1466,7 +1469,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 								inorderDecision.getSummary() });
 				String pid = this.getPaxosID();
 
-				if (instrument(20))
+				if (inorderDecision.getEntryReplica() == this.getMyID()
+						&& instrument(AGREEMENT_LATENCY_SAMPLING))
 					DelayProfiler.updateDelay("agreement",
 							inorderDecision.getEntryTime());
 				updateRequestBatcher(inorderDecision, loggedDecision == null);
@@ -1485,9 +1489,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					else if (this.forceStop())
 						break;
 
-				if (instrument(10))
+				if (instrument(EXECUTION_LATENCY_SAMPLING))
 					DelayProfiler.updateDelay(AbstractPaxosLogger.appName
-							+ ".execute", t);
+							+ ".execute", t, inorderDecision.batchSize()+1);
 
 				// getState must be atomic with the execution
 				if (shouldCheckpoint(inorderDecision)
@@ -1606,12 +1610,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					// ask app to translate string to InterfaceRequest
 							: getInterfaceRequest(app,
 									requestPacket.getRequestValue());
-					log.log(Level.FINE,
+					Level level = Level.FINE;
+					log.log(level,
 							"{0} executing (in-order) decision {1}",
 							new Object[] {
 									pism,
-									PaxosManager.getLogger().isLoggable(
-											Level.FINE) ? (request instanceof SummarizableRequest ? ((SummarizableRequest) request)
+									log.isLoggable(level) ? (request instanceof SummarizableRequest ? ((SummarizableRequest) request)
 											.getSummary() : requestPacket
 											.getSummary())
 											: null });
@@ -2365,7 +2369,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			PValuePacket decision = pvalueIter.next();
 			if (decision.isMetaValue()) {
 				if (this.paxosState.getSlot() - decision.slot > 0)
-					log.log(Level.INFO,
+					log.log(Level.FINE,
 							"{0} has no body for executed meta-decision {1} "
 									+ " likely because placeholder decision was "
 									+ "logged without corresponding accept)",
@@ -2417,8 +2421,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			String myStatus = (!PaxosCoordinator.exists(this.coordinator) ? "[acceptor]"
 					: PaxosCoordinator.isActive(this.coordinator) ? "[coordinator]"
 							: "[preactive-coordinator]");
-			log.info(this + myStatus + " has no state (yet) for "
-					+ syncReply.getSummary());
+			log.log(Level.INFO, "{0}  has no state (yet) for ", new Object[] {
+					this, myStatus, syncReply.getSummary() });
 		}
 
 		return statePacket != null ? new MessagingTask(syncReply.nodeID,

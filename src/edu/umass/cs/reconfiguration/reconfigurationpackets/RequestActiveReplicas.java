@@ -153,9 +153,6 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 			System.out.println(req1);
 			JSONObject json1;
 			json1 = req1.toJSONObject();
-			json1.put(JSONNIOTransport.SNDR_IP_FIELD, sender.getAddress()
-					.getHostAddress());
-			json1.put(JSONNIOTransport.SNDR_PORT_FIELD, sender.getPort());
 			RequestActiveReplicas req2 = new RequestActiveReplicas(json1, null);
 			System.out.println(req2);
 		} catch (UnknownHostException | JSONException e) {

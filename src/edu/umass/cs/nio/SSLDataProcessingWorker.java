@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import java.io.IOException;
@@ -131,10 +129,9 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		AbstractNIOSSL nioSSL = this.sslMap.get(channel);
 		assert (nioSSL != null);
 		log.log(Level.FINEST,
-				"{0} received encrypted data of length {1} bytes on {2} from {3}",
+				"{0} received encrypted data of length {1} bytes to send on channel {2}",
 				new Object[] { this, encrypted.remaining(),
-						channel.socket().getLocalSocketAddress(),
-						channel.socket().getRemoteSocketAddress() });
+						channel });
 		// unwrap SSL
 		nioSSL.notifyReceived(encrypted);
 		assert (encrypted.remaining() == 0); // else buffer overflow exception
@@ -145,10 +142,8 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		AbstractNIOSSL nioSSL = this.sslMap.get(channel);
 		assert (nioSSL != null);
 		log.log(Level.FINEST,
-				"{0} wrapping unencrypted data of length {1} bytes from {2} to {3}",
-				new Object[] { this, unencrypted.remaining(),
-						channel.socket().getLocalSocketAddress(),
-						channel.socket().getRemoteSocketAddress() });
+				"{0} wrapping unencrypted data of length {1} bytes to send on channel {2}",
+				new Object[] { this, unencrypted.remaining(), channel });
 		int originalSize = unencrypted.remaining();
 		try {
 			nioSSL.nioSend(unencrypted);
@@ -186,9 +181,9 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 				DEFAULT_PER_CONNECTION_IO_BUFFER_SIZE, this.taskWorkers));
 		return true;
 	}
-	
+
 	protected void poke() {
-		for(AbstractNIOSSL nioSSL : this.sslMap.values()) {
+		for (AbstractNIOSSL nioSSL : this.sslMap.values()) {
 			nioSSL.poke();
 		}
 	}
@@ -215,14 +210,9 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		// inbound decrypted data is simply handed over to worker
 		@Override
 		public void onInboundData(ByteBuffer decrypted) {
-			Socket socket = ((SocketChannel) (key.channel())).socket();
 			log.log(Level.FINEST,
-					"{0} received decrypted data of length {1} bytes on {2} from {3}",
-					new Object[] { this, decrypted.remaining(),
-							socket.getLocalSocketAddress(),
-							socket.getRemoteSocketAddress() });
-			// SSLDataProcessingWorker.this.decryptedWorker.processData((SocketChannel)key.channel(),
-			// decrypted);
+					"{0} received decrypted data of length {1} bytes on channel {2}",
+					new Object[] { this, decrypted.remaining(), ((SocketChannel) (key.channel())) });
 			SSLDataProcessingWorker.this.extractMessages(key, decrypted);
 		}
 
@@ -256,16 +246,13 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 			SocketChannel channel = ((SocketChannel) key.channel());
 			try {
 				log.log(Level.FINEST,
-						"{0} sending encrypted data of length {1} bytes from {2} to {3}",
+						"{0} sending encrypted data of length {1} bytes to send on channel {2}",
 						new Object[] { this, encrypted.remaining(),
-								channel.socket().getLocalSocketAddress(),
-								channel.socket().getRemoteSocketAddress() });
-				/*
-				 * The assertion is true because we initialized key in the
+								channel });
+				/* The assertion is true because we initialized key in the
 				 * parent constructor. This method is the only reason we need
 				 * the key in the parent, otherwise AbstractNIOSSL is just an
-				 * SSL template and has nothing to do with NIO.
-				 */
+				 * SSL template and has nothing to do with NIO. */
 				assert (key != null);
 				int totalLength = encrypted.remaining();
 				// hack! try few times, but can't really wait here.
@@ -333,8 +320,8 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 	@Override
 	public void processLocalMessage(InetSocketAddress sockAddr, String msg) {
 		if (this.decryptedWorker instanceof InterfaceMessageExtractor)
-			((InterfaceMessageExtractor) this.decryptedWorker).processLocalMessage(
-					sockAddr, msg);
+			((InterfaceMessageExtractor) this.decryptedWorker)
+					.processLocalMessage(sockAddr, msg);
 
 	}
 

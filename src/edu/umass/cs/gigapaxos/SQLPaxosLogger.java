@@ -822,7 +822,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 		});
 		if (foundFiles.length == 0)
-			log.fine(" no file in " + cpDir + " starting with " + rcGroupName);
+			log.log(Level.FINE, "{0} found no file in {1} starting with {2}",
+					new Object[] { SQLPaxosLogger.class.getSimpleName(), cpDir, rcGroupName });
 
 		// delete all but the most recent
 		boolean allDeleted = true;
@@ -1012,7 +1013,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 											.getGCCandidates());
 						} catch (Exception | Error e) {
 							log.severe(this + " incurred exception "
-									+ e.getMessage()
+									+ (e.getMessage() != null ? e.getMessage() : e)
 									+ " while garbage collecting logfiles");
 							e.printStackTrace();
 						}
@@ -2229,7 +2230,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		if (isClosed() /* || !isLoggingEnabled() */)
 			return null;
 
-		log.fine(this + " trying to unpause logIndex for " + paxosID);
+		log.log(Level.FINER, "{0} trying to unpause logIndex for {1}",
+				new Object[] { this, paxosID });
 		PreparedStatement pstmt = null;
 		ResultSet rset = null;
 		Connection conn = null;
@@ -3124,14 +3126,17 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		ResultSet messagesRS = null;
 		Connection conn = null;
 		ArrayList<String> logfiles = new ArrayList<String>();
+		String cmd = "select distinct "
+				+ (table.equals(getMTable()) ? "logfile" : "min_logfile")
+				+ " from " + table;
 		try {
 			// long t = System.currentTimeMillis();
 			conn = this.getDefaultConn();
-			pstmt = conn.prepareStatement("select distinct "
-					+ (table.equals(getMTable()) ? "logfile" : "min_logfile")
-					+ " from " + table);
+			pstmt = conn.prepareStatement(cmd);
 			messagesRS = pstmt.executeQuery();
 
+			assert (messagesRS.next()) : this
+					+ " found no minLogfile with query \"" + cmd + "\"";
 			assert (!messagesRS.isClosed());
 			while (messagesRS.next()) {
 				logfiles.add(messagesRS.getString(1));
@@ -3150,6 +3155,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	private ArrayList<String> getActiveLogfilesFromCheckpointTable(
 			TreeSet<Filename> candidates) {
+		assert(candidates!=null && !candidates.isEmpty());
 		ArrayList<String> activeFrontier = this.getIndexedLogfiles(getCTable());
 		Filename minLogfilename = null;
 		for (String active : activeFrontier) {
@@ -3159,7 +3165,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			if (curFilename.compareTo(minLogfilename) < 0)
 				minLogfilename = curFilename;
 		}
-		assert (minLogfilename != null);
+		assert (minLogfilename != null) : this
+				+ " found no minLogfile while trying to garbage collect candidates "
+				+ candidates;
 		ArrayList<String> activeLogfiles = new ArrayList<String>();
 		for (Filename candidate : candidates)
 			if (minLogfilename.compareTo(candidate) <= 0)

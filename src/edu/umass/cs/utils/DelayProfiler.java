@@ -25,13 +25,7 @@ public class DelayProfiler {
 	private static boolean enabled = true;
 	
 	/**
-	 * Will enable instrumentation (true by default)
-	 */
-	public static void enable() {
-		enabled = true;
-	}
-	/**
-	 * Will disable instrumentation.
+	 * Will disable instrumentation (true by default).
 	 */
 	public static void disable() {
 		enabled = false;

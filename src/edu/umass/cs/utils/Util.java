@@ -86,10 +86,6 @@ public class Util {
 		return movingAverage((double) sample, historicalAverage, alpha);
 	}
 
-	public static String refreshKey(String id) {
-		return (id.toString() + (int) (Math.random() * Integer.MAX_VALUE));
-	}
-
 	public static boolean oneIn(int n) {
 		return Math.random() < 1.0 / Math.max(1, n) ? true : false;
 	}
@@ -277,7 +273,6 @@ public class Util {
 		// remove anything upto and including the first slash
 		// handles this: "10.0.1.50/10.0.1.50:24404"
 		s = s.replaceAll(".*/", "");
-		s = s.replaceAll("[^0-9a-zA-Z.:]", "");
 		String[] tokens = s.split(":");
 		if (tokens.length < 2) {
 			return null;
@@ -287,8 +282,7 @@ public class Util {
 
 	public static InetAddress getInetAddressFromString(String s)
 			throws UnknownHostException {
-		return InetAddress.getByName(s.replaceAll(".*/", "")
-				.replaceAll(":.*", "").replaceAll("[^0-9.]*", ""));
+		return InetAddress.getByName(s.replaceFirst(".*/", ""));
 	}
 
 	public static String toJSONString(Collection<?> collection) {

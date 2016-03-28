@@ -16,7 +16,7 @@
 # to all remote machines from the local host. With recursive_install
 # disabled, passwordless ssh is required only from the local host to
 # all remote hosts, but not from the first to the rest.
-recursive_install=0
+recursive_install=1
 
 package_name=gigapaxos #GNS
 # absolute path of the install on the local host
@@ -193,8 +193,17 @@ function run_remote_command { remote_host=$1
   $SSH $remote_user@$remote_host "$command"
 }
 
+START_CLIENTS=0
+
 # start client(s)
 function start_clients {
+
+
+  # if no clients return
+  if [[ $clients == "" || $START_CLIENTS == 0 ]]; then
+    return;
+  fi
+
   type=$1
    
   # The sleep duration here needs to be long enough to ensure that the
@@ -215,7 +224,7 @@ function start_clients {
     if [[ ($type == "local" && ($client == "localhost" || $client == \
       "127.0.0.1" )) || ($type == "global" && ($client != "localhost"\
        && $client != "127.0.0.1" )) || $type == "all" ]]; then
-      #echo "Starting client $client"
+      echo "Starting client $client"
       run_remote_command $client $client_kill_targets\
          $client_kill_targets "$run_client_cmd" &
     fi
@@ -244,11 +253,11 @@ if [[ $recursive_install == 1 ]]; then
   if [[ `hostname -f` == $install_host && $first_host != "localhost" && $first_host != "127.0.0.1" ]]; then
     # execute myself on the first remote host and exit
     echo [`hostname`] "$SSH" $remote_user@$first_host\
-       "$remote_install_dir/$me $1 $2 &"
-    $SSH $remote_user@$first_host "$remote_install_dir/$me $1 $2" &
-    #echo [`hostname`] Installing remote servers other than $first_host; echo
+       "cd; cd $remote_install_dir; $me $1 $2 &"
+    $SSH $remote_user@$first_host "cd; cd $remote_install_dir; $me $1 $2" &
+    
 
-    start_clients "local"
+    start_clients "all"
  
     exit
 

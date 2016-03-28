@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 /**
  * @author V. Arun
@@ -80,25 +81,40 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * receiver, so they don't induce more network traffic or (de-)serialization
 	 * overhead.
 	 */
-	public static final String SNDR_IP_FIELD = "_SNDR_IP_ADDRESS";
+	@Deprecated
+	public static final String SNDR_IP_FIELD = "_SIP";
 	/**
 	 * JSON key corresponding to sender port number. Relevant only if
 	 * {@code MessageType} is JSONObject.
 	 */
+	@Deprecated
+	public static final String SNDR_PORT_FIELD = "_SPORT";
 
-	public static final String SNDR_PORT_FIELD = "_SNDR_TCP_PORT";
+	/**
+	 * JSON key corresponding to sender socket address. Relevant only if
+	 * {@code MessageType} is JSONObject.
+	 */
+	public static final String SNDR_ADDRESS_FIELD = "_SNDR_ADDRESS";
 
 	/**
 	 * JSON key corresponding to receiver IP address. Relevant only if
 	 * {@code MessageType} is JSONObject.
 	 */
+	@Deprecated
 	public static final String RCVR_IP_FIELD = "_RCVR_IP_ADDRESS";
 
 	/**
 	 * JSON key corresponding to receiver port number. Relevant only if
 	 * {@code MessageType} is JSONObject.
 	 */	
+	@Deprecated
 	public static final String RCVR_PORT_FIELD = "_RCVR_TCP_PORT";
+
+	/**
+	 * JSON key corresponding to receiver socket address. Relevant only if
+	 * {@code MessageType} is JSONObject.
+	 */
+	public static final String RCVR_ADDRESS_FIELD = "_RCVR_ADDRESS";
 
 	/**
 	 * Initiates transporter with id and nodeConfig.
@@ -272,15 +288,13 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 */
 	public static InetSocketAddress getSenderAddress(JSONObject json) {
 		try {
-			InetAddress address = (json
-					.has(MessageNIOTransport.SNDR_IP_FIELD) ? Util.getInetAddressFromString(json.getString(
-							MessageNIOTransport.SNDR_IP_FIELD)) : null);
-			int port = (json.has(MessageNIOTransport.SNDR_PORT_FIELD) ? json
-					.getInt(MessageNIOTransport.SNDR_PORT_FIELD) : -1);
-			if (address != null && port > 0) {
-				return new InetSocketAddress(address, port);
-			}
-		} catch (UnknownHostException | JSONException e) {
+			InetSocketAddress isa = json
+					.has(MessageNIOTransport.SNDR_ADDRESS_FIELD) ? Util
+					.getInetSocketAddressFromString(json
+							.getString(MessageNIOTransport.SNDR_ADDRESS_FIELD))
+					: null;
+			return isa;
+		} catch (JSONException  e) {
 			e.printStackTrace();
 		}
 		return null;
@@ -292,20 +306,11 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 */
 	public static InetSocketAddress getSenderAddressJSONSmart(
 			net.minidev.json.JSONObject json) {
-		try {
-			InetAddress address = (json
-					.containsKey(MessageNIOTransport.SNDR_IP_FIELD) ? Util
-					.getInetAddressFromString(((String) (json
-							.get(MessageNIOTransport.SNDR_IP_FIELD)))) : null);
-			int port = (json.containsKey(MessageNIOTransport.SNDR_PORT_FIELD) ? (Integer) (json
-					.get(MessageNIOTransport.SNDR_PORT_FIELD)) : -1);
-			if (address != null && port > 0) {
-				return new InetSocketAddress(address, port);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return null;
+		InetSocketAddress isa = json
+				.containsKey(MessageNIOTransport.SNDR_ADDRESS_FIELD) ? Util
+				.getInetSocketAddressFromString((String) json
+						.get(MessageNIOTransport.SNDR_ADDRESS_FIELD)) : null;
+		return isa;
 	}
 
 	/**
@@ -316,40 +321,30 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 *         so we insert it into the packet at receipt time. 
 	 */
 	public static InetSocketAddress getReceiverAddress(JSONObject json) {
+		InetSocketAddress isa = null;
 		try {
-			InetAddress address = (json.has(MessageNIOTransport.RCVR_IP_FIELD) ? Util
-					.getInetAddressFromString(json
-							.getString(MessageNIOTransport.RCVR_IP_FIELD))
-					: null);
-			int port = (json.has(MessageNIOTransport.RCVR_PORT_FIELD) ? json
-					.getInt(MessageNIOTransport.RCVR_PORT_FIELD) : -1);
-			if (address != null && port > 0) {
-				return new InetSocketAddress(address, port);
-			}
-		} catch (UnknownHostException | JSONException e) {
+			isa = json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD) ? Util
+					.getInetSocketAddressFromString(json
+							.getString(MessageNIOTransport.RCVR_ADDRESS_FIELD))
+					: null;
+					
+		} catch (JSONException e) {
 			e.printStackTrace();
 		}
-		return null;
+		return isa;
 	}
 	/**
 	 * @param json
 	 * @return Same as {@link #getReceiverAddress(JSONObject)}
 	 */
-	public static InetSocketAddress getReceiverAddressJSONSmart(net.minidev.json.JSONObject json) {
-		try {
-			InetAddress address = (json.containsKey(MessageNIOTransport.RCVR_IP_FIELD) ? Util
-					.getInetAddressFromString((String)json
-							.get(MessageNIOTransport.RCVR_IP_FIELD))
-					: null);
-			int port = (json.containsKey(MessageNIOTransport.RCVR_PORT_FIELD) ? (Integer)json
-					.get(MessageNIOTransport.RCVR_PORT_FIELD) : -1);
-			if (address != null && port > 0) {
-				return new InetSocketAddress(address, port);
-			}
-		} catch (UnknownHostException e) {
-			e.printStackTrace();
-		}
-		return null;
+	public static InetSocketAddress getReceiverAddressJSONSmart(
+			net.minidev.json.JSONObject json) {
+		InetSocketAddress isa = json
+				.containsKey(MessageNIOTransport.RCVR_ADDRESS_FIELD) ? Util
+				.getInetSocketAddressFromString((String) json
+						.get(MessageNIOTransport.RCVR_ADDRESS_FIELD)) : null;
+
+		return isa;
 	}
 
 	/**
@@ -359,47 +354,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 */
 	public static final InetAddress getSenderInetAddress(JSONObject json)
 			throws JSONException {
-		if (json.has(JSONNIOTransport.SNDR_IP_FIELD)) {
-			try {
-				return InetAddress.getByName(json.getString(
-						JSONNIOTransport.SNDR_IP_FIELD).replaceAll(
-						"[^0-9.]*", ""));
-			} catch (UnknownHostException uhe) {
-				uhe.printStackTrace();
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * @param json
-	 * @return InetAddress of sender recorded at time of receipt as string.
-	 */
-	public static String getSenderInetAddressAsString(JSONObject json) {
-		try {
-			String address = (json.has(MessageNIOTransport.SNDR_IP_FIELD) ? (json
-					.getString(MessageNIOTransport.SNDR_IP_FIELD).replaceAll(
-					"[^0-9.]*", "")) : null);
-			return address;
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-
-	/**
-	 * @param json
-	 * @return Port number of sender socket address recorded at time of receipt.
-	 */
-	public static int getSenderPort(JSONObject json) {
-		try {
-			int port = (json.has(MessageNIOTransport.SNDR_PORT_FIELD) ? (json
-					.getInt(MessageNIOTransport.SNDR_PORT_FIELD)) : -1);
-			return port;
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
-		return -1;
+		InetSocketAddress isa = getSenderAddress(json);
+		return isa != null ? isa.getAddress() : null;
 	}
 
 	/* ******************End of public send methods************************** */

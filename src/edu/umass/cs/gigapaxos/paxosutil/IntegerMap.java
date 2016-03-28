@@ -62,7 +62,8 @@ public class IntegerMap<NodeIDType> {
 		assert (node != null);
 		int id = getID(node);
 		
-		if (!node.toString().equals(Integer.valueOf(id).toString()))
+		if (!(node instanceof Integer)
+				&& !node.toString().equals(Integer.valueOf(id).toString()))
 			allInteger = false;
 
 		boolean collision = this.nodeMap.containsKey(id);

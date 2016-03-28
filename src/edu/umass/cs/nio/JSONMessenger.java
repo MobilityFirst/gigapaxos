@@ -388,12 +388,17 @@ public class JSONMessenger<NodeIDType> implements
 		this.sslClientMessenger = (AddressMessenger<JSONObject>) sslClientMessenger;
 	}
 
-	class JSONObjectWrapper extends JSONObject {
+	/**
+	 *
+	 */
+	public static class JSONObjectWrapper extends JSONObject {
 		final Object obj;
 
-		JSONObjectWrapper(Object obj) {
-			super(obj instanceof JSONObject ? (JSONObject) obj
-					: new JSONObject());
+		/**
+		 * @param obj
+		 */
+		public JSONObjectWrapper(Object obj) {
+			super();
 			this.obj = obj;
 		}
 

@@ -22,6 +22,7 @@ import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.nioutils.DataProcessingWorkerDefault;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.nio.nioutils.SampleNodeConfig;
+import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Stringer;
 import edu.umass.cs.utils.Util;
 
@@ -218,6 +219,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	private final Thread me;
 	private final long meThreadId;
 
+	private final InetSocketAddress listeningSocketAddress;
+
 	/**
 	 * A flag to easily enable or disable SSL by default. CLEAR is not really a
 	 * legitimate SSL mode, i.e., it is not supported by
@@ -247,6 +250,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		this.nodeConfig = nc;
 		this.worker = this.getWorker(worker, sslMode);
 		this.selector = this.initSelector(mySockAddr);
+		this.listeningSocketAddress = (InetSocketAddress) this.serverChannel
+				.getLocalAddress();
 
 		(me = (new Thread(this))).setName(getClass().getSimpleName() + ":"
 				+ (myID != null ? myID : "[]"));
@@ -375,9 +380,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		if (address == null || port < 0)
 			return -1;
 
-		log.log(Level.FINEST,
+		Level level = Level.FINEST;
+		log.log(level,
 				"{0} invoked send to ({1}={2}:{3}: {4}), checking connection status..",
-				new Object[] { this, id, address, port, new Stringer(data) });
+				new Object[] { this, id, address, port,
+						log.isLoggable(level) ? new Stringer(data) : data });
 		if (this.nodeConfig == null)
 			throw new NullPointerException(
 					"Attempting ID-based communication with null InterfaceNodeConfig");
@@ -733,12 +740,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 					ByteBuffer.allocate(READ_BUFFER_SIZE));
 			ByteBuffer bbuf = this.readBuffers.get(key); // this.readBuffer;
 			int numRead = socketChannel.read(bbuf);
-			
+
 			// socket closed by remote end
 			if (numRead == -1) {
 				log.log(Level.FINE, "{0} read off of channel {!}",
-						new Object[] { this,
-								socketChannel });
+						new Object[] { this, socketChannel });
 				cleanup(key, socketChannel);
 			}
 			// else have read something
@@ -920,7 +926,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		}
 	}
 
-	private static boolean useSenderTask = false;
+	private static boolean useSenderTask = true;
 
 	private static final boolean useSenderTask() {
 		return useSenderTask;
@@ -1022,12 +1028,16 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			ByteBuffer buf0 = (ByteBuffer) sendQueue.peek();
 			this.wrapWrite(socketChannel, buf0); // hook to SSL here
 			// if socket's buffer fills up, let the rest be in queue
-			log.log(Level.FINEST, "{0} wrote \"{1}\" to {2}",
-					new Object[] { this, new Stringer(buf0.array()),
-							socketChannel.getRemoteAddress() });
+			Level level = Level.FINEST;
+			log.log(level, "{0} wrote \"{1}\" to {2}",
+					new Object[] {
+							this,
+							log.isLoggable(level) ? new Stringer(buf0.array())
+									: buf0, socketChannel });
 			if (buf0.remaining() > 0) {
-				log.fine(this
-						+ " socket buffer congested because of high load..");
+				log.log(Level.FINE,
+						"{0} socket buffer congested because of high load..",
+						new Object[] { this });
 				break;
 			}
 			assert (buf0.remaining() == 0);
@@ -1059,7 +1069,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		// assert(this.writeBuffer.remaining()==0);
 		log.log(Level.FINEST,
 				"{0} wrote {1} batched bytes to {2}; total sentByteCount = {3}",
-				new Object[] { this, written, socketChannel.getRemoteAddress() });
+				new Object[] { this, written, socketChannel });
 
 		// remove exactly what got sent above
 		while (!sendQueue.isEmpty()) {
@@ -1093,16 +1103,18 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	// invokes wrap before nio write if SSL enabled
 	private int wrapWrite(SocketChannel socketChannel, ByteBuffer unencrypted,
 			boolean sneakyDebug) throws IOException {
-		assert (this.isHandshakeComplete(socketChannel));
-		long threadId = Thread.currentThread().getId();
-		log.log(Level.FINEST,
-				"{0}[thread{1}{2}]{3} writing out to socketChannel {4}",
-				new Object[] {
-						this,
-						threadId,
-						threadId != this.meThreadId && !sneakyDebug ? Thread
-								.currentThread().getName() : "",
-						(sneakyDebug ? " sneakily" : ""), socketChannel });
+		//assert (this.isHandshakeComplete(socketChannel));
+		Level level = Level.FINEST;
+		if (log.isLoggable(level))
+			log.log(level,
+					"{0}[thread{1}{2}]{3} writing out to socketChannel {4}",
+					new Object[] {
+							this,
+							Thread.currentThread().getId(),
+							Thread.currentThread().getId() != this.meThreadId
+									&& !sneakyDebug ? Thread.currentThread()
+									.getName() : "",
+							(sneakyDebug ? " sneakily" : ""), socketChannel });
 		if (this.isSSL())
 			return ((SSLDataProcessingWorker) this.worker).wrap(socketChannel,
 					unencrypted);
@@ -1544,7 +1556,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 *         wildcard fallback in NIOTransport.
 	 */
 	public InetSocketAddress getListeningSocketAddress() {
-		return new InetSocketAddress(getListeningAddress(), getListeningPort());
+		return this.listeningSocketAddress;// new
+											// InetSocketAddress(getListeningAddress(),
+											// getListeningPort());
 	}
 
 	protected int getListeningPort() {

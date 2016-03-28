@@ -184,8 +184,9 @@ public abstract class AbstractPaxosLogger {
 		if (logger.isAboutToClose())
 			return;
 
-		if (logger.BATCH_CHECKPOINTS)
-			if (!sync)
+		if (logger.BATCH_CHECKPOINTS && !sync) {
+			// enqueueAndWait is just inelegant when we can sync checkpoint
+			//if (!sync)
 				//logger.collapsingCheckpointer
 					//	.enqueueAndWait(logger.new CheckpointTask(logger,
 						//		paxosID, version, members, slot, ballot, state,
@@ -194,6 +195,7 @@ public abstract class AbstractPaxosLogger {
 				logger.collapsingCheckpointer
 						.enqueue(logger.new CheckpointTask(logger, paxosID,
 								version, members, slot, ballot, state, gcSlot));
+		}
 		else
 			logger.putCheckpointState(paxosID, version, members, slot, ballot,
 					state, gcSlot);

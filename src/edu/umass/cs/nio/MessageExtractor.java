@@ -280,12 +280,17 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @param json
 	 * @return JSONObject with addresses stamped.
 	 */
+	@SuppressWarnings("deprecation") // for backwards compatibility
 	public static JSONObject stampAddressIntoJSONObject(
 			InetSocketAddress sndrAddress, InetSocketAddress rcvrAddress,
 			JSONObject json) {
 		// only put the IP field in if it doesn't exist already
 		try {
 			// put sender address
+			if(!json.has(MessageNIOTransport.SNDR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD, sndrAddress.toString());
+			
+			// TODO: remove the deprecated lines bel
 			if (!json.has(JSONNIOTransport.SNDR_IP_FIELD))
 				json.put(JSONNIOTransport.SNDR_IP_FIELD, sndrAddress
 						.getAddress().getHostAddress());
@@ -294,12 +299,8 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 						sndrAddress.getPort());
 
 			// put receiver address
-			if (!json.has(JSONNIOTransport.RCVR_IP_FIELD))
-				json.put(JSONNIOTransport.RCVR_IP_FIELD, rcvrAddress
-						.getAddress().getHostAddress());
-			if (!json.has(JSONNIOTransport.RCVR_PORT_FIELD))
-				json.put(JSONNIOTransport.RCVR_PORT_FIELD,
-						rcvrAddress.getPort());
+			if(!json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD, rcvrAddress.toString());
 
 		} catch (JSONException e) {
 			log.severe("Encountered JSONException while stamping sender address and port at receiver: ");
@@ -322,21 +323,13 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 		// only put the IP field in if it doesn't exist already
 		try {
 			// put sender address
-			if (!json.containsKey(JSONNIOTransport.SNDR_IP_FIELD))
-				json.put(JSONNIOTransport.SNDR_IP_FIELD, sndrAddress
-						.getAddress().getHostAddress());
-			if (!json.containsKey(JSONNIOTransport.SNDR_PORT_FIELD))
-				json.put(JSONNIOTransport.SNDR_PORT_FIELD,
-						sndrAddress.getPort());
+			if(!json.containsKey(MessageNIOTransport.SNDR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD, sndrAddress.toString());
 
-			// put receiver address
-			if (!json.containsKey(JSONNIOTransport.RCVR_IP_FIELD))
-				json.put(JSONNIOTransport.RCVR_IP_FIELD, rcvrAddress
-						.getAddress().getHostAddress());
-			if (!json.containsKey(JSONNIOTransport.RCVR_PORT_FIELD))
-				json.put(JSONNIOTransport.RCVR_PORT_FIELD,
-						rcvrAddress.getPort());
-
+			// put receiver socket address
+			if(!json.containsKey(MessageNIOTransport.RCVR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD, rcvrAddress.toString());
+			
 		} catch (Exception e) {
 			log.severe("Encountered JSONException while stamping sender address and port at receiver: ");
 			e.printStackTrace();

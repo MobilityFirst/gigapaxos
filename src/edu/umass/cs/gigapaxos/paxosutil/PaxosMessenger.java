@@ -34,6 +34,7 @@ import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -154,6 +155,7 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 	
 	// convert int to NodeIDType to String
 	public JSONObject fixNodeIntToString(JSONObject json) throws JSONException {
+		//long t = System.nanoTime();
 		if (!ENABLE_INT_STRING_CONVERSION || IntegerMap.allInt())
 			return json;
 		if (json.has(PaxosPacket.NodeIDKeys.B.toString())) {
@@ -180,11 +182,13 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 					json.put(key.toString(), intToString(id));
 				}
 			}
+		//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("fixNodeIntToString", t);
 		return json;
 	}
 	
 	public net.minidev.json.JSONObject fixNodeIntToString(
 			net.minidev.json.JSONObject jsonSmart) {
+		//long t = System.nanoTime();
 		if (!ENABLE_INT_STRING_CONVERSION || IntegerMap.allInt())
 			return jsonSmart;
 		if (jsonSmart.containsKey(PaxosPacket.NodeIDKeys.B.toString())) {
@@ -214,6 +218,7 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 					jsonSmart.put(key.toString(), intToString(id));
 				}
 			}
+		//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("fixNodeIntToString", t);
 		return jsonSmart;
 	}
 
