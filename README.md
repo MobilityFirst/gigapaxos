@@ -108,7 +108,7 @@ Then, start the default client as follows from the top-level directory:
 
     ./bin/gpClient.sh
 
-The client will by default use </tt>NoopPaxosAppClient</tt> if the application
+The client will by default use <tt>NoopPaxosAppClient</tt> if the application
 is <tt>NoopPaxosApp</tt>, and will use <tt>NoopAppClient</tt> if the application is
 the default <tt>NoopApp</tt>. As we are using the former app in this tutorial,
 running the above script will launch <tt>NoopPaxosAppClient</tt>.
