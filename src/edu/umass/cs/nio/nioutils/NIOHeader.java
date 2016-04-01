@@ -24,4 +24,8 @@ public class NIOHeader {
 		this.sndr = sndr;
 		this.rcvr = rcvr;
 	}
+	
+	public String toString() {
+		return sndr+"->"+rcvr;
+	}
 }

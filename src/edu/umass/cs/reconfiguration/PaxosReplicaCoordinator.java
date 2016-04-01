@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,7 @@ import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -66,7 +68,10 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		assert (niot instanceof JSONMessenger);
 		this.paxosManager = new PaxosManager<NodeIDType>(myID, unstringer,
 				(JSONMessenger<NodeIDType>) niot, this, paxosLogFolder,
-				enableNullCheckpoints);
+				enableNullCheckpoints)
+				.initClientMessenger(new InetSocketAddress(niot.getNodeConfig()
+						.getNodeAddress(myID), niot.getNodeConfig()
+						.getNodePort(myID)), niot);
 	}
 
 	protected void createDefaultGroup(String name, Set<String> strNodes,
@@ -111,7 +116,13 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
-		return this.app.getRequestTypes();
+		Set<IntegerPacketType> types = this.app.getRequestTypes();
+		/* Need to add this separately because paxos won't initClientMessenger
+		 * automatically with ReconfigurableNode unlike PaxosServer.
+		 */
+		if(types==null) types = new HashSet<IntegerPacketType>();
+		//types.add(PaxosPacketType.PAXOS_PACKET);
+		return types;
 	}
 
 	@Override

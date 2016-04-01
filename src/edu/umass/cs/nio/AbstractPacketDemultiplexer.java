@@ -93,9 +93,9 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 
 	// FIXME: this method needs to be deprecated and removed
 	@Deprecated
-	abstract protected MessageType getMessage(String message);
+	abstract protected MessageType getMessage(byte[] message);
 
-	abstract protected MessageType processHeader(String message,
+	abstract protected MessageType processHeader(byte[] message,
 			NIOHeader header);
 
 	private static final String DEFAULT_THREAD_NAME = AbstractPacketDemultiplexer.class
@@ -135,7 +135,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	}
 
 	// This method will be invoked by NIO
-	protected boolean handleMessageSuper(String msg, NIOHeader header)
+	protected boolean handleMessageSuper(byte[] msg, NIOHeader header)
 			throws JSONException {
 		MessageType message = null;
 		try {
@@ -145,6 +145,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			return false;
 		}
 		Integer type = getPacketType(message);
+
 		if (type == null || !this.demuxMap.containsKey(type)) {
 			/* It is natural for some demultiplexers to not handle some packet
 			 * types, so it is not a "bad" thing that requires a warning log. */

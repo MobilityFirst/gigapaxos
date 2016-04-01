@@ -15,12 +15,12 @@ import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
  * 
  *         A simple client for NoopApp.
  */
-public class NoopPaxosClient extends PaxosClientAsync {
+public class NoopPaxosAppClient extends PaxosClientAsync {
 
 	/**
 	 * @throws IOException
 	 */
-	public NoopPaxosClient() throws IOException {
+	public NoopPaxosAppClient() throws IOException {
 		super();
 	}
 
@@ -35,10 +35,9 @@ public class NoopPaxosClient extends PaxosClientAsync {
 	 * @throws InterruptedException 
 	 */
 	public static void main(String[] args) throws IOException, JSONException, InterruptedException {
-		NoopPaxosClient noopClient = new NoopPaxosClient();
+		NoopPaxosAppClient noopClient = new NoopPaxosAppClient();
 		for (int i = 0; i < 100; i++) {
 			final String requestValue = "hello world" + i;
-			System.out.println("Sending request");
 			noopClient.sendRequest(PaxosConfig.application.getSimpleName()+"0",
 					requestValue, new RequestCallback() {
 				long createTime = System.currentTimeMillis();
@@ -57,5 +56,6 @@ public class NoopPaxosClient extends PaxosClientAsync {
 					});
 			Thread.sleep(100);
 		}
+		noopClient.close();
 	}
 }

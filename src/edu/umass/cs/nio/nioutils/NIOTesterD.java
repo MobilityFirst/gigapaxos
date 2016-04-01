@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 
 import edu.umass.cs.gigapaxos.paxosutil.RateLimiter;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
+import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
@@ -99,13 +100,24 @@ public class NIOTesterD {
 			}
 
 			@Override
-			protected String getMessage(String message) {
-				return message;
+			protected String getMessage(byte[] message) {
+				try {
+					return MessageExtractor.decode(message);
+				} catch (UnsupportedEncodingException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				return null;
 			}
 
 			@Override
-			protected String processHeader(String message, NIOHeader header) {
-				return message;
+			protected String processHeader(byte[] message, NIOHeader header) {
+				try {
+					return MessageExtractor.decode(message);
+				} catch (UnsupportedEncodingException e) {
+					e.printStackTrace();
+				}
+				return null;
 			}
 
 			@Override
@@ -166,13 +178,23 @@ public class NIOTesterD {
 			}
 
 			@Override
-			protected String getMessage(String message) {
-				return message;
+			protected String getMessage(byte[] message) {
+				try {
+					return MessageExtractor.decode(message);
+				} catch (UnsupportedEncodingException e) {
+					e.printStackTrace();
+				}
+				return null;
 			}
 
 			@Override
-			protected String processHeader(String message, NIOHeader header) {
-				return message;
+			protected String processHeader(byte[] message, NIOHeader header) {
+				try {
+					return MessageExtractor.decode(message);
+				} catch (UnsupportedEncodingException e) {
+					e.printStackTrace();
+				}
+				return null;
 			}
 
 			@Override

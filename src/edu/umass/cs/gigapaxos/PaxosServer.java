@@ -66,7 +66,7 @@ public class PaxosServer {
 			InetSocketAddress myAddress) {
 		return new PaxosManager<String>(messenger.getMyID(),
 				PaxosConfig.getDefaultNodeConfig(), this.messenger, app, null,
-				true).initClientMessenger(myAddress);
+				true).initClientMessenger(myAddress, messenger);
 	}
 
 	protected static Set<InetSocketAddress> getDefaultServers() {

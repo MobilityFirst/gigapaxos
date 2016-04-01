@@ -46,7 +46,6 @@ import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.NodeConfig;
-import edu.umass.cs.scratch.Executor;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
@@ -65,8 +64,7 @@ public class TESTPaxosClient {
 
 	private static int SEND_POOL_SIZE = Config.getGlobalInt(TC.NUM_CLIENTS);
 	// because the single-threaded sender is a bottleneck on multicore
-	private static ScheduledThreadPoolExecutor executor = (ScheduledThreadPoolExecutor) Executors
-			.newScheduledThreadPool(SEND_POOL_SIZE);
+	private static ScheduledThreadPoolExecutor executor = null;
 
 	private static int totalNoopCount = 0;
 
@@ -313,6 +311,12 @@ public class TESTPaxosClient {
 				SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 						.getGlobalString(PC.CLIENT_SSL_MODE))));
 		this.timer = new Timer(TESTPaxosClient.class.getSimpleName() + myID);
+		
+		synchronized (TESTPaxosClient.class) {
+			if (executor == null || executor.isShutdown())
+				executor = (ScheduledThreadPoolExecutor) Executors
+						.newScheduledThreadPool(SEND_POOL_SIZE);
+		}
 	}
 
 	private static final boolean PIN_CLIENT = Config
@@ -525,6 +529,7 @@ public class TESTPaxosClient {
 			if (SEND_POOL_SIZE > 0) {
 				for (int i = 0; i < SEND_POOL_SIZE; i++) {
 					final int j = i;
+					assert(!executor.isShutdown());
 					futures[j] = executor.submit(new Runnable() {
 						public void run() {
 							try {

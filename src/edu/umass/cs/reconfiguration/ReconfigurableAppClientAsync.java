@@ -1,6 +1,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -408,15 +409,22 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 
 		@Override
-		protected Object getMessage(String message) {
-			return message;
+		protected Object getMessage(byte[] message) {
+			try {
+				return MessageExtractor.decode(message);
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+			return null;
 		}
 
 		@Override
-		protected Object processHeader(String message, NIOHeader header) {
+		protected Object processHeader(byte[] bytes, NIOHeader header) {
 			log.log(Level.FINEST, "{0} received message from {1}",
 					new Object[] { this, header.sndr });
+			String message = null;
 			try {
+				message = MessageExtractor.decode(bytes);
 				long t = System.nanoTime();
 				/* FIXME: This is inefficient and inelegant, but it is unclear
 				 * what else we can do to avoid at least one unnecessary

@@ -25,6 +25,7 @@ import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.deprecated.ReplicableDeprecated;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
+import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.NIOTransport;
@@ -65,17 +66,17 @@ public class TESTPaxosNode {
 			NodeConfig<Integer> nc, boolean local) {
 		try {
 			// shared between app and paxos manager only for testing
-			MessageNIOTransport<Integer, JSONObject> niot = null;
+			JSONMessenger<Integer> niot = null;
 			this.pm = new PaxosManager<Integer>(
 					id,
 					nc,
-					(niot = new MessageNIOTransport<Integer, JSONObject>(id,
+					(niot = new JSONMessenger<Integer>(new MessageNIOTransport<Integer, JSONObject>(id,
 							nc, new PacketDemultiplexerDefault(), true,
 							SSLDataProcessingWorker.SSL_MODES.valueOf(Config
-									.getGlobal(PC.SERVER_SSL_MODE).toString()))),
+									.getGlobal(PC.SERVER_SSL_MODE).toString())))),
 					(this.app = new TESTPaxosApp(niot)), null, true);
 			pm.initClientMessenger(new InetSocketAddress(nc
-					.getNodeAddress(myID), nc.getNodePort(myID)));
+					.getNodeAddress(myID), nc.getNodePort(myID)), niot);
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 		}

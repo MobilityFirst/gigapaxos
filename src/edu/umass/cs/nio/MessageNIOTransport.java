@@ -379,10 +379,9 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	// bypass network send by directly passing to local worker
 	private int sendLocal(Object message) throws UnsupportedEncodingException {
 
-		String msg = (message instanceof byte[] ? new String((byte[]) message,
-				NIO_CHARSET_ENCODING) : message.toString());
-		int length = message instanceof byte[] ? ((byte[]) message).length
-				: msg.length();
+		byte[] msg = (message instanceof byte[] ? ((byte[]) message
+				) : message.toString().getBytes(NIO_CHARSET_ENCODING));
+		int length = msg.length;
 		((InterfaceMessageExtractor) worker)
 				.processLocalMessage(new InetSocketAddress(this.getNodeAddress(),
 						this.getNodePort()), msg);

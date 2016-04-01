@@ -28,8 +28,11 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
+import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.AddressMessenger;
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
@@ -147,7 +150,7 @@ public class JSONMessenger<NodeIDType> implements
 			try {
 				if (msg instanceof JSONObject) {
 					message = ((JSONObject) (msg)).toString();
-				} else
+				} else if(!(msg instanceof byte[] && msg instanceof Byteable))
 					// we no longer require msg to be JSON at all
 					message = msg.toString();
 			} catch (Exception je) {
@@ -155,8 +158,10 @@ public class JSONMessenger<NodeIDType> implements
 						+ " incurred exception while decoding: " + msg);
 				throw (je);
 			}
-			byte[] msgBytes = message
-					.getBytes(MessageNIOTransport.NIO_CHARSET_ENCODING);
+			byte[] msgBytes = msg instanceof byte[] ? (byte[]) msg
+					: msg instanceof Byteable ? ((Byteable) msg).toBytes()
+							: message
+									.getBytes(MessageNIOTransport.NIO_CHARSET_ENCODING);
 			for (int r = 0; r < mtask.recipients.length; r++) {
 
 				int sent = -1;

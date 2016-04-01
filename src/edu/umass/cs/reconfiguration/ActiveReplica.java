@@ -150,12 +150,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				this.protocolTask);
 		this.appCoordinator.setMessenger(this.messenger);
 		this.noReporting = noReporting;
-		if (this.messenger.getClientMessenger() == null) // exactly once
-			this.messenger.setClientMessenger(initClientMessenger(false));
-		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR &&
-		// exactly once
-				this.messenger.getSSLClientMessenger() == null)
-			this.messenger.setSSLClientMessenger(initClientMessenger(true));
+		initClientMessenger(false);
+		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
+			initClientMessenger(true);
 		assert (this.messenger.getClientMessenger() != null);
 		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
@@ -202,7 +199,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			this.updateDemandStats(senderAndRequest.request,
 					senderAndRequest.csa.getAddress());
 			if (INSTRUMENT_APP)
-				DelayProfiler.updateDelay(appNameReplicableRequest, 
+				DelayProfiler.updateDelay(appNameReplicableRequest,
 						senderAndRequest.recvTime);
 
 			// send response to originating client
@@ -221,10 +218,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return senderAndRequest;
 	}
 
-	private static final String appName = ReconfigurationConfig.application.getSimpleName();
-	private static final String appNameReplicableRequest = appName+".Replicable";
-	private static final String appNameLocalRequest = appName+".Local";
-	
+	private static final String appName = ReconfigurationConfig.application
+			.getSimpleName();
+	private static final String appNameReplicableRequest = appName
+			+ ".Replicable";
+	private static final String appNameLocalRequest = appName + ".Local";
+
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
@@ -258,7 +257,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				if (request instanceof ReplicableRequest)
 					enqueue(new SenderAndRequest((ReplicableRequest) request,
 							MessageNIOTransport.getSenderAddress(jsonObject),
-							MessageNIOTransport.getReceiverAddress(jsonObject),recvTime));
+							MessageNIOTransport.getReceiverAddress(jsonObject),
+							recvTime));
 
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
@@ -287,7 +287,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 									((ClientRequest) request).getRequestID())
 									.toJSONObject());
 				}
-				if (Util.oneIn(10))
+				if (Util.oneIn(1000))
 					log.log(Level.INFO, "{0} {1}", new Object[] { this,
 							DelayProfiler.getStats() });
 			}
@@ -298,7 +298,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 		return false; // neither reconfiguration packet nor app request
 	}
-	
+
 	private static final boolean INSTRUMENT_APP = true;
 
 	// special case optimization for RequestPacket
@@ -866,9 +866,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 									 * threaded to keep clients from
 									 * overwhelming the system with request
 									 * load. */
-									(pd = new ReconfigurationPacketDemultiplexer(
-											)), ReconfigurationConfig
-											.getClientSSLMode()));
+									(pd = new ReconfigurationPacketDemultiplexer()),
+									ReconfigurationConfig.getClientSSLMode()));
 					if (!niot.getListeningSocketAddress().equals(isa))
 						throw new IOException(
 								"Unable to listen on specified client facing socket address "
@@ -896,7 +895,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		Set<IntegerPacketType> appTypes = null;
 		if ((appTypes = this.appCoordinator.getAppRequestTypes()) == null
 				|| appTypes.isEmpty())
-			return null;
+			// return null
+			;
 		try {
 			int myPort = (this.nodeConfig.getNodePort(getMyID()));
 			if ((ssl ? getClientFacingSSLPort(myPort)
@@ -911,8 +911,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 										+ (ssl ? getClientFacingSSLPort(myPort)
 												: getClientFacingClearPort(myPort)) });
 
-				if (this.messenger.getClientMessenger() == null
-						|| this.messenger.getClientMessenger() != this.messenger) {
+				AddressMessenger<?> existing = (ssl ? this.messenger
+						.getSSLClientMessenger() : this.messenger
+						.getClientMessenger());
+				if (existing == null || existing == this.messenger) {
 					MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
 					InetSocketAddress isa = new InetSocketAddress(
 							this.nodeConfig.getBindAddress(getMyID()),
@@ -926,27 +928,49 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 									 * threaded to keep clients from
 									 * overwhelming the system with request
 									 * load. */
-									(pd = new ReconfigurationPacketDemultiplexer(
-											)), ssl ? ReconfigurationConfig
+									(pd = new ReconfigurationPacketDemultiplexer()),
+									ssl ? ReconfigurationConfig
 											.getClientSSLMode()
-											: SSL_MODES.CLEAR)).setName(this.appCoordinator.app.toString()+":"+
-											(ssl?"SSL":"")+"ClientMessenger"));
+											: SSL_MODES.CLEAR))
+									.setName(this.appCoordinator.app.toString()
+											+ ":" + (ssl ? "SSL" : "")
+											+ "ClientMessenger"));
 					if (!niot.getListeningSocketAddress().equals(isa))
 						throw new IOException(
 								"Unable to listen on specified client facing socket address "
-										+ isa);
-				} else if (this.messenger.getClientMessenger() instanceof Messenger)
-					((Messenger<NodeIDType, ?>) this.messenger
-							.getClientMessenger())
-							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
-									0));
-				pd.register(this.appCoordinator.getAppRequestTypes(), this);
+										+ isa
+										+ "; created messenger listening instead on "
+										+ niot.getListeningSocketAddress());
+				} else if (!ssl) {
+					log.log(Level.INFO,
+							"{0} adding self as demultiplexer to existing {1} client messenger",
+							new Object[] { this, ssl ? "SSL" : "" });
+					if (this.messenger.getClientMessenger() instanceof Messenger)
+						((Messenger<NodeIDType, ?>) existing)
+								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+				} else {
+					log.log(Level.INFO,
+							"{0} adding self as demultiplexer to existing {1} client messenger",
+							new Object[] { this, ssl ? "SSL" : "" });
+					if (this.messenger.getSSLClientMessenger() instanceof Messenger)
+						((Messenger<NodeIDType, ?>) existing)
+								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+				}
+				if (appTypes != null && !appTypes.isEmpty())
+					pd.register(this.appCoordinator.getRequestTypes(), this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 			log.severe(this + ":" + e.getMessage());
 			System.exit(1);
 		}
+
+		if (cMsgr != null)
+			if (ssl && this.messenger.getSSLClientMessenger() == null)
+				this.messenger.setSSLClientMessenger(cMsgr);
+			else if (!ssl && this.messenger.getClientMessenger() == null)
+				this.messenger.setClientMessenger(cMsgr);
+
 		return cMsgr != null ? cMsgr
 				: (AddressMessenger<JSONObject>) this.messenger;
 	}

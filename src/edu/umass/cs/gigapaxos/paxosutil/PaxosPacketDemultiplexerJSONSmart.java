@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,10 +12,14 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxosutil;
 
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 
 import org.json.JSONArray;
@@ -44,7 +47,7 @@ import edu.umass.cs.nio.nioutils.NIOHeader;
  *         been merged into PaxosManager now and will be soon deprecated.
  */
 public abstract class PaxosPacketDemultiplexerJSONSmart extends
-		AbstractPacketDemultiplexer<net.minidev.json.JSONObject> {
+		AbstractPacketDemultiplexer<Object> {
 	/**
 	 * @param numThreads
 	 */
@@ -60,9 +63,8 @@ public abstract class PaxosPacketDemultiplexerJSONSmart extends
 	 */
 	public static PaxosPacket toPaxosPacket(net.minidev.json.JSONObject jsonS,
 			Stringifiable<?> unstringer) throws JSONException {
-		assert(jsonS!=null);
-		assert(jsonS.get(PaxosPacket.Keys.PT
-				.toString()) != null) : jsonS;
+		assert (jsonS != null);
+		assert (jsonS.get(PaxosPacket.Keys.PT.toString()) != null) : jsonS;
 		PaxosPacket.PaxosPacketType type = PaxosPacket.PaxosPacketType
 				.getPaxosPacketType((Integer) jsonS.get(PaxosPacket.Keys.PT
 						.toString()));
@@ -75,6 +77,7 @@ public abstract class PaxosPacketDemultiplexerJSONSmart extends
 			paxosPacket = (new RequestPacket(jsonS));
 			break;
 		case PROPOSAL:
+			// should never come here anymore
 			paxosPacket = (new ProposalPacket(jsonS));
 			break;
 		case ACCEPT:
@@ -84,10 +87,10 @@ public abstract class PaxosPacketDemultiplexerJSONSmart extends
 			// not really needed as a special case if we use batched commits
 			paxosPacket = (new PValuePacket(jsonS));
 			break;
-	//	case BATCHED_PAXOS_PACKET:
-		//	paxosPacket = (new BatchedPaxosPacket(jsonS));
-			//break;
-			
+		// case BATCHED_PAXOS_PACKET:
+		// paxosPacket = (new BatchedPaxosPacket(jsonS));
+		// break;
+
 		default:
 			return PaxosPacketDemultiplexer.toPaxosPacket(toJSONObject(jsonS),
 					unstringer);
@@ -95,8 +98,9 @@ public abstract class PaxosPacketDemultiplexerJSONSmart extends
 		assert (paxosPacket != null) : jsonS;
 		return paxosPacket;
 	}
-	
-	//private static final boolean UNCACHE_STRINGIFIED = Config.getGlobalBoolean(PC.UNCACHE_STRINGIFIED);
+
+	// private static final boolean UNCACHE_STRINGIFIED =
+	// Config.getGlobalBoolean(PC.UNCACHE_STRINGIFIED);
 
 	/**
 	 * @param jsonS
@@ -124,46 +128,125 @@ public abstract class PaxosPacketDemultiplexerJSONSmart extends
 				"PaxosPacketDemultiplexer recieved unrecognized paxos packet type");
 	}
 
-	public abstract boolean handleMessage(net.minidev.json.JSONObject message);
-
-	
-	@Override
-	protected Integer getPacketType(net.minidev.json.JSONObject message) {
-		return (Integer) message.get(JSONPacket.PACKET_TYPE.toString());
-	}
-	
-	@Override
-	protected net.minidev.json.JSONObject getMessage(String message) {
-		return this.insertStringifiedSelf(MessageExtractor.parseJSONSmart(message), message);
-	}
+	public abstract boolean handleMessage(Object message);
 
 	@Override
-	protected net.minidev.json.JSONObject processHeader(String message,
-			NIOHeader header) {
-		net.minidev.json.JSONObject json = MessageExtractor.parseJSONSmart(message);
-		assert(json!=null) : message;
-		net.minidev.json.JSONObject x = 
-		 MessageExtractor.stampAddressIntoJSONObject(
-				header.sndr,
-				header.rcvr,
-				this.insertStringifiedSelf(
-						json, message));
-		assert(x!=null) :message + " " + header;
-		return x;
+	protected Integer getPacketType(Object message) {
+		if (message instanceof net.minidev.json.JSONObject)
+			return (Integer) ((net.minidev.json.JSONObject) message)
+					.get(JSONPacket.PACKET_TYPE.toString());
+
+		assert (message instanceof byte[]);
+		ByteBuffer bbuf = ByteBuffer.wrap((byte[]) message, 0, 4);
+		return bbuf.getInt();
 	}
 
 	@Override
-	public boolean isOrderPreserving(net.minidev.json.JSONObject msg) {
+	protected Object getMessage(byte[] bytes) {
+		String message = null;
+		try {
+			message = MessageExtractor.decode(bytes);
+			return this.insertStringifiedSelf(
+					MessageExtractor.parseJSONSmart(message), message);
+		} catch (UnsupportedEncodingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	// currently only RequestPacket is byteable
+	private boolean isByteable(byte[] bytes) {
+		ByteBuffer bbuf;
+		int type;
+		if ((bbuf = ByteBuffer.wrap(bytes, 0, 8)).getInt() == PaxosPacket.PaxosPacketType.PAXOS_PACKET
+				.getInt()
+				&& ((type =bbuf.getInt()) == PaxosPacket.PaxosPacketType.REQUEST
+						.getInt() 
+						|| type == PaxosPacket.PaxosPacketType.PROPOSAL.getInt()
+						))
+			return true;
+		return false;
+	}
+
+	@Override
+	protected Object processHeader(byte[] bytes, NIOHeader header) {
+		if (this.isByteable(bytes)) {
+			// affix header info
+			byte[] caddress = header.sndr.getAddress().getAddress();
+			short cport = (short) header.sndr.getPort();
+			byte[] laddress = header.rcvr.getAddress().getAddress();
+			short lport = (short) header.rcvr.getPort();
+			ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, 16);
+			for (int i = 0; i < 3; i++)
+				bbuf.getInt();
+			int paxosIDLength = bbuf.get();
+
+			int offset = 13 + paxosIDLength + 8 + 1;
+			int expectedPos = offset + 4 + 2 + 4 + 2;
+			assert (bytes.length > offset + 12) : bytes.length
+					+ " <= " + expectedPos;
+			bbuf = ByteBuffer.wrap(bytes, offset,
+					12);
+			boolean noCA = bytes[offset + 4] == 0 && bytes[offset + 5] == 0;
+			boolean noLA = bytes[offset + 6 + 4] == 0
+					&& bytes[offset + 6 + 5] == 0;
+			try {
+				if (noCA)
+					bbuf.put(caddress).putShort(cport);
+				if (noLA)
+					bbuf.put(laddress).putShort(lport);
+			} catch (Exception e) {
+				assert (false) : bytes.length + " ? " + 16 + 4 + paxosIDLength
+						+ 8 + 1;
+			}
+			return bytes;
+		}
+
+		String message;
+		try {
+			message = MessageExtractor.decode(bytes);
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+			return null;
+		}
+		net.minidev.json.JSONObject json = MessageExtractor
+				.parseJSONSmart(message);
+		assert (json != null) : message;
+		net.minidev.json.JSONObject retval = MessageExtractor
+				.stampAddressIntoJSONObject(header.sndr, header.rcvr,
+						this.insertStringifiedSelf(json, message));
+		assert (retval != null) : message + " " + header;
+		return retval;
+	}
+
+	@Override
+	public boolean isOrderPreserving(Object msg) {
+		if (msg instanceof byte[]) {
+			ByteBuffer bbuf = ByteBuffer.wrap((byte[]) msg, 0, 8);
+			int type;
+			if (bbuf.getInt() == PaxosPacket.PaxosPacketType.PAXOS_PACKET
+					.getInt()) {
+				type = bbuf.getInt();
+				if (type == PaxosPacket.PaxosPacketType.REQUEST.getInt()
+						|| type == PaxosPacket.PaxosPacketType.PROPOSAL
+								.getInt())
+					return true;
+			}
+		}
+		// else
+		assert (msg instanceof net.minidev.json.JSONObject);
 		// only preserve order for REQUEST or PROPOSAL packets
 		PaxosPacketType type = PaxosPacket.PaxosPacketType
-				.getPaxosPacketType(((Integer) msg.get(PaxosPacket.Keys.PT
-						.toString())));
+				.getPaxosPacketType(((Integer) ((net.minidev.json.JSONObject) msg)
+						.get(PaxosPacket.Keys.PT.toString())));
 		return (type != null
 				&& type.equals(PaxosPacket.PaxosPacketType.REQUEST) || type
 					.equals(PaxosPacket.PaxosPacketType.PROPOSAL));
 	}
-	
-	private net.minidev.json.JSONObject insertStringifiedSelf(net.minidev.json.JSONObject json, String message) {
+
+	private net.minidev.json.JSONObject insertStringifiedSelf(
+			net.minidev.json.JSONObject json, String message) {
 		// sigh: we need the string to avoid restringification overhead
 		try {
 			if (PaxosPacket.getPaxosPacketType(json) == PaxosPacketType.ACCEPT)

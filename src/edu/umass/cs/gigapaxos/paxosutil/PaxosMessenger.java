@@ -27,6 +27,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -110,18 +111,37 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 		return stringified;
 	}
 
+	private static final boolean BYTEIFICATION = Config
+			.getGlobalBoolean(PC.BYTEIFICATION);
+	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
+
 	private Object toJSONSmartObject(PaxosPacket msg) throws JSONException {
 		if (cacheStringifiedAccept() && msg.getType() == PaxosPacketType.ACCEPT
 				&& ((RequestPacket) msg).getStringifiedSelf() != null)
 			return ((RequestPacket) msg).getStringifiedSelf();
 
+		// FIXME: to test byteable
+		if(BYTEIFICATION && IntegerMap.allInt() && msg.getType()==PaxosPacket.PaxosPacketType.REQUEST) 
+			return msg;
+		
+		long t = System.nanoTime();
 		net.minidev.json.JSONObject jsonSmart = msg.toJSONSmart();
 		assert (msg.getType() != PaxosPacketType.ACCEPT || jsonSmart != null);
 		// fallback to JSONObject
 		Object jsonified = jsonSmart == null ? fixNodeIntToString(msg
-				.toJSONObject()) : fixNodeIntToString(msg.toJSONSmart());
+				.toJSONObject()) : fixNodeIntToString(jsonSmart);
 		String stringified = jsonified.toString();
 
+		if (ENABLE_INSTRUMENTATION && msg.getType() == PaxosPacketType.ACCEPT
+				&& Util.oneIn(Integer.MAX_VALUE)) {
+			DelayProfiler.updateDelayNano("acceptStringification", t,
+					((RequestPacket) msg).batchSize());
+			t = System.nanoTime();
+			((RequestPacket) msg).toBytes1();
+			DelayProfiler.updateDelayNano("acceptByteification", t,
+					((RequestPacket) msg).batchSize());
+		}
+		
 		if (cacheStringifiedAccept() && msg.getType() == PaxosPacketType.ACCEPT)
 			((RequestPacket) msg).setStringifiedSelf(stringified);
 		return stringified;
@@ -148,9 +168,10 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 			MessagingTask mtask) throws JSONException {
 		Set<NodeIDType> nodes = this.nodeMap
 				.getIntArrayAsNodeSet(mtask.recipients);
-		return new GenericMessagingTask<NodeIDType, String>(
+		return (new GenericMessagingTask<NodeIDType, String>(
 				nodes.toArray(),
-				toObjects(mtask.msgs));
+//				Util.intToIntegerArray(mtask.recipients)
+				toObjects(mtask.msgs)));
 	}
 	
 	// convert int to NodeIDType to String

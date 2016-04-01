@@ -103,7 +103,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 
 	// called only for loopback receives or by SSL worker
 	@Override
-	public void processLocalMessage(InetSocketAddress sockAddr, String msg) {
+	public void processLocalMessage(InetSocketAddress sockAddr, byte[] msg) {
 		try {
 			this.demultiplexLocalMessage(new NIOHeader(sockAddr, sockAddr), msg);
 		} catch (UnsupportedEncodingException e) {
@@ -173,7 +173,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 					MessageNIOTransport.NIO_CHARSET_ENCODING);
 			if ((delay = JSONDelayEmulator.getEmulatedDelay(message)) >= 0)
 				// run in a separate thread after scheduled delay
-				executor.schedule(new MessageWorker(socket, message,
+				executor.schedule(new MessageWorker(socket, msg,
 						packetDemuxes), delay, TimeUnit.MILLISECONDS);
 		} else
 			// run it immediately
@@ -182,6 +182,15 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 							(InetSocketAddress) socket.getRemoteAddress(),
 							(InetSocketAddress) socket.getLocalAddress()),
 					incoming);
+	}
+	
+	/**
+	 * @param bytes
+	 * @return String decoded from bytes.
+	 * @throws UnsupportedEncodingException 
+	 */
+	public static String decode(byte[] bytes) throws UnsupportedEncodingException {
+		return new String(bytes, MessageNIOTransport.NIO_CHARSET_ENCODING);
 	}
 
 	private void demultiplexMessage(NIOHeader header, ByteBuffer incoming)
@@ -202,16 +211,16 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 					extracted = true;
 				}
 
-				String message = (new String(msg,
-						MessageNIOTransport.NIO_CHARSET_ENCODING));
-				if (this.callDemultiplexerHandler(header, message, pd))
+//				String message = (new String(msg,
+//						MessageNIOTransport.NIO_CHARSET_ENCODING));
+				if (this.callDemultiplexerHandler(header, msg, pd))
 					return;
 			}
 		}
 	}
 
 	// called only for loopback receives or emulated delays
-	private void demultiplexLocalMessage(NIOHeader header, String message)
+	private void demultiplexLocalMessage(NIOHeader header, byte[] message)
 			throws IOException {
 		// synchronized (this.packetDemuxes)
 		{
@@ -227,7 +236,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	}
 
 	// finally called for all receives
-	private boolean callDemultiplexerHandler(NIOHeader header, String message,
+	private boolean callDemultiplexerHandler(NIOHeader header, byte[] message,
 			AbstractPacketDemultiplexer<?> pd) {
 		try {
 			// the handler turns true if it handled the message
@@ -252,9 +261,9 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	private class MessageWorker extends TimerTask {
 
 		private final SocketChannel socket;
-		private final String msg;
+		private final byte[] msg;
 
-		MessageWorker(SocketChannel socket, String msg,
+		MessageWorker(SocketChannel socket, byte[] msg,
 				ArrayList<AbstractPacketDemultiplexer<?>> pdemuxes) {
 			this.msg = msg;
 			this.socket = socket;

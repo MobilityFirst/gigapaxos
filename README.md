@@ -157,7 +157,9 @@ application must implement slightly different semantics from just a
 <tt>Replicable</tt> application. You can browse through 
 the source of <tt>NoopApp</tt> and <tt>NoopAppClient</tt> and the 
 documentation therein below:
+
 <https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>
+
 <https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>
 
 Repeat the same failure scenario as above and verify that the

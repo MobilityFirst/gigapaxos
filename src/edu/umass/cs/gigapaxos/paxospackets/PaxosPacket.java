@@ -185,10 +185,7 @@ public abstract class PaxosPacket extends JSONPacket {
 	 * The paxos packet type class.
 	 */
 	public enum PaxosPacketType implements IntegerPacketType {
-		/**
-		 * 
-		 */
-		RESPONSE("RESPONSE", 0),
+
 		/**
 		 * 
 		 */

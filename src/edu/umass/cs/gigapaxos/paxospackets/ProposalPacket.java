@@ -17,6 +17,8 @@
  */
 package edu.umass.cs.gigapaxos.paxospackets;
 
+import java.io.UnsupportedEncodingException;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -69,6 +71,16 @@ public class ProposalPacket extends RequestPacket {
 		return json;
 	}
 
+	// only RequestPacket should be byteable
+	@Override
+	public byte[] toBytes() {
+		try {
+			return this.toString().getBytes(CHARSET);
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
 
 	@Override
 	protected String getSummaryString() {

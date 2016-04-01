@@ -90,7 +90,7 @@ public class TESTPaxosApp implements Replicable,
 	/**
 	 * @param nio
 	 */
-	public TESTPaxosApp(MessageNIOTransport<Integer,JSONObject> nio) {
+	public TESTPaxosApp(InterfaceNIOTransport<Integer,JSONObject> nio) {
 		this();
 		setNIOTransport(nio);
 		AllApps.addApp(this);

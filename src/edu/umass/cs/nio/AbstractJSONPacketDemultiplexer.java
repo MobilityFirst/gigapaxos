@@ -17,6 +17,8 @@
  */
 package edu.umass.cs.nio;
 
+import java.io.UnsupportedEncodingException;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -55,13 +57,24 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 		return null;
 	}
 
-	protected JSONObject getMessage(String msg) {
-		return MessageExtractor.parseJSON(msg);
+	@Override
+	protected JSONObject getMessage(byte[] msg) {
+		try {
+			return MessageExtractor.parseJSON(MessageExtractor.decode(msg));
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
-	protected JSONObject processHeader(String message, NIOHeader header) {
-		return MessageExtractor.stampAddressIntoJSONObject(header.sndr, header.rcvr,
-				MessageExtractor.parseJSON(message));
+	protected JSONObject processHeader(byte[] message, NIOHeader header) {
+		try {
+			return MessageExtractor.stampAddressIntoJSONObject(header.sndr, header.rcvr,
+					MessageExtractor.parseJSON(MessageExtractor.decode(message)));
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 	
 	protected boolean matchesType(Object message) {

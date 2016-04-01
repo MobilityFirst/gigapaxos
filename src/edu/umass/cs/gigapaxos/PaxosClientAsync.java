@@ -17,7 +17,10 @@
 package edu.umass.cs.gigapaxos;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,6 +33,7 @@ import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONPacket;
+import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.nioutils.NIOHeader;
@@ -85,21 +89,21 @@ public class PaxosClientAsync {
 		}
 
 		@Override
-		protected JSONObject getMessage(String message) {
+		protected JSONObject getMessage(byte[] message) {
 			try {
-				return new JSONObject(message);
-			} catch (JSONException e) {
+				return new JSONObject(MessageExtractor.decode(message));
+			} catch (JSONException | UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}
 			return null;
 		}
 
 		@Override
-		protected JSONObject processHeader(String message, NIOHeader header) {
+		protected JSONObject processHeader(byte[] message, NIOHeader header) {
 			try {
 				// don't care about sender server address
-				return new JSONObject(message);
-			} catch (JSONException e) {
+				return new JSONObject(MessageExtractor.decode(message));
+			} catch (JSONException | UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}
 			return null;
@@ -214,6 +218,13 @@ public class PaxosClientAsync {
 		this.servers = PaxosConfig.offsetSocketAddresses(servers,
 				PaxosConfig.getClientPortOffset()).toArray(
 				new InetSocketAddress[0]);
+	}
+	
+	/**
+	 * 
+	 */
+	public void close() {
+		this.niot.stop();
 	}
 
 	/**

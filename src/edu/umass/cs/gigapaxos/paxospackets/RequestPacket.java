@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxospackets;
 
 import org.json.JSONArray;
@@ -30,13 +28,18 @@ import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.JSONNIOTransport;
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
 
+import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,11 +53,8 @@ import java.util.Random;
  */
 @SuppressWarnings("javadoc")
 public class RequestPacket extends PaxosPacket implements Request,
-		ClientRequest {
-	static {
-		PaxosConfig.load();
-	}
-	
+		ClientRequest, Byteable {
+
 	private static final boolean DEBUG = Config.getGlobalBoolean(PC.DEBUG);
 	public static final String NO_OP = Request.NO_OP;
 
@@ -108,16 +108,16 @@ public class RequestPacket extends PaxosPacket implements Request,
 		 * Client socket address.
 		 */
 		CA,
-		
+
 		/**
-		 * Listening socket address on which request received.
-		 * Used to decide which messenger to use to send back response.
+		 * Listening socket address on which request received. Used to decide
+		 * which messenger to use to send back response.
 		 */
 		LA,
 
 		/**
-		 * Boolean query flag to specify whether this request came into the system as
-		 * a string or RequestPacket.
+		 * Boolean query flag to specify whether this request came into the
+		 * system as a string or RequestPacket.
 		 */
 		QF,
 
@@ -129,18 +129,18 @@ public class RequestPacket extends PaxosPacket implements Request,
 		/**
 		 * Response value.
 		 */
-		RV, 
-						
+		RV,
+
 		/**
 		 * Stringified self
 		 */
 		STRINGIFIED,
-				
+
 		/**
 		 * Digest of request value.
 		 */
 		DIG,
-		
+
 		/**
 		 * Whether to broadcast.
 		 */
@@ -181,6 +181,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 	 */
 	public final boolean stop;
 
+	// non-final fields below
+
 	// the client address in string form
 	private InetSocketAddress clientAddress = null;
 
@@ -190,12 +192,10 @@ public class RequestPacket extends PaxosPacket implements Request,
 	// the replica that first received this request
 	private int entryReplica = IntegerMap.NULL_INT_NODE;
 
-	/*
-	 * Whether to return requestValue or this.toString() back to client. We need
+	/* Whether to return requestValue or this.toString() back to client. We need
 	 * this in order to distinguish between clients that send RequestPacket
 	 * requests from clients that directly propose a string request value
-	 * through PaxosManager.
-	 */
+	 * through PaxosManager. */
 	private boolean shouldReturnRequestValue = false;
 
 	// needed to stop ping-ponging under coordinator confusion
@@ -203,22 +203,23 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 	// batch of requests attached to this request
 	private RequestPacket[] batched = null;
-	
-	private String stringifiedSelf = null;
 
 	// used to optimized batching
 	private long entryTime = System.currentTimeMillis();
 
 	// response to be returned to client
 	private String responseValue = null;
-	
+
+	// this field is not passed over the network
+	private String stringifiedSelf = null;
+	private byte[] byteifiedSelf = null;
+
+	// two fields below used only with digests (disabled by default)
 	protected byte[] digest = null;
 	private boolean broadcasted = false;
 
-	/*
-	 * These fields are for testing and debugging. They are preserved across
-	 * forwarding by nodes, so they are not final
-	 */
+	/* These fields are for testing and debugging. They are preserved across
+	 * forwarding by nodes, so they are not final */
 	// included only in DEBUG mode
 	private String debugInfo = null;
 	// included only in DEBUG mode
@@ -313,13 +314,15 @@ public class RequestPacket extends PaxosPacket implements Request,
 		if (this.isBatched())
 			for (RequestPacket req : this.batched)
 				// recursive but doesn't have to be
-				req.setEntryReplica(id); 
+				req.setEntryReplica(id);
 		return this;
 	}
-	
+
 	public void setEntryTime() {
 		this.entryTime = System.currentTimeMillis();
-		if(this.batchSize()>0) for(RequestPacket req : this.batched) req.setEntryTime();
+		if (this.batchSize() > 0)
+			for (RequestPacket req : this.batched)
+				req.setEntryTime();
 	}
 
 	public int setEntryReplicaAndReturnCount(int id) {
@@ -332,10 +335,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 		if (this.isBatched())
 			for (RequestPacket req : this.batched)
 				// recursive but doesn't have to be
-				count += req.setEntryReplicaAndReturnCount(id); 
+				count += req.setEntryReplicaAndReturnCount(id);
 		return count;
 	}
-	
 
 	public int getEntryReplica() {
 		return this.entryReplica;
@@ -375,6 +377,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 			this.addDebugInfo(str + nodeID);
 		return this;
 	}
+
 	public RequestPacket addDebugInfoDeep(String str, int nodeID) {
 		if (DEBUG)
 			this.addDebugInfoDeep(str + nodeID);
@@ -428,7 +431,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 		this.forwardCount = (json.has(Keys.NFWDS.toString()) ? json
 				.getInt(Keys.NFWDS.toString()) : 0);
 		this.forwarderID = (json.has(RequestPacket.Keys.FWDR.toString()) ? json
-				.getInt(RequestPacket.Keys.FWDR.toString()) : IntegerMap.NULL_INT_NODE);
+				.getInt(RequestPacket.Keys.FWDR.toString())
+				: IntegerMap.NULL_INT_NODE);
 		this.debugInfo = (json.has(Keys.DBG.toString()) ? json
 				.getString(Keys.DBG.toString()) : "");
 
@@ -437,11 +441,12 @@ public class RequestPacket extends PaxosPacket implements Request,
 						.toString())) : JSONNIOTransport.getSenderAddress(json));
 		this.listenAddress = (json.has(Keys.LA.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.LA
-						.toString())) : JSONNIOTransport.getReceiverAddress(json));
+						.toString())) : JSONNIOTransport
+				.getReceiverAddress(json));
 
 		this.entryReplica = json.getInt(PaxosPacket.NodeIDKeys.E.toString());
 		this.shouldReturnRequestValue = json.optBoolean(Keys.QF.toString());
-		
+
 		// unwrap latched along batch
 		JSONArray batchedJSON = json.has(Keys.BATCH.toString()) ? json
 				.getJSONArray(Keys.BATCH.toString()) : null;
@@ -458,8 +463,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 		// we remembered the original string for recalling here
 		this.stringifiedSelf = json.has(Keys.STRINGIFIED.toString()) ? (String) json
 				.get(Keys.STRINGIFIED.toString()) : null;
-			
-		if(json.has(Keys.BC.toString())) this.broadcasted = json.getBoolean(Keys.BC.toString());
+
+		if (json.has(Keys.BC.toString()))
+			this.broadcasted = json.getBoolean(Keys.BC.toString());
 		if (json.has(Keys.DIG.toString()))
 			try {
 				this.digest = json.getString(Keys.DIG.toString()).getBytes(
@@ -468,34 +474,41 @@ public class RequestPacket extends PaxosPacket implements Request,
 				e.printStackTrace();
 			}
 	}
-	//private static final boolean USE_JSON_SMART = !Config.getGlobalString(PC.JSON_LIBRARY).equals("org.json");
-	
+
+	// private static final boolean USE_JSON_SMART =
+	// !Config.getGlobalString(PC.JSON_LIBRARY).equals("org.json");
+
 	public String getStringifiedSelf() {
 		return this.stringifiedSelf;
 	}
+
 	public RequestPacket setStringifiedSelf(String s) {
 		this.stringifiedSelf = s;
-		//if(Util.oneIn(10)) DelayProfiler.updateMovAvg("stringified", s.length());
+		// if(Util.oneIn(10)) DelayProfiler.updateMovAvg("stringified",
+		// s.length());
 		return this;
 	}
 
 	// for comparing against a different json implementation
 	public RequestPacket(net.minidev.json.JSONObject json) throws JSONException {
 		super(json);
-		assert (PaxosPacket.getPaxosPacketType(json) != PaxosPacketType.ACCEPT || json.containsKey(Keys.STRINGIFIED.toString()));
+		assert (PaxosPacket.getPaxosPacketType(json) != PaxosPacketType.ACCEPT || json
+				.containsKey(Keys.STRINGIFIED.toString()));
 		this.packetType = PaxosPacketType.REQUEST;
-		this.stop = json.containsKey(Keys.STOP.toString()) ?  (Boolean) json.get(Keys.STOP.toString()) : false;
+		this.stop = json.containsKey(Keys.STOP.toString()) ? (Boolean) json
+				.get(Keys.STOP.toString()) : false;
 		this.requestID = Util.toLong(json.get(Keys.QID.toString()));
 		this.requestValue = (String) json.get(Keys.QV.toString());
 
 		this.responseValue = json.containsKey(Keys.RV.toString()) ? (String) json
 				.get(Keys.RV.toString()) : null;
-		this.entryTime = Util.toLong( json.get(Keys.ET.toString()));
+		this.entryTime = Util.toLong(json.get(Keys.ET.toString()));
 		this.forwardCount = (json.containsKey(Keys.NFWDS.toString()) ? (Integer) json
 				.get(Keys.NFWDS.toString()) : 0);
 		this.forwarderID = (json
 				.containsKey(RequestPacket.Keys.FWDR.toString()) ? (Integer) json
-				.get(RequestPacket.Keys.FWDR.toString()) : IntegerMap.NULL_INT_NODE);
+				.get(RequestPacket.Keys.FWDR.toString())
+				: IntegerMap.NULL_INT_NODE);
 		this.debugInfo = (json.containsKey(Keys.DBG.toString()) ? (String) json
 				.get(Keys.DBG.toString()) : "");
 
@@ -510,8 +523,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 		this.entryReplica = (Integer) json.get(PaxosPacket.NodeIDKeys.E
 				.toString());
-                this.shouldReturnRequestValue = json.containsKey(Keys.QF.toString()) ?  (Boolean) json.get(Keys.QF.toString()) : false;
-                
+		this.shouldReturnRequestValue = json.containsKey(Keys.QF.toString()) ? (Boolean) json
+				.get(Keys.QF.toString()) : false;
+
 		// unwrap latched along batch
 		Collection<?> batchedJSON = json.containsKey(Keys.BATCH.toString()) ? (Collection<?>) json
 				.get(Keys.BATCH.toString()) : null;
@@ -531,7 +545,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 				.get(Keys.STRINGIFIED.toString()) : null;
 		assert (PaxosPacket.getPaxosPacketType(json) != PaxosPacketType.ACCEPT || this.stringifiedSelf != null) : PaxosPacket
 				.getPaxosPacketType(json) + ":" + json;
-		
+
 		if (json.containsKey(Keys.BC.toString()))
 			this.broadcasted = (Boolean) json.get(Keys.BC.toString());
 		if (json.containsKey(Keys.DIG.toString()))
@@ -572,19 +586,20 @@ public class RequestPacket extends PaxosPacket implements Request,
 			JSONArray batchedJSON = new JSONArray();
 			for (int i = 0; i < this.batched.length; i++) {
 				batchedJSON.put(this.batched[i].toJSONObject());
-				//batchedJSON.put(this.batched[i].toString());
+				// batchedJSON.put(this.batched[i].toString());
 			}
 			json.put(Keys.BATCH.toString(), batchedJSON);
 		}
 		// digest related parameters
-		if(this.broadcasted) json.put(Keys.BC.toString(), this.broadcasted);
-		if(this.digest!=null)
+		if (this.broadcasted)
+			json.put(Keys.BC.toString(), this.broadcasted);
+		if (this.digest != null)
 			try {
 				json.put(Keys.DIG.toString(), new String(this.digest, CHARSET));
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}
-		
+
 		return json;
 	}
 
@@ -617,13 +632,14 @@ public class RequestPacket extends PaxosPacket implements Request,
 			net.minidev.json.JSONArray batchedJSON = new net.minidev.json.JSONArray();
 			for (int i = 0; i < this.batched.length; i++) {
 				batchedJSON.add(this.batched[i].toJSONSmart());
-				//batchedJSON.add(this.batched[i].toString());
+				// batchedJSON.add(this.batched[i].toString());
 			}
 			json.put(Keys.BATCH.toString(), batchedJSON);
 		}
 
 		// digest related parameters
-		if(this.broadcasted) json.put(Keys.BC.toString(), this.broadcasted);
+		if (this.broadcasted)
+			json.put(Keys.BC.toString(), this.broadcasted);
 		if (this.digest != null)
 			try {
 				json.put(Keys.DIG.toString(), new String(this.digest, CHARSET));
@@ -633,7 +649,202 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 		return json;
 	}
-	
+
+	private static final boolean BYTEIFICATION = Config
+			.getGlobalBoolean(PC.BYTEIFICATION);
+
+	public byte[] toBytes1() {
+		return this.toBytes(false);
+	}
+
+	@Override
+	public byte[] toBytes() {
+		return this.toBytes(false);
+	}
+
+	public byte[] toBytes(boolean force) {
+		if (!(BYTEIFICATION || force) && IntegerMap.allInt()) {
+			try {
+				if (this.getType() == PaxosPacketType.REQUEST
+						|| this.getType() == PaxosPacketType.ACCEPT)
+					if (this.byteifiedSelf != null)
+						return this.byteifiedSelf;
+					else
+						return this.byteifiedSelf = this.toString().getBytes(
+								CHARSET); // cache
+				return this.toString().getBytes(CHARSET);
+			} catch (UnsupportedEncodingException e1) {
+				e1.printStackTrace();
+				return null;
+			}
+		}
+
+		if ((this.getType() == PaxosPacketType.REQUEST || this.getType() == PaxosPacketType.ACCEPT)
+				&& this.byteifiedSelf != null)
+			return this.byteifiedSelf;
+
+		// else
+		try {
+			int exactLength = 0;
+			byte[] array = new byte[this.lengthEstimate()];
+			ByteBuffer bbuf = ByteBuffer.wrap(array);
+
+			// paxospacket stuff
+			bbuf.putInt(PaxosPacket.PaxosPacketType.PAXOS_PACKET.getInt()); // type
+			bbuf.putInt(this.packetType.getInt()); // paxos type
+			bbuf.putInt(this.version);
+			// paxosID length followed by paxosID
+			byte[] paxosIDBytes = this.paxosID != null ? this.paxosID
+					.getBytes(CHARSET) : new byte[0];
+			bbuf.put((byte) paxosIDBytes.length);
+			bbuf.put(paxosIDBytes);
+			exactLength += (4 + 4 + 4 + 1 + paxosIDBytes.length);
+
+			bbuf.putLong(this.requestID);
+			bbuf.put(this.stop ? (byte) 1 : (byte) 0);
+			exactLength += (8 + 1);
+
+			// addresses
+			// FIXME: 0 is ambiguous with wildcard address
+			bbuf.put(this.clientAddress != null ? this.clientAddress
+					.getAddress().getAddress() : new byte[4]);
+			bbuf.putShort(this.clientAddress != null ? (short) this.clientAddress
+					.getPort() : 0); // 0, not -1 for null port
+			// FIXME: 0 is ambiguous with wildcard address
+			bbuf.put(this.listenAddress != null ? this.listenAddress
+					.getAddress().getAddress() : new byte[4]);
+			bbuf.putShort(this.listenAddress != null ? (short) this.listenAddress
+					.getPort() : 0); // 0, not -1 for null port
+			exactLength += (4 + 2 + 4 + 2);
+
+			// other fields
+			bbuf.putInt(this.entryReplica);
+			bbuf.putLong(this.entryTime);
+			bbuf.put(this.shouldReturnRequestValue ? (byte) 1 : (byte) 0);
+			bbuf.putInt(this.forwardCount);
+			exactLength += (4 + 8 + 1 + 4);
+
+			// variable length fields
+			// requestValue
+			byte[] reqValBytes = this.requestValue != null ? this.requestValue
+					.getBytes(CHARSET) : new byte[0];
+			bbuf.putInt(reqValBytes != null ? reqValBytes.length : 0);
+			bbuf.put(reqValBytes);
+			exactLength += (4 + reqValBytes.length);
+
+			// responseValue
+			byte[] respValBytes = this.responseValue != null ? this.responseValue
+					.getBytes(CHARSET) : new byte[0];
+			bbuf.putInt(respValBytes != null ? respValBytes.length : 0);
+			bbuf.put(respValBytes);
+			exactLength += (4 + respValBytes.length);
+
+			// batched requests batchSize|(length:batchedReqBytes)+
+			if (this.batchSize() > 0) {
+				bbuf.putInt(this.batchSize());
+				exactLength += (4);
+				for (RequestPacket req : this.batched) {
+					byte[] element = req.toBytes();
+					bbuf.putInt(element.length);
+					bbuf.put(element);
+					exactLength += (4 + element.length);
+				}
+			}
+
+			byte[] exactBytes = new byte[exactLength];
+			bbuf.flip();
+			assert (bbuf.remaining() == exactLength) : bbuf.remaining()
+					+ " != " + exactLength;
+			bbuf.get(exactBytes);
+
+			if (this.getType() == PaxosPacketType.REQUEST)
+				this.byteifiedSelf = exactBytes;
+			return exactBytes;
+
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	public RequestPacket(byte[] bytes) throws UnsupportedEncodingException,
+			UnknownHostException {
+		super((PaxosPacket) null);
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes);
+
+		int exactLength = 0;
+		// paxospacket stuff
+		bbuf.getInt(); // packet type
+		this.packetType = PaxosPacketType.getPaxosPacketType(bbuf.getInt());
+		this.version = bbuf.getInt();
+		byte paxosIDLength = bbuf.get();
+		byte[] paxosIDBytes = new byte[paxosIDLength];
+		bbuf.get(paxosIDBytes);
+		this.paxosID = paxosIDBytes.length > 0 ? new String(paxosIDBytes,
+				CHARSET) : null;
+		exactLength += (4 + 4 + 4 + 1 + paxosIDBytes.length);
+
+		this.requestID = bbuf.getLong();
+		this.stop = bbuf.get() == (byte) 1;
+		exactLength += (8 + 1);
+
+		// addresses
+		byte[] ca = new byte[4];
+		bbuf.get(ca);
+		int cport = (int) bbuf.getShort();
+		cport = cport >= 0 ? cport : cport + 2 * (Short.MAX_VALUE + 1);
+		this.clientAddress = cport != 0 ? new InetSocketAddress(
+				InetAddress.getByAddress(ca), cport) : null;
+		byte[] la = new byte[4];
+		bbuf.get(la);
+		int lport = (int) bbuf.getShort();
+		lport = lport >= 0 ? lport : lport + 2 * (Short.MAX_VALUE + 1);
+		this.listenAddress = lport != 0 ? new InetSocketAddress(
+				InetAddress.getByAddress(la), lport) : null;
+		exactLength += (4 + 2 + 4 + 2);
+
+		// other fields
+		this.entryReplica = bbuf.getInt();
+		this.entryTime = bbuf.getLong();
+		this.shouldReturnRequestValue = bbuf.get() == (byte) 1;
+		this.forwardCount = bbuf.getInt();
+		exactLength += (4 + 8 + 1 + 4);
+
+		// variable length fields
+		// requestValue
+		int reqValLen = bbuf.getInt();
+		byte[] reqValBytes = new byte[reqValLen];
+		bbuf.get(reqValBytes);
+		this.requestValue = reqValBytes.length > 0 ? new String(reqValBytes,
+				CHARSET) : null;
+		exactLength += (4 + reqValBytes.length);
+
+		// responseValue
+		int respValLen = bbuf.getInt();
+		byte[] respValBytes = new byte[respValLen];
+		bbuf.get(respValBytes);
+		this.responseValue = respValBytes.length > 0 ? new String(respValBytes,
+				CHARSET) : null;
+		exactLength += (4 + respValBytes.length);
+
+		if (exactLength == bytes.length)
+			return;
+
+		assert (bbuf.hasRemaining()) : bbuf.capacity() + "  " + exactLength
+				+ " " + bytes.length;
+
+		// else
+		// batched requests
+		int numBatched = bbuf.getInt();
+		this.batched = new RequestPacket[numBatched];
+		for (int i = 0; i < numBatched; i++) {
+			int len = bbuf.getInt();
+			byte[] element = new byte[len];
+			bbuf.get(element);
+			this.batched[i] = new RequestPacket(element);
+		}
+	}
+
 	/**
 	 * Learned the hard way that using org.json to stringify is an order of
 	 * magnitude slower with large request values compared to manually inserting
@@ -650,16 +861,19 @@ public class RequestPacket extends PaxosPacket implements Request,
 			if (this.packetType == PaxosPacketType.ACCEPT)
 				if (this.stringifiedSelf != null)
 					return this.stringifiedSelf;
-				else
+				else {
+					// should never come here because of PaxosMessenger
+					// pre-stringification to fix int to string.
 					return (this.stringifiedSelf = this.toJSONSmart()
 							.toString());
+				}
 			return this.toJSONSmart().toString();
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
 		return null;
 	}
-	
+
 	// only for size estimation
 	private RequestPacket setClientAddress(InetSocketAddress sockAddr) {
 		this.clientAddress = sockAddr;
@@ -669,6 +883,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public InetSocketAddress getClientAddress() {
 		return this.clientAddress;
 	}
+
 	public InetSocketAddress getListenAddress() {
 		return this.listenAddress;
 	}
@@ -676,7 +891,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public boolean isStopRequest() {
 		return stop || this.isAnyBatchedRequestStop();
 	}
-	
+
 	private boolean isAnyBatchedRequestStop() {
 		if (this.batchSize() == 0)
 			return false;
@@ -716,13 +931,11 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return c;
 	}
 
-	/*
-	 * Returns this request unraveled as an array wherein each element is an
+	/* Returns this request unraveled as an array wherein each element is an
 	 * unbatched request.
 	 * 
 	 * Note: This operation is not idempotent because batched gets reset to
-	 * null.
-	 */
+	 * null. */
 	private RequestPacket[] toArray() {
 		RequestPacket[] array = new RequestPacket[1 + this.batchSize()];
 		array[0] = this;
@@ -735,10 +948,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return array;
 	}
 
-	/*
-	 * Converts an array of possibly batched requests to a single unraveled
-	 * array wherein each request is unbatched.
-	 */
+	/* Converts an array of possibly batched requests to a single unraveled
+	 * array wherein each request is unbatched. */
 	private static RequestPacket[] toArray(RequestPacket[] reqs) {
 		ArrayList<RequestPacket[]> reqArrayList = new ArrayList<RequestPacket[]>();
 		int totalSize = 0;
@@ -762,8 +973,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 	}
 
 	public boolean isMetaValue() {
-		return this.requestValue==null;
+		return this.requestValue == null;
 	}
+
 	private static int size(ArrayList<RequestPacket[]> reqArrayList) {
 		int size = 0;
 		for (RequestPacket[] reqArray : reqArrayList)
@@ -854,11 +1066,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return this.batched != null ? this.batched.length : 0;
 	}
 
-	/*
-	 * This ugly method is used only for testing and is needed in order to
+	/* This ugly method is used only for testing and is needed in order to
 	 * separate requests that first entered the requests (or requests with
-	 * entryReplica==-1) from the rest in a batched request.
-	 */
+	 * entryReplica==-1) from the rest in a batched request. */
 	public RequestPacket[] getEntryReplicaRequestsAsBatch(int id) {
 		RequestPacket[] reqArray = this.toArray(); // all unbatched
 
@@ -866,8 +1076,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 		List<RequestPacket> entryReplicaRequests = new LinkedList<RequestPacket>();
 
 		for (int i = 0; i < reqArray.length; i++)
-			if (reqArray[i].getEntryReplica() == IntegerMap.NULL_INT_NODE || 
-			reqArray[i].getEntryReplica() == id)
+			if (reqArray[i].getEntryReplica() == IntegerMap.NULL_INT_NODE
+					|| reqArray[i].getEntryReplica() == id)
 				noEntryReplicaRequests.add(reqArray[i]);
 			else
 				entryReplicaRequests.add(reqArray[i]);
@@ -920,7 +1130,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 						+ (this.batchSize() <= 4 ? getBatchedIDs() : this
 								.batchSize()) + ")" : "");
 	}
-	
+
 	private String getBatchedIDs() {
 		String s = "[";
 		if (this.batched != null)
@@ -978,14 +1188,12 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return this.requestValue != null;
 	}
 
-	/*
-	 * Need an upper bound here for limiting batch size. Currently all the
-	 * fields in RequestPacket other than requestValue add up to ~200B.
-	 */
+	/* Need an upper bound here for limiting batch size. Currently all the
+	 * fields in RequestPacket other than requestValue add up to ~200B. */
 	public int lengthEstimate() {
 		int len = this.requestValue.length() + SIZE_ESTIMATE;
-		if(this.isBatched())
-			for(RequestPacket req : this.batched)
+		if (this.isBatched())
+			for (RequestPacket req : this.batched)
 				len += req.lengthEstimate();
 		return len;
 	}
@@ -999,7 +1207,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return s;
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws UnsupportedEncodingException,
+			UnknownHostException {
 		Util.assertAssertionsEnabled();
 		int numReqs = 25;
 		RequestPacket[] reqs = new RequestPacket[numReqs];
@@ -1019,6 +1228,14 @@ public class RequestPacket extends PaxosPacket implements Request,
 			System.out.println("batchSize = " + reqovered.batched.length);
 			// System.out.println(reqovered.batched[3]);
 			System.out.println(samplePValue);
+
+			System.out.println(reqs[1]);
+			System.out.println(new RequestPacket(reqs[1].toBytes()));
+
+			System.out.println(req);
+			System.out.println(reqovered = new RequestPacket(req.toBytes()));
+			assert (req.toString().equals(reqovered.toString()));
+
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
@@ -1032,7 +1249,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public void setResponse(String response) {
 		if (this.responseValue == null)
 			this.responseValue = response;
-		else assert(isRecovery(this));
+		else
+			assert (isRecovery(this));
 	}
 
 	public boolean shouldReturnRequestValue() {
@@ -1043,53 +1261,55 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public long getRequestID() {
 		return this.requestID;
 	}
-	
-	private String CHARSET = "ISO-8859-1";
-	
+
+	protected static String CHARSET = "ISO-8859-1";
+
 	// in-depth
 	public byte[] getDigest(MessageDigest md) {
-		if(this.digest!=null) return digest;
-		
+		if (this.digest != null)
+			return digest;
+
 		try {
-			//long t = System.nanoTime();
-			assert(this.requestValue!=null);
-			synchronized(md) {
+			// long t = System.nanoTime();
+			assert (this.requestValue != null);
+			synchronized (md) {
 				this.digest = md.digest(this.requestValue.getBytes(CHARSET));
 			}
-			//DelayProfiler.updateDelayNano("digest", t);
+			// DelayProfiler.updateDelayNano("digest", t);
 			return this.digest;
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
 		return null;
 	}
+
 	public boolean digestEquals(RequestPacket req, MessageDigest md) {
 		byte[] d1 = this.getDigest(md);
 		byte[] d2 = req.getDigest(md);
 		return (MessageDigest.isEqual(d1, d2));
 	}
-	
+
 	// only top level
 	public RequestPacket setDigest(byte[] d) {
-		assert(d!=null);
-		//assert (this.digest == null && this.requestValue == null);
+		assert (d != null);
+		// assert (this.digest == null && this.requestValue == null);
 		this.digest = d;
 		return this;
 	}
-		
+
 	public RequestPacket setBroadcasted() {
 		this.broadcasted = true;
-		/*
-		 * Marking batch members as broadcasted is unnecessary as a broadcasted
-		 * request packet can not be batched any further.
-		 */
+		/* Marking batch members as broadcasted is unnecessary as a broadcasted
+		 * request packet can not be batched any further. */
 		return this;
 	}
+
 	public boolean shouldBroadcast() {
-		return this.broadcasted==false;
+		return this.broadcasted == false;
 	}
+
 	public boolean isBroadcasted() {
-		return this.broadcasted==true;
+		return this.broadcasted == true;
 	}
 
 	@Override

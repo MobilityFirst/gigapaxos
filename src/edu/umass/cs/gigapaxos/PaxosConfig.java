@@ -471,6 +471,11 @@ public class PaxosConfig {
 		 * received.
 		 */
 		LOG_META_DECISIONS(true),
+		
+		/**
+		 * 
+		 */
+		BYTEIFICATION(false),
 
 		/**
 		 * FIXME: The options below only exist for testing stringification
@@ -709,7 +714,10 @@ public class PaxosConfig {
 
 		/**
 		 * Whether {@link edu.umass.cs.gigapaxos.paxospackets.RequestPacket} and
-		 * inherited classes should be batched.
+		 * inherited classes should be batched. This batching is different from 
+		 * the batching in {@link #BATCHING_ENABLED}. It refers to batching of 
+		 * entire packets to marginally reduce network overhead. It really 
+		 * makes little difference either way.
 		 */
 		BATCHED_REQUESTS(true),
 

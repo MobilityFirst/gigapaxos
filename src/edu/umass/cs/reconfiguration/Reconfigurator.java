@@ -124,7 +124,6 @@ public class Reconfigurator<NodeIDType> implements
 	private PendingBatchCreates pendingBatchCreations = new PendingBatchCreates();
 	private boolean recovering = true;
 
-
 	private static final Logger log = Logger.getLogger(Reconfigurator.class
 			.getName());
 
@@ -184,7 +183,7 @@ public class Reconfigurator<NodeIDType> implements
 				this.protocolTask);
 		this.commitWorker = new CommitWorker<NodeIDType>(this.DB, null);
 		this.initFinishPendingReconfigurations();
-		this.messenger.setClientMessenger(this.initClientMessenger(false));
+		this.initClientMessenger(false);
 		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
 			this.messenger
 					.setSSLClientMessenger(this.initClientMessenger(true));
@@ -356,7 +355,6 @@ public class Reconfigurator<NodeIDType> implements
 		 */
 		private ConcurrentHashMap<String, String> headnameToOverallHeadname = new ConcurrentHashMap<String, String>();
 	}
-
 
 	// private ConcurrentHashMap<String, BatchCreateJobs> pendingBatchCreates =
 	// new ConcurrentHashMap<String, BatchCreateJobs>();
@@ -563,7 +561,8 @@ public class Reconfigurator<NodeIDType> implements
 		// record already exists, so return error message
 		else
 			this.sendClientReconfigurationPacket(create
-					.setFailed(ClientReconfigurationPacket.ResponseCodes.DUPLICATE_ERROR)
+					.setFailed(
+							ClientReconfigurationPacket.ResponseCodes.DUPLICATE_ERROR)
 					.setResponseMessage(
 							"Can not (re-)create an already "
 									+ (record.isDeletePending() ? "deleted name until "
@@ -707,7 +706,9 @@ public class Reconfigurator<NodeIDType> implements
 		return record != null && record.getState().equals(RCStates.WAIT_DELETE);
 	}
 
-	private static final String SPECIAL_NAME = Config.getGlobalString(RC.SPECIAL_NAME);
+	private static final String SPECIAL_NAME = Config
+			.getGlobalString(RC.SPECIAL_NAME);
+
 	/**
 	 * This method simply looks up and returns the current set of active
 	 * replicas. Maintaining this state consistently is the primary and only
@@ -737,7 +738,7 @@ public class Reconfigurator<NodeIDType> implements
 							.getRandomActiveReplica())));
 			return null;
 		}
-		
+
 		if (this.processRedirection(request))
 			return null;
 
@@ -1226,7 +1227,8 @@ public class Reconfigurator<NodeIDType> implements
 		AddressMessenger<JSONObject> cMsgr = this.messenger
 				.getClientMessenger(listenSockAddr);
 		cMsgr = cMsgr != null ? cMsgr : this.messenger;
-		log.log(Level.FINEST, "{0} returning messenger listening on address {1}",
+		log.log(Level.FINEST,
+				"{0} returning messenger listening on address {1}",
 				new Object[] { this, listenSockAddr, cMsgr });
 		return cMsgr;
 	}
@@ -1257,7 +1259,8 @@ public class Reconfigurator<NodeIDType> implements
 		Set<InetSocketAddress> modified = new HashSet<InetSocketAddress>();
 		for (InetSocketAddress sockAddr : replicas)
 			modified.add(new InetSocketAddress(sockAddr.getAddress(),
-					ReconfigurationConfig.getClientFacingPort(sockAddr.getPort())));
+					ReconfigurationConfig.getClientFacingPort(sockAddr
+							.getPort())));
 		return modified;
 	}
 
@@ -1339,7 +1342,8 @@ public class Reconfigurator<NodeIDType> implements
 								this,
 								this.consistentNodeConfig
 										.getBindAddress(getMyID()),
-										ReconfigurationConfig.getClientFacingPort(myPort) });
+								ReconfigurationConfig
+										.getClientFacingPort(myPort) });
 				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
 				InetSocketAddress isa = new InetSocketAddress(
 						this.consistentNodeConfig.getBindAddress(getMyID()),
@@ -1371,6 +1375,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param ssl
 	 * @return
 	 */
+	@SuppressWarnings("unchecked")
 	private AddressMessenger<JSONObject> initClientMessenger(boolean ssl) {
 		AbstractPacketDemultiplexer<JSONObject> pd = null;
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
@@ -1388,29 +1393,61 @@ public class Reconfigurator<NodeIDType> implements
 								""
 										+ (ssl ? getClientFacingSSLPort(myPort)
 												: getClientFacingClearPort(myPort)) });
-				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
-				InetSocketAddress isa = new InetSocketAddress(
-						this.consistentNodeConfig.getBindAddress(getMyID()),
-						ssl ? getClientFacingSSLPort(myPort)
-								: getClientFacingClearPort(myPort));
-				cMsgr = new JSONMessenger<InetSocketAddress>(
-						niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
-								isa.getAddress(),
-								isa.getPort(),
-								(pd = new ReconfigurationPacketDemultiplexer()),
-								ssl ? ReconfigurationConfig.getClientSSLMode()
-										: SSL_MODES.CLEAR));
-				if (!niot.getListeningSocketAddress().equals(isa))
-					throw new IOException(
-							"Unable to listen on specified socket address at "
-									+ isa);
+				AddressMessenger<?> existing = (ssl ? this.messenger
+						.getSSLClientMessenger() : this.messenger
+						.getClientMessenger());
+
+				if (existing == null || existing == this.messenger) {
+					MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+					InetSocketAddress isa = new InetSocketAddress(
+							this.consistentNodeConfig.getBindAddress(getMyID()),
+							ssl ? getClientFacingSSLPort(myPort)
+									: getClientFacingClearPort(myPort));
+					cMsgr = new JSONMessenger<InetSocketAddress>(
+							niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
+									isa.getAddress(),
+									isa.getPort(),
+									(pd = new ReconfigurationPacketDemultiplexer()),
+									ssl ? ReconfigurationConfig
+											.getClientSSLMode()
+											: SSL_MODES.CLEAR));
+					if (!niot.getListeningSocketAddress().equals(isa))
+						throw new IOException(
+								"Unable to listen on specified socket address at "
+										+ isa
+										+ "; created messenger listening instead on "
+										+ niot.getListeningSocketAddress());
+					log.info(this + " --------------------- here");
+				} else if (!ssl) { 
+					log.log(Level.INFO, "{0} adding self as demultiplexer to existing {1} client messenger", new Object[]{this,
+							ssl?"SSL":""});
+					if (this.messenger.getClientMessenger() instanceof Messenger)
+					((Messenger<NodeIDType, ?>) this.messenger
+							.getClientMessenger())
+							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+				} else {
+					log.log(Level.INFO, "{0} adding self as demultiplexer to existing {1} client messenger", new Object[]{this,
+							ssl?"SSL":""});
+					if (this.messenger.getSSLClientMessenger() instanceof Messenger)
+					((Messenger<NodeIDType, ?>) this.messenger
+							.getSSLClientMessenger())
+							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+				}
+				assert (pd != null);
 				pd.register(clientRequestTypes, this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			log.severe(this + ": " + e.getMessage());
+			log.severe(this + " failed to initialize client messenger: " + e.getMessage());
 			System.exit(1);
 		}
+		
+		if (cMsgr != null)
+			if (ssl && this.messenger.getSSLClientMessenger() == null)
+				this.messenger.setSSLClientMessenger(cMsgr);
+			else if (!ssl && this.messenger.getClientMessenger() == null)
+				this.messenger.setClientMessenger(cMsgr);
+
 		return cMsgr != null ? cMsgr
 				: (AddressMessenger<JSONObject>) this.messenger;
 	}
@@ -1752,8 +1789,9 @@ public class Reconfigurator<NodeIDType> implements
 							this.consistentNodeConfig
 									.getReplicatedReconfigurators(request
 											.getServiceName())));
-			if(responsibleRCs.isEmpty()) return false;
-			
+			if (responsibleRCs.isEmpty())
+				return false;
+
 			@SuppressWarnings("unchecked")
 			NodeIDType randomResponsibleRC = (NodeIDType) (responsibleRCs
 					.toArray()[(int) (Math.random() * responsibleRCs.size())]);

@@ -45,6 +45,7 @@ public final class AcceptPacket extends PValuePacket {
 		assert (PaxosPacket.getPaxosPacketType(json) == PaxosPacketType.ACCEPT); 
 		this.packetType = PaxosPacketType.ACCEPT;
 		this.sender = json.getInt(PaxosPacket.NodeIDKeys.SNDR.toString());
+		// TODO: why do we need to set paxosID here?
 		this.paxosID = json.getString(PaxosPacket.Keys.ID.toString());
 	}
 	public AcceptPacket(net.minidev.json.JSONObject json) throws JSONException {
@@ -53,6 +54,7 @@ public final class AcceptPacket extends PValuePacket {
 		assert (PaxosPacket.getPaxosPacketType(json) == PaxosPacketType.ACCEPT); 
 		this.packetType = PaxosPacketType.ACCEPT;
 		this.sender = (Integer)json.get(PaxosPacket.NodeIDKeys.SNDR.toString());
+		// TODO: why do we need to set paxosID here?
 		this.paxosID = (String)json.get(PaxosPacket.Keys.ID.toString());
 	}
 

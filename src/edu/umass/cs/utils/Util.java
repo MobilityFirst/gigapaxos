@@ -363,8 +363,11 @@ public class Util {
 	}
 
 	public static byte[] getRandomAlphanumericBytes() {
+		return getRandomAlphanumericBytes(1024);
+	}
+	public static byte[] getRandomAlphanumericBytes(int size) {
 		byte[] an = Util.getAlphanumericAsBytes();
-		byte[] msg = new byte[1024];
+		byte[] msg = new byte[size];
 		for (int i = 0; i < msg.length; i++)
 			msg[i] = an[(int) (Math.random() * an.length)];
 		return msg;

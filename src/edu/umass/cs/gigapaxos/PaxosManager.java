@@ -56,6 +56,7 @@ import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
+import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
@@ -74,8 +75,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -336,7 +339,8 @@ public class PaxosManager<NodeIDType> {
 				.equals("org.json") ? new PaxosPacketDemultiplexerJSON()
 				: new PaxosPacketDemultiplexerJSONSmart());
 		initiateRecovery();
-		if(!Config.getGlobalBoolean(PC.DELAY_PROFILER)) DelayProfiler.disable();
+		if (!Config.getGlobalBoolean(PC.DELAY_PROFILER))
+			DelayProfiler.disable();
 	}
 
 	private void initOutstandingMonitor() {
@@ -698,8 +702,8 @@ public class PaxosManager<NodeIDType> {
 		public boolean handleMessage(JSONObject jsonMsg) {
 			try {
 				PaxosManager.log.log(Level.FINEST,
-						"{0} packet demultiplexer received {1}",
-						new Object[] { PaxosManager.this, jsonMsg });
+						"{0} packet demultiplexer received {1}", new Object[] {
+								PaxosManager.this, jsonMsg });
 				PaxosManager.this
 						.handleIncomingPacket(edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexer
 								.toPaxosPacket(fixNodeStringToInt(jsonMsg),
@@ -769,24 +773,39 @@ public class PaxosManager<NodeIDType> {
 			this(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS));
 		}
 
-		public boolean handleMessage(net.minidev.json.JSONObject jsonMsg) {
-			//long t = System.nanoTime();
+		public boolean handleMessage(Object msg) {
+			// long t = System.nanoTime();
 			PaxosManager.log.log(Level.FINEST,
-					"{0} packet demultiplexer received {1}",
-					new Object[] { PaxosManager.this, jsonMsg });
+					"{0} packet demultiplexer received {1}", new Object[] {
+							PaxosManager.this, msg });
+			if (msg instanceof net.minidev.json.JSONObject)
+				try {
+					net.minidev.json.JSONObject jsonMsg = (net.minidev.json.JSONObject) msg;
+					assert (PaxosPacket.getPaxosPacketType(jsonMsg) != PaxosPacketType.ACCEPT || jsonMsg
+							.containsKey(RequestPacket.Keys.STRINGIFIED
+									.toString()));
+					PaxosManager.this
+							.handleIncomingPacket(edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerJSONSmart
+									.toPaxosPacket(fixNodeStringToInt(jsonMsg),
+											PaxosManager.this.unstringer));
+					return true;
+				} catch (JSONException e) {
+					log.severe(this + " incurred JSONException while parsing "
+							+ msg);
+					e.printStackTrace();
+				}
+			assert (msg instanceof byte[]);
 			try {
-				assert (PaxosPacket.getPaxosPacketType(jsonMsg) != PaxosPacketType.ACCEPT || jsonMsg
-						.containsKey(RequestPacket.Keys.STRINGIFIED.toString()));
-				PaxosManager.this
-						.handleIncomingPacket(edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerJSONSmart
-								.toPaxosPacket(fixNodeStringToInt(jsonMsg),
-										PaxosManager.this.unstringer));
-			} catch (JSONException e) {
-				log.severe(this + " incurred JSONException while parsing "
-						+ jsonMsg);
+				/* FIXME: Need to fixNodeStringToInt. Unclear how to do the
+				 * reverse while sending out. This matters only for the entry
+				 * replica. */
+				PaxosManager.this.handleIncomingPacket(new RequestPacket(
+						(byte[]) msg));
+			} catch (UnsupportedEncodingException | UnknownHostException e) {
 				e.printStackTrace();
 			}
-			//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("handleIncoming", t);
+			// if(Util.oneIn(100))
+			// DelayProfiler.updateDelayNano("handleIncoming", t);
 			return true;
 		}
 
@@ -805,8 +824,9 @@ public class PaxosManager<NodeIDType> {
 			return PaxosManager.this.isCongested();
 		}
 
-		@Override
-		public boolean isOrderPreserving(net.minidev.json.JSONObject msg) {
+		// @Override
+		public boolean isOrderPreservingFIXME_REMOVE(
+				net.minidev.json.JSONObject msg) {
 			if (!ORDER_PRESERVING_REQUESTS)
 				return false;
 			try {
@@ -828,6 +848,9 @@ public class PaxosManager<NodeIDType> {
 			.getGlobalBoolean(PC.BATCHING_ENABLED);
 
 	private void handleIncomingPacket(PaxosPacket pp) {
+		if (pp.getType() == PaxosPacket.PaxosPacketType.REQUEST)
+			((RequestPacket) pp).setEntryReplicaAndReturnCount(myID);
+
 		if (pp.getType() == PaxosPacketType.BATCHED_PAXOS_PACKET)
 			for (PaxosPacket packet : ((BatchedPaxosPacket) pp)
 					.getPaxosPackets())
@@ -1185,14 +1208,16 @@ public class PaxosManager<NodeIDType> {
 
 	/**
 	 * @param myAddress
+	 * @param niot
 	 * @return {@code this}
 	 */
 	public PaxosManager<NodeIDType> initClientMessenger(
-			InetSocketAddress myAddress) {
-		PaxosManager<NodeIDType> pm = this
-				.initClientMessenger(myAddress, false);
+			InetSocketAddress myAddress,
+			InterfaceNIOTransport<NodeIDType, ?> niot) {
+		PaxosManager<NodeIDType> pm = this.initClientMessenger(myAddress,
+				false, niot);
 		if (SSL_MODES.valueOf(Config.getGlobalString(PC.CLIENT_SSL_MODE)) != SSL_MODES.CLEAR)
-			pm = pm.initClientMessenger(myAddress, true);
+			pm = pm.initClientMessenger(myAddress, true, niot);
 		return pm;
 	}
 
@@ -1202,8 +1227,11 @@ public class PaxosManager<NodeIDType> {
 	 * @return {@code this}
 	 */
 	private PaxosManager<NodeIDType> initClientMessenger(
-			InetSocketAddress myAddress, boolean ssl) {
+			InetSocketAddress myAddress, boolean ssl,
+			InterfaceNIOTransport<NodeIDType, ?> nioTransport) {
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
+		SSLMessenger<NodeIDType, ?> msgr = (nioTransport instanceof Messenger ? (SSLMessenger<NodeIDType, ?>) nioTransport
+				: null);
 
 		try {
 			int clientPortOffset = ssl ? Config
@@ -1215,14 +1243,14 @@ public class PaxosManager<NodeIDType> {
 						myAddress.getAddress(), myAddress.getPort()
 								+ clientPortOffset);
 				log.log(Level.INFO,
-						"Creating client messenger at {0}; (offset={1}, {2})",
-						new Object[] { myAddressOffsetted, clientPortOffset,
-								ssl ? "SSL" : "" });
+						"{0} creating client messenger at {1}; (offset={2}{3})",
+						new Object[] { this, myAddressOffsetted,
+								clientPortOffset, ssl ? "/SSL" : "" });
 
-				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
+				MessageNIOTransport<InetSocketAddress, JSONObject> createdNIOTransport = null;
 
 				cMsgr = new JSONMessenger<InetSocketAddress>(
-						niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
+						createdNIOTransport = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 								myAddressOffsetted.getAddress(),
 								(myAddressOffsetted.getPort()),
 								/* Client facing demultiplexer is single
@@ -1236,17 +1264,18 @@ public class PaxosManager<NodeIDType> {
 								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 										.getGlobalString(PC.CLIENT_SSL_MODE))
 										: SSL_MODES.CLEAR));
-				if (!niot.getListeningSocketAddress()
-						.equals(myAddressOffsetted))
+				if (!createdNIOTransport.getListeningSocketAddress().equals(
+						myAddressOffsetted))
 					// FIXME: will throw false positive exception on EC2
 					// throw new IOException(
 					// "Unable to listen on specified socket address at "
 					// + isa + " != " + niot.getListeningSocketAddress())
 					;
+				assert (msgr != null);
 				if (ssl)
-					this.messenger.setSSLClientMessenger(cMsgr);
+					msgr.setSSLClientMessenger(cMsgr);
 				else
-					this.messenger.setClientMessenger(cMsgr);
+					msgr.setClientMessenger(cMsgr);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -1288,7 +1317,7 @@ public class PaxosManager<NodeIDType> {
 
 	// queue of outstanding requests
 	protected void incrOutstanding(RequestPacket request) {
-		request.setEntryReplicaAndReturnCount(this.myID);
+		// request.setEntryReplicaAndReturnCount(this.myID);
 
 		// if (request.getEntryReplica() == getMyID())
 		this.outstanding.enqueue(new RequestAndCallback(request, null));
@@ -1441,7 +1470,6 @@ public class PaxosManager<NodeIDType> {
 
 	private static final boolean EMULATE_UNREPLICATED = Config
 			.getGlobalBoolean(PC.EMULATE_UNREPLICATED);
-
 
 	private final boolean emulateUnreplicated(PaxosPacket request) {
 		if (!EMULATE_UNREPLICATED || !(request instanceof RequestPacket))
@@ -2610,7 +2638,7 @@ public class PaxosManager<NodeIDType> {
 	// convert string -> NodeIDType -> int (can *NOT* convert string directly to
 	// int)
 	private JSONObject fixNodeStringToInt(JSONObject json) throws JSONException {
-		//long t = System.nanoTime();
+		// long t = System.nanoTime();
 		if (!PaxosMessenger.ENABLE_INT_STRING_CONVERSION)
 			return json;
 		// FailureDetectionPacket already has generic NodeIDType
@@ -2651,13 +2679,14 @@ public class PaxosManager<NodeIDType> {
 					}
 				}
 			}
-		//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("fixNodeStringToIntJSON", t);
+		// if(Util.oneIn(100))
+		// DelayProfiler.updateDelayNano("fixNodeStringToIntJSON", t);
 		return json;
 	}
 
 	private net.minidev.json.JSONObject fixNodeStringToInt(
 			net.minidev.json.JSONObject json) {
-		//long t = System.nanoTime();
+		// long t = System.nanoTime();
 		// FailureDetectionPacket already has generic NodeIDType
 		if ((Integer) json.get(PaxosPacket.Keys.PT.toString()) == PaxosPacket.PaxosPacketType.FAILURE_DETECT
 				.getInt())
@@ -2698,7 +2727,8 @@ public class PaxosManager<NodeIDType> {
 					}
 				}
 			}
-		//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("fixNodeStringToIntJSONSmart", t);
+		// if(Util.oneIn(100))
+		// DelayProfiler.updateDelayNano("fixNodeStringToIntJSONSmart", t);
 		return json;
 	}
 

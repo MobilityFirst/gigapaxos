@@ -10,6 +10,7 @@ import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
@@ -18,6 +19,8 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
  *
  */
 public class NoopAppClient extends ReconfigurableAppClientAsync {
+
+	private int numResponses = 0;
 
 	/**
 	 * @throws IOException
@@ -37,8 +40,15 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 
 						@Override
 						public void handleResponse(Request response) {
+							if (response instanceof ActiveReplicaError)
+								return;
+							// else
 							System.out
 									.println("Received response: " + response);
+							synchronized (NoopAppClient.this) {
+								NoopAppClient.this.numResponses++;
+								NoopAppClient.this.notify();
+							}
 						}
 					});
 			try {
@@ -48,6 +58,21 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 				e.printStackTrace();
 			}
 		}
+	}
+
+	@Override
+	public Request getRequest(String stringified) {
+		try {
+			return NoopApp.staticGetRequest(stringified);
+		} catch (RequestParseException | JSONException e) {
+			// do nothing by design
+		}
+		return null;
+	}
+
+	@Override
+	public Set<IntegerPacketType> getRequestTypes() {
+		return NoopApp.staticGetRequestTypes();
 	}
 
 	/**
@@ -69,34 +94,41 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 		for (int i = 0; i < numNames; i++) {
 			final String name = namePrefix
 					+ ((int) (Math.random() * Integer.MAX_VALUE));
-			System.out.println("Creating name");
+			System.out.println("Creating name " + name);
 			client.sendRequest(new CreateServiceName(name, initialState),
 					new RequestCallback() {
 
 						@Override
 						public void handleResponse(Request response) {
 							try {
-								client.testSendBunchOfRequests(name, numReqs);
+								if (response instanceof CreateServiceName
+										&& !((CreateServiceName) response)
+												.isFailed())
+									client.testSendBunchOfRequests(name,
+											numReqs);
+								else
+									System.out.println(this
+											+ " failed to create name " + name);
 							} catch (IOException | JSONException e) {
 								e.printStackTrace();
 							}
 						}
 					});
 		}
-	}
-
-	@Override
-	public Request getRequest(String stringified) {
-		try {
-			return NoopApp.staticGetRequest(stringified);
-		} catch (RequestParseException | JSONException e) {
-			// do nothing by design
+		synchronized (client) {
+			long maxWaitTime = 8000, waitInitTime = System.currentTimeMillis();
+			while (client.numResponses < numNames * numReqs
+					&& (System.currentTimeMillis() - waitInitTime < maxWaitTime))
+				try {
+					client.wait(maxWaitTime);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 		}
-		return null;
-	}
-
-	@Override
-	public Set<IntegerPacketType> getRequestTypes() {
-		return NoopApp.staticGetRequestTypes();
+		System.out.println("\n" + client + " successfully created " + numNames
+				+ " names, sent " + numNames * numReqs
+				+ " requests, and received " + client.numResponses
+				+ " responses.");
+		client.close();
 	}
 }

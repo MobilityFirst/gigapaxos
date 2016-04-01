@@ -318,7 +318,7 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 	}
 
 	@Override
-	public void processLocalMessage(InetSocketAddress sockAddr, String msg) {
+	public void processLocalMessage(InetSocketAddress sockAddr, byte[] msg) {
 		if (this.decryptedWorker instanceof InterfaceMessageExtractor)
 			((InterfaceMessageExtractor) this.decryptedWorker)
 					.processLocalMessage(sockAddr, msg);
