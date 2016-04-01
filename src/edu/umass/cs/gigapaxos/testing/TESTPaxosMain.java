@@ -123,7 +123,7 @@ public class TESTPaxosMain {
 			// begin first run
 			long t1 = System.currentTimeMillis();
 			TESTPaxosClient.sendTestRequests(numReqs, clients, Config.getGlobalDouble(TC.TOTAL_LOAD));
-			TESTPaxosClient.waitForResponses(clients, t1);
+			//TESTPaxosClient.waitForResponses(clients, t1);
 			long t2 = System.currentTimeMillis();
 			System.out.println("\n[run1]" + getAggregateOutput(t1, t2));
 			// end first run
@@ -135,7 +135,7 @@ public class TESTPaxosMain {
 			// begin second run
 			t1 = System.currentTimeMillis();
 			TESTPaxosClient.sendTestRequests(numReqs, clients, Config.getGlobalDouble(TC.TOTAL_LOAD));
-			TESTPaxosClient.waitForResponses(clients, t1);
+			//TESTPaxosClient.waitForResponses(clients, t1);
 			t2 = System.currentTimeMillis();
 			TESTPaxosClient.printOutput(clients);
 			System.out.println("[run2]" + getAggregateOutput(t1, t2));

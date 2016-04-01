@@ -68,7 +68,7 @@ public class TESTPaxosClient {
 
 	private static int totalNoopCount = 0;
 
-	private static int numRequests = 0; // used only for latency
+	private static int numResponses = 0; // used only for latency
 	private static long totalLatency = 0;
 	private static double movingAvgLatency = 0;
 	private static double movingAvgDeviation = 0;
@@ -78,7 +78,7 @@ public class TESTPaxosClient {
 
 	private static synchronized void incrTotalLatency(long ms) {
 		totalLatency += ms;
-		numRequests++;
+		numResponses++;
 	}
 
 	private static synchronized void updateMovingAvgLatency(long ms) {
@@ -98,7 +98,7 @@ public class TESTPaxosClient {
 	}
 
 	private static synchronized double getAvgLatency() {
-		return totalLatency * 1.0 / numRequests;
+		return totalLatency * 1.0 / numResponses;
 	}
 
 	private static synchronized void incrRtxCount() {
@@ -119,8 +119,9 @@ public class TESTPaxosClient {
 
 	protected synchronized static void resetLatencyComputation(
 			TESTPaxosClient[] clients) {
+		runDone = false;
 		totalLatency = 0;
-		numRequests = 0;
+		numResponses = 0;
 		for (TESTPaxosClient client : clients)
 			client.runReplyCount = 0;
 	}
@@ -311,11 +312,11 @@ public class TESTPaxosClient {
 				SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 						.getGlobalString(PC.CLIENT_SSL_MODE))));
 		this.timer = new Timer(TESTPaxosClient.class.getSimpleName() + myID);
-		
+
 		synchronized (TESTPaxosClient.class) {
 			if (executor == null || executor.isShutdown())
 				executor = (ScheduledThreadPoolExecutor) Executors
-						.newScheduledThreadPool(SEND_POOL_SIZE);
+						.newScheduledThreadPool(SEND_POOL_SIZE+1);
 		}
 	}
 
@@ -511,7 +512,22 @@ public class TESTPaxosClient {
 	private static final String TEST_GUID_PREFIX = Config
 			.getGlobalString(TC.TEST_GUID_PREFIX);
 
-	// private static final double LOAD_THRESHOLD = 10000;
+	// wait at most a minute for all responses to come back
+	private static final long MAX_WAIT_TIME = (long) (Config
+			.getGlobalInt(TC.NUM_REQUESTS) / Config
+			.getGlobalDouble(TC.TOTAL_LOAD))
+			+ Config.getGlobalInt(TC.MAX_RESPONSE_WAIT_TIME);
+
+	private static void initResponseTracker(TESTPaxosClient[] clients) {
+		executor.submit(new Runnable() {
+
+			@Override
+			public void run() {
+				System.exit(1);
+				waitForResponses(clients, System.currentTimeMillis());
+			}
+		});
+	}
 
 	protected static void sendTestRequests(int numReqs,
 			TESTPaxosClient[] clients, double load) throws JSONException,
@@ -520,16 +536,18 @@ public class TESTPaxosClient {
 				+ ", request_size=" + gibberish.length() + "B, #clients="
 				+ clients.length + ", #groups=" + NUM_GROUPS + ", load="
 				+ Util.df(load) + "/s" + "]...");
-		long initTime = System.currentTimeMillis();
 
 		Future<?>[] futures = new Future<?>[SEND_POOL_SIZE];
-		assert (executor.getCorePoolSize() == SEND_POOL_SIZE);
+		//assert (executor.getCorePoolSize() == SEND_POOL_SIZE);
+		if (!Config.getGlobalBoolean(TC.PROBE_CAPACITY))
+			initResponseTracker(clients);
+		long initTime = System.currentTimeMillis();
 		// if (TOTAL_LOAD > LOAD_THRESHOLD)
 		{
 			if (SEND_POOL_SIZE > 0) {
 				for (int i = 0; i < SEND_POOL_SIZE; i++) {
 					final int j = i;
-					assert(!executor.isShutdown());
+					assert (!executor.isShutdown());
 					futures[j] = executor.submit(new Runnable() {
 						public void run() {
 							try {
@@ -561,7 +579,7 @@ public class TESTPaxosClient {
 								+ numReqs
 								+ " requests in "
 								+ Util.df((System.currentTimeMillis() - initTime) / 1000.0)
-								+ " secs; average sending rate = "
+								+ " secs; estimated average_sent_rate = "
 								+ Util.df(mostRecentSentRate) + "/s"
 						// + " \n "+ reqCounts
 						));
@@ -626,7 +644,12 @@ public class TESTPaxosClient {
 										: "")
 								+ (!warmup ? "; aggregate response rate = "
 										+ Util.df(getTotalThroughput(clients,
-												startTime)) + " reqs/sec" : ""));
+												startTime)) + " reqs/sec" : "")
+								+ "; time = "
+								+ (System.currentTimeMillis() - startTime)
+								+ " ms");
+				if (System.currentTimeMillis() - startTime > MAX_WAIT_TIME)
+					break;
 				if (clients[i].requests.size() > 0)
 					try {
 						Thread.sleep(1000);
@@ -636,7 +659,14 @@ public class TESTPaxosClient {
 					}
 			}
 		}
+		synchronized(TESTPaxosClient.class) {
+			runDone = true;
+			TESTPaxosClient.class.notify();
+		}
 	}
+	
+	private static boolean runDone = false;
+	
 
 	protected static boolean noOutstanding(TESTPaxosClient[] clients) {
 		boolean noOutstanding = true;
@@ -736,7 +766,7 @@ public class TESTPaxosClient {
 			ExecutionException {
 		long runDuration = Config.getGlobalLong(TC.PROBE_RUN_DURATION); // seconds
 		double responseRate = 0, capacity = 0, latency = Double.MAX_VALUE;
-		double threshold = Config.getGlobalDouble(TC.PROBE_LOAD_THRESHOLD), loadIncreaseFactor = Config
+		double threshold = Config.getGlobalDouble(TC.PROBE_RESPONSE_THRESHOLD), loadIncreaseFactor = Config
 				.getGlobalDouble(TC.PROBE_LOAD_INCREASE_FACTOR), minLoadIncreaseFactor = 1.01;
 		int runs = 0, consecutiveFailures = 0;
 
@@ -760,15 +790,26 @@ public class TESTPaxosClient {
 			if (loadIncreaseFactor < minLoadIncreaseFactor)
 				break;
 
+			/* Need to clear requests from previous run, otherwise the response
+			 * rate can be higher than the sent rate, which doesn't make sense. */
+			for (TESTPaxosClient client : clients)
+				client.requests.clear();
+			TESTPaxosClient.resetLatencyComputation(clients);
+
 			int numRunRequests = (int) (load * runDuration);
 			long t1 = System.currentTimeMillis();
 			sendTestRequests(numRunRequests, clients, load);
-			responseRate = numRunRequests * 1000.0
-					/ (lastResponseReceivedTime - t1);
+
+			// no need to wait for all responses
+			// waitForResponses(clients, t1);
+			while (numResponses < threshold * numRunRequests)
+				Thread.sleep(500);
+
+			responseRate = // numRunRequests
+			numResponses * 1000.0 / (lastResponseReceivedTime - t1);
 			latency = TESTPaxosClient.getAvgLatency();
 			if (latency < LATENCY_THRESHOLD)
 				capacity = Math.max(capacity, responseRate);
-			TESTPaxosClient.resetLatencyComputation(clients);
 			boolean success = (responseRate > threshold * load && latency <= LATENCY_THRESHOLD);
 			System.out.println("capacity >= " + Util.df(capacity)
 					+ "/s; (response_rate=" + Util.df(responseRate)
@@ -786,7 +827,7 @@ public class TESTPaxosClient {
 		System.out
 				.println("capacity <= "
 						+ Util.df(Math.max(capacity, load))
-						+ " because"
+						+ ", stopping probes because"
 						+ (capacity < threshold * load ? " response_rate was less than 95% of injected load"
 								+ Util.df(load) + "/s; "
 								: "")
@@ -798,7 +839,7 @@ public class TESTPaxosClient {
 								: "")
 						+ (loadIncreaseFactor < minLoadIncreaseFactor ? " capacity is within "
 								+ Util.df((minLoadIncreaseFactor - 1) * 100)
-								+ "% of next load level;"
+								+ "% of next probe load level;"
 								: "")
 						+ (consecutiveFailures > Config
 								.getGlobalInt(TC.PROBE_MAX_CONSECUTIVE_FAILURES) ? " too many consecutive failures;"
@@ -807,6 +848,12 @@ public class TESTPaxosClient {
 								+ PROBE_MAX_RUNS + " runs;" : ""));
 		return responseRate;
 	}
+	
+	private static void waitUntilRunDone() throws InterruptedException {
+		synchronized(TESTPaxosClient.class) {
+			while(!runDone) TESTPaxosClient.class.wait();
+		}
+	}
 
 	protected static void twoPhaseTest(int numReqs, TESTPaxosClient[] clients)
 			throws InterruptedException, JSONException, IOException,
@@ -814,7 +861,8 @@ public class TESTPaxosClient {
 		// begin first run
 		long t1 = System.currentTimeMillis();
 		sendTestRequests(numReqs, clients, TOTAL_LOAD);
-		waitForResponses(clients, t1);
+		// waitForResponses(clients, t1);
+		waitUntilRunDone();
 		long t2 = System.currentTimeMillis();
 		System.out.println("\n[run1]" + getAggregateOutput(t2 - t1));
 		// end first run
@@ -825,7 +873,8 @@ public class TESTPaxosClient {
 		// begin second run
 		t1 = System.currentTimeMillis();
 		sendTestRequests(numReqs, clients, TOTAL_LOAD);
-		waitForResponses(clients, t1);
+		// waitForResponses(clients, t1);
+		waitUntilRunDone();
 		t2 = System.currentTimeMillis();
 		printOutput(clients); // printed only after second
 		System.out.println("\n[run2] " + getAggregateOutput(t2 - t1));

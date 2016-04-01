@@ -188,9 +188,10 @@ public class TESTPaxosConfig {
 
 		/**
 		 * Fraction of load above which the response rate must be for the
-		 * capacity probe to be considered successful.
+		 * capacity probe to be considered successful. This does not 
+		 * mean anything except that the run will be marked "FAILED".
 		 */
-		PROBE_LOAD_THRESHOLD(0.95),
+		PROBE_RESPONSE_THRESHOLD(0.9),
 
 		/**
 		 * Factor by which capacity probe load will be increased in each step.
@@ -207,12 +208,18 @@ public class TESTPaxosConfig {
 		 * Maximum number of consecutive failures afte which a capacity probe
 		 * will be given up.
 		 */
-		PROBE_MAX_CONSECUTIVE_FAILURES(8), 
-		
+		PROBE_MAX_CONSECUTIVE_FAILURES(8),
+
 		/**
 		 * Stop after these many probe runs.
 		 */
-		PROBE_MAX_RUNS (50), ;
+		PROBE_MAX_RUNS(50),
+
+		/**
+		 * Maximum time for which the client will wait for all responses 
+		 * to come back.
+		 */
+		MAX_RESPONSE_WAIT_TIME(60 * 1000), ;
 
 		final Object defaultValue;
 

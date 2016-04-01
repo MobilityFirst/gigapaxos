@@ -14,7 +14,7 @@ SSH_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty \
 KILL_TARGET=TESTPaxosMain
 kill -9 `ps -ef|grep $KILL_TARGET|grep -v grep|awk '{print $2}'` 2>/dev/null
 
-java -Xprof -ea -Xms4096M -cp $CLASSPATH -DgigapaxosConfig=$1 \
+java -ea -Xms4096M -cp $CLASSPATH -DgigapaxosConfig=$1 \
 -DtestingConfig=$2 \
 -Djava.util.logging.config.file=logging.properties \
 $SSH_OPTIONS edu.umass.cs.gigapaxos.testing.TESTPaxosMain -c #2>$LOGFILE

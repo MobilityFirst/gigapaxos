@@ -133,7 +133,7 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 		String stringified = jsonified.toString();
 
 		if (ENABLE_INSTRUMENTATION && msg.getType() == PaxosPacketType.ACCEPT
-				&& Util.oneIn(Integer.MAX_VALUE)) {
+				&& Util.oneIn(100)) {
 			DelayProfiler.updateDelayNano("acceptStringification", t,
 					((RequestPacket) msg).batchSize());
 			t = System.nanoTime();
