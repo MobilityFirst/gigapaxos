@@ -136,8 +136,7 @@ so roughly a third of the requests will be lost with a single failure.
     bin/gpServer.sh stop 101
 
 Next, browse through the methods in <tt>NooPaxosAppClient</tt>'s parent 
-<tt>PaxosClientAsync</tt> at
-<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/PaxosClientAsync.java>
+[PaxosClientAsync.java] (<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/PaxosClientAsync.java>)
 and use one of the <tt>sendRequest</tt> methods therein to direct all requests 
 to a specific active server and verify that all requests (almost always) succeed 
 despite a single active failure. You can also verify that with two failures, no
@@ -160,7 +159,7 @@ documentation therein below:
 
 [NoopApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>)
 
-[NoopAppClient](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
+[NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
 
 Repeat the same failure scenario as above and verify that the
 actives exhibit the same liveness properties as before.
