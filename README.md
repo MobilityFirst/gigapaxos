@@ -121,11 +121,11 @@ The <tt>NoopPaxosAppClient</tt> client will simply send a few requests to the
 servers, wait for the responses, and print them on the console. The client
 is really simple and illustrates how to send callback-based requests. You
 can view its source here: 
-<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/examples/noop/NoopPaxosClient.java>
+[NoopPaxosClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/examples/noop/NoopPaxosClient.java>)
 
-<tt>NoopPaxosApp</tt> is also a trivial instantiation of <tt>Replicable</tt> 
+<tt>NoopPaxosApp</tt> is a trivial instantiation of <tt>Replicable</tt> 
 and its source is here:
-<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/examples/noop/NoopPaxosApp.java>
+[NoopPaxosApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/examples/noop/NoopPaxosApp.java>)
 
 You can verify that stopping one of the actives as follows will not affect the 
 system's liveness, however, any requests going to the failed server will of 
@@ -158,9 +158,9 @@ application must implement slightly different semantics from just a
 the source of <tt>NoopApp</tt> and <tt>NoopAppClient</tt> and the 
 documentation therein below:
 
-<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>
+[NoopApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>)
 
-<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>
+[NoopAppClient](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
 
 Repeat the same failure scenario as above and verify that the
 actives exhibit the same liveness properties as before.
