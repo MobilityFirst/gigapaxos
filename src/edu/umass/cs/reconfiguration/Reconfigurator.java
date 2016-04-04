@@ -183,10 +183,17 @@ public class Reconfigurator<NodeIDType> implements
 				this.protocolTask);
 		this.commitWorker = new CommitWorker<NodeIDType>(this.DB, null);
 		this.initFinishPendingReconfigurations();
-		this.initClientMessenger(false);
-		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
-			this.messenger
-					.setSSLClientMessenger(this.initClientMessenger(true));
+                // Westy was here (MOB-631)
+                if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR) {
+                     this.initClientMessenger(true);
+                } else {
+                     this.initClientMessenger(false);
+                }
+//		this.initClientMessenger(false);
+//		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
+//			this.messenger
+//					.setSSLClientMessenger(this.initClientMessenger(true));
+  
 		assert (this.getClientMessenger() != null || this
 				.clientFacingPortIsMyPort());
 
