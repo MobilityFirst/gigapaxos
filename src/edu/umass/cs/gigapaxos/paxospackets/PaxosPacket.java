@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,18 +12,23 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxospackets;
 
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.logging.Level;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.utils.Config;
 
 /**
  * 
@@ -171,12 +175,10 @@ public abstract class PaxosPacket extends JSONPacket {
 		E
 	}
 
-	/*
-	 * Every PaxosPacket has a minimum of the following three fields. The fields
+	/* Every PaxosPacket has a minimum of the following three fields. The fields
 	 * paxosID and version are preserved across inheritances, e.g.,
 	 * ProposalPacket gets them from the corresponding RequestPacket it is
-	 * extending.
-	 */
+	 * extending. */
 	protected PaxosPacketType packetType;
 	protected String paxosID = null;
 	protected int version = -1;
@@ -373,8 +375,7 @@ public abstract class PaxosPacket extends JSONPacket {
 		return null;
 	}
 
-	/*
-	 * PaxosPacket has no no-arg constructor for a good reason. All classes
+	/* PaxosPacket has no no-arg constructor for a good reason. All classes
 	 * extending PaxosPacket must in their constructors invoke super(JSONObject)
 	 * or super(PaxosPacket) as a PaxosPacket is typically created only in one
 	 * of those two ways. If a PaxosPacket is being created from nothing, the
@@ -385,8 +386,7 @@ public abstract class PaxosPacket extends JSONPacket {
 	 * new PaxosPacket internally and consume it internally within a paxos
 	 * instance. A PaxosPacket that is coming in and, by consequence, any
 	 * PaxosPacket that has been sent out of a paxos instance will have a good
-	 * paxosID, so we don't need to worry about those.
-	 */
+	 * paxosID, so we don't need to worry about those. */
 	protected PaxosPacket(PaxosPacket pkt) {
 		super(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 		if (pkt != null) {
@@ -425,6 +425,45 @@ public abstract class PaxosPacket extends JSONPacket {
 				this.version = (Integer) json
 						.get(PaxosPacket.Keys.V.toString());
 		}
+	}
+
+	protected static String CHARSET = "ISO-8859-1";
+	protected static final boolean BYTEIFICATION = Config
+			.getGlobalBoolean(PC.BYTEIFICATION);
+
+	protected PaxosPacket(ByteBuffer bbuf) throws UnsupportedEncodingException,
+			UnknownHostException {
+		super(PaxosPacketType.PAXOS_PACKET);
+
+		bbuf.getInt(); // packet type
+		this.packetType = PaxosPacketType.getPaxosPacketType(bbuf.getInt());
+		this.version = bbuf.getInt();
+		byte paxosIDLength = bbuf.get();
+		byte[] paxosIDBytes = new byte[paxosIDLength];
+		bbuf.get(paxosIDBytes);
+		this.paxosID = paxosIDBytes.length > 0 ? new String(paxosIDBytes,
+				CHARSET) : null;
+		int exactLength = (4 + 4 + 4 + 1 + paxosIDBytes.length);
+		assert (bbuf.position() == exactLength);
+	}
+
+	protected static final int SIZEOF_PAXOSPACKET_FIXED = 4 + 4 + 4 + 1;
+
+	protected ByteBuffer toBytes(ByteBuffer bbuf)
+			throws UnsupportedEncodingException {
+		// paxospacket stuff
+		bbuf.putInt(PaxosPacket.PaxosPacketType.PAXOS_PACKET.getInt()); // type
+		bbuf.putInt(this.packetType.getInt()); // paxos type
+		bbuf.putInt(this.version);
+		// paxosID length followed by paxosID
+		byte[] paxosIDBytes = this.paxosID != null ? this.paxosID
+				.getBytes(CHARSET) : new byte[0];
+		bbuf.put((byte) paxosIDBytes.length);
+		bbuf.put(paxosIDBytes);
+		assert (bbuf.position() == SIZEOF_PAXOSPACKET_FIXED
+				+ paxosIDBytes.length) : bbuf.position() + " != "
+				+ SIZEOF_PAXOSPACKET_FIXED + paxosIDBytes.length;
+		return bbuf;
 	}
 
 	public JSONObject toJSONObject() throws JSONException {
@@ -500,6 +539,48 @@ public abstract class PaxosPacket extends JSONPacket {
 	 */
 	public int getVersion() {
 		return this.version;
+	}
+
+	interface GetType {
+		public Class<?> getType();
+	}
+
+	protected static boolean isStatic(Field field) {
+		String[] tokens = field.toString().split("\\s+");
+		for (String token : tokens)
+			if (token.equals("static"))
+				return true;
+		return false;
+	}
+
+	// to prevent unintentional field sequence modifications
+	static void checkFields(Class<?> clazz, GetType[] expFields) {
+		Field[] fields = clazz.getDeclaredFields();
+		boolean print = edu.umass.cs.gigapaxos.PaxosManager.getLogger()
+				.isLoggable(Level.FINE);
+		if (print)
+			System.out.println("Checking fields for " + clazz);
+		for (int i = 0, j = 0; i < fields.length; j += (isStatic(fields[i]) ? 0
+				: 1), i++) {
+			if (isStatic(fields[i]))
+				continue;
+			if (j >= expFields.length)
+				break;
+			if (print)
+				System.out.println("    " + fields[j]);
+			boolean match = true;
+			String field = fields[i].getName();
+			// String[] tokens = fields[i].toString().split("\\s+");
+			// String type = tokens[tokens.length - 2];
+			Class<?> type = fields[i].getType();
+			match = match && field.equals(expFields[j].toString())
+					&& type.equals(expFields[j].getType());
+			if (!match)
+				throw new RuntimeException("Field " + i + " = " + type + " "
+						+ field + " does not match expected "
+						+ expFields[j].getType() + " "
+						+ expFields[j].toString());
+		}
 	}
 
 	/**
@@ -644,5 +725,28 @@ public abstract class PaxosPacket extends JSONPacket {
 		return paxosPacket;
 
 	}
+
+	/**
+	 * @param bytes
+	 * @return True if first 8 bytes correspond to a legitimate PaxosPacketType.
+	 */
+	public static boolean isParseable(byte[] bytes) {
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, 8);
+		return bbuf.getInt() == PaxosPacketType.PAXOS_PACKET.getInt()
+				&& PaxosPacketType.getPaxosPacketType(bbuf.getInt()) != null;
+	}
+
+	/**
+	 * @param bytes
+	 * @return PaxosPacketType if parseable as bytes.
+	 */
+	public static PaxosPacketType getType(byte[] bytes) {
+		PaxosPacketType type = null;
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, 8);
+		return bbuf.getInt() == PaxosPacketType.PAXOS_PACKET.getInt()
+				&& (type = PaxosPacketType.getPaxosPacketType(bbuf.getInt())) != null ? type
+				: null;
+	}
+
 	/************* End of type-specific methods *******************/
 }

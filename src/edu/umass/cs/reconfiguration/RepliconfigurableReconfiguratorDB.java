@@ -101,6 +101,13 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 						.preExecuted(request);
 			}
 		});
+
+		log.log(Level.INFO,
+				"{0} after recovery has node config records = {1}",
+				new Object[] {
+						this,
+						((SQLReconfiguratorDB<NodeIDType>) this.app)
+								.getNodeConfigRecords(this.consistentNodeConfig) });
 	}
 
 	// needed by Reconfigurator

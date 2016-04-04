@@ -78,10 +78,6 @@ public class TESTPaxosMain {
 		}
 	}
 
-	private static String getAggregateOutput(long t1, long t2) {
-		return TESTPaxosClient.getAggregateOutput(t2 - t1) + "\n  "
-				+ DelayProfiler.getStats() + "\n  ";
-	}
 
 	static long t = System.currentTimeMillis();
 
@@ -120,26 +116,8 @@ public class TESTPaxosMain {
 
 			Thread.sleep(2000);
 
-			// begin first run
-			long t1 = System.currentTimeMillis();
-			TESTPaxosClient.sendTestRequests(numReqs, clients, Config.getGlobalDouble(TC.TOTAL_LOAD));
-			//TESTPaxosClient.waitForResponses(clients, t1);
-			long t2 = System.currentTimeMillis();
-			System.out.println("\n[run1]" + getAggregateOutput(t1, t2));
-			// end first run
-
-			assert (TESTPaxosClient.noOutstanding(clients));
-			TESTPaxosClient.resetLatencyComputation(clients);
-			Thread.sleep(1000);
-
-			// begin second run
-			t1 = System.currentTimeMillis();
-			TESTPaxosClient.sendTestRequests(numReqs, clients, Config.getGlobalDouble(TC.TOTAL_LOAD));
-			//TESTPaxosClient.waitForResponses(clients, t1);
-			t2 = System.currentTimeMillis();
-			TESTPaxosClient.printOutput(clients);
-			System.out.println("[run2]" + getAggregateOutput(t1, t2));
-			// end second run
+			Config.getConfig(TC.class).put(TC.PROBE_CAPACITY.toString(), false);
+			TESTPaxosClient.twoPhaseTest(numReqs, clients);
 
 			// sleep for a bit to ensure all replicas get everything
 			Thread.sleep(2000);

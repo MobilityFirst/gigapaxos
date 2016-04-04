@@ -648,8 +648,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		} catch (OverloadException re) {
 			PaxosPacketDemultiplexer.throttleExcessiveLoad();
 		}
-		if (Util.oneIn(Integer.MAX_VALUE))
-			DelayProfiler.updateDelay("appHandleIncoming@AR", t1);
+		//if (Util.oneIn(Integer.MAX_VALUE))
+			//DelayProfiler.updateDelay("appHandleIncoming@AR", t1);
 		return handled;
 	}
 

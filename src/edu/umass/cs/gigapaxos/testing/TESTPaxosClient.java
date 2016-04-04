@@ -16,8 +16,10 @@
 package edu.umass.cs.gigapaxos.testing;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Timer;
@@ -31,21 +33,27 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import net.minidev.json.JSONValue;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxosutil.RateLimiter;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
+import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONNIOTransport;
+import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.NodeConfig;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
@@ -126,7 +134,7 @@ public class TESTPaxosClient {
 			client.runReplyCount = 0;
 	}
 
-	private MessageNIOTransport<Integer, JSONObject> niot;
+	private MessageNIOTransport<Integer, Object> niot;
 	private final NodeConfig<Integer> nc;
 	private final int myID;
 	private int totReqCount = 0;
@@ -193,8 +201,9 @@ public class TESTPaxosClient {
 	}
 
 	/******** Start of ClientPacketDemultiplexer ******************/
+	
 	private class ClientPacketDemultiplexer extends
-			AbstractJSONPacketDemultiplexer {
+			AbstractPacketDemultiplexer<Object> {
 		private final TESTPaxosClient client;
 
 		private ClientPacketDemultiplexer(TESTPaxosClient tpc) {
@@ -204,10 +213,15 @@ public class TESTPaxosClient {
 			this.setThreadName("" + tpc.myID);
 		}
 
-		public boolean handleMessage(JSONObject msg) {
+		public boolean handleMessage(Object msg) {
+			assert (msg instanceof RequestPacket);
+			return this.handleMessage((RequestPacket) msg);
+		}
+
+		public boolean handleMessage(RequestPacket request) {
 			// long t = System.nanoTime();
 			try {
-				RequestPacket request = new RequestPacket(msg);
+				// RequestPacket request = new RequestPacket(msg);
 				RequestAndCreateTime sentRequest = requests.remove(request
 						.getRequestID());
 				if (sentRequest != null) {
@@ -252,14 +266,56 @@ public class TESTPaxosClient {
 				if (request.isNoop())
 					client.incrNoopCount();
 				// requests.remove(request.requestID);
-			} catch (JSONException je) {
-				log.severe(this + " incurred JSONException while processing "
-						+ msg);
+			} catch (Exception je) {
+				log.severe(this + " incurred Exception while processing "
+						+ request.getSummary());
 				je.printStackTrace();
 			}
 			// if (Util.oneIn(100))
 			// DelayProfiler.updateDelayNano("handleMessage", t);
 			return true;
+		}
+
+		@Override
+		protected Integer getPacketType(Object message) {
+			assert (message instanceof RequestPacket);
+			return message != null ? PaxosPacket.PaxosPacketType.PAXOS_PACKET
+					.getInt() : null;
+		}
+
+		@Override
+		protected Object getMessage(byte[] message) {
+			assert(false); 
+			return null;
+		}
+
+		@Override
+		protected Object processHeader(byte[] message, NIOHeader header) {
+			PaxosPacketType type = PaxosPacket.getType(message);
+			if (type != null) {
+				assert (type == PaxosPacketType.REQUEST);
+				try {
+					return new RequestPacket(message);
+				} catch (UnsupportedEncodingException | UnknownHostException e) {
+					e.printStackTrace();
+					return null;
+				}
+			}
+			
+			try {
+				return new RequestPacket(
+						(net.minidev.json.JSONObject) JSONValue
+								.parse(MessageExtractor.decode(message)));
+			} catch (UnsupportedEncodingException | JSONException e) {
+				e.printStackTrace();
+			}
+			return null;
+		}
+
+		@Override
+		protected boolean matchesType(Object message) {
+			// TODO Auto-generated method stub
+			return false;
 		}
 	}
 
@@ -307,7 +363,7 @@ public class TESTPaxosClient {
 			throws IOException {
 		this.myID = id;
 		this.nc = (nc == null ? TESTPaxosConfig.getNodeConfig() : nc);
-		niot = (new MessageNIOTransport<Integer, JSONObject>(id, this.nc,
+		niot = (new MessageNIOTransport<Integer, Object>(id, this.nc,
 				(new ClientPacketDemultiplexer(this)), true,
 				SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 						.getGlobalString(PC.CLIENT_SSL_MODE))));
@@ -315,8 +371,9 @@ public class TESTPaxosClient {
 
 		synchronized (TESTPaxosClient.class) {
 			if (executor == null || executor.isShutdown())
+				// one extra thread for response tracker
 				executor = (ScheduledThreadPoolExecutor) Executors
-						.newScheduledThreadPool(SEND_POOL_SIZE+1);
+						.newScheduledThreadPool(SEND_POOL_SIZE + 1);
 		}
 	}
 
@@ -369,7 +426,7 @@ public class TESTPaxosClient {
 		this.incrReqCount();
 
 		// no retransmission send
-		while (this.niot.sendToID(id, req.toJSONObject()) <= 0) {
+		while (this.niot.sendToID(id, req) <= 0) {
 			try {
 				Thread.sleep(req.lengthEstimate() / RequestPacket.SIZE_ESTIMATE
 						+ 1);
@@ -518,13 +575,18 @@ public class TESTPaxosClient {
 			.getGlobalDouble(TC.TOTAL_LOAD))
 			+ Config.getGlobalInt(TC.MAX_RESPONSE_WAIT_TIME);
 
-	private static void initResponseTracker(TESTPaxosClient[] clients) {
+	private static void initResponseTracker(TESTPaxosClient[] clients,
+			int numRequests) {
 		executor.submit(new Runnable() {
 
 			@Override
 			public void run() {
-				System.exit(1);
-				waitForResponses(clients, System.currentTimeMillis());
+				try {
+					waitForResponses(clients, System.currentTimeMillis(),
+							numRequests);
+				} catch (Exception | Error e) {
+					e.printStackTrace();
+				}
 			}
 		});
 	}
@@ -535,12 +597,13 @@ public class TESTPaxosClient {
 		System.out.print("\nTesting " + "[#requests=" + numReqs
 				+ ", request_size=" + gibberish.length() + "B, #clients="
 				+ clients.length + ", #groups=" + NUM_GROUPS + ", load="
-				+ Util.df(load) + "/s" + "]...");
+				+ Util.df(load) + "/s" + "]"
+				+ (Config.getGlobalBoolean(TC.PROBE_CAPACITY) ? "" : "\n"));
 
 		Future<?>[] futures = new Future<?>[SEND_POOL_SIZE];
-		//assert (executor.getCorePoolSize() == SEND_POOL_SIZE);
+		// assert (executor.getCorePoolSize() == SEND_POOL_SIZE);
 		if (!Config.getGlobalBoolean(TC.PROBE_CAPACITY))
-			initResponseTracker(clients);
+			initResponseTracker(clients, numReqs);
 		long initTime = System.currentTimeMillis();
 		// if (TOTAL_LOAD > LOAD_THRESHOLD)
 		{
@@ -573,16 +636,16 @@ public class TESTPaxosClient {
 		// all done sending if here
 		mostRecentSentRate = numReqs * 1000.0
 				/ (System.currentTimeMillis() - initTime);
-		System.out
-				.println("done "
-						+ ("sending "
-								+ numReqs
-								+ " requests in "
-								+ Util.df((System.currentTimeMillis() - initTime) / 1000.0)
-								+ " secs; estimated average_sent_rate = "
-								+ Util.df(mostRecentSentRate) + "/s"
-						// + " \n "+ reqCounts
-						));
+		System.out.println((Config.getGlobalBoolean(TC.PROBE_CAPACITY) ? "..."
+				: "")
+				+ "done sending "
+				+ numReqs
+				+ " requests in "
+				+ Util.df((System.currentTimeMillis() - initTime) / 1000.0)
+				+ " secs; estimated average_sent_rate = "
+				+ Util.df(mostRecentSentRate) + "/s"
+		// + " \n "+ reqCounts
+				);
 
 	}
 
@@ -615,14 +678,10 @@ public class TESTPaxosClient {
 	}
 
 	protected static void waitForResponses(TESTPaxosClient[] clients,
-			long startTime) {
-		waitForResponses(clients, startTime, false);
-	}
-
-	protected static void waitForResponses(TESTPaxosClient[] clients,
-			long startTime, boolean warmup) {
+			long startTime, int numRequests) {
 		for (int i = 0; i < Config.getGlobalInt(TC.NUM_CLIENTS); i++) {
-			while (clients[i].requests.size() > 0) {
+			while ((numResponses < numRequests)
+					|| (clients[i].requests.size() > 0)) {
 				synchronized (clients[i]) {
 					if (clients[i].requests.size() > 0)
 						try {
@@ -631,47 +690,57 @@ public class TESTPaxosClient {
 							e.printStackTrace();
 						}
 				}
-				System.out
-						.println("["
-								+ clients[i].myID
-								+ "] "
-								+ getWaiting(clients)
-								+ (getRtxCount() > 0 ? "; #num_total_retransmissions = "
-										+ getRtxCount()
-										: "")
-								+ (getRtxCount() > 0 ? "; num_retransmitted_requests = "
-										+ getNumRtxReqs()
-										: "")
-								+ (!warmup ? "; aggregate response rate = "
-										+ Util.df(getTotalThroughput(clients,
-												startTime)) + " reqs/sec" : "")
-								+ "; time = "
-								+ (System.currentTimeMillis() - startTime)
-								+ " ms");
-				if (System.currentTimeMillis() - startTime > MAX_WAIT_TIME)
+				if (System.currentTimeMillis() - startTime > 1000)
+					System.out
+							.println("["
+									+ clients[i].myID
+									+ "] "
+									+ getWaiting(clients)
+									+ (getRtxCount() > 0 ? "; #num_total_retransmissions = "
+											+ getRtxCount()
+											: "")
+									+ (getRtxCount() > 0 ? "; num_retransmitted_requests = "
+											+ getNumRtxReqs()
+											: "")
+									+ ("; aggregate response rate = "
+											+ Util.df(getTotalThroughput(
+													clients, startTime)) + " reqs/sec")
+									+ "; time = "
+									+ (System.currentTimeMillis() - startTime)
+									+ " ms");
+				if (System.currentTimeMillis() - startTime > MAX_WAIT_TIME) {
+					String err = ("Timing out after having received "
+							+ numResponses + " responses for " + numRequests + " requests");
+					System.out.println(err);
+					log.warning(err);
 					break;
-				if (clients[i].requests.size() > 0)
-					try {
-						Thread.sleep(1000);
-						// System.out.println(DelayProfiler.getStats());
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
+				}
+				// if (clients[i].requests.size() > 0)
+				try {
+					Thread.sleep(1000);
+					// System.out.println(DelayProfiler.getStats());
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		}
-		synchronized(TESTPaxosClient.class) {
-			runDone = true;
+		runDone = true;
+		assert (numResponses >= numRequests && noOutstanding(clients)) : numResponses
+				+ " responses received for " + numRequests + " requests";
+		synchronized (TESTPaxosClient.class) {
 			TESTPaxosClient.class.notify();
 		}
+		assert (numResponses >= numRequests && noOutstanding(clients));
 	}
-	
+
 	private static boolean runDone = false;
-	
 
 	protected static boolean noOutstanding(TESTPaxosClient[] clients) {
 		boolean noOutstanding = true;
 		for (TESTPaxosClient client : clients)
-			noOutstanding = noOutstanding && client.noOutstanding();
+			if (!(noOutstanding = noOutstanding && client.noOutstanding()))
+				System.out.println(client + " has " + client.requests.size()
+						+ " outstanding requests");
 		return noOutstanding;
 	}
 
@@ -691,7 +760,7 @@ public class TESTPaxosClient {
 			s += "C" + i + ":" + clients[i].requests.size() + " ";
 			total += clients[i].requests.size();
 		}
-		s += "]";
+		s += "]; numResponses = " + numResponses;
 		return total + s;
 	}
 
@@ -735,7 +804,8 @@ public class TESTPaxosClient {
 						/ (delay - (System.currentTimeMillis() - lastResponseReceivedTime)))
 				+ "/s"
 
-				+ "\n  noop_count = " + TESTPaxosClient.getTotalNoopCount();
+				+ "\n  noop_count = " + TESTPaxosClient.getTotalNoopCount()
+				+ "\n  " + DelayProfiler.getStats() + "\n  ";
 	}
 
 	private static final int NUM_REQUESTS = Config
@@ -848,10 +918,11 @@ public class TESTPaxosClient {
 								+ PROBE_MAX_RUNS + " runs;" : ""));
 		return responseRate;
 	}
-	
-	private static void waitUntilRunDone() throws InterruptedException {
-		synchronized(TESTPaxosClient.class) {
-			while(!runDone) TESTPaxosClient.class.wait();
+
+	protected static void waitUntilRunDone() throws InterruptedException {
+		synchronized (TESTPaxosClient.class) {
+			while (!runDone)
+				TESTPaxosClient.class.wait();
 		}
 	}
 
@@ -898,9 +969,9 @@ public class TESTPaxosClient {
 
 			// begin warmup run
 			long t1 = System.currentTimeMillis();
-			sendTestRequests(Math.min(numReqs, 10 * NUM_CLIENTS), clients,
-					true, 10 * NUM_CLIENTS);
-			waitForResponses(clients, t1);
+			int numWarmupRequests = Math.min(numReqs, 10 * NUM_CLIENTS);
+			sendTestRequests(numWarmupRequests, clients, true, 10 * NUM_CLIENTS);
+			waitForResponses(clients, t1, numWarmupRequests);
 			System.out.println("[success]");
 			// end warmup run
 

@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
 import java.util.HashMap;
@@ -23,6 +21,8 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -49,6 +49,8 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 	private final HashMap<String, LinkedBlockingQueue<RequestPacket>> batched;
 	private final PaxosManager<?> paxosManager;
 	private static double agreementLatency = 0;
+
+	private static Logger log = PaxosManager.getLogger();
 
 	/**
 	 * @param lock
@@ -78,11 +80,11 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 		this.paxosManager.proposeBatched(task);
 	}
 
-
 	protected synchronized static void updateSleepDuration(long entryTime) {
-		agreementLatency = Util.movingAverage(((double) (System.currentTimeMillis() - entryTime)),
+		agreementLatency = Util.movingAverage(
+				((double) (System.currentTimeMillis() - entryTime)),
 				agreementLatency);
-		if (Util.oneIn(10))
+		if (ENABLE_INSTRUMENTATION && Util.oneIn(10))
 			DelayProfiler.updateDelay("latency", entryTime);
 	}
 
@@ -93,7 +95,7 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 				+ this.paxosManager.getMyID());
 		me.start();
 	}
-	
+
 	private int avgNumQGroups = 1;
 
 	// max time for which the dequeueing thread will wait
@@ -103,65 +105,71 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 	// max queued groups after which we stop any batch sleeps
 	private static final int MAX_GROUPS_FOR_BATCH_SLEEP = 5;
 	// FIXME: currently not actually used in throttleExcessiveLoad
-	private static final int MAX_QUEUED_REQUESTS = Config.getGlobalInt(PC.MAX_OUTSTANDING_REQUESTS);
+	private static final int MAX_QUEUED_REQUESTS = Config
+			.getGlobalInt(PC.MAX_OUTSTANDING_REQUESTS);
+
 	@Override
 	public void enqueueImpl(RequestPacket task) {
 		this.setSleepDuration(this.computeSleepDuration());
 
 		// increase outstanding count by requests entering through me
-		//this.paxosManager.incrNumOutstanding(task.setEntryReplicaAndReturnCount(this.paxosManager.getMyID()));
-		this.paxosManager.incrOutstanding(task.addDebugInfo("b", this.paxosManager.getMyID()));
-		
+		// this.paxosManager.incrNumOutstanding(task.setEntryReplicaAndReturnCount(this.paxosManager.getMyID()));
+		this.paxosManager.incrOutstanding(task.addDebugInfo("b",
+				this.paxosManager.getMyID()));
+
 		LinkedBlockingQueue<RequestPacket> taskList = this.batched.get(task
 				.getPaxosID());
 		if (taskList == null)
 			taskList = new LinkedBlockingQueue<RequestPacket>();
 		taskList.add(task);
 		this.batched.put(task.getPaxosID(), taskList);
-		this.queueSize += task.batchSize()+1;
-		this.avgNumQGroups = (int)Util.movingAverage(this.batched.size(), this.avgNumQGroups);
+		this.queueSize += task.batchSize() + 1;
+		this.avgNumQGroups = (int) Util.movingAverage(this.batched.size(),
+				this.avgNumQGroups);
 		this.throttleExcessiveLoad();
 	}
-	
+
 	private double computeSleepDuration() {
 		return (Math.max(this.avgNumQGroups, this.batched.size()) < MAX_GROUPS_FOR_BATCH_SLEEP ? Math
 				.min(MAX_BATCH_SLEEP_DURATION, MIN_BATCH_SLEEP_DURATION
 						+ agreementLatency * BATCH_OVERHEAD)
 				/ (Math.max(this.avgNumQGroups, this.batched.size())) : 0);
 	}
-	
+
 	protected int getQueueSize() {
 		return this.queueSize;
 	}
+
 	private int queueSize = 0;
 
-	/** 
-	 * This load throttling mechanism will propagate the exception so that
-	 * the client facing demultiplexer will catch it and take the necessary
-	 * action to throttle the incoming request load.
+	/**
+	 * This load throttling mechanism will propagate the exception so that the
+	 * client facing demultiplexer will catch it and take the necessary action
+	 * to throttle the incoming request load.
 	 * 
 	 * @param paxosID
 	 */
 	private void throttleExcessiveLoad() {
 		// FIXME: unused
 		if (this.queueSize > MAX_QUEUED_REQUESTS) {
-			//throw new OverloadException("Excessive client request load");
+			// throw new OverloadException("Excessive client request load");
 		}
 	}
-	
+
 	protected static boolean shouldEnqueue() {
 		return agreementLatency > MIN_AGREEMENT_LATENCY_FOR_BATCHING;
 	}
+	
+	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
 
-	/*
-	 * This method extracts a batched request from enqueued requests of batch
-	 * size at most MAX_BATCH_SIZE.
-	 */
+
+	/* This method extracts a batched request from enqueued requests of batch
+	 * size at most MAX_BATCH_SIZE. */
 	@Override
 	public RequestPacket dequeueImpl() {
 		if (this.batched.isEmpty())
 			return null;
-		
+
 		// pluck first list (each grouped by paxosID)
 		Iterator<Entry<String, LinkedBlockingQueue<RequestPacket>>> mapEntryIter = this.batched
 				.entrySet().iterator();
@@ -177,8 +185,7 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 
 		// then pluck the rest into a batch within the first request
 		Set<RequestPacket> batch = new HashSet<RequestPacket>();
-		/*
-		 * totalByteLength must be less than SQLPaxosLogger.MAX_LOG_MESSAGE_SIZE
+		/* totalByteLength must be less than SQLPaxosLogger.MAX_LOG_MESSAGE_SIZE
 		 * that specifies the maximum length of a paxos log message. We use the
 		 * method lengthEstimate() below that is a loose upper bound on the
 		 * actual length. It is better to be conservative instead of computing
@@ -188,8 +195,7 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 		 * additional fields as a request packet morphs into a logged accept or
 		 * decision. It is much cleaner to prevent exceptions in
 		 * AbstractPaxosLogger.logBatch(.) by being cautious here than trying to
-		 * salvage the batch or dropping the whole batch in the logger.
-		 */
+		 * salvage the batch or dropping the whole batch in the logger. */
 		int totalByteLength = first.lengthEstimate();
 		int totalBatchSize = first.batchSize() + 1;
 		while (reqPktIter.hasNext()) {
@@ -217,10 +223,14 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 		if (firstEntry.getValue().isEmpty())// !reqPktIter.hasNext())
 			mapEntryIter.remove();
 
-		if (Util.oneIn(20)) 
+		if (ENABLE_INSTRUMENTATION && Util.oneIn(20))
 			DelayProfiler.updateMovAvg("#queued", queueSize);
 		assert (first.batchSize() < MAX_BATCH_SIZE);
-		queueSize -= (first.batchSize()+1);
+		queueSize -= (first.batchSize() + 1);
+		Level level = Level.FINE;
+		log.log(level, "{0} dequeueing request {1}",
+				new Object[] { this, first.getSummary(log.isLoggable(level)) });
+
 		return first;
 	}
 }

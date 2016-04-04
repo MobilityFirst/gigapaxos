@@ -50,9 +50,11 @@ import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.JSONPacket;
+import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
@@ -79,6 +81,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -336,8 +339,8 @@ public class PaxosManager<NodeIDType> {
 		open();
 		// so paxos packets will come to me
 		niot.addPacketDemultiplexer(Config.getGlobalString(PC.JSON_LIBRARY)
-				.equals("org.json") ? new PaxosPacketDemultiplexerJSON()
-				: new PaxosPacketDemultiplexerJSONSmart());
+				.equals("org.json") ? new JSONDemultiplexer()
+				: new FastDemultiplexer());
 		initiateRecovery();
 		if (!Config.getGlobalBoolean(PC.DELAY_PROFILER))
 			DelayProfiler.disable();
@@ -684,15 +687,16 @@ public class PaxosManager<NodeIDType> {
 	private final boolean ORDER_PRESERVING_REQUESTS = Config
 			.getGlobalBoolean(PC.ORDER_PRESERVING_REQUESTS);
 
-	class PaxosPacketDemultiplexerJSON extends AbstractJSONPacketDemultiplexer {
+	// older demultiplexer based purely on JSON
+	class JSONDemultiplexer extends AbstractJSONPacketDemultiplexer {
 
 		private final boolean clientFacing;
 
-		public PaxosPacketDemultiplexerJSON() {
+		public JSONDemultiplexer() {
 			this(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS), false);
 		}
 
-		public PaxosPacketDemultiplexerJSON(int numThreads, boolean clientFacing) {
+		public JSONDemultiplexer(int numThreads, boolean clientFacing) {
 			super(numThreads);
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 			this.setThreadName(myID + (clientFacing ? "-clientFacing" : ""));
@@ -760,52 +764,77 @@ public class PaxosManager<NodeIDType> {
 		return PaxosManager.this.getNumOutstandingOrQueued() > MAX_OUTSTANDING_REQUESTS;
 	}
 
-	class PaxosPacketDemultiplexerJSONSmart extends
-			edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerJSONSmart {
+	// faster demultiplexer based on byte[] serialization
+	class FastDemultiplexer extends
+			edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast {
 
-		public PaxosPacketDemultiplexerJSONSmart(int numThreads) {
+		public FastDemultiplexer(int numThreads) {
 			super(numThreads);
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 			this.setThreadName("" + myID);
 		}
 
-		public PaxosPacketDemultiplexerJSONSmart() {
+		public FastDemultiplexer() {
 			this(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS));
 		}
 
 		public boolean handleMessage(Object msg) {
 			// long t = System.nanoTime();
-			PaxosManager.log.log(Level.FINEST,
-					"{0} packet demultiplexer received {1}", new Object[] {
-							PaxosManager.this, msg });
 			if (msg instanceof net.minidev.json.JSONObject)
 				try {
+					PaxosPacketType type = null;
 					net.minidev.json.JSONObject jsonMsg = (net.minidev.json.JSONObject) msg;
-					assert (PaxosPacket.getPaxosPacketType(jsonMsg) != PaxosPacketType.ACCEPT || jsonMsg
+					assert ((type = PaxosPacket.getPaxosPacketType(jsonMsg)) != PaxosPacketType.ACCEPT || jsonMsg
 							.containsKey(RequestPacket.Keys.STRINGIFIED
 									.toString()));
-					PaxosManager.this
-							.handleIncomingPacket(edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerJSONSmart
-									.toPaxosPacket(fixNodeStringToInt(jsonMsg),
-											PaxosManager.this.unstringer));
+					Level level = type == PaxosPacketType.REQUEST ? Level.FINE
+							: Level.FINEST;
+					PaxosManager.log.log(
+							level,
+							"{0} packet demultiplexer received {1}",
+							new Object[] {
+									PaxosManager.this,
+									msg });
+					long t = System.nanoTime();
+					PaxosPacket pp = edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast
+							.toPaxosPacket(fixNodeStringToInt(jsonMsg),
+									PaxosManager.this.unstringer);
+
+					if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(100))
+						if (pp.getType() == PaxosPacketType.REQUEST)
+							DelayProfiler.updateDelayNano(
+									"requestPacketization", t);
+
+					PaxosManager.this.handleIncomingPacket(pp);
 					return true;
 				} catch (JSONException e) {
 					log.severe(this + " incurred JSONException while parsing "
 							+ msg);
 					e.printStackTrace();
 				}
-			assert (msg instanceof byte[]);
+
 			try {
+				// else
+				assert (msg instanceof PaxosPacket);
+				PaxosPacketType type = ((PaxosPacket) msg).getType();
+				Level level = type == PaxosPacketType.REQUEST ? Level.FINE
+						: Level.FINEST;
+				PaxosManager.log.log(
+						level,
+						"{0} packet demultiplexer received {1}",
+						new Object[] {
+								PaxosManager.this,
+								((PaxosPacket) msg).getSummary(log
+										.isLoggable(level)) });
+
 				/* FIXME: Need to fixNodeStringToInt. Unclear how to do the
-				 * reverse while sending out. This matters only for the entry
-				 * replica. */
-				PaxosManager.this.handleIncomingPacket(new RequestPacket(
-						(byte[]) msg));
-			} catch (UnsupportedEncodingException | UnknownHostException e) {
+				 * reverse efficiently while sending out messages. So we
+				 * currently byteify paxos packets only when all node IDs are
+				 * integers. */
+				PaxosManager.this.handleIncomingPacket(((PaxosPacket) msg));
+			} catch (Exception | Error e) {
 				e.printStackTrace();
 			}
-			// if(Util.oneIn(100))
-			// DelayProfiler.updateDelayNano("handleIncoming", t);
 			return true;
 		}
 
@@ -865,16 +894,23 @@ public class PaxosManager<NodeIDType> {
 	 * handleIncomingPacketInternal on batched requests. */
 	private void enqueueRequest(PaxosPacket pp) {
 		PaxosPacketType type = pp.getType();
+		Level level = Level.FINEST;
 		if ((type.equals(PaxosPacketType.REQUEST) || type
 				.equals(PaxosPacketType.PROPOSAL))
 				&& RequestBatcher.shouldEnqueue()
 				&& !((RequestPacket) pp).isBroadcasted()) {
-			if (pp.getPaxosID() != null)
+			if (pp.getPaxosID() != null) {
+				log.log(level, "{0} enqueueing request {1}", new Object[] {
+						this, pp.getSummary(log.isLoggable(level)) });
 				this.requestBatcher.enqueue(((RequestPacket) pp));
-			else
+			} else
 				error((RequestPacket) pp);
-		} else
+		} else {
+			log.log(level,
+					"{0} handling paxos packet {1} directly without enqueueuing",
+					new Object[] { this, pp.getSummary(log.isLoggable(level)) });
 			this.handlePaxosPacket(pp);
+		}
 	}
 
 	private void error(RequestPacket req) {
@@ -892,6 +928,7 @@ public class PaxosManager<NodeIDType> {
 		else
 			setProcessing(true);
 
+		Level level = Level.FINEST;
 		PaxosPacketType paxosPacketType;
 		try {
 			// will throw exception if no PAXOS_PACKET_TYPE
@@ -913,12 +950,10 @@ public class PaxosManager<NodeIDType> {
 				PaxosInstanceStateMachine pism = this.getInstance(request
 						.getPaxosID());
 
-				log.log(Level.FINEST,
-						"{0} received paxos message for retrieved instance {1} : {2}",
-						new Object[] {
-								this,
-								pism,
-								request.getSummary(log.isLoggable(Level.FINEST)) });
+				log.log(level, "{0} received paxos message for {1} : {3}",
+						new Object[] { this,
+								pism != null ? pism : "non-existent instance",
+								request.getSummary(log.isLoggable(level)) });
 				if ((pism != null)
 						&& (pism.getVersion() == request.getVersion())
 						&& (!pism.isStopped()))
@@ -1257,10 +1292,8 @@ public class PaxosManager<NodeIDType> {
 								 * threaded to keep clients from overwhelming
 								 * the system with request load. */
 								(Config.getGlobalString(PC.JSON_LIBRARY)
-										.equals("org.json") ? new PaxosPacketDemultiplexerJSON(
-										0, true)
-										: new PaxosPacketDemultiplexerJSONSmart(
-												0)),
+										.equals("org.json") ? new JSONDemultiplexer(
+										0, true) : new FastDemultiplexer(0)),
 								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 										.getGlobalString(PC.CLIENT_SSL_MODE))
 										: SSL_MODES.CLEAR));
@@ -1618,6 +1651,7 @@ public class PaxosManager<NodeIDType> {
 		while (this.paxosLogger.initiateReadMessages())
 			; // acquires lock
 		String paxosPacketString = null;
+		PaxosPacket paxosPacket = null;
 		/**
 		 * Set packetizer for logger. We need this in order to have the benefits
 		 * of caching the original string form of received accepts to reduce
@@ -1644,8 +1678,33 @@ public class PaxosManager<NodeIDType> {
 							return pp;
 						} catch (JSONException e) {
 							e.printStackTrace();
+							try {
+								log.severe(PaxosManager.this
+										+ " unable to decode string of byte length "
+										+ str.getBytes("ISO-8859-1").length);
+							} catch (UnsupportedEncodingException e1) {
+								e1.printStackTrace();
+							}
 						}
 						return null;
+					}
+
+					@Override
+					protected PaxosPacket stringToPaxosPacket(byte[] bytes) {
+						PaxosPacketType type = PaxosPacket.getType(bytes);
+						try {
+							if (type == PaxosPacketType.ACCEPT) {
+								return new AcceptPacket(bytes);
+							}
+							// else
+							return this.stringToPaxosPacket(MessageExtractor
+									.decode(bytes));
+						} catch (UnsupportedEncodingException
+								| UnknownHostException e) {
+							// likely an undecodeable accept
+							e.printStackTrace();
+							return null;
+						}
 					}
 				});
 
@@ -1697,18 +1756,17 @@ public class PaxosManager<NodeIDType> {
 				});
 
 		try {
-			while ((paxosPacketString = this.paxosLogger.readNextMessage()) != null) {
-				PaxosPacket packet = PaxosPacket.markRecovered(PaxosPacket
-						.getPaxosPacket(this.fixNodeStringToInt(new JSONObject(
-								paxosPacketString))));
-				log.log(Level.FINEST, "{0} rolling forward logged message {1}",
-						new Object[] { this, packet.getSummary() });
-				this.handlePaxosPacket((packet));
+			while ((paxosPacket = this.paxosLogger.readNextMessage()) != null) {
+				paxosPacket = PaxosPacket.markRecovered(paxosPacket);
+				Level level = Level.FINEST;
+				log.log(level, "{0} rolling forward logged message {1}",
+						new Object[] { this, paxosPacket.getSummary(log.isLoggable(level)) });
+				this.handlePaxosPacket((paxosPacket));
 				if ((++logCount) % freq == 0) {
 					freq *= 2;
 				}
 			}
-		} catch (JSONException | NumberFormatException e) {
+		} catch (NumberFormatException e) {
 			Util.suicide(log, this + " recovery interrupted while parsing "
 					+ paxosPacketString
 					+ ";\n Exiting because it is unsafe to continue recovery.");
@@ -1818,7 +1876,9 @@ public class PaxosManager<NodeIDType> {
 
 	protected void send(InetSocketAddress sockAddr, Request request,
 			InetSocketAddress listenSockAddr) throws JSONException, IOException {
-		this.messenger.sendClient(sockAddr, request, listenSockAddr);
+		this.messenger.sendClient(sockAddr, request instanceof RequestPacket ?
+		(((RequestPacket) request).toBytes())
+				: request, listenSockAddr);
 	}
 
 	/* A clean kill completely removes all trace of the paxos instance (unlike
@@ -2050,6 +2110,7 @@ public class PaxosManager<NodeIDType> {
 	private/* synchronized */PaxosInstanceStateMachine unpause(String paxosID) {
 		if (this.isClosed() || !this.hasRecovered() || !this.isPauseEnabled())
 			return null;
+
 		PaxosInstanceStateMachine restored = null;
 		if ((restored = this.pinstances.get(paxosID)) != null)
 			return restored;
@@ -2064,7 +2125,12 @@ public class PaxosManager<NodeIDType> {
 		 * drop even though the instance exists locally. Such packet drops will
 		 * not affect safety but it is good to avoid them. */
 		synchronized (this.stringLocker.get(paxosID)) {
+			log.log(Level.FINE,
+					"{0} about to try to unpause instance {1}",
+					new Object[] { this, paxosID });
+
 			HotRestoreInfo hri = this.paxosLogger.unpause(paxosID);
+
 			if (hri != null) {
 				log.log(Level.FINE,
 						"{0} successfully unpaused paused instance {1}",
@@ -2074,7 +2140,7 @@ public class PaxosManager<NodeIDType> {
 						this.myApp, null, hri, false);
 				// if (restored != null) restored.markActive();
 			} else
-				log.log(Level.FINEST, "{0} unable to unpause instance {1}",
+				log.log(Level.FINE, "{0} unable to unpause instance {1}",
 						new Object[] { this, paxosID });
 		}
 		this.stringLocker.remove(paxosID);

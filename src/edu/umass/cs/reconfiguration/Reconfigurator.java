@@ -2133,7 +2133,11 @@ public class Reconfigurator<NodeIDType> implements
 		this.protocolExecutor.submit(new Runnable() {
 			@Override
 			public void run() {
-				Reconfigurator.this.executeActiveNodeConfigChange(rcRecReq);
+				try {
+					Reconfigurator.this.executeActiveNodeConfigChange(rcRecReq);
+				}catch(Exception |Error e) {
+					e.printStackTrace();
+				}
 			}
 
 		});
@@ -2161,6 +2165,7 @@ public class Reconfigurator<NodeIDType> implements
 
 		assert (diff(record.getActiveReplicas(), record.getNewActives()).size() <= 1);
 
+		// FIXME: why change again?
 		for (NodeIDType active : this.diff(record.getNewActives(),
 				record.getActiveReplicas()))
 			this.consistentNodeConfig.addActiveReplica(active,
@@ -2171,9 +2176,8 @@ public class Reconfigurator<NodeIDType> implements
 				.changeActiveDBNodeConfig(rcRecReq.startEpoch.getEpochNumber());
 
 		for (NodeIDType active : this.diff(record.getActiveReplicas(),
-				record.getNewActives())) {
+				record.getNewActives())) 
 			this.deleteActiveReplica(active, rcRecReq.startEpoch.creator);
-		}
 
 		try {
 			this.DB.waitOutstanding(1);
@@ -2183,6 +2187,10 @@ public class Reconfigurator<NodeIDType> implements
 		}
 
 		this.consistentNodeConfig.removeActivesSlatedForRemoval();
+		for (NodeIDType active : this.diff(record.getActiveReplicas(),
+				record.getNewActives())) {
+			assert(!this.consistentNodeConfig.nodeExists(active));
+		}
 
 		// uncoordinated change
 		boolean executed = this.DB.execute(new RCRecordRequest<NodeIDType>(
@@ -2903,12 +2911,20 @@ public class Reconfigurator<NodeIDType> implements
 	private boolean deleteActiveReplica(NodeIDType active,
 			InetSocketAddress creator) {
 		boolean initiated = this.DB.app.initiateReadActiveRecords(active);
-		if (!initiated)
+		if (!initiated) {
+			log.log(Level.WARNING,
+					"{0} deleteActiveReplica {1} unable to initiate read active records",
+					new Object[] { this, active });
 			return false;
+		}
+		int rcCount = 0;
 		// this.setOutstanding(active);
 		this.consistentNodeConfig.slateForRemovalActive(active);
 		ReconfigurationRecord<NodeIDType> record = null;
 		while ((record = this.DB.app.readNextActiveRecord()) != null) {
+			log.log(Level.FINEST,
+					"{0} reconfiguring {1} in order to delete active {1}",
+					new Object[] { this, record.getName(), active });
 			try {
 				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
 			} catch (InterruptedException e) {
@@ -2926,6 +2942,7 @@ public class Reconfigurator<NodeIDType> implements
 			newActives.remove(active);
 			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null)) {
+				rcCount++;
 				this.DB.addToOutstanding(record.getName());
 				record = this.DB.getReconfigurationRecord(record.getName());
 				if (record != null && record.getActiveReplicas() != null
@@ -2934,6 +2951,10 @@ public class Reconfigurator<NodeIDType> implements
 					this.DB.notifyOutstanding(record.getName());
 			}
 		}
+		log.log(Level.INFO,
+				"{0} closing read active records cursor after initiating "
+						+ "{1} reconfigurations in order to delete active {2}",
+				new Object[] { this, rcCount, active });
 		boolean closed = this.DB.app.closeReadActiveRecords();
 		// this.setNoOutstanding();
 		return initiated && closed;

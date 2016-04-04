@@ -150,7 +150,7 @@ public class JSONMessenger<NodeIDType> implements
 			try {
 				if (msg instanceof JSONObject) {
 					message = ((JSONObject) (msg)).toString();
-				} else if(!(msg instanceof byte[] && msg instanceof Byteable))
+				} else if (!(msg instanceof byte[] && msg instanceof Byteable))
 					// we no longer require msg to be JSON at all
 					message = msg.toString();
 			} catch (Exception je) {
@@ -193,7 +193,7 @@ public class JSONMessenger<NodeIDType> implements
 					execpool.schedule(rtxTask, RTX_DELAY, TimeUnit.MILLISECONDS);
 				} else {
 					assert (sent == -1) : sent;
-					log.severe("Node " + this.nioTransport.getMyID()
+					log.warning("Node " + this.nioTransport.getMyID()
 							+ " failed to send message to node "
 							+ mtask.recipients[r] + ": " + msg);
 				}
@@ -363,17 +363,17 @@ public class JSONMessenger<NodeIDType> implements
 				: (this.nioTransport instanceof JSONMessenger<?> ? ((JSONMessenger<?>) this.nioTransport)
 						.getClientMessenger() : this.clientMessenger);
 	}
+
 	@Override
 	public AddressMessenger<JSONObject> getSSLClientMessenger() {
 		return this.sslClientMessenger;
 	}
-	
+
 	private AddressMessenger<JSONObject> getSSLClientMessengerInternal() {
 		return this.sslClientMessenger != null ? this.sslClientMessenger
 				: (this.nioTransport instanceof JSONMessenger<?> ? ((JSONMessenger<?>) this.nioTransport)
 						.getSSLClientMessenger() : this.sslClientMessenger);
 	}
-
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -423,16 +423,20 @@ public class JSONMessenger<NodeIDType> implements
 	 * 
 	 * @param sockAddr
 	 * @param message
-	 * @param listenSocketAddress 
+	 * @param listenSocketAddress
 	 * @throws JSONException
 	 * @throws IOException
 	 */
 	public void sendClient(InetSocketAddress sockAddr, Object message,
 			InetSocketAddress listenSocketAddress) throws JSONException,
 			IOException {
-		AddressMessenger<JSONObject> msgr = this.getClientMessenger(listenSocketAddress);
-		(msgr != null ? msgr : this).sendToAddress(sockAddr,
-				new JSONObjectWrapper(message));
+		AddressMessenger<JSONObject> msgr = this
+				.getClientMessenger(listenSocketAddress);
+		msgr = msgr != null ? msgr : this;
+		if (message instanceof byte[])
+			msgr.sendToAddress(sockAddr, (byte[]) message);
+		else
+			msgr.sendToAddress(sockAddr, new JSONObjectWrapper(message));
 	}
 
 	/**
@@ -485,21 +489,25 @@ public class JSONMessenger<NodeIDType> implements
 	public AddressMessenger<JSONObject> getClientMessenger(
 			InetSocketAddress listenSockAddr) {
 		AddressMessenger<JSONObject> msgr = this.getClientMessengerInternal();
-		if(listenSockAddr==null) return msgr; // default
+		if (listenSockAddr == null)
+			return msgr; // default
 		if (msgr instanceof InterfaceNIOTransport
 				&& ((InterfaceNIOTransport<?, ?>) msgr)
-						.getListeningSocketAddress().getPort()==(listenSockAddr.getPort()))
+						.getListeningSocketAddress().getPort() == (listenSockAddr
+						.getPort()))
 			return msgr;
 		// else
 		msgr = this.getSSLClientMessengerInternal();
 		if (msgr instanceof InterfaceNIOTransport
 				&& ((InterfaceNIOTransport<?, ?>) msgr)
-						.getListeningSocketAddress().getPort()==(listenSockAddr.getPort()))
+						.getListeningSocketAddress().getPort() == (listenSockAddr
+						.getPort()))
 			return msgr;
 
-		assert (this.getListeningSocketAddress().getPort()==(listenSockAddr.getPort())) : this
-				.getListeningSocketAddress() + " != " + listenSockAddr;
-		
+		assert (this.getListeningSocketAddress().getPort() == (listenSockAddr
+				.getPort())) : this.getListeningSocketAddress() + " != "
+				+ listenSockAddr;
+
 		return this;
 	}
 

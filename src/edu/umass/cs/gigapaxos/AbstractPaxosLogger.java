@@ -112,6 +112,7 @@ public abstract class AbstractPaxosLogger {
 
 	protected static abstract class PaxosPacketizer {
 		abstract protected PaxosPacket stringToPaxosPacket(String str) throws JSONException;
+		abstract protected PaxosPacket stringToPaxosPacket(byte[] bytes);
 	}
 	protected static abstract class PaxosPacketStringifier {
 		abstract protected String paxosPacketToString(PaxosPacket paxosPacket);
@@ -445,7 +446,7 @@ public abstract class AbstractPaxosLogger {
 	 * {@link #initiateReadMessages()}.
 	 * @return Returns the next log message.
 	 */
-	public abstract String readNextMessage();
+	public abstract PaxosPacket readNextMessage();
 
 	// close and cleanup methods
 	/**

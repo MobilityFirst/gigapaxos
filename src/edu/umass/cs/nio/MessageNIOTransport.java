@@ -20,6 +20,7 @@ package edu.umass.cs.nio;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
@@ -276,6 +277,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 			throws IOException {
 		if (msg instanceof byte[])
 			return this.sendUnderlying(isa, (byte[]) msg);
+		else if (msg instanceof Byteable)
+			return this.sendUnderlying(isa, ((Byteable)msg).toBytes());
 
 		return this.sendUnderlying(isa,
 				msg.toString().getBytes(NIO_CHARSET_ENCODING));
@@ -371,6 +374,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		// else
 		if (msg instanceof byte[])
 			return this.sendUnderlying(destID, (byte[]) msg);
+		else if(msg instanceof Byteable)
+			return this.sendUnderlying(destID, ((Byteable)msg).toBytes());
 
 		return this.sendUnderlying(destID,
 				msg.toString().getBytes(NIO_CHARSET_ENCODING));

@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxosutil;
 
 import org.json.JSONException;
@@ -41,6 +39,8 @@ import edu.umass.cs.gigapaxos.paxospackets.SyncDecisionsPacket;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -96,7 +96,12 @@ public abstract class PaxosPacketDemultiplexer extends
 			paxosPacket = (new AcceptReplyPacket(json));
 			break;
 		case BATCHED_ACCEPT_REPLY:
+			long t = System.nanoTime();
 			paxosPacket = (new BatchedAcceptReply(json));
+			if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(100))
+				DelayProfiler.updateDelayNano(
+						"batchedAcceptReplyPacketization", t,
+						((BatchedAcceptReply) paxosPacket).size());
 			break;
 		case SYNC_DECISIONS_REQUEST:
 			paxosPacket = (new SyncDecisionsPacket(json));
@@ -116,8 +121,10 @@ public abstract class PaxosPacketDemultiplexer extends
 		assert (paxosPacket != null) : json;
 		return paxosPacket;
 	}
-	
-	private static final double THROTTLE_SLEEP = Config.getGlobalDouble(PC.THROTTLE_SLEEP);
+
+	private static final double THROTTLE_SLEEP = Config
+			.getGlobalDouble(PC.THROTTLE_SLEEP);
+
 	/**
 	 * 
 	 */
@@ -129,8 +136,6 @@ public abstract class PaxosPacketDemultiplexer extends
 			e.printStackTrace();
 		}
 	}
-
-
 
 	private static void fatal(Object json) {
 		PaxosManager.getLogger().severe(

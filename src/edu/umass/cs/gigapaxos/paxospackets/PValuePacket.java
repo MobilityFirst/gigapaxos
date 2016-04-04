@@ -1,21 +1,23 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxospackets;
+
+import java.io.UnsupportedEncodingException;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -25,10 +27,11 @@ import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 /**
  * @author arun
  *
- * A <slot, ballot, request> three-tuple. The slot and request are within the
- * proposal here. A pvalue is used internally by paxos acceptors and
- * coordinators. It also acts as a DECISION packet as every committed request
- * must be associated with some slot, and ballot.
+ *         A <slot, ballot, request> three-tuple. The slot and request are
+ *         within the proposal here. A pvalue is used internally by paxos
+ *         acceptors and coordinators. It also acts as a DECISION packet as
+ *         every committed request must be associated with some slot, and
+ *         ballot.
  */
 
 @SuppressWarnings("javadoc")
@@ -52,9 +55,31 @@ public class PValuePacket extends ProposalPacket {
 	 * paxos replica group are ordered by their macCheckpointedSlot.
 	 */
 	private int medianCheckpointedSlot;
-	
+
 	private boolean noCoalesce = false;
-	
+
+	static enum Fields implements GetType {
+		ballot(Ballot.class), recovery(boolean.class), medianCheckpointedSlot(
+				int.class), noCoalesce(boolean.class);
+
+		final Class<?> type;
+
+		Fields(Class<?> type) {
+			this.type = type;
+		}
+
+		@Override
+		public Class<?> getType() {
+			return this.type;
+		}
+	}
+
+	static {
+		checkFields(PValuePacket.class, Fields.values());
+	}
+
+	protected static final int SIZEOF_PVALUE = 4 + 4 + 1 + 4 + 1;
+
 	public PValuePacket(Ballot b, ProposalPacket p) {
 		super(p);
 		this.ballot = b;
@@ -76,32 +101,43 @@ public class PValuePacket extends ProposalPacket {
 		super(json);
 		this.ballot = new Ballot(json.getString(PaxosPacket.NodeIDKeys.B
 				.toString()));
-		this.medianCheckpointedSlot = json
-				.getInt(PaxosPacket.Keys.GC_S.toString());
+		this.medianCheckpointedSlot = json.getInt(PaxosPacket.Keys.GC_S
+				.toString());
 		this.recovery = json.optBoolean(PaxosPacket.Keys.RCVRY.toString());
 		this.packetType = PaxosPacket.getPaxosPacketType(json);
-		this.noCoalesce = json.optBoolean(PaxosPacket.Keys.NO_COALESCE.toString());
+		this.noCoalesce = json.optBoolean(PaxosPacket.Keys.NO_COALESCE
+				.toString());
 	}
 
 	public PValuePacket(net.minidev.json.JSONObject json) throws JSONException {
 		super(json);
-		this.ballot = new Ballot((String)json.get(PaxosPacket.NodeIDKeys.B
+		this.ballot = new Ballot((String) json.get(PaxosPacket.NodeIDKeys.B
 				.toString()));
-		this.medianCheckpointedSlot = (Integer)json
-				.get(PaxosPacket.Keys.GC_S.toString());
-		this.recovery = json.containsKey(PaxosPacket.Keys.RCVRY.toString()) ? (Boolean)json.get(PaxosPacket.Keys.RCVRY.toString()) : false;
+		this.medianCheckpointedSlot = (Integer) json.get(PaxosPacket.Keys.GC_S
+				.toString());
+		this.recovery = json.containsKey(PaxosPacket.Keys.RCVRY.toString()) ? (Boolean) json
+				.get(PaxosPacket.Keys.RCVRY.toString()) : false;
 		this.packetType = PaxosPacket.getPaxosPacketType(json);
-		this.noCoalesce = json.containsKey(PaxosPacket.Keys.NO_COALESCE.toString()) ? (Boolean)json.get(PaxosPacket.Keys.NO_COALESCE.toString()) : false;
+		this.noCoalesce = json.containsKey(PaxosPacket.Keys.NO_COALESCE
+				.toString()) ? (Boolean) json.get(PaxosPacket.Keys.NO_COALESCE
+				.toString()) : false;
+	}
+
+	protected PValuePacket(ByteBuffer bbuf)
+			throws UnsupportedEncodingException, UnknownHostException {
+		super(bbuf);
+		this.ballot = new Ballot(bbuf.getInt(), bbuf.getInt());
+		this.recovery = bbuf.get() == (byte) 1;
+		this.medianCheckpointedSlot = bbuf.getInt();
+		this.noCoalesce = bbuf.get() == (byte) 1;
 	}
 
 	public PValuePacket makeDecision(int mcSlot) {
 		this.packetType = PaxosPacketType.DECISION;
 		this.medianCheckpointedSlot = mcSlot;
 		this.setStringifiedSelf(null);
-		/*
-		 * Only prepares, accepts, and decisions are replyed, so we should never
-		 * be making a decision out of a recovery packet, hence the assert.
-		 */
+		/* Only prepares, accepts, and decisions are replyed, so we should never
+		 * be making a decision out of a recovery packet, hence the assert. */
 		assert (!recovery);
 		return (this);
 	}
@@ -111,7 +147,7 @@ public class PValuePacket extends ProposalPacket {
 		this.packetType = PaxosPacketType.PREEMPTED;
 		return this;
 	}
-	
+
 	public boolean isCoalescable() {
 		return !this.noCoalesce
 				&& this.getType().equals(PaxosPacket.PaxosPacketType.DECISION);
@@ -132,11 +168,12 @@ public class PValuePacket extends ProposalPacket {
 	public PValuePacket setRecovery() {
 		return this.setRecovery(true);
 	}
+
 	public PValuePacket setRecovery(boolean b) {
 		this.recovery = b;
 		return this;
 	}
-	
+
 	@Override
 	protected String getSummaryString() {
 		return ballot + ", " + super.getSummaryString()
@@ -147,21 +184,23 @@ public class PValuePacket extends ProposalPacket {
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
 		json.put(PaxosPacket.NodeIDKeys.B.toString(), ballot.toString());
-		json.put(PaxosPacket.Keys.GC_S.toString(),
-				this.medianCheckpointedSlot);
-		if(this.recovery) json.put(PaxosPacket.Keys.RCVRY.toString(), this.recovery);
-		if(this.noCoalesce) json.put(PaxosPacket.Keys.NO_COALESCE.toString(), this.noCoalesce);
+		json.put(PaxosPacket.Keys.GC_S.toString(), this.medianCheckpointedSlot);
+		if (this.recovery)
+			json.put(PaxosPacket.Keys.RCVRY.toString(), this.recovery);
+		if (this.noCoalesce)
+			json.put(PaxosPacket.Keys.NO_COALESCE.toString(), this.noCoalesce);
 		return json;
 	}
-	
+
 	@Override
 	public net.minidev.json.JSONObject toJSONSmartImpl() throws JSONException {
 		net.minidev.json.JSONObject json = super.toJSONSmartImpl();
 		json.put(PaxosPacket.NodeIDKeys.B.toString(), ballot.toString());
-		json.put(PaxosPacket.Keys.GC_S.toString(),
-				this.medianCheckpointedSlot);
-		if(this.recovery) json.put(PaxosPacket.Keys.RCVRY.toString(), this.recovery);
-		if(this.noCoalesce) json.put(PaxosPacket.Keys.NO_COALESCE.toString(), this.noCoalesce);
+		json.put(PaxosPacket.Keys.GC_S.toString(), this.medianCheckpointedSlot);
+		if (this.recovery)
+			json.put(PaxosPacket.Keys.RCVRY.toString(), this.recovery);
+		if (this.noCoalesce)
+			json.put(PaxosPacket.Keys.NO_COALESCE.toString(), this.noCoalesce);
 		return json;
 	}
 
@@ -171,10 +210,13 @@ public class PValuePacket extends ProposalPacket {
 	}
 
 	public PValuePacket getMetaDecision() {
-		PValuePacket meta = new PValuePacket(this.ballot, new ProposalPacket(this.slot,
-				new RequestPacket(this.requestID,
-						null, this.stop, this).getFirstOnly()));
+		PValuePacket meta = new PValuePacket(this.ballot, new ProposalPacket(
+				this.slot, new RequestPacket(this.requestID, null, this.stop,
+						this).getFirstOnly()));
 		meta.packetType = PaxosPacketType.DECISION;
 		return meta;
+	}
+
+	public static void main(String[] args) {
 	}
 }

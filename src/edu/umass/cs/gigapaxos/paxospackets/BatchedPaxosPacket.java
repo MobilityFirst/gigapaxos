@@ -8,7 +8,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexer;
-import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerJSONSmart;
+import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast;
 
 /**
  * @author arun
@@ -68,7 +68,7 @@ public class BatchedPaxosPacket extends PaxosPacket {
 				.get(PaxosPacket.Keys.PP.toString());
 		for (int i = 0; i < jarray.size(); i++) {
 			assert(jarray.get(i)!=null) : jarray + " in " + json;
-			this.packets.add(PaxosPacketDemultiplexerJSONSmart.toPaxosPacket(
+			this.packets.add(PaxosPacketDemultiplexerFast.toPaxosPacket(
 					(net.minidev.json.JSONObject) jarray.get(i), null));
 		}
 	}

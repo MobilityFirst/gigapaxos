@@ -1079,7 +1079,39 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		initAdjustSoftActiveNodeConfig();
 		log.log(Level.INFO, "{0} proceeding with node config version {1}: ",
 				new Object[] { this, this.consistentNodeConfig });
+		log.log(Level.INFO,
+				"{0} initializing with RC records in DB = {1}",
+				new Object[] { this,
+						this.getNodeConfigRecords(this.consistentNodeConfig) });
 		return initCheckpointServer();
+	}
+	
+	// used only for debugging
+	protected String getNodeConfigRecords(
+			ConsistentReconfigurableNodeConfig<NodeIDType> nc) {
+		String output = "";
+		ReconfigurationRecord<NodeIDType> record = null;
+		for (NodeIDType node : nc.getReconfigurators()) {
+			record = this.getReconfigurationRecord(node.toString());
+			if (record != null)
+				output += "\n" + node + " : "
+						+ (record != null ? record.getSummary() : null);
+		}
+		record = this
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.RC_NODES
+						.toString());
+		if (record != null)
+			output += "\n"
+					+ AbstractReconfiguratorDB.RecordNames.RC_NODES.toString()
+					+ " : " + (record != null ? record.getSummary() : "");
+		record = this
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
+						.toString());
+		if (record != null)
+			output += "\n"
+					+ AbstractReconfiguratorDB.RecordNames.AR_NODES.toString()
+					+ " : " + (record != null ? record.getSummary() : "");
+		return output;
 	}
 
 	// /////// Start of file system checkpoint methods and classes /////////
@@ -1769,7 +1801,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * also use it inside paxos, so it is best to let that do the close.
 	 */
 	private void closeGracefully() {
-		// do nothing
+		log.log(Level.INFO,
+				"{0} closing RCDB with node config records {1}",
+				new Object[] { this,
+						this.getNodeConfigRecords(this.consistentNodeConfig) });
 		this.rcRecords.close(false);
 		try {
 			this.serverSock.close();
@@ -2151,7 +2186,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			else if (!latestRCs.contains(node))
 				this.consistentNodeConfig.slateForRemovalReconfigurator(node);
 		log.log(Level.INFO,
-				"{0} read the following reconfigurator set from node config version {1} in DB: ",
+				"{0} read the following reconfigurator set from node config version {2} in DB: {1}",
 				new Object[] { this,
 						this.consistentNodeConfig.getReconfigurators(),
 						this.getMaxNodeConfigVersion(true) });
@@ -2190,7 +2225,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			else if (!latestARs.contains(node))
 				this.consistentNodeConfig.slateForRemovalActive(node);
 		log.log(Level.INFO,
-				"{0} read the following active replica set from node config version {1} in DB: ",
+				"{0} read the following active replica set from node config version {2} in DB: {1}",
 				new Object[] { this,
 						this.consistentNodeConfig.getActiveReplicas(),
 						this.getMaxNodeConfigVersion(false) });
@@ -2552,8 +2587,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		if (this.cursorRS != null || this.closed)
 			return false;
 
+		log.info(this + " before rcRecords.commit");
 		// need to commit all before making a full pass
 		this.rcRecords.commit();
+		log.info(this + " after rcRecords.commit");
 
 		this.cursorActive = active;
 		Connection conn = null;
@@ -2615,9 +2652,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	// closes the cursor initiated above
 	@Override
 	public boolean closeReadActiveRecords() {
-		this.cleanup(cursorConn);
-		this.cleanup(cursorRS);
-		this.cleanup(cursorPsmt);
+		this.cleanup(this.cursorConn);
+		this.cleanup(this.cursorRS);
+		this.cleanup(this.cursorPsmt);
+		this.cursorRS = null;
+		this.cursorPsmt = null;
+		this.cursorConn = null;
 		return true;
 	}
 

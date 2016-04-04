@@ -700,7 +700,6 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 						* Math.pow(PREPARE_RETRANSMISSION_BACKOFF_FACTOR,
 								this.waitforMyBallot.getRetransmissionCount())) {
 			this.waitforMyBallot.incrRetransmissonCount(true);
-			if(Util.oneIn(10)) log.info(DelayProfiler.getStats());
 			return true;
 		}
 		return false;

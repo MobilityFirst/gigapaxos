@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxosutil;
 
 import java.io.IOException;
@@ -28,6 +26,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -51,15 +50,17 @@ import edu.umass.cs.utils.Util;
 @SuppressWarnings("javadoc")
 public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 
-	private static final int NUM_MESSENGER_WORKERS = Config.getGlobalInt(PC.NUM_MESSENGER_WORKERS);
-	
-	public static final boolean ENABLE_INT_STRING_CONVERSION = true;//false;
+	private static final int NUM_MESSENGER_WORKERS = Config
+			.getGlobalInt(PC.NUM_MESSENGER_WORKERS);
+
+	public static final boolean ENABLE_INT_STRING_CONVERSION = true;// false;
 	private final IntegerMap<NodeIDType> nodeMap;
 
 	public PaxosMessenger(InterfaceNIOTransport<NodeIDType, JSONObject> niot,
 			IntegerMap<NodeIDType> nodeMap) {
 		this(niot, nodeMap, NUM_MESSENGER_WORKERS);
 	}
+
 	public PaxosMessenger(InterfaceNIOTransport<NodeIDType, JSONObject> niot,
 			IntegerMap<NodeIDType> nodeMap, int numWorkers) {
 		super(niot, numWorkers);
@@ -84,16 +85,15 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 		// need to convert integers to NodeIDType.toString before sending
 		super.send(toGeneric(mtask), useWorkers(mtask));
 	}
-	
+
 	private boolean useWorkers(MessagingTask mtask) {
 		return mtask != null
 				&& !mtask.isEmptyMessaging()
 				&& (mtask.msgs[0].getType() == PaxosPacketType.ACCEPT
-						|| mtask.msgs[0].getType() == PaxosPacketType.DECISION 
-						|| mtask.msgs[0]
+						|| mtask.msgs[0].getType() == PaxosPacketType.DECISION || mtask.msgs[0]
 						.getType() == PaxosPacketType.BATCHED_COMMIT);
 	}
-	
+
 	private static boolean cacheStringifiedAccept() {
 		return IntegerMap.allInt();
 	}
@@ -105,7 +105,7 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 
 		JSONObject jsonified = fixNodeIntToString(msg.toJSONObject());
 		String stringified = jsonified.toString();
-		
+
 		if (cacheStringifiedAccept() && msg.getType() == PaxosPacketType.ACCEPT)
 			((RequestPacket) msg).setStringifiedSelf(stringified);
 		return stringified;
@@ -113,7 +113,10 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 
 	private static final boolean BYTEIFICATION = Config
 			.getGlobalBoolean(PC.BYTEIFICATION);
-	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
+	private static final boolean ENABLE_INSTRUMENTATION = Config
+			.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
+	public static final boolean INSTRUMENT_SERIALIZATION = ENABLE_INSTRUMENTATION && Config
+			.getGlobalBoolean(PC.INSTRUMENT_SERIALIZATION);
 
 	private Object toJSONSmartObject(PaxosPacket msg) throws JSONException {
 		if (cacheStringifiedAccept() && msg.getType() == PaxosPacketType.ACCEPT
@@ -121,9 +124,14 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 			return ((RequestPacket) msg).getStringifiedSelf();
 
 		// FIXME: to test byteable
-		if(BYTEIFICATION && IntegerMap.allInt() && msg.getType()==PaxosPacket.PaxosPacketType.REQUEST) 
+		if (BYTEIFICATION
+				&& IntegerMap.allInt()
+				&& (msg.getType() == PaxosPacket.PaxosPacketType.REQUEST || (msg
+						.getType() == PaxosPacket.PaxosPacketType.ACCEPT))
+				|| msg.getType() == PaxosPacketType.BATCHED_COMMIT
+				|| msg.getType() == PaxosPacketType.BATCHED_ACCEPT_REPLY)
 			return msg;
-		
+
 		long t = System.nanoTime();
 		net.minidev.json.JSONObject jsonSmart = msg.toJSONSmart();
 		assert (msg.getType() != PaxosPacketType.ACCEPT || jsonSmart != null);
@@ -132,30 +140,28 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 				.toJSONObject()) : fixNodeIntToString(jsonSmart);
 		String stringified = jsonified.toString();
 
-		if (ENABLE_INSTRUMENTATION && msg.getType() == PaxosPacketType.ACCEPT
-				&& Util.oneIn(100)) {
-			DelayProfiler.updateDelayNano("acceptStringification", t,
-					((RequestPacket) msg).batchSize());
-			t = System.nanoTime();
-			((RequestPacket) msg).toBytes1();
-			DelayProfiler.updateDelayNano("acceptByteification", t,
-					((RequestPacket) msg).batchSize());
-		}
-		
+		if (Util.oneIn(100) && INSTRUMENT_SERIALIZATION && ENABLE_INSTRUMENTATION)
+			if (msg.getType() == PaxosPacketType.ACCEPT)
+				DelayProfiler.updateDelayNano("acceptStringification", t,
+						((RequestPacket) msg).batchSize() + 1);
+			else if (msg.getType() == PaxosPacketType.BATCHED_COMMIT)
+				DelayProfiler.updateDelayNano("commitStringification", t,
+						((BatchedCommit) msg).size() + 1);
+
 		if (cacheStringifiedAccept() && msg.getType() == PaxosPacketType.ACCEPT)
 			((RequestPacket) msg).setStringifiedSelf(stringified);
 		return stringified;
 	}
-	
-	// we explicitly 
+
+	// we explicitly
 	private Object[] toObjects(PaxosPacket[] packets) throws JSONException {
 		Object[] objects = new Object[packets.length];
 		for (int i = 0; i < packets.length; i++) {
 			objects[i] = USE_JSON_SMART ? toJSONSmartObject(packets[i])
 					: toJSONObject(packets[i]);
 			assert (!cacheStringifiedAccept()
-					|| packets[i].getType() != PaxosPacketType.ACCEPT || ((RequestPacket) packets[i])
-						.getStringifiedSelf() != null);
+					|| packets[i].getType() != PaxosPacketType.ACCEPT
+					|| ((RequestPacket) packets[i]).getStringifiedSelf() != null || BYTEIFICATION);
 		}
 		return objects;
 	}
@@ -163,20 +169,22 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 	public static final boolean useJSONSmart() {
 		return USE_JSON_SMART;
 	}
-	private static final boolean USE_JSON_SMART = !Config.getGlobalString(PC.JSON_LIBRARY).equals("org.json");
-	private GenericMessagingTask<NodeIDType, ?> toGeneric(
-			MessagingTask mtask) throws JSONException {
+
+	private static final boolean USE_JSON_SMART = !Config.getGlobalString(
+			PC.JSON_LIBRARY).equals("org.json");
+
+	private GenericMessagingTask<NodeIDType, ?> toGeneric(MessagingTask mtask)
+			throws JSONException {
 		Set<NodeIDType> nodes = this.nodeMap
 				.getIntArrayAsNodeSet(mtask.recipients);
-		return (new GenericMessagingTask<NodeIDType, String>(
-				nodes.toArray(),
-//				Util.intToIntegerArray(mtask.recipients)
+		return (new GenericMessagingTask<NodeIDType, String>(nodes.toArray(),
+		// Util.intToIntegerArray(mtask.recipients)
 				toObjects(mtask.msgs)));
 	}
-	
+
 	// convert int to NodeIDType to String
 	public JSONObject fixNodeIntToString(JSONObject json) throws JSONException {
-		//long t = System.nanoTime();
+		// long t = System.nanoTime();
 		if (!ENABLE_INT_STRING_CONVERSION || IntegerMap.allInt())
 			return json;
 		if (json.has(PaxosPacket.NodeIDKeys.B.toString())) {
@@ -203,13 +211,14 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 					json.put(key.toString(), intToString(id));
 				}
 			}
-		//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("fixNodeIntToString", t);
+		// if(Util.oneIn(100))
+		// DelayProfiler.updateDelayNano("fixNodeIntToString", t);
 		return json;
 	}
-	
+
 	public net.minidev.json.JSONObject fixNodeIntToString(
 			net.minidev.json.JSONObject jsonSmart) {
-		//long t = System.nanoTime();
+		// long t = System.nanoTime();
 		if (!ENABLE_INT_STRING_CONVERSION || IntegerMap.allInt())
 			return jsonSmart;
 		if (jsonSmart.containsKey(PaxosPacket.NodeIDKeys.B.toString())) {
@@ -239,7 +248,8 @@ public class PaxosMessenger<NodeIDType> extends JSONMessenger<NodeIDType> {
 					jsonSmart.put(key.toString(), intToString(id));
 				}
 			}
-		//if(Util.oneIn(100)) DelayProfiler.updateDelayNano("fixNodeIntToString", t);
+		// if(Util.oneIn(100))
+		// DelayProfiler.updateDelayNano("fixNodeIntToString", t);
 		return jsonSmart;
 	}
 

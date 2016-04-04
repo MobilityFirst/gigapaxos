@@ -382,13 +382,13 @@ public class PaxosConfig {
 		 * Instrumentation at various places. Should be enabled only during
 		 * testing and disabled during production use.
 		 */
-		ENABLE_INSTRUMENTATION(true),
+		ENABLE_INSTRUMENTATION(false),
 
 		/**
 		 * Whether DelayProfiler should be enabled.
 		 */
 		DELAY_PROFILER(true),
-		
+
 		/**
 		 * 
 		 */
@@ -471,11 +471,17 @@ public class PaxosConfig {
 		 * received.
 		 */
 		LOG_META_DECISIONS(true),
+
+		/**
+		 * Whether select packets should be byteified as opposed to
+		 * json-stringified.
+		 */
+		BYTEIFICATION(true),
 		
 		/**
 		 * 
 		 */
-		BYTEIFICATION(false),
+		INSTRUMENT_SERIALIZATION (false),
 
 		/**
 		 * FIXME: The options below only exist for testing stringification
@@ -714,12 +720,16 @@ public class PaxosConfig {
 
 		/**
 		 * Whether {@link edu.umass.cs.gigapaxos.paxospackets.RequestPacket} and
-		 * inherited classes should be batched. This batching is different from 
-		 * the batching in {@link #BATCHING_ENABLED}. It refers to batching of 
-		 * entire packets to marginally reduce network overhead. It really 
-		 * makes little difference either way.
+		 * inherited classes should be batched. This batching is different from
+		 * the batching in {@link #BATCHING_ENABLED}. It refers to batching of
+		 * entire packets to marginally reduce network overhead. It really makes
+		 * little difference either way. With the new byteification methods and
+		 * batching opportunities (as in {@link #BATCHING_ENABLED}), this option
+		 * actually has a small net cost, so it should be disabled by default.
+		 * It may give small benefits with a large number of groups and little
+		 * room for batching within each group.
 		 */
-		BATCHED_REQUESTS(true),
+		BATCHED_REQUESTS(false),
 
 		/**
 		 * Local messages are not put in {@link PaxosPacketBatcher}.
@@ -788,7 +798,7 @@ public class PaxosConfig {
 		else
 			return Config.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET);
 	}
-	
+
 	/**
 	 * @param servers
 	 * @param globalInt

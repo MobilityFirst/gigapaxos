@@ -277,6 +277,7 @@ public class PaxosPacketBatcher extends ConsumerTask<MessagingTask[]> {
 				this.send(mtask);
 	}
 	
+	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
 	private MessagingTask[] batch(MessagingTask[] mtasks) {
 		Map<Set<Integer>, BatchedPaxosPacket> grouped = new LinkedHashMap<Set<Integer>, BatchedPaxosPacket>();
 		for (MessagingTask mtask : mtasks) {
@@ -290,7 +291,7 @@ public class PaxosPacketBatcher extends ConsumerTask<MessagingTask[]> {
 				else
 					grouped.get(group).append(mtask.msgs);
 				assert (grouped.get(group).size() > 0);
-				if(Util.oneIn(10)) DelayProfiler
+				if(ENABLE_INSTRUMENTATION && Util.oneIn(10)) DelayProfiler
 						.updateMovAvg("#ppbatched", grouped.get(group).size());
 			}
 		}

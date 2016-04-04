@@ -1,26 +1,29 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxospackets;
 
 import java.io.UnsupportedEncodingException;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author arun
@@ -52,10 +55,11 @@ public class ProposalPacket extends RequestPacket {
 		this.slot = json.getInt(PaxosPacket.Keys.S.toString());
 	}
 
-	public ProposalPacket(net.minidev.json.JSONObject json) throws JSONException {
+	public ProposalPacket(net.minidev.json.JSONObject json)
+			throws JSONException {
 		super(json);
 		this.packetType = PaxosPacketType.PROPOSAL;
-		this.slot = (Integer)json.get(PaxosPacket.Keys.S.toString());
+		this.slot = (Integer) json.get(PaxosPacket.Keys.S.toString());
 	}
 
 	@Override
@@ -64,6 +68,7 @@ public class ProposalPacket extends RequestPacket {
 		json.put(PaxosPacket.Keys.S.toString(), slot);
 		return json;
 	}
+
 	@Override
 	public net.minidev.json.JSONObject toJSONSmartImpl() throws JSONException {
 		net.minidev.json.JSONObject json = super.toJSONSmartImpl();
@@ -71,11 +76,20 @@ public class ProposalPacket extends RequestPacket {
 		return json;
 	}
 
+	protected ProposalPacket(ByteBuffer bbuf)
+			throws UnsupportedEncodingException, UnknownHostException {
+		super(bbuf);
+		this.slot = bbuf.getInt();
+	}
+
+	protected static final int SIZEOF_PROPOSAL = 4;
+
 	// only RequestPacket should be byteable
 	@Override
 	public byte[] toBytes() {
 		try {
-			return this.toString().getBytes(CHARSET);
+			byte[] bytes = this.toString().getBytes(CHARSET);
+			return bytes;
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}

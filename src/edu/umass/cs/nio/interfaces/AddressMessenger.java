@@ -36,4 +36,14 @@ public interface AddressMessenger<MessageType> {
 	 */
 	public int sendToAddress(InetSocketAddress isa, MessageType msg)
 			throws IOException;
+
+	/**
+	 * @param isa
+	 * @param msg
+	 * @return The number of bytes written.
+	 * @throws IOException
+	 */
+	public int sendToAddress(InetSocketAddress isa, byte[] msg)
+			throws IOException;
+
 }

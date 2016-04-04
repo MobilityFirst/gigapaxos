@@ -456,8 +456,10 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		for (Iterator<NodeIDType> nodeIter = this.activesSlatedForRemoval
 				.iterator(); nodeIter.hasNext();) {
 			NodeIDType slated = nodeIter.next();
-			if (this.removeActive(slated) != null)
+			if (this.removeActive(slated) != null) {
+				assert(!this.nodeExists(slated)) : slated;
 				nodeIter.remove();
+			}
 			else
 				allRemoved = false;
 		}

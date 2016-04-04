@@ -657,7 +657,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 				+ ":"
 				+ this.getState()
 				+ (this.actives!=null && !this.actives.equals(this.newActives) ? ":" + this.actives
-						+ "->" + this.newActives : "")
+						+ "->" + this.newActives : this.actives)
 				+ (!this.areMergesAllDone() ? ":!merged[" + this.merged + "!="
 						+ this.toMerge + "]"
 						: !this.isToMergeNull() && !this.toMerge.isEmpty()  ? " merged[" + this.merged

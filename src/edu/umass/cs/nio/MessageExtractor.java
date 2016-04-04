@@ -192,7 +192,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	public static String decode(byte[] bytes) throws UnsupportedEncodingException {
 		return new String(bytes, MessageNIOTransport.NIO_CHARSET_ENCODING);
 	}
-
+	
 	private void demultiplexMessage(NIOHeader header, ByteBuffer incoming)
 			throws IOException {
 		boolean extracted = false;

@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
@@ -30,6 +28,7 @@ import edu.umass.cs.gigapaxos.paxospackets.StatePacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.HotRestoreInfo;
+import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
 import edu.umass.cs.gigapaxos.paxosutil.LogIndex;
 import edu.umass.cs.gigapaxos.paxosutil.LogIndex.LogIndexEntry;
 import edu.umass.cs.gigapaxos.paxosutil.LogMessagingTask;
@@ -40,6 +39,7 @@ import edu.umass.cs.gigapaxos.paxosutil.SQL;
 import edu.umass.cs.gigapaxos.paxosutil.SlotBallotState;
 import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosMain;
+import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DiskMap;
 import edu.umass.cs.utils.Diskable;
@@ -134,8 +134,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	/* ****************************************************************
 	 * DB related parameters to be changed to use a different database service.
-	 * Refer also to constants in paxosutil.SQL to update any constants.
-	 */
+	 * Refer also to constants in paxosutil.SQL to update any constants. */
 	private static final SQL.SQLType SQL_TYPE = SQL.SQLType.valueOf(Config
 			.getGlobalString(PC.SQL_TYPE)); // SQL.SQLType.MYSQL;
 	private static final String DATABASE = Config
@@ -245,12 +244,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return ENABLE_JOURNALING;
 	}
 
-	/*
-	 * The global statements are not really need and can be replaced by local
+	/* The global statements are not really need and can be replaced by local
 	 * variables in log(.) and duplicateOrOutdated(.) but are supposedly more
 	 * efficient. But they don't seem to speed it up much. But at some point,
-	 * they did, so these are still being used.
-	 */
+	 * they did, so these are still being used. */
 	private PreparedStatement logMsgStmt = null;
 	private PreparedStatement checkpointStmt = null;
 	private PreparedStatement cursorPstmt = null;
@@ -261,7 +258,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private final ScheduledExecutorService GC;
 	private final MessageLogDiskMap messageLog;
 
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = Logger.getLogger(PaxosManager.class
+			.getName());;
 
 	SQLPaxosLogger(int id, String strID, String dbPath,
 			PaxosMessenger<?> messenger) {
@@ -271,7 +269,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			@Override
 			public Thread newThread(Runnable r) {
 				Thread thread = Executors.defaultThreadFactory().newThread(r);
-				thread.setName(SQLPaxosLogger.class.getSimpleName()+":"+strID);
+				thread.setName(SQLPaxosLogger.class.getSimpleName() + ":"
+						+ strID);
 				return thread;
 			}
 		}); // new Timer(strID);
@@ -324,11 +323,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	}
 
-	/*
-	 * This is currently the default MessageLog and is based on DiskMap that is
+	/* This is currently the default MessageLog and is based on DiskMap that is
 	 * a hash map whose infrequently used entries automatically get paused to
-	 * disk.
-	 */
+	 * disk. */
 	static class MessageLogDiskMap extends DiskMap<String, LogIndex> {
 
 		final Diskable<String, LogIndex> disk;
@@ -804,13 +801,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private static final int MAX_LOG_FILE_SIZE = Config
 			.getGlobalInt(PC.MAX_LOG_FILE_SIZE);
 
-	/*
-	 * Deletes all but the most recent checkpoint for the RC group name. We
+	/* Deletes all but the most recent checkpoint for the RC group name. We
 	 * could track recency based on timestamps using either the timestamp in the
 	 * filename or the OS file creation time. Here, we just supply the latest
 	 * checkpoint filename explicitly as we know it when this method is called
-	 * anyway.
-	 */
+	 * anyway. */
 	private static boolean deleteOldCheckpoints(final String cpDir,
 			final String rcGroupName, int keep, Object lockMe) {
 		File dir = new File(cpDir);
@@ -823,7 +818,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		});
 		if (foundFiles.length == 0)
 			log.log(Level.FINE, "{0} found no file in {1} starting with {2}",
-					new Object[] { SQLPaxosLogger.class.getSimpleName(), cpDir, rcGroupName });
+					new Object[] { SQLPaxosLogger.class.getSimpleName(), cpDir,
+							rcGroupName });
 
 		// delete all but the most recent
 		boolean allDeleted = true;
@@ -1012,8 +1008,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 									.garbageCollectJournal(SQLPaxosLogger.this.journaler
 											.getGCCandidates());
 						} catch (Exception | Error e) {
-							log.severe(this + " incurred exception "
-									+ (e.getMessage() != null ? e.getMessage() : e)
+							log.severe(this
+									+ " incurred exception "
+									+ (e.getMessage() != null ? e.getMessage()
+											: e)
 									+ " while garbage collecting logfiles");
 							e.printStackTrace();
 						}
@@ -1029,15 +1027,27 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return pending;
 	}
 
+	private static final boolean BYTEIFICATION = Config
+			.getGlobalBoolean(PC.BYTEIFICATION);
+
 	private byte[] toBytes(PaxosPacket packet)
 			throws UnsupportedEncodingException {
+		if (BYTEIFICATION && IntegerMap.allInt()
+				&& packet.getType() == PaxosPacketType.ACCEPT) {
+			byte[] bytes = ((AcceptPacket) packet).toBytes(); // no
+																// stringification
+			// network byte order: most significant byte first
+			assert (bytes[3] == (byte) PaxosPacketType.PAXOS_PACKET.getInt()) : bytes[3];
+			return bytes;
+		}
+		// else
 		return toString(packet).getBytes(CHARSET);
 	}
 
 	private String toString(PaxosPacket packet) {
 		return this.getPaxosPacketStringifier() != null ? this
-				.getPaxosPacketStringifier().paxosPacketToString(packet): 
-					packet.toString();
+				.getPaxosPacketStringifier().paxosPacketToString(packet)
+				: packet.toString();
 	}
 
 	// various options for performance testng below
@@ -1104,10 +1114,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private static final int MAX_DB_BATCH_SIZE = Config
 			.getGlobalInt(PC.MAX_DB_BATCH_SIZE);
 
-	/*
-	 * A wrapper to select between the purely DB-based logger and the
-	 * work-in-progress journaling logger.
-	 */
+	/* A wrapper to select between the purely DB-based logger and the
+	 * work-in-progress journaling logger. */
 	@Override
 	public boolean logBatch(final LogMessagingTask[] packets) {
 		if (isClosed())
@@ -1154,11 +1162,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return this.logBatchDB(pending);
 	}
 
-	/*
-	 * The main method to log to the DB. If journaling is enabled, this method
+	/* The main method to log to the DB. If journaling is enabled, this method
 	 * is always called after journaling; in that case, this method performs
-	 * indexing.
-	 */
+	 * indexing. */
 	private synchronized boolean logBatchDB(PendingLogTask[] packets) {
 		if (isClosed())
 			return false;
@@ -1229,11 +1235,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 
 		} catch (Exception sqle) {
-			/*
-			 * If any exception happens, we must return false to preserve
+			/* If any exception happens, we must return false to preserve
 			 * safety. We return true only if every message is logged
-			 * successfully.
-			 */
+			 * successfully. */
 			sqle.printStackTrace();
 			log.severe(this + " incurred " + sqle
 					+ " while logging batch of size:" + packets.length
@@ -1327,14 +1331,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 	}
 
-	/*
-	 * The actual checkpointing method. Puts given checkpoint state for paxosID.
+	/* The actual checkpointing method. Puts given checkpoint state for paxosID.
 	 * 'state' could be anything that allows PaxosInterface to later restore the
 	 * corresponding state. For example, 'state' could be the name of a file
 	 * where the app maintains a checkpoint of all of its state. It could of
 	 * course be the stringified form of the actual state if the state is at
-	 * most MAX_STATE_SIZE.
-	 */
+	 * most MAX_STATE_SIZE. */
 	private void putCheckpointState(final String paxosID, final int version,
 			final Set<String> group, final int slot, final Ballot ballot,
 			final String state, final int acceptedGCSlot,
@@ -1376,7 +1378,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			// conn.commit();
 			incrTotalCheckpoints();
 
-			DelayProfiler.updateDelay(appName+".checkpoint", t1);
+			DelayProfiler.updateDelay(appName + ".checkpoint", t1);
 			// why can't insertCP.toString() return the query string? :/
 			if (shouldLogCheckpoint())
 				log.log(Level.INFO,
@@ -1411,16 +1413,15 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				ballot.ballotNumber, ballot.coordinatorID, acceptedGCSlot);
 
 	}
+	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
 
 	private void deleteOutdatedMessages(String paxosID, int version,
 			Ballot ballot, int slot, int ballotnum, int coordinator,
 			int acceptedGCSlot) {
-		/*
-		 * Delete logged messages from before the checkpoint. Note: Putting this
+		/* Delete logged messages from before the checkpoint. Note: Putting this
 		 * before cleanup(conn) above can cause deadlock if we don't have at
 		 * least 2x the number of connections as concurrently active paxosIDs.
-		 * Realized this the hard way. :)
-		 */
+		 * Realized this the hard way. :) */
 		if (ENABLE_JOURNALING && PAUSABLE_INDEX_JOURNAL)
 			this.messageLog.setGCSlot(paxosID, version, acceptedGCSlot);
 		else if (Util.oneIn(getLogGCFrequency()) && this.incrNumGCs() == 0) {
@@ -1600,7 +1601,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					batch.clear();
 				}
 			}
-			if (Util.oneIn(10))
+			if (ENABLE_INSTRUMENTATION && Util.oneIn(10))
 				DelayProfiler.updateDelay("checkpoint", t1, tasks.length);
 		} catch (SQLException | UnsupportedEncodingException sqle) {
 			log.log(Level.SEVERE,
@@ -1686,12 +1687,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				: Util.oneIn(1000);
 	}
 
-	/*
-	 * Forms the constraint field < limit while handling wraparounds. Looks like
+	/* Forms the constraint field < limit while handling wraparounds. Looks like
 	 * in SQL, we can not conveniently just check (field - limit < 0). SQL
 	 * arithmetic stops at wraparound boundaries, e.g., Integer.MAX_VALUE + 1 is
-	 * just Integer.MAX_VALUE.
-	 */
+	 * just Integer.MAX_VALUE. */
 	private static String getIntegerLTConstraint(String field, int limit) {
 		return "("
 				+ field
@@ -1711,10 +1710,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						+ Integer.MIN_VALUE / 2 : "") + ")";
 	}
 
-	/*
-	 * Called by putCheckpointState to delete logged messages from before the
-	 * checkpoint.
-	 */
+	/* Called by putCheckpointState to delete logged messages from before the
+	 * checkpoint. */
 	private void deleteOutdatedMessagesDB(String paxosID, int slot,
 			int ballotnum, int coordinator, int acceptedGCSlot) {
 		if (isClosed())
@@ -1726,15 +1723,13 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		ResultSet rset = null;
 		Connection conn = null;
 		try {
-			/*
-			 * All accepts at or above the most recent checkpointed slot are
+			/* All accepts at or above the most recent checkpointed slot are
 			 * retained. We retain the accept at the checkpoint slot to ensure
 			 * that the accepted pvalues list is never empty unless there are
 			 * truly no accepts beyond prepare.firstUndecidedSlot. If we don't
 			 * ensure this property, we would have to maintain GC slot
 			 * information in the database and send it along with prepare
-			 * replies.
-			 */
+			 * replies. */
 			int minLoggedAccept = (acceptedGCSlot - slot < 0 ? acceptedGCSlot + 1
 					: slot);
 			int minLoggedDecision = slot - MAX_OLD_DECISIONS;
@@ -1787,10 +1782,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 	}
 
-	/*
-	 * Used to be the entry point for message logging. Replaced by batchLog and
-	 * log(PaxosPacket) now.
-	 */
+	/* Used to be the entry point for message logging. Replaced by batchLog and
+	 * log(PaxosPacket) now. */
 	@Deprecated
 	private boolean log(String paxosID, int version, int slot, int ballotnum,
 			int coordinator, PaxosPacketType type, String message) {
@@ -1931,13 +1924,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return diffEntries;
 	}
 
-	/*
-	 * Can not start pause or unpause after close has been called. For other
+	/* Can not start pause or unpause after close has been called. For other
 	 * operations like checkpointing or logging, we need to be able to do them
 	 * even after close has been called as waitToFinish needs that.
 	 * 
-	 * Can not lock this before messageLog.
-	 */
+	 * Can not lock this before messageLog. */
 	@Override
 	public/* synchronized */boolean pause(String paxosID, String serializedState) {
 		if (isClosed() /* || !isLoggingEnabled() */)
@@ -2022,6 +2013,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		if (isClosed() /* || !isLoggingEnabled() */)
 			return null;
 
+
 		HotRestoreInfo hri = null;
 		PreparedStatement pstmt = null;
 		ResultSet rset = null;
@@ -2036,17 +2028,19 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 							"serialized, logindex");
 			rset = pstmt.executeQuery();
 			while (rset.next()) {
+
 				assert (hri == null); // exactly onece
 				String serialized = rset.getString(1); // no clob option
 				if (serialized != null)
 					hri = new HotRestoreInfo(serialized);
 
+
 				Blob logIndexBlob = rset.getBlob(2);
 				logIndexString = lobToString(logIndexBlob);
-				if (logIndexBlob != null)
+				if (logIndexBlob != null) {
 					this.messageLog.restore(new LogIndex(new JSONArray(
 							logIndexString)));
-
+				}
 			}
 		} catch (SQLException | JSONException | IOException e) {
 			log.severe(this + " failed to unpause instance " + paxosID
@@ -2057,8 +2051,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			cleanup(conn);
 		}
 		;
-		if (hri != null)
+		if (hri != null) {
+			log.log(Level.FINEST,
+					"{0} unpaused {1} and about to delete pause state",
+					new Object[] { this, paxosID });
 			this.deletePaused(paxosID); // unpause will also delete paused state
+		}
 		return hri;
 	}
 
@@ -2184,7 +2182,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 					byte[] logIndexBytes = logIndex != null ? deflate(logIndex
 							.toString().getBytes(CHARSET)) : null;
-					if (logIndexBytes != null && Util.oneIn(Integer.MAX_VALUE))
+					if (logIndexBytes != null && ENABLE_INSTRUMENTATION && Util.oneIn(Integer.MAX_VALUE))
 						DelayProfiler.updateMovAvg("logindex_size",
 								logIndexBytes.length);
 					Blob blob = conn.createBlob();
@@ -2350,12 +2348,20 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return sb.toString();
 	}
 
-	private static String lobToString(Blob blob) throws SQLException,
+	private static byte[] lobToBytes(Blob blob) throws SQLException,
 			IOException {
 		if (blob == null)
 			return null;
 		byte[] blobBytes = blob.getBytes(1L, (int) blob.length());
-		return new String(inflate(blobBytes), CHARSET);
+		assert(blobBytes!=null);
+		return inflate(blobBytes);
+		// return new String(inflate(blobBytes), CHARSET);
+	}
+
+	private static String lobToString(Blob blob) throws SQLException,
+			IOException {
+		byte[] bytes = lobToBytes(blob);
+		return bytes != null ? new String(lobToBytes(blob), CHARSET) : null;
 	}
 
 	/**
@@ -2526,16 +2532,14 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						.getString(4) : lobToString(cursorRset.getBlob(4)))
 						: null);
 				pri = new RecoveryInfo(paxosID, version, pieces, state);
-				/*
-				 * Whenever a checkpoint is found, we must try to restore the
+				/* Whenever a checkpoint is found, we must try to restore the
 				 * corresponding logIndex so that we maintain the invariant that
 				 * logIndex is always unpaused when the corresponding paxos
 				 * instance is unpaused.
 				 * 
 				 * Note: This invariant is not needed for correctness with
 				 * DiskMap as it will automatically page in logIndex state as
-				 * needed.
-				 */
+				 * needed. */
 				this.unpauseLogIndex(paxosID);
 			}
 		} catch (SQLException | JSONException | IOException e) {
@@ -2589,9 +2593,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					if (i == logfiles.length)
 						i = 0; // not found
 
-					log.info(this
-							+ " rolling forward logged messages from logfile "
-							+ logfiles[i] + " onwards");
+					log.log(Level.INFO, "{0} rolling forward logged messages from logfile {1} onwards",
+							new Object[]{this, logfiles[i]});
 
 					this.logfileIndex = i;
 					curRAF = new RandomAccessFile(logfiles[i], "r");
@@ -2668,22 +2671,41 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	// private PendingLogTask prevRolledMsg = null;
 
-	/*
-	 * This method used to return PaxosPacket earlier. We now return a string
+	/* This method used to return PaxosPacket earlier. We now return a string
 	 * because it may be necessary to fixNodeStringToInt on the corresponding
-	 * json before conversion to PaxosPacket.
-	 */
+	 * json before conversion to PaxosPacket. */
 	@Override
-	public String readNextMessage() {
+	public PaxosPacket readNextMessage() {
 		String packetStr = null;
+		byte[] packetBytes = null;
+		PaxosPacket pp = null;
 		if (!isJournalingEnabled())
 			try {
 				synchronized (this) {
-					if (cursorRset != null && cursorRset.next()) {
-						String msg = (!getLogMessageBlobOption() ? cursorRset
-								.getString(1) : lobToString(cursorRset
-								.getBlob(1)));
-						packetStr = msg;
+					try {
+						if (cursorRset != null && cursorRset.next()) {
+							if (!getLogMessageBlobOption()) {
+								packetStr = cursorRset.getString(1);
+								if (packetStr != null)
+									pp = this.getPacketizer() != null ? this
+											.getPacketizer()
+											.stringToPaxosPacket(packetStr)
+											: PaxosPacket
+													.getPaxosPacket(packetStr);
+							} else {
+								packetBytes = lobToBytes(cursorRset.getBlob(1));
+								if (packetBytes != null)
+									pp = this.getPacketizer() != null ? this
+											.getPacketizer()
+											.stringToPaxosPacket(packetBytes)
+											: PaxosPacket
+													.getPaxosPacket(new String(
+															packetBytes,
+															CHARSET));
+							}
+						}
+					} catch (JSONException je) {
+						je.printStackTrace();
 					}
 				}
 			} catch (SQLException | IOException e) {
@@ -2721,12 +2743,13 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				int msgLength = this.curRAF.readInt();
 				byte[] msg = new byte[msgLength];
 				this.curRAF.readFully(msg);
-				packetStr = new String(msg, CHARSET);
+				// packetStr = new String(msg, CHARSET);
+				packetBytes = msg;
 
-				PaxosPacket pp = this.getPacketizer() != null ? this
-						.getPacketizer().stringToPaxosPacket(packetStr)
-						: PaxosPacket.getPaxosPacket(packetStr);
-
+				 pp = this.getPacketizer() != null ? this
+						.getPacketizer().stringToPaxosPacket(msg) : PaxosPacket
+						.getPaxosPacket(new String(msg, CHARSET));
+						
 				// also index latest log file
 				if (DB_INDEX_JOURNAL
 						&& latest != null
@@ -2748,7 +2771,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				e.printStackTrace();
 			}
 		}
-		return packetStr;
+		return pp;
 	}
 
 	public synchronized void closeReadAll() {
@@ -2915,21 +2938,21 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				assert (!ENABLE_JOURNALING || messagesRS.getString("logfile") != null);
 
 				String logMsgStr = null;
+				byte[] logMsgBytes = null;
 				try {
-					logMsgStr = (!ENABLE_JOURNALING ? (!getLogMessageBlobOption() ? messagesRS
-							.getString("message") : lobToString(messagesRS
-							.getBlob("message")))
+					logMsgBytes = (!ENABLE_JOURNALING ? (!getLogMessageBlobOption() ? messagesRS
+							.getString("message").getBytes(CHARSET)
+							: lobToBytes(messagesRS.getBlob("message")))
 
 							: this.getJournaledMessage(
 									messagesRS.getString("logfile"),
 									messagesRS.getLong("foffset"),
 									messagesRS.getInt("length"), null));
+					logMsgStr = new String(logMsgBytes, CHARSET);
 				} catch (SQLException | IOException e) {
-					/*
-					 * It is possible that a journal file gets garbage collected
+					/* It is possible that a journal file gets garbage collected
 					 * while getJournaledMessage is trying to get logged
-					 * messages from it, so IOExceptions here are not fatal.
-					 */
+					 * messages from it, so IOExceptions here are not fatal. */
 					log.severe(this + ":" + e.getClass().getSimpleName()
 							+ " while getting logged messages for " + paxosID
 							+ ":" + messagesRS.getString("packet_type") + ":"
@@ -2938,11 +2961,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 							+ messagesRS.getInt("length"));
 					e.printStackTrace();
 				}
-				if (logMsgStr == null)
+				if (logMsgBytes == null)
 					continue;
 
 				PaxosPacket packet = this.getPacketizer() != null ? getPacketizer()
-						.stringToPaxosPacket(logMsgStr) : PaxosPacket
+						.stringToPaxosPacket(logMsgBytes) : PaxosPacket
 						.getPaxosPacket(logMsgStr);
 				if (packet == null) {
 					log.severe(this + " retrieved null packet from logMsgStr");
@@ -2963,12 +2986,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			cleanup(pstmt, messagesRS);
 			cleanup(conn);
 		}
-		if (Util.oneIn(Integer.MAX_VALUE))
+		if (ENABLE_INSTRUMENTATION && Util.oneIn(Integer.MAX_VALUE))
 			DelayProfiler.updateDelay("getLoggedMessages", t);
 		return messages;
 	}
 
-	private String getJournaledMessage(String logfile, long offset, int length,
+	private byte[] getJournaledMessage(String logfile, long offset, int length,
 			RandomAccessFile raf) throws IOException {
 		assert (logfile != null);
 		if (!new File(logfile).exists())
@@ -2980,6 +3003,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 		boolean error = false;
 		String msg = null;
+		byte[] buf = null;
 		try {
 			raf.seek(offset);
 			assert (raf.length() > offset) : this + " " + raf.length() + " <= "
@@ -2994,7 +3018,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				e.printStackTrace();
 			}
 			int bufLength = length;
-			byte[] buf = new byte[bufLength];
+			buf = new byte[bufLength];
 			raf.readFully(buf);
 			if (JOURNAL_COMPRESSION)
 				buf = inflate(buf);
@@ -3011,7 +3035,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		log.log(error ? Level.INFO : Level.FINEST,
 				"{0} returning journaled message from {1}:{2} = [{3}]",
 				new Object[] { this, logfile, offset + ":" + length, msg });
-		return msg;
+		return buf;// msg;
 	}
 
 	private static class FileOffsetLength {
@@ -3026,9 +3050,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 	}
 
-	private String[] getJournaledMessage(FileOffsetLength[] fols)
+	private ArrayList<byte[]> getJournaledMessage(FileOffsetLength[] fols)
 			throws IOException {
-		ArrayList<String> logStrings = new ArrayList<String>();
+		ArrayList<byte[]> logStrings = new ArrayList<byte[]>();
 		RandomAccessFile raf = null;
 		String filename = null;
 		for (FileOffsetLength fol : fols) {
@@ -3047,7 +3071,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				raf = null;
 			}
 		}
-		return logStrings.toArray(new String[0]);
+		return logStrings;
 	}
 
 	private static final long LOGFILE_AGE_THRESHOLD = Config
@@ -3155,7 +3179,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	private ArrayList<String> getActiveLogfilesFromCheckpointTable(
 			TreeSet<Filename> candidates) {
-		assert(candidates!=null && !candidates.isEmpty());
+		assert (candidates != null && !candidates.isEmpty());
 		ArrayList<String> activeFrontier = this.getIndexedLogfiles(getCTable());
 		Filename minLogfilename = null;
 		for (String active : activeFrontier) {
@@ -3207,14 +3231,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					mergeLogfiles(prevFile, logfile, this.getPacketizer(),
 							this.messageLog, this.journaler.fidMap);
 			} catch (IOException | JSONException e) {
-				/*
-				 * IOExceptions here are not necessarily bad and can happen
+				/* IOExceptions here are not necessarily bad and can happen
 				 * because files being compacted or merged can be deleted by a
 				 * parallel thread garbage collecting journal files. We could
 				 * use something like stringLocker to efficiently synchronize
 				 * between the two threads, but it is simpler to just incur the
-				 * exception and move on.
-				 */
+				 * exception and move on. */
 				if (logfile.exists() && (prevFile == null || prevFile.exists()))
 					log.severe(this + " incurred IOException " + e.getMessage());
 				e.printStackTrace();
@@ -3224,8 +3246,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 			if (logfile.length() < 3 * MAX_LOG_FILE_SIZE / 4)
 				continue;
-			/*
-			 * The break in the else clause below assumes that once we have
+			/* The break in the else clause below assumes that once we have
 			 * reached a point where logfiles can not be compacted by more than
 			 * 25%, we might as well stop instead of trying to compact the
 			 * remaining files. But it is still possible with some workloads for
@@ -3235,8 +3256,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			 * most of the logfile being unnecessary. To aggressively try to
 			 * compact anyway, LAZY_COMPACTION should be disabled; that will
 			 * also increase the compaction overhead even for less "adversarial"
-			 * workloads.
-			 */
+			 * workloads. */
 			else if (LAZY_COMPACTION)
 				break;
 		}
@@ -3278,8 +3298,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				byte[] msg = new byte[length];
 				raf.readFully(msg);
 				PaxosPacket pp = packetizer != null ? packetizer
-						.stringToPaxosPacket(new String(msg, CHARSET))
-						: PaxosPacket.getPaxosPacket(new String(msg, CHARSET));
+						.stringToPaxosPacket(msg
+						// new String(msg, CHARSET)
+						) : PaxosPacket
+						.getPaxosPacket(new String(msg, CHARSET));
 				if (!logIndexEntries.containsKey(pp.getPaxosID()))
 					logIndexEntries.put(pp.getPaxosID(),
 							new ArrayList<LogIndexEntry>());
@@ -3362,15 +3384,13 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				getBallot(pp).coordinatorID, pp.getType().getInt());
 	}
 
-	/*
-	 * This method merges the logfile prev into cur. Compacting only decreases
+	/* This method merges the logfile prev into cur. Compacting only decreases
 	 * the aggregate size of all logfiles. We need to merge logfiles in addition
 	 * to compacting them because otherwise some type of workloads can result in
 	 * a very large number of small logfiles. Without merging, some weird
 	 * workloads can result in as many as O(N*I) files, where N is the total
 	 * number of paxos groups and I is the inter-checkpoint interval, each of
-	 * which contains just a single log entry.
-	 */
+	 * which contains just a single log entry. */
 	private static void mergeLogfiles(File prev, File cur,
 			PaxosPacketizer packetizer, MessageLogDiskMap msgLog,
 			FileIDMap fidMap) throws IOException, JSONException {
@@ -3408,8 +3428,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				byte[] msg = new byte[length];
 				rafTmp.readFully(msg);
 				PaxosPacket pp = packetizer != null ? packetizer
-						.stringToPaxosPacket(new String(msg, CHARSET))
-						: PaxosPacket.getPaxosPacket(new String(msg, CHARSET));
+						.stringToPaxosPacket(msg
+						// new String(msg, CHARSET)
+						) : PaxosPacket
+						.getPaxosPacket(new String(msg, CHARSET));
 				assert (pp != null) : " read logged message "
 						+ new String(msg, CHARSET);
 				if (!logIndexEntries.containsKey(pp.getPaxosID()))
@@ -3497,10 +3519,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return this.getLoggedMessages(paxosID, null);
 	}
 
-	/*
-	 * Acceptors remove decisions right after executing them. So they need to
-	 * fetch logged decisions from the disk to handle synchronization requests.
-	 */
+	/* Acceptors remove decisions right after executing them. So they need to
+	 * fetch logged decisions from the disk to handle synchronization requests. */
 	@Override
 	public ArrayList<PValuePacket> getLoggedDecisions(String paxosID,
 			int version, int minSlot, int maxSlot) {
@@ -3523,12 +3543,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return decisions;
 	}
 
-	/*
-	 * Called by an acceptor to return accepted proposals to the new potential
+	/* Called by an acceptor to return accepted proposals to the new potential
 	 * coordinator. We store and return these from disk to reduce memory
 	 * pressure. This allows us to remove accepted proposals once they have been
-	 * committed.
-	 */
+	 * committed. */
 	public Map<Integer, PValuePacket> getLoggedAccepts(String paxosID,
 			int version, int firstSlot, Integer maxSlot) {
 
@@ -3569,7 +3587,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		// long t = System.currentTimeMillis();
 		Map<Integer, PValuePacket> accepts = new HashMap<Integer, PValuePacket>();
 		ArrayList<LogIndexEntry> logEntries = null;
-		String[] logMsgStrings = null;
+		// String[] logMsgStrings = null;
+		ArrayList<byte[]> logMsgBytesList = null;
 
 		synchronized (this.messageLog) {
 
@@ -3600,7 +3619,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				fols.add(new FileOffsetLength(logEntry.getLogfile(), logEntry
 						.getOffset(), logEntry.getLength()));
 			try {
-				logMsgStrings = this.getJournaledMessage(fols
+				logMsgBytesList = this.getJournaledMessage(fols
 						.toArray(new FileOffsetLength[0]));
 			} catch (IOException e) {
 				log.severe(this + " incurred IOException while getting logged "
@@ -3608,7 +3627,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						+ paxosID);
 				e.printStackTrace();
 			}
-			if (logMsgStrings == null || logMsgStrings.length == 0) {
+			if (logMsgBytesList == null || logMsgBytesList.size() == 0) {
 				log.log(Level.SEVERE,
 						"{0} found no journaled {1} for {2}:[{3},{4}] despite logIndex = {5}",
 						new Object[] { this,
@@ -3620,14 +3639,15 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 
 		// then convert log message strings to pvalues
-		for (String logMsgStr : logMsgStrings) {
-			assert (logMsgStr != null);
+		for (byte[] logMsgBytes : logMsgBytesList) {
+			assert (logMsgBytes != null);
 			PValuePacket packet = null;
 			try {
 				packet = (PValuePacket) (this.getPacketizer() != null ? this
-						.getPacketizer().stringToPaxosPacket(logMsgStr)
-						: PaxosPacket.getPaxosPacket(logMsgStr));
-			} catch (JSONException e) {
+						.getPacketizer().stringToPaxosPacket(logMsgBytes)
+						: PaxosPacket.getPaxosPacket(new String(logMsgBytes,
+								CHARSET)));
+			} catch (JSONException | UnsupportedEncodingException e) {
 				log.severe(this
 						+ " incurred JSONException while getting logged accepts for "
 						+ paxosID);
@@ -3754,8 +3774,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 */
 	public boolean closeGracefully() {
 
-		/*
-		 * If there are pending tasks and the DB is closed ungracefully, this
+		/* If there are pending tasks and the DB is closed ungracefully, this
 		 * can cause problems upon recovery. The DB is consistent as per its
 		 * design but it takes some time upon recovery for it to rollback or
 		 * roll forward incomplete tasks. What this means is that some logged
@@ -3773,8 +3792,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		 * end up ungracefully shutting down the DB for all instances. Invoking
 		 * shutdown also means that tests with recovery need to instantiate a
 		 * new JVM, so we simply don't shutdown derby (but wait till derby is
-		 * all done before the JVM terminates).
-		 */
+		 * all done before the JVM terminates). */
 
 		if (isEmbeddedDB()) {
 			// whole block is a no-op because DONT_SHUTDOWN_DB defaults to true
@@ -3879,11 +3897,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						maxCheckpointSize, SQL_TYPE) : " varchar("
 						+ maxCheckpointSize + ")") + ", " + " primary key ("
 				+ C.PAXOS_ID.toString() + "))";
-		/*
-		 * It is best not to have a primary key in the log message table as
+		/* It is best not to have a primary key in the log message table as
 		 * otherwise batch inserts can create exceptions as derby does not seem
-		 * to have an insert if not exists primitive.
-		 */
+		 * to have an insert if not exists primitive. */
 		String cmdM = "create table "
 				+ getMTable()
 				+ " (paxos_id varchar("
@@ -3909,13 +3925,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						+ maxCheckpointSize + ")")
 				+ ", create_time bigint, primary key (paxos_id))";
 
-		/*
-		 * We create a non-unique-key index below instead of (unique) primary
+		/* We create a non-unique-key index below instead of (unique) primary
 		 * key (commented out above) as otherwise we will get duplicate key
 		 * exceptions during batch inserts. It is unnecessary to create an index
 		 * on ballotnum and coordinator as the number of logged prepares is
-		 * likely to be small for any single group.
-		 */
+		 * likely to be small for any single group. */
 		String cmdMI = "create index messages_index on " + getMTable() + "("
 				+ C.PAXOS_ID.toString() + ", " + C.PACKET_TYPE.toString()
 				+ ", slot)"; // ,ballotnum,coordinator)";
@@ -4168,13 +4182,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		int connAttempts = 0, maxAttempts = 1;
 		long interAttemptDelay = 2000; // ms
 		Properties props = new Properties(); // connection properties
-		/*
-		 * Providing a user name and PASSWORD is optional in embedded derby.
+		/* Providing a user name and PASSWORD is optional in embedded derby.
 		 * But, for some inscrutable, undocumented reason, it is important for
 		 * derby (or maybe c3p0) to have different user names for different
 		 * nodes, otherwise the performance with concurrent inserts and updates
-		 * is terrible.
-		 */
+		 * is terrible. */
 		props.put("user", SQL.getUser() + (isEmbeddedDB() ? this.myID : ""));
 		props.put("password", SQL.getPassword());
 		ensureLogDirectoryExists(this.logDirectory);
@@ -4625,12 +4637,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 	}
 
-	/*
-	 * This was an experimental MessageLog based on mapdb that is no longer
+	/* This was an experimental MessageLog based on mapdb that is no longer
 	 * used. mapdb seems way too slow even when all map entries ought to
 	 * comfortably fit in memory. We also don't need mapdb's level of durability
-	 * upon a crash because we maintain our own write-ahead log.
-	 */
+	 * upon a crash because we maintain our own write-ahead log. */
 	@Deprecated
 	static class MessageLogMapDB extends MessageLogPausable {
 		final HTreeMap<String, LogIndex> inMemory;
@@ -4672,7 +4682,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 							.getType().getInt(), logfile, offset, length);
 			this.inMemory.put(msg.getPaxosID(), logIndex);
 			assert (logIndex.getMinLogfile() != null);
-			if (Util.oneIn(10))
+			if (ENABLE_INSTRUMENTATION && Util.oneIn(10))
 				DelayProfiler.updateDelayNano("logAddDelay", t);
 		}
 
@@ -4710,10 +4720,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 	}
 
-	/*
-	 * This MessageLog structure is no longer used and has been replaced with
-	 * MessageLogDiskMap that is a more general-purpose pausable hash map.
-	 */
+	/* This MessageLog structure is no longer used and has been replaced with
+	 * MessageLogDiskMap that is a more general-purpose pausable hash map. */
 	@Deprecated
 	static class MessageLogPausable extends MessageLogDiskMap {
 		MultiArrayMap<String, LogIndex> logIndexes = new MultiArrayMap<String, LogIndex>(
@@ -4802,14 +4810,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				if (System.currentTimeMillis()
 						- (logIndex = strIter.next()).getLastActive() > IDLE_THRESHOLD)
 					this.pauseQ.put(logIndex.paxosID, logIndex);
-			/*
-			 * Synchronized because otherwise a put can happen in between the
+			/* Synchronized because otherwise a put can happen in between the
 			 * commit and the remove causing the remove to remove a more recent
 			 * value. The only way to not have the commit inside the
 			 * synchronized block is to verify if the serialized form of what
 			 * was written to disk is the same as the serialized form of the
-			 * current value. Unclear if this is much of a net
-			 */
+			 * current value. Unclear if this is much of a net */
 			// first commit, then remove
 			this.disk.commit(this.pauseQ);
 			for (String paxosID : this.pauseQ.keySet())
