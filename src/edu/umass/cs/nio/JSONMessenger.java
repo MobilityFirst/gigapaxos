@@ -348,6 +348,10 @@ public class JSONMessenger<NodeIDType> implements
 	public void addPacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
 		this.nioTransport.addPacketDemultiplexer(pd);
 	}
+	@Override
+	public void precedePacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
+		this.nioTransport.precedePacketDemultiplexer(pd);
+	}
 
 	protected InterfaceNIOTransport<NodeIDType, JSONObject> getNIOTransport() {
 		return this.nioTransport;
@@ -409,6 +413,13 @@ public class JSONMessenger<NodeIDType> implements
 
 		public String toString() {
 			return obj.toString();
+		}
+		
+		/**
+		 * @return The wrapped object.
+		 */
+		public Object getObj() {
+			return this.obj;
 		}
 	}
 

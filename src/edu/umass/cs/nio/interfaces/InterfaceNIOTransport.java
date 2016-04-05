@@ -59,6 +59,11 @@ public interface InterfaceNIOTransport<NodeIDType,MessageType> extends AddressMe
 	public void addPacketDemultiplexer(AbstractPacketDemultiplexer<?> pd);
 
 	/**
+	 * @param pd The demultiplexer is placed at the head of the existing list.
+	 */
+	public void precedePacketDemultiplexer(AbstractPacketDemultiplexer<?> pd);
+
+	/**
 	 * @return My node ID.
 	 */
 	public NodeIDType getMyID();

@@ -15,6 +15,9 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
+import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -127,4 +130,23 @@ public abstract class JSONPacket {
 	public static final boolean couldBeJSON(String str) {
 		return str.startsWith("{") || str.startsWith("[");
 	}
+
+	/**
+	 * @param bytes
+	 * @return True if this {@code bytes} could be possibly (but not
+	 *         necessarily) be in JSON format assuming the default
+	 *         {@link MessageExtractor} encoding.
+	 */
+	public static final boolean couldBeJSON(byte[] bytes)
+			 {
+		String str;
+		try {
+			str = MessageExtractor.decode(Arrays.copyOf(bytes, 4));
+			return str.startsWith("{") || str.startsWith("[");
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return bytes[0]=='{' || bytes[0]=='[';
+	}
+
 }

@@ -185,8 +185,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.initFinishPendingReconfigurations();
 		this.initClientMessenger(false);
 		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
-			this.messenger
-					.setSSLClientMessenger(this.initClientMessenger(true));
+			this.initClientMessenger(true);
 		assert (this.getClientMessenger() != null || this
 				.clientFacingPortIsMyPort());
 

@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import org.json.JSONException;
@@ -24,6 +22,7 @@ import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
 import edu.umass.cs.nio.nioutils.SampleNodeConfig;
@@ -34,6 +33,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.TimerTask;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -107,7 +107,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	/**
 	 * JSON key corresponding to receiver port number. Relevant only if
 	 * {@code MessageType} is JSONObject.
-	 */	
+	 */
 	@Deprecated
 	public static final String RCVR_PORT_FIELD = "_RCVR_TCP_PORT";
 
@@ -127,8 +127,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 *            addresses.
 	 * @throws IOException
 	 */
-	public MessageNIOTransport(NodeIDType id,
-			NodeConfig<NodeIDType> nodeConfig) throws IOException {
+	public MessageNIOTransport(NodeIDType id, NodeConfig<NodeIDType> nodeConfig)
+			throws IOException {
 		// Note: Default extractor will not do any useful demultiplexing
 		super(id, nodeConfig, new MessageExtractor());
 	}
@@ -226,11 +226,21 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 
 	/**
 	 * @param pd
-	 *            The demultiplxer to add to the current chain.
+	 *            The demultiplxer to add at the end of the current chain.
 	 */
 	public void addPacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
 		// will throw exception if worker not MessageExtractor
 		((InterfaceMessageExtractor) this.worker).addPacketDemultiplexer(pd);
+	}
+
+	/**
+	 * @param pd
+	 *            The demultiplxer to add before the current chain.
+	 */
+	public void precedePacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
+		// will throw exception if worker not MessageExtractor
+		((InterfaceMessageExtractor) this.worker)
+				.precedePacketDemultiplexer(pd);
 	}
 
 	/**
@@ -278,7 +288,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		if (msg instanceof byte[])
 			return this.sendUnderlying(isa, (byte[]) msg);
 		else if (msg instanceof Byteable)
-			return this.sendUnderlying(isa, ((Byteable)msg).toBytes());
+			return this.sendUnderlying(isa, ((Byteable) msg).toBytes());
 
 		return this.sendUnderlying(isa,
 				msg.toString().getBytes(NIO_CHARSET_ENCODING));
@@ -290,6 +300,13 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 *         receipt time.
 	 */
 	public static InetSocketAddress getSenderAddress(JSONObject json) {
+		if (json instanceof JSONMessenger.JSONObjectWrapper)
+			try {
+				return getSenderAddress((byte[]) ((JSONMessenger.JSONObjectWrapper) json).obj);
+			} catch (UnknownHostException e1) {
+				e1.printStackTrace();
+			}
+		// else
 		try {
 			InetSocketAddress isa = json
 					.has(MessageNIOTransport.SNDR_ADDRESS_FIELD) ? Util
@@ -297,10 +314,40 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 							.getString(MessageNIOTransport.SNDR_ADDRESS_FIELD))
 					: null;
 			return isa;
-		} catch (JSONException  e) {
+		} catch (JSONException e) {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	/**
+	 * @param bytes
+	 * @return Sender InetSocketAddress from bytes
+	 * @throws UnknownHostException
+	 */
+	public static InetSocketAddress getSenderAddress(byte[] bytes)
+			throws UnknownHostException {
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, NIOHeader.BYTES);
+		byte[] addressBytes = new byte[4];
+		bbuf.get(addressBytes);
+		InetAddress address = InetAddress.getByAddress(addressBytes);
+		int port = bbuf.getShort() + 2 * (Short.MAX_VALUE + 1);
+		return new InetSocketAddress(address, port);
+	}
+
+	/**
+	 * @param bytes
+	 * @return Sender InetSocketAddress from bytes
+	 * @throws UnknownHostException
+	 */
+	public static InetSocketAddress getReceiverAddress(byte[] bytes)
+			throws UnknownHostException {
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 6, NIOHeader.BYTES);
+		byte[] addressBytes = new byte[4];
+		bbuf.get(addressBytes);
+		InetAddress address = InetAddress.getByAddress(addressBytes);
+		int port = bbuf.getShort() + 2 * (Short.MAX_VALUE + 1);
+		return new InetSocketAddress(address, port);
 	}
 
 	/**
@@ -320,22 +367,29 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @param json
 	 * @return Socket address of the recorded recorded in this JSON message at
 	 *         receipt time. Sometimes a sender needs to know on which of its
-	 *         possibly multiple listening sockets this message was received,
-	 *         so we insert it into the packet at receipt time. 
+	 *         possibly multiple listening sockets this message was received, so
+	 *         we insert it into the packet at receipt time.
 	 */
 	public static InetSocketAddress getReceiverAddress(JSONObject json) {
+		if (json instanceof JSONMessenger.JSONObjectWrapper)
+			try {
+				return getReceiverAddress((byte[]) ((JSONMessenger.JSONObjectWrapper) json).obj);
+			} catch (UnknownHostException e1) {
+				e1.printStackTrace();
+			}
 		InetSocketAddress isa = null;
 		try {
 			isa = json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD) ? Util
 					.getInetSocketAddressFromString(json
 							.getString(MessageNIOTransport.RCVR_ADDRESS_FIELD))
 					: null;
-					
+
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
 		return isa;
 	}
+
 	/**
 	 * @param json
 	 * @return Same as {@link #getReceiverAddress(JSONObject)}
@@ -363,19 +417,17 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 
 	/* ******************End of public send methods************************** */
 
-	/*
-	 * This method adds a header only if a socket channel is used to send to a
-	 * remote node, otherwise it hands over the message directly to the worker.
-	 */
+	/* This method adds a header only if a socket channel is used to send to a
+	 * remote node, otherwise it hands over the message directly to the worker. */
 	protected int sendToIDInternal(NodeIDType destID, MessageType msg)
 			throws IOException {
 		if (destID.equals(this.myID))
-			return sendLocal(msg); 
+			return sendLocal(msg);
 		// else
 		if (msg instanceof byte[])
 			return this.sendUnderlying(destID, (byte[]) msg);
-		else if(msg instanceof Byteable)
-			return this.sendUnderlying(destID, ((Byteable)msg).toBytes());
+		else if (msg instanceof Byteable)
+			return this.sendUnderlying(destID, ((Byteable) msg).toBytes());
 
 		return this.sendUnderlying(destID,
 				msg.toString().getBytes(NIO_CHARSET_ENCODING));
@@ -384,12 +436,13 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	// bypass network send by directly passing to local worker
 	private int sendLocal(Object message) throws UnsupportedEncodingException {
 
-		byte[] msg = (message instanceof byte[] ? ((byte[]) message
-				) : message.toString().getBytes(NIO_CHARSET_ENCODING));
+		byte[] msg = (message instanceof byte[] ? ((byte[]) message) : message
+				.toString().getBytes(NIO_CHARSET_ENCODING));
 		int length = msg.length;
 		((InterfaceMessageExtractor) worker)
-				.processLocalMessage(new InetSocketAddress(this.getNodeAddress(),
-						this.getNodePort()), msg);
+				.processLocalMessage(
+						new InetSocketAddress(this.getNodeAddress(), this
+								.getNodePort()), msg);
 		return length;
 	}
 
@@ -431,11 +484,9 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 				+ msgNum + "}");
 	}
 
-	/*
-	 * The test code here is mostly identical to that of NIOTransport but tests
+	/* The test code here is mostly identical to that of NIOTransport but tests
 	 * JSON messages, headers, and delay emulation features. Need to test it
-	 * with the rest of GNS.
-	 */
+	 * with the rest of GNS. */
 	@SuppressWarnings("unchecked")
 	public static void main(String[] args) {
 		int msgNum = 0;
@@ -457,11 +508,9 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 				new Thread(niots[i]).start();
 			}
 
-			/*
-			 * Test a few simple hellos. The sleep is there to test that the
+			/* Test a few simple hellos. The sleep is there to test that the
 			 * successive writes do not "accidentally" benefit from concurrency,
-			 * i.e., to check that OP_WRITE flags will be set correctly.
-			 */
+			 * i.e., to check that OP_WRITE flags will be set correctly. */
 			((MessageNIOTransport<Integer, JSONObject>) niots[1])
 					.sendToIDInternal(0, JSONify(msgNum++, "Hello from 1 to 0"));
 			((MessageNIOTransport<Integer, JSONObject>) niots[0])
@@ -657,7 +706,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 
 	@Override
 	public int sendToID(NodeIDType id, byte[] msg) throws IOException {
-		return id != myID ? this.sendUnderlying(id, msg) : this.sendLocal(msg);		
+		return id != myID ? this.sendUnderlying(id, msg) : this.sendLocal(msg);
 	}
 
 	@Override
@@ -665,8 +714,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 			throws IOException {
 		return this.sendUnderlying(isa, msg);
 	}
-	
-	public MessageNIOTransport<NodeIDType,MessageType> setName(String name) {
+
+	public MessageNIOTransport<NodeIDType, MessageType> setName(String name) {
 		super.setName(name);
 		return this;
 	}

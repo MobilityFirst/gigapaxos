@@ -110,6 +110,7 @@ public abstract class PaxosPacketDemultiplexer extends
 			paxosPacket = (new StatePacket(json));
 			break;
 		case FAILURE_DETECT:
+			assert(unstringer != null);
 			paxosPacket = new FailureDetectionPacket<>(json, unstringer);
 			break;
 		case FIND_REPLICA_GROUP:
@@ -120,6 +121,14 @@ public abstract class PaxosPacketDemultiplexer extends
 		}
 		assert (paxosPacket != null) : json;
 		return paxosPacket;
+	}
+	/**
+	 * @param json
+	 * @return PaxosPacket from {@code json}
+	 * @throws JSONException 
+	 */
+	public static PaxosPacket toPaxosPacket(JSONObject json) throws JSONException {
+		return toPaxosPacket(json, null);
 	}
 
 	private static final double THROTTLE_SLEEP = Config

@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
@@ -83,33 +81,25 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * @throws IOException
 	 * @throws RequestParseException
 	 **********************************************/
-	/*
-	 * This method performs whatever replica coordination action is necessary to
-	 * handle the request.
-	 */
+	/* This method performs whatever replica coordination action is necessary to
+	 * handle the request. */
 	public abstract boolean coordinateRequest(Request request,
 			ExecutedCallback callback) throws IOException,
 			RequestParseException;
 
-	/*
-	 * This method should return true if the replica group is successfully
+	/* This method should return true if the replica group is successfully
 	 * created or one already exists with the same set of nodes. It should
-	 * return false otherwise.
-	 */
+	 * return false otherwise. */
 	public abstract boolean createReplicaGroup(String serviceName, int epoch,
 			String state, Set<NodeIDType> nodes);
 
-	/*
-	 * This method should result in all state corresponding to serviceName being
+	/* This method should result in all state corresponding to serviceName being
 	 * deleted. It is meant to be called only after a replica group has been
-	 * stopped by committing a stop request in a coordinated manner.
-	 */
+	 * stopped by committing a stop request in a coordinated manner. */
 	public abstract boolean deleteReplicaGroup(String serviceName, int epoch);
 
-	/*
-	 * This method must return the replica group that was most recently
-	 * successfully created for the serviceName using createReplicaGroup.
-	 */
+	/* This method must return the replica group that was most recently
+	 * successfully created for the serviceName using createReplicaGroup. */
 	public abstract Set<NodeIDType> getReplicaGroup(String serviceName);
 
 	/********************* End of abstract methods ***********************************************/
@@ -177,6 +167,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * @return True if coordinated successfully or handled successfully
 	 *         (locally), false otherwise.
 	 */
+	@SuppressWarnings("deprecation")
+	// only for backwards compatibility
 	protected boolean handleIncoming(Request request, ExecutedCallback callback) {
 		boolean handled = false;
 		if (needsCoordination(request)) {
@@ -199,8 +191,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return this.execute(request, false);
 	}
 
-	/*
-	 * This method is a wrapper for Application.handleRequest and meant to be
+	/* This method is a wrapper for Application.handleRequest and meant to be
 	 * invoked by the class that implements this AbstractReplicaCoordinator or
 	 * its helper classes.
 	 * 
@@ -214,8 +205,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * Should we add support for response messaging here using the
 	 * ClientMessgenser and ClientRequest interfaces similar to that in
 	 * gigapaxos? No, because response messaging details are specific to the
-	 * coordination protocol.
-	 */
+	 * coordination protocol. */
 	public boolean execute(Request request, boolean noReplyToClient) {
 
 		if (this.callback != null)
@@ -223,12 +213,10 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		boolean handled = ((this.app instanceof Replicable) ? ((Replicable) (this.app))
 				.execute(request, noReplyToClient) : this.app.execute(request));
 		callCallback(request, handled);
-		/*
-		 * We always return true because the return value here is a no-op. It
+		/* We always return true because the return value here is a no-op. It
 		 * might as well be void. Returning anything but true will ensure that a
 		 * paxos coordinator will get stuck on this request forever. The app can
-		 * still convey false if needed to the caller via the callback.
-		 */
+		 * still convey false if needed to the caller via the callback. */
 		return true;
 	}
 
@@ -282,11 +270,9 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return app.restore(name, state);
 	}
 
-	/*
-	 * Call back active replica for stop requests, else call default callback.
+	/* Call back active replica for stop requests, else call default callback.
 	 * Should really be private, but sometimes we may need to trigger a callback
-	 * for an older request.
-	 */
+	 * for an older request. */
 	protected void callCallback(Request request, boolean handled) {
 		if (this.stopCallback != null
 				&& request instanceof ReconfigurableRequest
@@ -305,11 +291,9 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 				&& ((ReplicableRequest) request).needsCoordination()) {
 			return true;
 		}
-		/*
-		 * No need for setNeedsCoordination as a request will necessarily get
+		/* No need for setNeedsCoordination as a request will necessarily get
 		 * converted to a proposal or accept when coordinated, so there is no
-		 * need to worry about inifinite looping.
-		 */
+		 * need to worry about inifinite looping. */
 		else if (request instanceof RequestPacket)
 			return true;
 		return false;
@@ -366,10 +350,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	}
 
 	/********************** Request propagation helper methods ******************/
-	/*
-	 * A simple utility method for lazy propagation, a simplistic coordination
-	 * protocol. This is the only place where this class uses Messenger.
-	 */
+	/* A simple utility method for lazy propagation, a simplistic coordination
+	 * protocol. This is the only place where this class uses Messenger. */
 	protected void sendAllLazy(Request request) throws IOException,
 			RequestParseException, JSONException {
 		assert (request.getServiceName() != null);

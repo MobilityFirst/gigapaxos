@@ -10,7 +10,10 @@ import java.net.InetSocketAddress;
  */
 public interface ClientRequest extends Request, RequestIdentifier {
 	/**
-	 * @return The socket address of the client that sent this request.
+	 * @return The socket address of the client that sent this request. This
+	 *         method is now deprecated and exists only for backwards
+	 *         compatibility, so it is okay for applications to simply return
+	 *         null in their implementation of this method.
 	 */
 	@Deprecated
 	public InetSocketAddress getClientAddress();

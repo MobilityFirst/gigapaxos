@@ -34,6 +34,11 @@ public interface InterfaceMessageExtractor extends
 	 * @param pd
 	 */
 	public void addPacketDemultiplexer(AbstractPacketDemultiplexer<?> pd);
+	
+	/**
+	 * @param pd
+	 */
+	public void precedePacketDemultiplexer(AbstractPacketDemultiplexer<?> pd);
 
 	/**
 	 * 

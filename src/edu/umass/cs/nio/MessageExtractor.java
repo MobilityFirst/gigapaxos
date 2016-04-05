@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
@@ -51,6 +49,11 @@ import java.util.logging.Logger;
  */
 public class MessageExtractor implements InterfaceMessageExtractor {
 
+	/**
+	 * 
+	 */
+	public static final String STRINGIFIED = "_STRINGIFIED_";
+	
 	private ArrayList<AbstractPacketDemultiplexer<?>> packetDemuxes;
 	private final ScheduledExecutorService executor = Executors
 			.newScheduledThreadPool(1); // only for delay emulation
@@ -81,6 +84,20 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	}
 
 	/**
+	 * Note: Use with care. This will change demultiplexing behavior midway,
+	 * which is usually not what you want to do. This is typically useful to set
+	 * in the beginning.
+	 */
+	public synchronized void precedePacketDemultiplexer(
+			AbstractPacketDemultiplexer<?> pd) {
+		// we update tmp to not have to lock this structure
+		ArrayList<AbstractPacketDemultiplexer<?>> tmp = new ArrayList<AbstractPacketDemultiplexer<?>>();
+		tmp.add(pd);
+		tmp.addAll(packetDemuxes);
+		this.packetDemuxes = tmp;
+	}
+
+	/**
 	 * Incoming data has to be associated with a socket channel, not a nodeID,
 	 * because the sending node's id is not known until the message is parsed.
 	 * This means that, if the the socket channel changes in the middle of the
@@ -97,7 +114,8 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 
 	public void stop() {
 		for (AbstractPacketDemultiplexer<?> pd : this.packetDemuxes)
-			if(pd!=null) pd.stop();
+			if (pd != null)
+				pd.stop();
 		this.executor.shutdownNow();
 	}
 
@@ -119,17 +137,22 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @param msg
 	 * @return
 	 */
-	protected static JSONObject parseJSON(String msg) {
+	protected static JSONObject parseJSON(String msg, boolean cacheStringified) {
 		JSONObject jsonData = null;
 		try {
-			if (msg.length() > 0)
+			if (msg.length() > 0 && JSONPacket.couldBeJSON(msg))
 				jsonData = new JSONObject(msg);
+			if(cacheStringified)
+				jsonData.put(MessageExtractor.STRINGIFIED, msg);
 			// Util.toJSONObject(msg);
 		} catch (JSONException e) {
 			log.severe("Received incorrectly formatted JSON message: " + msg);
 			e.printStackTrace();
 		}
 		return jsonData;
+	}
+	protected static JSONObject parseJSON(String msg) {
+		return parseJSON(msg);
 	}
 
 	/**
@@ -161,10 +184,8 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	// exists only to support delay emulation
 	private void processMessageInternal(SocketChannel socket,
 			ByteBuffer incoming) throws IOException {
-		/*
-		 * The emulated delay value is in the message, so we need to read all
-		 * bytes off incoming and stringify right away.
-		 */
+		/* The emulated delay value is in the message, so we need to read all
+		 * bytes off incoming and stringify right away. */
 		long delay = -1;
 		if (JSONDelayEmulator.isDelayEmulated()) {
 			byte[] msg = new byte[incoming.remaining()];
@@ -173,8 +194,9 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 					MessageNIOTransport.NIO_CHARSET_ENCODING);
 			if ((delay = JSONDelayEmulator.getEmulatedDelay(message)) >= 0)
 				// run in a separate thread after scheduled delay
-				executor.schedule(new MessageWorker(socket, msg,
-						packetDemuxes), delay, TimeUnit.MILLISECONDS);
+				executor.schedule(
+						new MessageWorker(socket, msg, packetDemuxes), delay,
+						TimeUnit.MILLISECONDS);
 		} else
 			// run it immediately
 			this.demultiplexMessage(
@@ -183,16 +205,28 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 							(InetSocketAddress) socket.getLocalAddress()),
 					incoming);
 	}
-	
+
 	/**
 	 * @param bytes
 	 * @return String decoded from bytes.
-	 * @throws UnsupportedEncodingException 
+	 * @throws UnsupportedEncodingException
 	 */
-	public static String decode(byte[] bytes) throws UnsupportedEncodingException {
+	public static String decode(byte[] bytes)
+			throws UnsupportedEncodingException {
 		return new String(bytes, MessageNIOTransport.NIO_CHARSET_ENCODING);
 	}
-	
+	/**
+	 * @param bytes
+	 * @param offset
+	 * @param length
+	 * @return String decoded from bytes.
+	 * @throws UnsupportedEncodingException
+	 */
+	public static String decode(byte[] bytes, int offset, int length)
+			throws UnsupportedEncodingException {
+		return new String(bytes, offset, length, MessageNIOTransport.NIO_CHARSET_ENCODING);
+	}
+
 	private void demultiplexMessage(NIOHeader header, ByteBuffer incoming)
 			throws IOException {
 		boolean extracted = false;
@@ -211,8 +245,8 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 					extracted = true;
 				}
 
-//				String message = (new String(msg,
-//						MessageNIOTransport.NIO_CHARSET_ENCODING));
+				// String message = (new String(msg,
+				// MessageNIOTransport.NIO_CHARSET_ENCODING));
 				if (this.callDemultiplexerHandler(header, msg, pd))
 					return;
 			}
@@ -289,16 +323,18 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @param json
 	 * @return JSONObject with addresses stamped.
 	 */
-	@SuppressWarnings("deprecation") // for backwards compatibility
+	@SuppressWarnings("deprecation")
+	// for backwards compatibility
 	public static JSONObject stampAddressIntoJSONObject(
 			InetSocketAddress sndrAddress, InetSocketAddress rcvrAddress,
 			JSONObject json) {
 		// only put the IP field in if it doesn't exist already
 		try {
 			// put sender address
-			if(!json.has(MessageNIOTransport.SNDR_ADDRESS_FIELD))
-				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD, sndrAddress.toString());
-			
+			if (!json.has(MessageNIOTransport.SNDR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD,
+						sndrAddress.toString());
+
 			// TODO: remove the deprecated lines bel
 			if (!json.has(JSONNIOTransport.SNDR_IP_FIELD))
 				json.put(JSONNIOTransport.SNDR_IP_FIELD, sndrAddress
@@ -308,8 +344,9 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 						sndrAddress.getPort());
 
 			// put receiver address
-			if(!json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD))
-				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD, rcvrAddress.toString());
+			if (!json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD,
+						rcvrAddress.toString());
 
 		} catch (JSONException e) {
 			log.severe("Encountered JSONException while stamping sender address and port at receiver: ");
@@ -332,13 +369,15 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 		// only put the IP field in if it doesn't exist already
 		try {
 			// put sender address
-			if(!json.containsKey(MessageNIOTransport.SNDR_ADDRESS_FIELD))
-				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD, sndrAddress.toString());
+			if (!json.containsKey(MessageNIOTransport.SNDR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD,
+						sndrAddress.toString());
 
 			// put receiver socket address
-			if(!json.containsKey(MessageNIOTransport.RCVR_ADDRESS_FIELD))
-				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD, rcvrAddress.toString());
-			
+			if (!json.containsKey(MessageNIOTransport.RCVR_ADDRESS_FIELD))
+				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD,
+						rcvrAddress.toString());
+
 		} catch (Exception e) {
 			log.severe("Encountered JSONException while stamping sender address and port at receiver: ");
 			e.printStackTrace();

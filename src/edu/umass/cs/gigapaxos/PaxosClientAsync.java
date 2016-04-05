@@ -28,9 +28,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
+import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexer;
+import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageExtractor;
@@ -38,38 +42,47 @@ import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.GCConcurrentHashMap;
+import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 
 /**
  * @author arun
  *
+ *         This class is meant to only send and receive {@link RequestPacket}
+ *         requests. To use other app-specific request types, use
+ *         ReconfigurableAppClientAsync.
  */
 public class PaxosClientAsync {
 
+	private static final long DEFAULT_TIMEOUT = 8000;
 	protected final InetSocketAddress[] servers;
 	private final MessageNIOTransport<String, JSONObject> niot;
-	private final ConcurrentHashMap<Long, RequestCallback> callbacks = new ConcurrentHashMap<Long, RequestCallback>();
+	private final GCConcurrentHashMap<Long, RequestCallback> callbacks = new GCConcurrentHashMap<Long, RequestCallback>(
+			new GCConcurrentHashMapCallback() {
+				@Override
+				public void callbackGC(Object key, Object value) {
+					System.out.println("Request " + key + " timed out");
+				}
+
+			}, DEFAULT_TIMEOUT);
 	private RequestCallback defaultCallback = null;
 
 	class ClientPacketDemultiplexer extends
-			AbstractPacketDemultiplexer<JSONObject> {
+			AbstractPacketDemultiplexer<RequestPacket> {
 		final PaxosClientAsync client;
 
 		ClientPacketDemultiplexer(PaxosClientAsync client) {
+			super(1);
 			this.client = client;
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 		}
 
 		@Override
-		public boolean handleMessage(JSONObject message) {
-			RequestPacket response = null;
-			try {
-				response = new RequestPacket(message);
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
+		public boolean handleMessage(RequestPacket message) {
+			ClientRequest response = message.getResponse();
 			if (response != null)
-				if (callbacks.containsKey((long) response.requestID))
-					callbacks.remove((long) response.requestID).handleResponse(
+				if (callbacks.containsKey(response.getRequestID()))
+					callbacks.remove(response.getRequestID()).handleResponse(
 							response);
 				else if (PaxosClientAsync.this.defaultCallback != null)
 					PaxosClientAsync.this.defaultCallback
@@ -79,41 +92,21 @@ public class PaxosClientAsync {
 		}
 
 		@Override
-		protected Integer getPacketType(JSONObject message) {
-			try {
-				return JSONPacket.getPacketType(message);
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
-			return null;
+		protected Integer getPacketType(RequestPacket message) {
+			assert (message instanceof PaxosPacket);
+			return PaxosPacketType.PAXOS_PACKET.getInt();
 		}
 
 		@Override
-		protected JSONObject getMessage(byte[] message) {
-			try {
-				return new JSONObject(MessageExtractor.decode(message));
-			} catch (JSONException | UnsupportedEncodingException e) {
-				e.printStackTrace();
-			}
-			return null;
-		}
-
-		@Override
-		protected JSONObject processHeader(byte[] message, NIOHeader header) {
-			try {
-				// don't care about sender server address
-				return new JSONObject(MessageExtractor.decode(message));
-			} catch (JSONException | UnsupportedEncodingException e) {
-				e.printStackTrace();
-			}
-			return null;
+		protected RequestPacket processHeader(byte[] message, NIOHeader header) {
+			return PaxosPacketDemultiplexerFast.getRequestPacket(message,
+					header);
 		}
 
 		@Override
 		protected boolean matchesType(Object message) {
-			return message instanceof JSONObject;
+			return message instanceof JSONObject || message instanceof byte[];
 		}
-
 	}
 
 	/**
@@ -219,7 +212,7 @@ public class PaxosClientAsync {
 				PaxosConfig.getClientPortOffset()).toArray(
 				new InetSocketAddress[0]);
 	}
-	
+
 	/**
 	 * 
 	 */

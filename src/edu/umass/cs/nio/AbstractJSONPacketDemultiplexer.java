@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
 import java.io.UnsupportedEncodingException;
@@ -49,9 +47,11 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 
 	protected Integer getPacketType(JSONObject json) {
 		try {
-			return JSONPacket.getPacketType(json);
+			if (json != null)
+				return JSONPacket.getPacketType(json);
 		} catch (JSONException e) {
-			NIOTransport.getLogger().severe("Unable to decode JSON packet type for: " + json);
+			NIOTransport.getLogger().severe(
+					"Unable to decode JSON packet type for: " + json);
 			e.printStackTrace();
 		}
 		return null;
@@ -59,6 +59,7 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 
 	@Override
 	protected JSONObject getMessage(byte[] msg) {
+		assert (false); // should never come here
 		try {
 			return MessageExtractor.parseJSON(MessageExtractor.decode(msg));
 		} catch (UnsupportedEncodingException e) {
@@ -68,19 +69,27 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 	}
 
 	protected JSONObject processHeader(byte[] message, NIOHeader header) {
+		return processHeader(message, header, false);
+	}
+
+	protected JSONObject processHeader(byte[] message, NIOHeader header,
+			boolean cacheStringified) {
 		try {
-			return MessageExtractor.stampAddressIntoJSONObject(header.sndr, header.rcvr,
-					MessageExtractor.parseJSON(MessageExtractor.decode(message)));
+			if (JSONPacket.couldBeJSON(message)) // quick reject if not
+				return MessageExtractor.stampAddressIntoJSONObject(header.sndr,
+						header.rcvr, MessageExtractor.parseJSON(
+								MessageExtractor.decode(message),
+								cacheStringified));
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
 		return null;
 	}
-	
+
 	protected boolean matchesType(Object message) {
 		return message instanceof JSONObject;
 	}
-	
+
 	@Override
 	protected boolean isCongested(NIOHeader header) {
 		return false;

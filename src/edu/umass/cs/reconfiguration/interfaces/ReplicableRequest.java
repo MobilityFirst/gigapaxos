@@ -63,6 +63,6 @@ public interface ReplicableRequest extends Request, RequestIdentifier {
 	 * 
 	 * @param b
 	 */
-	//@Deprecated
+	@Deprecated
 	public void setNeedsCoordination(boolean b);
 }

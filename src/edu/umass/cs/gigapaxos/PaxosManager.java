@@ -337,8 +337,8 @@ public class PaxosManager<NodeIDType> {
 		testingInitialization();
 		// needed to unclose when testing multiple runs of open and close
 		open();
-		// so paxos packets will come to me
-		niot.addPacketDemultiplexer(Config.getGlobalString(PC.JSON_LIBRARY)
+		// so paxos packets will come to me before anyone else
+		niot.precedePacketDemultiplexer(Config.getGlobalString(PC.JSON_LIBRARY)
 				.equals("org.json") ? new JSONDemultiplexer()
 				: new FastDemultiplexer());
 		initiateRecovery();

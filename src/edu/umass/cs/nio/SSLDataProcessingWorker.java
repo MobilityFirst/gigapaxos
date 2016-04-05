@@ -316,6 +316,12 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 			((InterfaceMessageExtractor) this.decryptedWorker)
 					.addPacketDemultiplexer(pd);
 	}
+	@Override
+	public void precedePacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
+		if (this.decryptedWorker instanceof InterfaceMessageExtractor)
+			((InterfaceMessageExtractor) this.decryptedWorker)
+					.precedePacketDemultiplexer(pd);
+	}
 
 	@Override
 	public void processLocalMessage(InetSocketAddress sockAddr, byte[] msg) {

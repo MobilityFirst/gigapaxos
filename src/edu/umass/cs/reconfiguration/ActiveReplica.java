@@ -16,8 +16,13 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
@@ -28,6 +33,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
+import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
@@ -39,13 +45,16 @@ import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONPacket;
+import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.AddressMessenger;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
@@ -160,11 +169,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	protected ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
-			SSLMessenger<NodeIDType, JSONObject> messenger) {
+			SSLMessenger<NodeIDType, ?> messenger) {
 		this(appC, nodeConfig, messenger, false);
 	}
 
-	class SenderAndRequest {
+	static class SenderAndRequest {
 		final InetSocketAddress csa;
 		final ReplicableRequest request;
 		final InetSocketAddress mysa;
@@ -178,14 +187,93 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			this.recvTime = recvTime;
 		}
 	}
+	
+	static final MessageDigest md = initMD();
+
+	static MessageDigest initMD() {
+		try {
+			return MessageDigest.getInstance("MD5");
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	static BigInteger toBigInt(byte[] request) {
+		synchronized(md) {
+			byte[] digest = md.digest(request);
+			md.reset();
+			return new BigInteger(digest);
+		}
+	}
 
 	private static long REQUEST_TIMEOUT = 5000;
-	private GCConcurrentHashMap<Long, SenderAndRequest> outstanding = new GCConcurrentHashMap<Long, SenderAndRequest>(
+	private GCConcurrentHashMap<Long, SenderAndRequest> outstanding =			
+			new GCConcurrentHashMap<Long, SenderAndRequest>(
 			new GCConcurrentHashMapCallback() {
 				@Override
 				public void callbackGC(Object key, Object value) {
 				}
 			}, REQUEST_TIMEOUT);
+
+	static long getLongDigest(byte[] request) {
+		byte[] digest = md.digest(request);
+		assert (digest.length == 16);
+		long value = 0;
+		for (int i = 0; i < digest.length; i++)
+			value += ((long) digest[i] & 0xffL) << (8 * i);
+		return value;
+	}
+	
+	/* TODO: incomplete. This class may be used to allow apps to simply send a
+	 * byte[] as a request to the active replica port. However, to make this
+	 * work, we at least need the app to tell us if the request is legitimate,
+	 * its serviceName, and if it needs coordination. */
+	static class ByteArrayRequest implements ReplicableRequest {
+		final byte[] request;
+		final String serviceName;
+
+		ByteArrayRequest(byte[] request, int nameLength)
+				throws UnsupportedEncodingException {
+			this.request = request;
+			this.serviceName = MessageExtractor.decode(request, 0, nameLength);
+		}
+
+		@Override
+		public IntegerPacketType getRequestType() {
+			assert (false); // should never get called
+			return null;
+		}
+
+		@Override
+		public String getServiceName() {
+			return this.serviceName;
+		}
+
+		@Override
+		public long getRequestID() {
+			return getLongDigest(request);
+		}
+
+		@Override
+		public boolean needsCoordination() {
+			return true; // default?
+		}
+
+		@Override
+		public void setNeedsCoordination(boolean b) {
+			// do nothing
+		}
+		public String toString() {
+			// FIXME: this won't really work
+			try {
+				return MessageExtractor.decode(request);
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+			return null;
+		}
+	}
 
 	private SenderAndRequest enqueue(SenderAndRequest senderAndRequest) {
 		return this.outstanding.put(senderAndRequest.request.getRequestID(),
@@ -206,10 +294,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			if (request instanceof ClientRequest
 					&& ((ClientRequest) request).getResponse() != null) {
 				try {
-					((JSONMessenger<?>) this.messenger).sendClient(
-							senderAndRequest.csa,
-							((ClientRequest) request).getResponse(),
-							senderAndRequest.mysa);
+					ClientRequest response = ((ClientRequest) request)
+							.getResponse();
+					((JSONMessenger<?>) this.messenger)
+							.sendClient(
+									senderAndRequest.csa,
+									response instanceof Byteable ? ((Byteable) response)
+											.toBytes() : response,
+									senderAndRequest.mysa);
 				} catch (IOException | JSONException e) {
 					e.printStackTrace();
 				}
@@ -229,7 +321,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
 		try {
 			// try handling as reconfiguration packet through protocol task
-			if (ReconfigurationPacket.isReconfigurationPacket(jsonObject)
+			if (!(jsonObject instanceof JSONMessenger.JSONObjectWrapper)
+					&& ReconfigurationPacket
+							.isReconfigurationPacket(jsonObject)
 					&& (rcPacket = this.protocolTask
 							.getReconfigurationPacket(jsonObject)) != null) {
 				if (!this.protocolExecutor.handleEvent(rcPacket)) {
@@ -279,13 +373,16 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						this.dequeue(((ReplicableRequest) request));
 
 					// send error message to sender
-					this.send(
+					((JSONMessenger<?>) this.messenger).sendClient(
+							// this.send(
 							MessageNIOTransport.getSenderAddress(jsonObject),
 							new ActiveReplicaError(this.nodeConfig
 									.getNodeSocketAddress(getMyID()), request
 									.getServiceName(),
 									((ClientRequest) request).getRequestID())
-									.toJSONObject());
+							// .toJSONObject()
+							, MessageNIOTransport
+									.getReceiverAddress(jsonObject));
 				}
 				if (Util.oneIn(1000))
 					log.log(Level.INFO, "{0} {1}", new Object[] { this,
@@ -295,19 +392,32 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			rpe.printStackTrace();
 		} catch (JSONException je) {
 			je.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 		return false; // neither reconfiguration packet nor app request
 	}
 
 	private static final boolean INSTRUMENT_APP = true;
 
-	// special case optimization for RequestPacket
 	private Request getRequest(JSONObject jsonObject)
 			throws RequestParseException, JSONException {
-		if (JSONPacket.getPacketType(jsonObject) == PaxosPacket.PaxosPacketType.REQUEST
-				.getInt())
-			return new RequestPacket(jsonObject);
-		return this.appCoordinator.getRequest(jsonObject.toString());
+		if (jsonObject instanceof JSONMessenger.JSONObjectWrapper)
+			try {
+				byte[] bytes;
+				return this.appCoordinator
+						.getRequest(MessageExtractor
+								.decode(bytes = (byte[]) ((JSONMessenger.JSONObjectWrapper) jsonObject)
+										.getObj(), NIOHeader.BYTES,
+										bytes.length - NIOHeader.BYTES));
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+		// else
+		return this.appCoordinator.getRequest(jsonObject
+				.has(MessageExtractor.STRINGIFIED) ? jsonObject
+				.getString(MessageExtractor.STRINGIFIED) : jsonObject
+				.toString());
 	}
 
 	@Override
@@ -648,8 +758,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		} catch (OverloadException re) {
 			PaxosPacketDemultiplexer.throttleExcessiveLoad();
 		}
-		//if (Util.oneIn(Integer.MAX_VALUE))
-			//DelayProfiler.updateDelay("appHandleIncoming@AR", t1);
+		if (Util.oneIn(Integer.MAX_VALUE))
+			DelayProfiler.updateDelay("appHandleIncoming@AR", t1);
 		return handled;
 	}
 
@@ -714,7 +824,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	private boolean isAppRequest(JSONObject jsonObject) throws JSONException {
-		Integer type = JSONPacket.getPacketType(jsonObject);
+		Integer type = jsonObject instanceof JSONMessenger.JSONObjectWrapper ?
+		// int right after NIOHeader
+		ByteBuffer
+				.wrap((byte[]) (((JSONMessenger.JSONObjectWrapper) jsonObject)
+						.getObj()),
+						NIOHeader.BYTES, Integer.BYTES).getInt()
+				// else parse as regular json
+				: JSONPacket.getPacketType(jsonObject);
 		if (appRequestTypes == null)
 			appRequestTypes = toIntegerSet(this.appCoordinator
 					.getRequestTypes());
@@ -761,9 +878,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			GenericMessagingTask<NodeIDType, ?> mtask = new GenericMessagingTask<NodeIDType, Object>(
 					reportee, (new DemandReport<NodeIDType>(getMyID(),
 							demand.getName(), (epoch == null ? 0 : epoch),
-							demand)).toJSONObject());
+							demand)));
 			this.send(mtask);
-		} catch (JSONException je) {
+		} catch (Exception je) {
 			je.printStackTrace();
 		}
 	}
@@ -791,7 +908,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 	}
 
-	@SuppressWarnings("unchecked")
+	// TODO: remove. This method is replaced by sendClient.
+	@SuppressWarnings({ "unchecked", "unused" })
 	private void send(InetSocketAddress isa, JSONObject msg) {
 		try {
 			((AddressMessenger<JSONObject>) this.messenger).sendToAddress(isa,
@@ -889,7 +1007,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	@SuppressWarnings("unchecked")
-	private AddressMessenger<JSONObject> initClientMessenger(boolean ssl) {
+	private AddressMessenger<?> initClientMessenger(boolean ssl) {
 		AbstractPacketDemultiplexer<JSONObject> pd = null;
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
 		Set<IntegerPacketType> appTypes = null;
@@ -971,8 +1089,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			else if (!ssl && this.messenger.getClientMessenger() == null)
 				this.messenger.setClientMessenger(cMsgr);
 
-		return cMsgr != null ? cMsgr
-				: (AddressMessenger<JSONObject>) this.messenger;
+		return cMsgr != null ? cMsgr : (AddressMessenger<?>) this.messenger;
 	}
 
 	private boolean isRecovering() {

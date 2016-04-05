@@ -89,14 +89,17 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	private final Set<Integer> orderPreservingTypes = new HashSet<Integer>();
 	private static final Logger log = NIOTransport.getLogger();
 
-	abstract protected Integer getPacketType(MessageType message);
-
 	// FIXME: this method needs to be deprecated and removed
 	@Deprecated
-	abstract protected MessageType getMessage(byte[] message);
+	protected MessageType getMessage(byte[] message) {
+		return null;
+	}
+
+	abstract protected Integer getPacketType(MessageType message);
 
 	abstract protected MessageType processHeader(byte[] message,
 			NIOHeader header);
+	abstract protected boolean matchesType(Object message);
 
 	private static final String DEFAULT_THREAD_NAME = AbstractPacketDemultiplexer.class
 			.getSimpleName();
@@ -133,6 +136,10 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		this.threadName = DEFAULT_THREAD_NAME + name;
 		return this;
 	}
+	
+	public String toString() {
+		return this.threadName;
+	}
 
 	// This method will be invoked by NIO
 	protected boolean handleMessageSuper(byte[] msg, NIOHeader header)
@@ -144,7 +151,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			e.printStackTrace();
 			return false;
 		}
-		Integer type = getPacketType(message);
+		Integer type = message!=null ? getPacketType(message) : null;
 
 		if (type == null || !this.demuxMap.containsKey(type)) {
 			/* It is natural for some demultiplexers to not handle some packet
@@ -190,8 +197,6 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			this.demuxMap.get(type).handleMessage(message);
 		return true;
 	}
-
-	abstract protected boolean matchesType(Object message);
 
 	/**
 	 * @param msg

@@ -94,6 +94,7 @@ public class NoopAppCoordinator extends PaxosReplicaCoordinator<String> {
 			((NoopApp) app).setClientMessenger(msgr);
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public boolean coordinateRequest(Request request, ExecutedCallback callback)
 			throws IOException, RequestParseException {

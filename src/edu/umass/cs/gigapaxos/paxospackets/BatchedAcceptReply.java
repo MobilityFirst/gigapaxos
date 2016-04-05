@@ -14,6 +14,7 @@ import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit.Fields;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.GetType;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
+import edu.umass.cs.gigapaxos.paxosutil.PaxosMessenger;
 import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
@@ -151,7 +152,7 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 					+ this.getClass().getSimpleName()
 					+ ".slots.size()=" + this.slots.size();
 
-			if (Util.oneIn(Integer.MAX_VALUE))
+			if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(Integer.MAX_VALUE))
 				DelayProfiler
 						.updateDelayNano("batchedAcceptReplyByteification", t,
 								this.slots.size());

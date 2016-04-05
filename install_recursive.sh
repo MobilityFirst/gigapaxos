@@ -81,7 +81,7 @@ if [[ ! -z $1 && ! $1 == "kill" ]]; then
     gigapaxos_properties=$1;
     transfer_list="$transfer_list $1"
   fi
-  if [[ ! -z $2 ]]; then
+  if [[ ! -z $2 && ! $2 == "kill" ]]; then
     testing_properties=$2
     transfer_list="$transfer_list $2"
   fi
@@ -99,17 +99,17 @@ fi
 
 client_kill_targets=$client_kill_targets"\|"`echo $paxos_client|sed s/".*\."//g`
 
-tmp_paxos_server=`cat $testing_properties|grep SERVER_BINARY|awk -F "=" '{print $2}'`
+tmp_paxos_server=`cat $testing_properties|grep -v "^[ \t]*#"|grep SERVER_BINARY|awk -F "=" '{print $2}'`
 if [[ ! -z $tmp_paxos_server ]]; then
   paxos_server=$tmp_paxos_server
 fi
 
-tmp_paxos_client=`cat $testing_properties|grep CLIENT_BINARY|awk -F "=" '{print $2}'`
+tmp_paxos_client=`cat $testing_properties|grep -v "^[ \t]*#"|grep CLIENT_BINARY|awk -F "=" '{print $2}'`
 if [[ ! -z $tmp_paxos_client ]]; then
   paxos_client=$tmp_paxos_client
 fi
 
-tmp_cmd_suffix=`cat $testing_properties|grep CMD_OPTIONS|awk -F "=" '{print $2}'`
+tmp_cmd_suffix=`cat $testing_properties|grep -v "^[ \t]*#"|grep CMD_OPTIONS|awk -F "=" '{print $2}'`
 if [[ ! -z $tmp_cmd_suffix ]]; then
   cmd_suffix=$tmp_cmd_suffix
 fi
@@ -140,7 +140,7 @@ clients=`cat $local_install_dir/$gigapaxos_properties|grep -v "^#"|\
 first_host=`echo $hosts|sed s/" .*$"//g`
 
 # but if first argument is "kill", we just kill and exit
-if [[ $1 == "kill" ]]; then
+if [[ $1 == "kill" || $2 == "kill" ]]; then
   for i in `echo $hosts`; do
     # get node_id from node_config file
     node_id=`cat $gigapaxos_properties|grep $i|awk '{print $1}'`

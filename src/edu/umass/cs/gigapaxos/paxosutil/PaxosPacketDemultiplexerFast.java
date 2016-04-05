@@ -140,6 +140,29 @@ public abstract class PaxosPacketDemultiplexerFast extends
 	}
 
 	/**
+	 * @param message
+	 * @param header
+	 * @return RequestPacket if parseable from {@code message}.
+	 */
+	public static RequestPacket getRequestPacket(byte[] message,
+			NIOHeader header) {
+		Object packet = processHeaderUtil(message, header);
+		if (packet != null && packet instanceof RequestPacket)
+			return (RequestPacket) packet;
+		try {
+			packet = PaxosPacketDemultiplexer.toPaxosPacket(new JSONObject(
+					MessageExtractor.decode(message)));
+			if (packet != null && packet instanceof RequestPacket)
+				return (RequestPacket) packet;
+		} catch (UnsupportedEncodingException | JSONException e) {
+			throw new RuntimeException("Unable to parse "
+					+ RequestPacket.class.getSimpleName()
+					+ " from byte[] of length " + message.length);
+		}
+		return null;
+	}
+
+	/**
 	 * @param jsonS
 	 * @return JSONObject.
 	 * @throws JSONException
@@ -183,7 +206,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		String message = null;
 		try {
 			message = MessageExtractor.decode(bytes);
-			return this.insertStringifiedSelf(
+			return insertStringifiedSelf(
 					MessageExtractor.parseJSONSmart(message), message);
 		} catch (UnsupportedEncodingException e) {
 			// TODO Auto-generated catch block
@@ -193,15 +216,14 @@ public abstract class PaxosPacketDemultiplexerFast extends
 	}
 
 	// currently only RequestPacket is byteable
-	private boolean isByteable(byte[] bytes) {
+	private static boolean isByteable(byte[] bytes) {
 		ByteBuffer bbuf;
 		int type = -1;
 		if ((bbuf = ByteBuffer.wrap(bytes, 0, 8)).getInt() == PaxosPacket.PaxosPacketType.PAXOS_PACKET
 				.getInt()
 				&& ((type = bbuf.getInt()) == PaxosPacket.PaxosPacketType.REQUEST
 						.getInt()
-						|| (type == PaxosPacket.PaxosPacketType.ACCEPT
-								.getInt())
+						|| (type == PaxosPacket.PaxosPacketType.ACCEPT.getInt())
 						|| type == PaxosPacketType.BATCHED_COMMIT.getInt() || type == PaxosPacketType.BATCHED_ACCEPT_REPLY
 						.getInt()))
 			return true;
@@ -211,7 +233,17 @@ public abstract class PaxosPacketDemultiplexerFast extends
 
 	@Override
 	protected Object processHeader(byte[] bytes, NIOHeader header) {
-		if (this.isByteable(bytes)) {
+		return processHeaderUtil(bytes, header);
+	}
+
+	/**
+	 * @param bytes
+	 * @param header
+	 * @return A static utility method to convert bytes to RequestPacket with
+	 *         header processing.
+	 */
+	public static final Object processHeaderUtil(byte[] bytes, NIOHeader header) {
+		if (isByteable(bytes)) {
 			long t = System.nanoTime();
 			if (PaxosPacket.getType(bytes) == PaxosPacketType.REQUEST) {
 				// affix header info only for request packets
@@ -244,14 +276,12 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				}
 			}
 			try {
-				PaxosPacket pp = toPaxosPacket(bytes);
-				if (Util.oneIn(100)) {
+				PaxosPacket pp = toPaxosPacket(bytes);				
+				if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(100)) {
 					if (pp.getType() == PaxosPacketType.REQUEST)
-						DelayProfiler.updateDelayNano("<-request",
-								t);
+						DelayProfiler.updateDelayNano("<-request", t);
 					else if (pp.getType() == PaxosPacketType.BATCHED_ACCEPT_REPLY)
-						DelayProfiler.updateDelayNano(
-								"<-acceptreply", t);
+						DelayProfiler.updateDelayNano("<-acceptreply", t);
 				}
 				return pp;
 			} catch (UnsupportedEncodingException | UnknownHostException e) {
@@ -273,7 +303,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		assert (json != null) : message;
 		net.minidev.json.JSONObject retval = MessageExtractor
 				.stampAddressIntoJSONObject(header.sndr, header.rcvr,
-						this.insertStringifiedSelf(json, message));
+						insertStringifiedSelf(json, message));
 		assert (retval != null) : message + " " + header;
 		try {
 			if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(100))
@@ -313,7 +343,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				.equals(PaxosPacket.PaxosPacketType.REQUEST));
 	}
 
-	private net.minidev.json.JSONObject insertStringifiedSelf(
+	private static net.minidev.json.JSONObject insertStringifiedSelf(
 			net.minidev.json.JSONObject json, String message) {
 		// sigh: we need the string to avoid restringification overhead
 		try {
