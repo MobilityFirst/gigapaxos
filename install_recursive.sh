@@ -16,8 +16,7 @@
 # to all remote machines from the local host. With recursive_install
 # disabled, passwordless ssh is required only from the local host to
 # all remote hosts, but not from the first to the rest.
-recursive_install=0
-#1
+recursive_install=1
 
 package_name=gigapaxos #GNS
 # absolute path of the install on the local host
@@ -142,7 +141,14 @@ first_host=`echo $hosts|sed s/" .*$"//g`
 
 # but if first argument is "kill", we just kill and exit
 if [[ $1 == "kill" || $2 == "kill" ]]; then
-  for i in `echo $hosts`; do
+  kill_hosts=`echo $hosts`
+  if [[ $1 == "kill" && $2 != "" ]]; then
+    kill_hosts=`echo "${@:2}"`;
+  elif [[ $2 == "kill" ]]; then
+    kill_hosts=`echo "${@:3}"`;
+  fi
+
+  for i in `echo $kill_hosts`; do
     # get node_id from node_config file
     node_id=`cat $gigapaxos_properties|grep $i|awk '{print $1}'`
     # kill running instances of this command and (re-)start
