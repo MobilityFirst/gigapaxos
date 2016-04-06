@@ -414,11 +414,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				e.printStackTrace();
 			}
 		// else
-		return this.appCoordinator.getRequest(jsonObject
-				.has(MessageExtractor.STRINGIFIED) ? jsonObject
-				.getString(MessageExtractor.STRINGIFIED) : jsonObject
-				.toString());
+		return STAMP_SENDER_ADDRESS_JSON ? this.appCoordinator
+				.getRequest(jsonObject.toString())
+				: this.appCoordinator.getRequest(jsonObject
+						.has(MessageExtractor.STRINGIFIED) ? jsonObject
+						.getString(MessageExtractor.STRINGIFIED) : jsonObject
+						.toString());
 	}
+	
+	private static final boolean STAMP_SENDER_ADDRESS_JSON = Config.getGlobalBoolean(RC.STAMP_SENDER_ADDRESS_JSON);
 
 	@Override
 	public void executed(Request request, boolean handled) {

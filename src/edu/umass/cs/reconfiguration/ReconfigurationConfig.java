@@ -260,6 +260,16 @@ public class ReconfigurationConfig {
 		 * Requesting actives returns a random active replica for this name.
 		 */
 		SPECIAL_NAME("*"),
+		
+		/**
+		 * True if delay profiling is enabled at various places.
+		 */
+		ENABLE_INSTRUMENTATION(false),
+		
+		/**
+		 * 
+		 */
+		STAMP_SENDER_ADDRESS_JSON (false),
 
 		;
 
@@ -655,7 +665,16 @@ public class ReconfigurationConfig {
 			return getSummary(request);
 		return null;
 	}
-
+	
+	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(RC.ENABLE_INSTRUMENTATION);
+	/**
+	 * @param n
+	 * @return Used internally by reconfiguration classes.
+	 */
+	public static boolean instrument(int n) {
+		return ENABLE_INSTRUMENTATION && Util.oneIn(n);
+	}
+	
 	/**
 	 * @param request
 	 * @return Stringifiable object.

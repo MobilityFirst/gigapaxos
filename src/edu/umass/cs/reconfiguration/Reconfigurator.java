@@ -133,7 +133,7 @@ public class Reconfigurator<NodeIDType> implements
 	public static final Logger getLogger() {
 		return log;
 	}
-
+	
 	/**
 	 * For profiling statistics in {@link DelayProfiler}.
 	 */

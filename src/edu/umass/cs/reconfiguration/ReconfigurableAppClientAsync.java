@@ -18,6 +18,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
@@ -288,7 +289,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			} catch (RequestParseException | JSONException e) {
 				// should never happen unless app has bugs
 				log.log(Level.WARNING,
-						"{0} received an unrecognizable message that can not be decoded as an application packet: {2}",
+						"{0} received an unrecognizable message that can not be decoded as an application packet: {1}",
 						new Object[] { this, msg });
 				e.printStackTrace();
 			}
@@ -431,13 +432,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				 * JSON<->string back and forth with the current NIO API and the
 				 * fact that apps in general may not use JSON for their packets
 				 * but we do. The alternative is to not provide the
-				 * sender-address feature to async clients; if son, we don't
+				 * sender-address feature to async clients; if so, we don't
 				 * need the JSON'ization below. */
 				if (JSONPacket.couldBeJSON(message)) {
 					JSONObject json = new JSONObject(message);
 					MessageExtractor.stampAddressIntoJSONObject(header.sndr,
 							header.rcvr, json);
-					DelayProfiler.updateDelayNano("headerInsertion", t);
+					if(ReconfigurationConfig.instrument(100))
+						DelayProfiler.updateDelayNano("headerInsertion", t);
 					// some inelegance to avoid a needless stringification
 					json.put(Keys.INCOMING_STRING.toString(), message);
 					return json;// inserted;
@@ -458,7 +460,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return ReconfigurableAppClientAsync.this.toString();
 		}
 	}
-
+	
 	/**
 	 * @param request
 	 * @param server
@@ -1056,7 +1058,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private boolean jsonPackets = false;
 
 	/**
-	 * If true, the app will only be handed JSON formatter packets via
+	 * If true, the app will only be handed JSON formatted packets via
 	 * getJSONRequest(), not via {@link #getRequest(String)}. If this method is
 	 * invoked, the protected method {@link #getJSONRequest(JSONObject)} must be
 	 * overridden.

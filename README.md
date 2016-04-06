@@ -2,6 +2,7 @@
 
 Obtaining gigapaxos
 -------------------
+
 Option 1: Binary:
 - Download the latest stable binary from <tt>http://date.cs.umass.edu/gigapaxos</tt>
 
@@ -10,7 +11,10 @@ Option 2: Source:
 - In the main directory called gigapaxos, type <tt>ant</tt>, which will create a jar file 
   <tt>dist/gigapaxos-\<version\>.jar</tt>.
 
-GigaPaxos overview ------------------ GigaPaxos is a group-scalable
+GigaPaxos overview 
+------------------ 
+
+GigaPaxos is a group-scalable
 replicated state machine (RSM) system, i.e., it allows applications to
 easily create and manage a very large number of separate RSMs. Clients
 can associate each service with a separate RSM of its own from a
@@ -44,11 +48,12 @@ This API requires three methods to be implemented:
     checkpoint(name)
     restore(name, state) 
 
-to respectively execute a request, obtain a state checkpoint, or 
-to roll back the state of a service named “name”. GigaPaxos ensures that applications 
-implementing the Replicable interface are also automatically <tt>Reconfigurable</tt>, 
-i.e., their replica locations are automatically changed in accordance with an application-
-specified policy.
+to respectively execute a request, obtain a state checkpoint, or to
+roll back the state of a service named “name”. GigaPaxos ensures that
+applications implementing the Replicable interface are also
+automatically <tt>Reconfigurable</tt>, i.e., their replica locations
+are automatically changed in accordance with an application-specific
+policy.
 
 Tutorial 1: Single-machine <tt>Replicable</tt> test-drive
 ---------------------------------------------------------
@@ -66,7 +71,7 @@ using. The default is <tt>edu.umass.cs.reconfiguration.examples.noopsimple.NoopA
 so uncomment the <tt>APPLICATION</tt> line below (by removing the leading <tt>#</tt>) as 
 we will be using this simpler "non-reconfigurable" <tt>NooPaxosApp</tt> application in 
 this first tutorial. A non-reconfigurable application's replicas can not be moved 
-around by gigapaxos, but a <tt>Reconfigurable</tt> application (such as <tt>NoopApp</tt>)
+around by gigapaxos, but a <tt>Reconfigurable</tt> application's (such as <tt>NoopApp</tt>)
 replicas can.
 
     #APPLICATION=edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp

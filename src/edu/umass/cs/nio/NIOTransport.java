@@ -236,8 +236,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * @return java.util.logging.Logger used by NIOTransport.
 	 */
 	public static Logger getLogger() {
-		return Logger.getLogger(NIOTransport.class.getName().replace(
-				"NIOTransport", ""));
+		return log;
+		//Logger.getLogger(NIOTransport.class.getName().replace(
+				//"NIOTransport", ""));
 	}
 
 	// private constructor must remain private
@@ -743,7 +744,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 			// socket closed by remote end
 			if (numRead == -1) {
-				log.log(Level.FINE, "{0} read off of channel {!}",
+				log.log(Level.FINE, "{0} read off of channel {1}",
 						new Object[] { this, socketChannel });
 				cleanup(key, socketChannel);
 			}
