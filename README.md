@@ -10,7 +10,9 @@ Option 2: Source:
 - In the main directory called gigapaxos, type <tt>ant</tt>, which will create a jar file 
   <tt>dist/gigapaxos-\<version\>.jar</tt>.
 
-GigaPaxos overview ------------------ GigaPaxos is a group-scalable
+GigaPaxos overview 
+------------------ 
+GigaPaxos is a group-scalable
 replicated state machine (RSM) system, i.e., it allows applications to
 easily create and manage a very large number of separate RSMs. Clients
 can associate each service with a separate RSM of its own from a
@@ -47,8 +49,8 @@ This API requires three methods to be implemented:
 to respectively execute a request, obtain a state checkpoint, or 
 to roll back the state of a service named “name”. GigaPaxos ensures that applications 
 implementing the Replicable interface are also automatically <tt>Reconfigurable</tt>, 
-i.e., their replica locations are automatically changed in accordance with an application-
-specified policy.
+i.e., their replica locations are automatically changed in accordance with an 
+application-specific policy.
 
 Tutorial 1: Single-machine <tt>Replicable</tt> test-drive
 ---------------------------------------------------------
@@ -61,12 +63,12 @@ by the separator '=' and a <tt>host:port</tt> address listening address for that
 Likewise, every line in the latter starts with the string <tt>reconfigurator.</tt> 
 followed by the separator and its <tt> host:port</tt> information
 
-The <tt>APPLICATION</tt> parameter below specifies which application we will be 
+The <tt>APPLICATION</tt> parameter specifies which application we will be 
 using. The default is <tt>edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp</tt>,
 so uncomment the <tt>APPLICATION</tt> line below (by removing the leading <tt>#</tt>) as 
 we will be using this simpler "non-reconfigurable" <tt>NooPaxosApp</tt> application in 
 this first tutorial. A non-reconfigurable application's replicas can not be moved 
-around by gigapaxos, but a <tt>Reconfigurable</tt> application (such as <tt>NoopApp</tt>)
+around by gigapaxos, but a <tt>Reconfigurable</tt> application's (such as <tt>NoopApp</tt>)
 replicas can.
 
     #APPLICATION=edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp
@@ -88,8 +90,9 @@ least 2f+1 replicas in order to make progress despite up to f failures.
 Reconfigurators form the "control plane" of giagpaxos while actives form 
 the "data plane" that is responsible for executing client requests.
 
-For the single machine test, you can leave the default gigapaxos.properties
-file as above unchanged with 3 actives and 3 reconfigurators even though
+For the single machine test, except for the <tt>APPLICATION</tt> change,
+you can leave the default gigapaxos.properties
+file above unchanged with 3 actives and 3 reconfigurators even though
 we won't really be using the reconfigurators at all. 
 
 Run the servers as follows from the top-level directory:
