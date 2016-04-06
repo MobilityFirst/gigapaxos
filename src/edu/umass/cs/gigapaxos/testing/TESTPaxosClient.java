@@ -68,7 +68,7 @@ public class TESTPaxosClient {
 
 	// private static final long createTime = System.currentTimeMillis();
 	private static final int RANDOM_REPLAY = (int) (Math.random() * Config
-			.getGlobalInt(TC.NUM_GROUPS));
+			.getGlobalInt(TC.NUM_GROUPS_CLIENT));
 
 	private static int SEND_POOL_SIZE = Config.getGlobalInt(TC.NUM_CLIENTS);
 	// because the single-threaded sender is a bottleneck on multicore
@@ -565,7 +565,9 @@ public class TESTPaxosClient {
 
 	private static final double TOTAL_LOAD = Config
 			.getGlobalDouble(TC.TOTAL_LOAD);
-	private static final int NUM_GROUPS = Config.getGlobalInt(TC.NUM_GROUPS);
+	//private static final int NUM_GROUPS = Config.getGlobalInt(TC.NUM_GROUPS);
+	private static final int NUM_GROUPS_CLIENT = Config.getGlobalInt(TC.NUM_GROUPS_CLIENT);
+
 	private static final String TEST_GUID_PREFIX = Config
 			.getGlobalString(TC.TEST_GUID_PREFIX);
 
@@ -596,7 +598,7 @@ public class TESTPaxosClient {
 			IOException, InterruptedException, ExecutionException {
 		System.out.print("\nTesting " + "[#requests=" + numReqs
 				+ ", request_size=" + gibberish.length() + "B, #clients="
-				+ clients.length + ", #groups=" + NUM_GROUPS + ", load="
+				+ clients.length + ", #groups=" + NUM_GROUPS_CLIENT + ", load="
 				+ Util.df(load) + "/s" + "]"
 				+ (Config.getGlobalBoolean(TC.PROBE_CAPACITY) ? "" : "\n"));
 
@@ -660,14 +662,14 @@ public class TESTPaxosClient {
 			System.out.print((warmup ? "\nWarming up " : "\nTesting ")
 					+ "[#requests=" + numReqs + ", request_size="
 					+ gibberish.length() + "B, #clients=" + clients.length
-					+ ", #groups=" + NUM_GROUPS + ", load=" + TOTAL_LOAD + "/s"
+					+ ", #groups=" + NUM_GROUPS_CLIENT + ", load=" + TOTAL_LOAD + "/s"
 					+ "]...");
 		RateLimiter rateLimiter = new RateLimiter(rate);
 		// long initTime = System.currentTimeMillis();
 		for (int i = 0; i < numReqs; i++) {
 			while (!clients[i % NUM_CLIENTS]
 					.makeAndSendRequest(TEST_GUID_PREFIX
-							+ ((RANDOM_REPLAY + i) % (NUM_GROUPS))))
+							+ ((RANDOM_REPLAY + i) % (NUM_GROUPS_CLIENT))))
 				;
 			rateLimiter.record();
 		}

@@ -115,6 +115,11 @@ public class TESTPaxosConfig {
 		NUM_GROUPS(1000),
 
 		/**
+		 * Number of groups to which the client will actually send requests.
+		 */
+		NUM_GROUPS_CLIENT (NUM_GROUPS),
+		
+		/**
 		 * 
 		 */
 		NUM_CLIENTS(9),

@@ -16,7 +16,8 @@
 # to all remote machines from the local host. With recursive_install
 # disabled, passwordless ssh is required only from the local host to
 # all remote hosts, but not from the first to the rest.
-recursive_install=1
+recursive_install=0
+#1
 
 package_name=gigapaxos #GNS
 # absolute path of the install on the local host
