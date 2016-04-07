@@ -294,6 +294,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			if (request instanceof ClientRequest
 					&& ((ClientRequest) request).getResponse() != null) {
 				try {
+					log.log(Level.FINER, "{0} sending response {1} back to requesting client {2}", new Object[]{this, 
+							((ClientRequest) request).getResponse().getSummary(), senderAndRequest.csa});
 					ClientRequest response = ((ClientRequest) request)
 							.getResponse();
 					((JSONMessenger<?>) this.messenger)
