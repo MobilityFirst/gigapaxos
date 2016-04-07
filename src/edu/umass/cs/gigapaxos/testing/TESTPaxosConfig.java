@@ -117,7 +117,7 @@ public class TESTPaxosConfig {
 		/**
 		 * Number of groups to which the client will actually send requests.
 		 */
-		NUM_GROUPS_CLIENT (NUM_GROUPS),
+		NUM_GROUPS_CLIENT (Config.getGlobalInt(TC.NUM_GROUPS)),
 		
 		/**
 		 * 

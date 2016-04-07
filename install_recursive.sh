@@ -144,7 +144,7 @@ if [[ $1 == "kill" || $2 == "kill" ]]; then
   kill_hosts=`echo $hosts`
   if [[ $1 == "kill" && $2 != "" ]]; then
     kill_hosts=`echo "${@:2}"`;
-  elif [[ $2 == "kill" ]]; then
+  elif [[ $2 == "kill" && "${@:3}" != "" ]]; then
     kill_hosts=`echo "${@:3}"`;
   fi
 
