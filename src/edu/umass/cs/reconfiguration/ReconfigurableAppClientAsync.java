@@ -409,15 +409,6 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return request != null ? request.getRequestType().getInt() : null;
 		}
 
-		@Override
-		protected Object getMessage(byte[] message) {
-			try {
-				return MessageExtractor.decode(message);
-			} catch (UnsupportedEncodingException e) {
-				e.printStackTrace();
-			}
-			return null;
-		}
 
 		@Override
 		protected Object processHeader(byte[] bytes, NIOHeader header) {

@@ -284,12 +284,6 @@ public class TESTPaxosClient {
 		}
 
 		@Override
-		protected Object getMessage(byte[] message) {
-			assert(false); 
-			return null;
-		}
-
-		@Override
 		protected Object processHeader(byte[] message, NIOHeader header) {
 			PaxosPacketType type = PaxosPacket.getType(message);
 			if (type != null) {

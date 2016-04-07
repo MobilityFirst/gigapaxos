@@ -102,17 +102,6 @@ public class NIOTester {
 			}
 
 			@Override
-			protected String getMessage(byte[] message) {
-				try {
-					return MessageExtractor.decode(message);
-				} catch (UnsupportedEncodingException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				return null;
-			}
-
-			@Override
 			protected String processHeader(byte[] message, NIOHeader header) {
 				try {
 					return MessageExtractor.decode(message);
@@ -180,15 +169,6 @@ public class NIOTester {
 				return 1;
 			}
 
-			@Override
-			protected String getMessage(byte[] message) {
-				try {
-					return MessageExtractor.decode(message);
-				} catch (UnsupportedEncodingException e) {
-					e.printStackTrace();
-				}
-				return null;
-			}
 
 			@Override
 			protected String processHeader(byte[] message, NIOHeader header) {

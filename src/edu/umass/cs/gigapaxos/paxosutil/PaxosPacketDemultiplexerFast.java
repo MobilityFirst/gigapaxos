@@ -200,21 +200,6 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		return PaxosPacketType.PAXOS_PACKET.getInt();
 	}
 
-	@Override
-	protected Object getMessage(byte[] bytes) {
-		assert (false); // should never come here
-		String message = null;
-		try {
-			message = MessageExtractor.decode(bytes);
-			return insertStringifiedSelf(
-					MessageExtractor.parseJSONSmart(message), message);
-		} catch (UnsupportedEncodingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return null;
-	}
-
 	// currently only RequestPacket is byteable
 	private static boolean isByteable(byte[] bytes) {
 		ByteBuffer bbuf;

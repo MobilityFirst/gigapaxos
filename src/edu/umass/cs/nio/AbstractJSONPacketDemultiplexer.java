@@ -57,17 +57,6 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 		return null;
 	}
 
-	@Override
-	protected JSONObject getMessage(byte[] msg) {
-		assert (false); // should never come here
-		try {
-			return MessageExtractor.parseJSON(MessageExtractor.decode(msg));
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-
 	protected JSONObject processHeader(byte[] message, NIOHeader header) {
 		return processHeader(message, header, false);
 	}

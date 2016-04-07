@@ -89,16 +89,11 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	private final Set<Integer> orderPreservingTypes = new HashSet<Integer>();
 	private static final Logger log = NIOTransport.getLogger();
 
-	// FIXME: this method needs to be deprecated and removed
-	@Deprecated
-	protected MessageType getMessage(byte[] message) {
-		return null;
-	}
-
 	abstract protected Integer getPacketType(MessageType message);
 
 	abstract protected MessageType processHeader(byte[] message,
 			NIOHeader header);
+	
 	abstract protected boolean matchesType(Object message);
 
 	private static final String DEFAULT_THREAD_NAME = AbstractPacketDemultiplexer.class
