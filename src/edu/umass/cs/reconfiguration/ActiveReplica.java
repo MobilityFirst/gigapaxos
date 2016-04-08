@@ -367,6 +367,26 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						if (INSTRUMENT_APP)
 							DelayProfiler.updateDelay(appNameLocalRequest,
 									recvTime);
+
+						// send response for uncoordinated request
+						ClientRequest response = null;
+						if (request instanceof ClientRequest
+								&& (response = ((ClientRequest) request)
+										.getResponse()) != null) {
+							log.log(Level.FINER,
+									"{0} sending response {1} back to requesting client {2} for request {3}",
+									new Object[] {
+											this,
+											response,
+											MessageNIOTransport
+													.getReceiverAddress(jsonObject),
+											request.getSummary() });
+							((JSONMessenger<?>) this.messenger).sendClient(
+									MessageNIOTransport
+											.getSenderAddress(jsonObject),
+									response, MessageNIOTransport
+											.getReceiverAddress(jsonObject));
+						}
 					}
 					// else do nothing until coordinated
 				} else {
