@@ -178,15 +178,14 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								.setThreadName(ReconfigurableNode.this.myID
 										.toString())), true,
 						ReconfigurationConfig.getServerSSLMode()))));
-                // This sanity check makes servers behind a NAT like on EC2 not work (MOB-635). Removing it. - Westy
-//		if (!niot.getListeningSocketAddress().equals(isa)) {
-//			Reconfigurator
-//					.getLogger()
-//					.severe(err = this
-//							+ " unable to start ReconfigurableNode at socket address "
-//							+ isa);
-//			throw new IOException(err);
-//		}
+		if (!niot.getListeningSocketAddress().equals(isa) && Config.getGlobalBoolean(RC.STRICT_ADDRESS_CHECKS)) {
+			Reconfigurator
+					.getLogger()
+					.severe(err = this
+							+ " unable to start ReconfigurableNode at socket address "
+							+ isa);
+			throw new IOException(err);
+		}
 		// else created messenger, may still fail to create client messenger
 
 		if (nodeConfig.getActiveReplicas().contains(id)) {

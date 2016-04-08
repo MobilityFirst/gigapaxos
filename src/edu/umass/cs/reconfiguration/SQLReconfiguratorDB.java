@@ -1130,10 +1130,18 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				});
 
 		try {
-			this.serverSock = new ServerSocket();
-			this.serverSock.bind(new InetSocketAddress(
-					this.consistentNodeConfig.getBindAddress(myID), 0));
-			;
+			InetAddress addr=null;
+			try {
+				this.serverSock = new ServerSocket();
+				// first try the configured address, else fall back to wildcard
+				this.serverSock.bind(new InetSocketAddress(
+						addr=this.consistentNodeConfig.getBindAddress(myID), 0));
+			} catch (IOException ioe) {
+				log.info(this
+						+ " unable to open large checkpoint server socket on "
+						+ addr + "; trying wildcard address instead");
+				this.serverSock = new ServerSocket(0);
+			}
 			checkpointServerFuture = executor.submit(new CheckpointServer());
 			return true;
 		} catch (IOException e) {
