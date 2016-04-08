@@ -47,7 +47,7 @@ transfer_list="$local_jar_files\
 # the first host that continues the installation.
 SSH="ssh -x -o StrictHostKeyChecking=no"
 
-RSYNC="rsync --force -R"
+RSYNC="rsync --force -aR"
 
 # paths relative to $local_install_dir
 gigapaxos_properties=gigapaxos.properties
