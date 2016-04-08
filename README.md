@@ -92,9 +92,11 @@ least 2f+1 replicas in order to make progress despite up to f failures.
 Reconfigurators form the "control plane" of giagpaxos while actives form 
 the "data plane" that is responsible for executing client requests.
 
-For the single machine test, you can leave the default gigapaxos.properties
-file as above unchanged with 3 actives and 3 reconfigurators even though
-we won't really be using the reconfigurators at all. 
+For the single-machine, local test, except for setting
+<tt>APPLICATION</tt> to <tt>NoopPaxosApp</tt>, you can leave the
+default gigapaxos.properties file as above unchanged with 3 actives
+and 3 reconfigurators even though we won't really be using the
+reconfigurators at all. 
 
 Run the servers as follows from the top-level directory:
     
@@ -130,7 +132,7 @@ The <tt>NoopPaxosAppClient</tt> client will simply send a few requests to the
 servers, wait for the responses, and print them on the console. The client
 is really simple and illustrates how to send callback-based requests. You
 can view its source here: 
-[NoopPaxosClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/examples/noop/NoopPaxosClient.java>)
+[NoopPaxosClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/examples/noop/NoopPaxosAppClient.java>)
 
 <tt>NoopPaxosApp</tt> is a trivial instantiation of <tt>Replicable</tt> 
 and its source is here:
