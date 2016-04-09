@@ -120,6 +120,10 @@ public class TESTPaxosConfig {
 		NUM_GROUPS_CLIENT (Config.getGlobalInt(TC.NUM_GROUPS)),
 		
 		/**
+		 * Default group size.
+		 */
+		GROUP_SIZE (3),
+		/**
 		 * 
 		 */
 		NUM_CLIENTS(9),
@@ -310,7 +314,7 @@ public class TESTPaxosConfig {
 			.getGlobalInt(TC.NUM_NODES)];
 
 	private static void setupGroups() {
-		defaultGroup = new int[Math.min(3, Config.getGlobalInt(TC.NUM_NODES))];
+		defaultGroup = new int[Math.min(Config.getGlobalInt(TC.GROUP_SIZE), Config.getGlobalInt(TC.NUM_NODES))];
 		assert (defaultGroup.length > 0) : Config.getGlobalInt(TC.NUM_NODES);
 		for (int i = 0; i < defaultGroup.length; i++)
 			defaultGroup[i] = Config.getGlobalInt(TC.TEST_START_NODE_ID) + i;

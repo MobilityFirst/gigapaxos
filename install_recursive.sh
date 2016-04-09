@@ -66,7 +66,7 @@ paxos_client=gigapaxos.testing.TESTPaxosClient
 #paxos_server=gigapaxos.testing.TESTPaxosMain
 
 # just removes the entire log directory
-#cmd_prefix="rm -rf paxos_logs; "
+cmd_prefix="rm -rf paxos_logs; "
 # deletes log data; slower compared to the above option
 cmd_suffix=" -c"
 

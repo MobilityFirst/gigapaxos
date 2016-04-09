@@ -412,7 +412,7 @@ public class TESTPaxosClient {
 		Level level = Level.FINE;
 		if (log.isLoggable(level))
 			log.log(level,
-					"Sending request to node {0}:{1}:{2} {2}",
+					this.myID + " sending request to node {0}:{1}:{2} {2}",
 					new Object[] { id, address, nc.getNodePort(id),
 							req.getSummary(log.isLoggable(level)) });
 		if (this.requests.put(req.requestID, new RequestAndCreateTime(req)) != null)
@@ -640,7 +640,7 @@ public class TESTPaxosClient {
 				+ Util.df((System.currentTimeMillis() - initTime) / 1000.0)
 				+ " secs; estimated average_sent_rate = "
 				+ Util.df(mostRecentSentRate) + "/s"
-		// + " \n "+ reqCounts
+		 + " \n "+ reqCounts
 				);
 
 	}

@@ -1,10 +1,10 @@
 #!/bin/bash
 
 HEAD=`dirname $0`
-CLASSPATH=$CLASSPATH:`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+CLASSPATH=`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`:$CLASSPATH
 LOG_PROPERTIES=logging.properties
 GP_PROPERTIES=gigapaxos.properties
-JVMFLAGS="-ea -Djava.util.logging.config.file=$LOG_PROPERTIES \
+JVMFLAGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
  -DgigapaxosConfig=$GP_PROPERTIES"
 
 ACTIVE="active"
