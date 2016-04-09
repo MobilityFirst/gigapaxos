@@ -129,6 +129,10 @@ public class TESTPaxosConfig {
 		NUM_CLIENTS(9),
 
 		/**
+		 * Whether client should send a smaller number of warmup requests.
+		 */
+		WARMUP (false),
+		/**
 		 * Whether a testing client should be pinned to send request to a single
 		 * server.
 		 */

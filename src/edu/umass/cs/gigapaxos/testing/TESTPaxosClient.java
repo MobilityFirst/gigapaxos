@@ -727,8 +727,13 @@ public class TESTPaxosClient {
 			TESTPaxosClient.class.notify();
 		}
 		assert (numResponses >= numRequests && noOutstanding(clients));
+		clearOutstanding(clients);
 	}
 
+	private static void clearOutstanding(TESTPaxosClient[] clients) {
+		for(TESTPaxosClient client : clients)
+			client.requests.clear();
+	}
 	private static boolean runDone = false;
 
 	protected static boolean noOutstanding(TESTPaxosClient[] clients) {
@@ -963,12 +968,17 @@ public class TESTPaxosClient {
 			System.out.println(TESTPaxosConfig.getFromPaxosConfig(true));
 			int numReqs = Config.getGlobalInt(TC.NUM_REQUESTS);
 
+			Thread.sleep(2000);
+			
 			// begin warmup run
-			long t1 = System.currentTimeMillis();
-			int numWarmupRequests = Math.min(numReqs, 10 * NUM_CLIENTS);
-			sendTestRequests(numWarmupRequests, clients, true, 10 * NUM_CLIENTS);
-			waitForResponses(clients, t1, numWarmupRequests);
-			System.out.println("[success]");
+			if(Config.getGlobalBoolean(TC.WARMUP)) {
+				long t1 = System.currentTimeMillis();
+				int numWarmupRequests = Math.min(numReqs, 10 * NUM_CLIENTS);
+				sendTestRequests(numWarmupRequests, clients, true,
+						10 * NUM_CLIENTS);
+				waitForResponses(clients, t1, numWarmupRequests);
+				System.out.println("[success]");
+			}
 			// end warmup run
 
 			resetLatencyComputation(clients);
