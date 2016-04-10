@@ -23,6 +23,7 @@ import java.util.Set;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
@@ -178,7 +179,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								.setThreadName(ReconfigurableNode.this.myID
 										.toString())), true,
 						ReconfigurationConfig.getServerSSLMode()))));
-		if (!niot.getListeningSocketAddress().equals(isa) && Config.getGlobalBoolean(RC.STRICT_ADDRESS_CHECKS)) {
+		if (!niot.getListeningSocketAddress().equals(isa) && Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS)) {
 			Reconfigurator
 					.getLogger()
 					.severe(err = this

@@ -32,6 +32,7 @@ import org.json.JSONException;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.nioutils.NIOHeader;
+import edu.umass.cs.utils.Stringer;
 
 import java.util.logging.Level;
 
@@ -87,13 +88,13 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	private final ScheduledThreadPoolExecutor executor;
 	private final HashMap<Integer, PacketDemultiplexer<MessageType>> demuxMap = new HashMap<Integer, PacketDemultiplexer<MessageType>>();
 	private final Set<Integer> orderPreservingTypes = new HashSet<Integer>();
-	private static final Logger log = NIOTransport.getLogger();
+	protected static final Logger log = NIOTransport.getLogger();
 
 	abstract protected Integer getPacketType(MessageType message);
 
 	abstract protected MessageType processHeader(byte[] message,
 			NIOHeader header);
-	
+
 	abstract protected boolean matchesType(Object message);
 
 	private static final String DEFAULT_THREAD_NAME = AbstractPacketDemultiplexer.class
@@ -107,8 +108,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	 *            setThreadPoolsize(int)}.
 	 */
 	public AbstractPacketDemultiplexer(int threadPoolSize) {
-		this.executor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(threadPoolSize,
-				new ThreadFactory() {
+		this.executor = (ScheduledThreadPoolExecutor) Executors
+				.newScheduledThreadPool(threadPoolSize, new ThreadFactory() {
 					@Override
 					public Thread newThread(Runnable r) {
 						Thread thread = Executors.defaultThreadFactory()
@@ -128,10 +129,11 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	}
 
 	protected AbstractPacketDemultiplexer<MessageType> setThreadName(String name) {
-		this.threadName = DEFAULT_THREAD_NAME + name;
+		this.threadName = DEFAULT_THREAD_NAME + "[" + myThreadPoolSize + "]"
+				+ (name != null ? ":" + name : "");
 		return this;
 	}
-	
+
 	public String toString() {
 		return this.threadName;
 	}
@@ -140,13 +142,17 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	protected boolean handleMessageSuper(byte[] msg, NIOHeader header)
 			throws JSONException {
 		MessageType message = null;
+		Level level = Level.FINEST;
 		try {
 			message = processHeader(msg, header);
-		} catch (Exception e) {
+		} catch (Exception | Error e) {
 			e.printStackTrace();
 			return false;
 		}
-		Integer type = message!=null ? getPacketType(message) : null;
+		Integer type = message != null ? getPacketType(message) : null;
+		log.log(level, "{0} handling type {1} message {2}:{3}", new Object[] {
+				this, type, header,
+				log.isLoggable(level) ? new Stringer(msg) : msg });
 
 		if (type == null || !this.demuxMap.containsKey(type)) {
 			/* It is natural for some demultiplexers to not handle some packet
@@ -156,17 +162,15 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		}
 		Tasker tasker = new Tasker(message, this.demuxMap.get(type));
 		if (this.myThreadPoolSize == 0 || isOrderPreserving(message)) {
-			log.log(Level.FINE,
-					"{0} handling {1} message in selector thread; this can cause "
+			log.log(Level.FINER,
+					"{0} handling message type {1} in selector thread; this can cause "
 							+ "deadlocks if the handler involves blocking operations",
 					new Object[] { this, type });
 			// task better be lightning quick
 			tasker.run();
-		}
-		else
+		} else
 			try {
-				log.log(Level.FINEST,
-						"{0} invoking {1}.handleMessage on message {2}",
+				log.log(Level.FINEST, "{0} invoking {1}.handleMessage({2})",
 						new Object[] { this, tasker.pd, message });
 				// task should still be non-blocking
 				executor.schedule(tasker, 0, TimeUnit.MILLISECONDS);

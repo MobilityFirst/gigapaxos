@@ -18,6 +18,7 @@ package edu.umass.cs.gigapaxos.paxospackets;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.junit.Test;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -31,6 +32,7 @@ import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
 
@@ -714,11 +716,6 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return this.toBytes(false);
 	}
 
-	static {
-		checkFields(RequestPacket.class, Fields.values());
-		checkMyFields();
-	}
-
 	/**
 	 * Double-check statically that everything up to {@link #broadcasted} has
 	 * the length {@link #SIZEOF_REQUEST_FIXED} that we expect.
@@ -1354,40 +1351,6 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return s;
 	}
 
-	public static void main(String[] args) throws UnsupportedEncodingException,
-			UnknownHostException {
-		Util.assertAssertionsEnabled();
-		int numReqs = 25;
-		RequestPacket[] reqs = new RequestPacket[numReqs];
-		RequestPacket req = new RequestPacket("asd" + 999, true);
-		for (int i = 0; i < numReqs; i++) {
-			reqs[i] = new RequestPacket("asd" + i, true);
-		}
-
-		System.out.println("Decision size estimate = " + SIZE_ESTIMATE);
-
-		req.latchToBatch(reqs);
-		String reqStr = req.toString();
-		try {
-			RequestPacket reqovered = new RequestPacket(req.toJSONObject());
-			String reqoveredStr = reqovered.toString();
-			assert (reqStr.equals(reqoveredStr));
-			System.out.println("batchSize = " + reqovered.batched.length);
-			// System.out.println(reqovered.batched[3]);
-			System.out.println(samplePValue);
-
-			System.out.println(reqs[1]);
-			System.out.println(new RequestPacket(reqs[1].toBytes()));
-
-			System.out.println(req);
-			System.out.println(reqovered = new RequestPacket(req.toBytes()));
-			assert (req.toString().equals(reqovered.toString()));
-
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
-	}
-
 	@Override
 	public ClientRequest getResponse() {
 		return this.getACK();
@@ -1469,4 +1432,59 @@ public class RequestPacket extends PaxosPacket implements Request,
 	protected void setByteifiedSelf(byte[] bytes) {
 		this.byteifiedSelf = bytes;
 	}
+
+	public static void doubleCheckFields() {
+		checkFields(RequestPacket.class, Fields.values());
+		checkMyFields();
+	}
+
+	public static class RequestPacketTest extends DefaultTest {
+		public RequestPacketTest() {
+		}
+
+		@Test
+		public void testCheckFields() {
+			doubleCheckFields();
+		}
+	}
+
+	static {
+		if (Config.getGlobalBoolean(PC.ENABLE_STATIC_CHECKS))
+			doubleCheckFields();
+	}
+
+	public static void main(String[] args) throws UnsupportedEncodingException,
+			UnknownHostException {
+		Util.assertAssertionsEnabled();
+		int numReqs = 25;
+		RequestPacket[] reqs = new RequestPacket[numReqs];
+		RequestPacket req = new RequestPacket("asd" + 999, true);
+		for (int i = 0; i < numReqs; i++) {
+			reqs[i] = new RequestPacket("asd" + i, true);
+		}
+
+		System.out.println("Decision size estimate = " + SIZE_ESTIMATE);
+
+		req.latchToBatch(reqs);
+		String reqStr = req.toString();
+		try {
+			RequestPacket reqovered = new RequestPacket(req.toJSONObject());
+			String reqoveredStr = reqovered.toString();
+			assert (reqStr.equals(reqoveredStr));
+			System.out.println("batchSize = " + reqovered.batched.length);
+			// System.out.println(reqovered.batched[3]);
+			System.out.println(samplePValue);
+
+			System.out.println(reqs[1]);
+			System.out.println(new RequestPacket(reqs[1].toBytes()));
+
+			System.out.println(req);
+			System.out.println(reqovered = new RequestPacket(req.toBytes()));
+			assert (req.toString().equals(reqovered.toString()));
+
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+	}
+
 }

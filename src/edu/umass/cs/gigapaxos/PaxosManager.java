@@ -768,14 +768,14 @@ public class PaxosManager<NodeIDType> {
 	class FastDemultiplexer extends
 			edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast {
 
-		public FastDemultiplexer(int numThreads) {
+		public FastDemultiplexer(int numThreads, boolean clientFacing) {
 			super(numThreads);
+			this.setThreadName(myID + (clientFacing ? "-clientFacing" : ""));
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
-			this.setThreadName("" + myID);
 		}
 
 		public FastDemultiplexer() {
-			this(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS));
+			this(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS), false);
 		}
 
 		public boolean handleMessage(Object msg) {
@@ -789,18 +789,16 @@ public class PaxosManager<NodeIDType> {
 									.toString()));
 					Level level = type == PaxosPacketType.REQUEST ? Level.FINE
 							: Level.FINEST;
-					PaxosManager.log.log(
-							level,
+					PaxosManager.log.log(level,
 							"{0} packet demultiplexer received {1}",
-							new Object[] {
-									PaxosManager.this,
-									msg });
+							new Object[] { PaxosManager.this, msg });
 					long t = System.nanoTime();
 					PaxosPacket pp = edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast
 							.toPaxosPacket(fixNodeStringToInt(jsonMsg),
 									PaxosManager.this.unstringer);
 
-					if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(100))
+					if (PaxosMessenger.INSTRUMENT_SERIALIZATION
+							&& Util.oneIn(100))
 						if (pp.getType() == PaxosPacketType.REQUEST)
 							DelayProfiler.updateDelayNano(
 									"requestPacketization", t);
@@ -1287,23 +1285,27 @@ public class PaxosManager<NodeIDType> {
 				cMsgr = new JSONMessenger<InetSocketAddress>(
 						createdNIOTransport = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 								myAddressOffsetted.getAddress(),
-								(myAddressOffsetted.getPort()),
+								myAddressOffsetted.getPort(),
 								/* Client facing demultiplexer is single
 								 * threaded to keep clients from overwhelming
 								 * the system with request load. */
 								(Config.getGlobalString(PC.JSON_LIBRARY)
 										.equals("org.json") ? new JSONDemultiplexer(
-										0, true) : new FastDemultiplexer(0)),
+										0, true) : new FastDemultiplexer(Config.getGlobalInt(PC.CLIENT_DEMULTIPLEXER_THREADS),
+										true)),
 								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 										.getGlobalString(PC.CLIENT_SSL_MODE))
 										: SSL_MODES.CLEAR));
-				if (!createdNIOTransport.getListeningSocketAddress().equals(
-						myAddressOffsetted))
-					// FIXME: will throw false positive exception on EC2
-					// throw new IOException(
-					// "Unable to listen on specified socket address at "
-					// + isa + " != " + niot.getListeningSocketAddress())
-					;
+				if (Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS)
+						&& !createdNIOTransport.getListeningSocketAddress()
+								.equals(myAddressOffsetted))
+					// Note: will throw false positive exception on EC2
+					throw new IOException(
+							"Unable to listen on specified socket address at "
+									+ myAddressOffsetted
+									+ " != "
+									+ createdNIOTransport
+											.getListeningSocketAddress());
 				assert (msgr != null);
 				if (ssl)
 					msgr.setSSLClientMessenger(cMsgr);
@@ -1759,8 +1761,10 @@ public class PaxosManager<NodeIDType> {
 			while ((paxosPacket = this.paxosLogger.readNextMessage()) != null) {
 				paxosPacket = PaxosPacket.markRecovered(paxosPacket);
 				Level level = Level.FINEST;
-				log.log(level, "{0} rolling forward logged message {1}",
-						new Object[] { this, paxosPacket.getSummary(log.isLoggable(level)) });
+				log.log(level,
+						"{0} rolling forward logged message {1}",
+						new Object[] { this,
+								paxosPacket.getSummary(log.isLoggable(level)) });
 				this.handlePaxosPacket((paxosPacket));
 				if ((++logCount) % freq == 0) {
 					freq *= 2;
@@ -1876,9 +1880,10 @@ public class PaxosManager<NodeIDType> {
 
 	protected void send(InetSocketAddress sockAddr, Request request,
 			InetSocketAddress listenSockAddr) throws JSONException, IOException {
-		this.messenger.sendClient(sockAddr, request instanceof RequestPacket ?
-		(((RequestPacket) request).toBytes())
-				: request, listenSockAddr);
+		this.messenger.sendClient(
+				sockAddr,
+				request instanceof RequestPacket ? (((RequestPacket) request)
+						.toBytes()) : request, listenSockAddr);
 	}
 
 	/* A clean kill completely removes all trace of the paxos instance (unlike
@@ -2125,8 +2130,7 @@ public class PaxosManager<NodeIDType> {
 		 * drop even though the instance exists locally. Such packet drops will
 		 * not affect safety but it is good to avoid them. */
 		synchronized (this.stringLocker.get(paxosID)) {
-			log.log(Level.FINE,
-					"{0} about to try to unpause instance {1}",
+			log.log(Level.FINE, "{0} about to try to unpause instance {1}",
 					new Object[] { this, paxosID });
 
 			HotRestoreInfo hri = this.paxosLogger.unpause(paxosID);

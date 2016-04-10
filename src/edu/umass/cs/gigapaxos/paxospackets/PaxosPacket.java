@@ -570,8 +570,6 @@ public abstract class PaxosPacket extends JSONPacket {
 				System.out.println("    " + fields[j]);
 			boolean match = true;
 			String field = fields[i].getName();
-			// String[] tokens = fields[i].toString().split("\\s+");
-			// String type = tokens[tokens.length - 2];
 			Class<?> type = fields[i].getType();
 			match = match && field.equals(expFields[j].toString())
 					&& type.equals(expFields[j].getType());

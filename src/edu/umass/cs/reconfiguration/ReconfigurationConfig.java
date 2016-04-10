@@ -271,10 +271,6 @@ public class ReconfigurationConfig {
 		 */
 		STAMP_SENDER_ADDRESS_JSON (false), 
 		
-		/**
-		 * 
-		 */
-		STRICT_ADDRESS_CHECKS(false),
 
 		;
 

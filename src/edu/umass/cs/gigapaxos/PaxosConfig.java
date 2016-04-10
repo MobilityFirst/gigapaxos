@@ -385,6 +385,11 @@ public class PaxosConfig {
 		ENABLE_INSTRUMENTATION(false),
 
 		/**
+		 * 
+		 */
+		ENABLE_STATIC_CHECKS(false),
+		
+		/**
 		 * Whether DelayProfiler should be enabled.
 		 */
 		DELAY_PROFILER(true),
@@ -483,6 +488,16 @@ public class PaxosConfig {
 		 */
 		INSTRUMENT_SERIALIZATION (false),
 
+		/**
+		 * 
+		 */
+		STRICT_ADDRESS_CHECKS(false),
+		
+		/**
+		 * 
+		 */
+		CLIENT_DEMULTIPLEXER_THREADS (0),
+		
 		/**
 		 * FIXME: The options below only exist for testing stringification
 		 * overhead. They should probably be moved to {@link TESTPaxosConfig}.

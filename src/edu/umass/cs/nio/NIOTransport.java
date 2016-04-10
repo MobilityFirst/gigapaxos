@@ -219,7 +219,10 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	private final Thread me;
 	private final long meThreadId;
 
+	// store these to avoid needless object creation
 	private final InetSocketAddress listeningSocketAddress;
+	private final InetAddress listeningAddress;
+	private final int listeningPort;
 
 	/**
 	 * A flag to easily enable or disable SSL by default. CLEAR is not really a
@@ -237,8 +240,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 */
 	public static Logger getLogger() {
 		return log;
-		//Logger.getLogger(NIOTransport.class.getName().replace(
-				//"NIOTransport", ""));
+		// Logger.getLogger(NIOTransport.class.getName().replace(
+		// "NIOTransport", ""));
 	}
 
 	// private constructor must remain private
@@ -253,6 +256,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		this.selector = this.initSelector(mySockAddr);
 		this.listeningSocketAddress = (InetSocketAddress) this.serverChannel
 				.getLocalAddress();
+		this.listeningAddress = this.listeningSocketAddress.getAddress();
+		this.listeningPort = this.listeningSocketAddress.getPort();
 
 		(me = (new Thread(this))).setName(getClass().getSimpleName() + ":"
 				+ (myID != null ? myID : "[]"));
@@ -382,10 +387,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			return -1;
 
 		Level level = Level.FINEST;
-		log.log(level,
-				"{0} invoked send to ({1}={2}:{3}: {4}), checking connection status..",
-				new Object[] { this, id, address, port,
-						log.isLoggable(level) ? new Stringer(data) : data });
+		log.log(level, "{0} -> {1}={2}:{3}:[{4}]", new Object[] {
+				this, id, address, port,
+				log.isLoggable(level) ? new Stringer(data) : data });
 		if (this.nodeConfig == null)
 			throw new NullPointerException(
 					"Attempting ID-based communication with null InterfaceNodeConfig");
@@ -761,6 +765,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			}
 			return;
 		}
+
 		// else first read payload length in header, then ready payload
 		AlternatingByteBuffer abbuf = (AlternatingByteBuffer) key.attachment();
 		assert (abbuf != null) : this + ": no attachment for " + key.channel();
@@ -792,9 +797,14 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		// if complete payload read, pass to worker
 		if (abbuf.bodyBuf != null && !abbuf.bodyBuf.hasRemaining()) {
 			bbuf.flip();
-			log.log(Level.FINEST, "{0}[thread{1}] read from socketChannel {2}",
-					new Object[] { this, Thread.currentThread().getId(),
-							socketChannel });
+			Level level = Level.FINEST;
+			log.log(level, "{0}[t{1}] read from channel {2}:[{3}]",
+					new Object[] {
+							this,
+							Thread.currentThread().getId(),
+							socketChannel,
+							log.isLoggable(level) ? new Stringer(bbuf.array(),
+									bbuf.position(), bbuf.remaining()) : "" });
 			this.worker.processData(socketChannel, this.inflate(bbuf));
 			// clear header to prepare to read the next message
 			if (!bbuf.hasRemaining()) {
@@ -1068,8 +1078,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		this.writeBuffer.remaining();
 		int written = this.wrapWrite(socketChannel, this.writeBuffer);
 		// assert(this.writeBuffer.remaining()==0);
-		log.log(Level.FINEST,
-				"{0} wrote {1} batched bytes to {2}; total sentByteCount = {3}",
+		log.log(Level.FINEST, "{0} wrote {1} batched bytes to {2}",
 				new Object[] { this, written, socketChannel });
 
 		// remove exactly what got sent above
@@ -1101,21 +1110,30 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		return this.wrapWrite(socketChannel, unencrypted, false);
 	}
 
-	// invokes wrap before nio write if SSL enabled
+	/**
+	 * Invokes wrap before nio write if SSL enabled. Control exits from this
+	 * class and either goes to SSLDataProcessingWorker or to socket write.
+	 * 
+	 * @param socketChannel
+	 * @param unencrypted
+	 * @param sneakyMode
+	 *            Passed only for logging purposes.
+	 * @return Number of bytes written.
+	 * @throws IOException
+	 */
 	private int wrapWrite(SocketChannel socketChannel, ByteBuffer unencrypted,
-			boolean sneakyDebug) throws IOException {
-		//assert (this.isHandshakeComplete(socketChannel));
+			boolean sneakyMode) throws IOException {
+		// assert (this.isHandshakeComplete(socketChannel));
 		Level level = Level.FINEST;
 		if (log.isLoggable(level))
-			log.log(level,
-					"{0}[thread{1}{2}]{3} writing out to socketChannel {4}",
+			log.log(level, "{0}[t{1}{2}]{3} writing out to channel {4}",
 					new Object[] {
 							this,
 							Thread.currentThread().getId(),
 							Thread.currentThread().getId() != this.meThreadId
-									&& !sneakyDebug ? Thread.currentThread()
+									&& !sneakyMode ? Thread.currentThread()
 									.getName() : "",
-							(sneakyDebug ? " sneakily" : ""), socketChannel });
+							(sneakyMode ? " sneakily" : ""), socketChannel });
 		if (this.isSSL())
 			return ((SSLDataProcessingWorker) this.worker).wrap(socketChannel,
 					unencrypted);
@@ -1422,7 +1440,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	}
 
 	// is connected or is connection pending
-	private boolean isConnected(InetSocketAddress isa) {
+	private boolean isConnected(InetSocketAddress isa, boolean doLog) {
 		SocketChannel sock = null;
 		// synchronized (this.sockAddrToSockChannel)
 		{
@@ -1430,9 +1448,14 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		}
 		if (sock != null && (sock.isConnected() || sock.isConnectionPending()))
 			return true;
-		log.log(Level.FINEST, "{0} socket channel [{1}] not connected",
-				new Object[] { this, sock });
+		if (doLog)
+			log.log(Level.FINEST, "{0} channel to {1}=[{2}]", new Object[] {
+					this, isa, sock });
 		return false;
+	}
+
+	private boolean isConnected(InetSocketAddress isa) {
+		return this.isConnected(isa, false);
 	}
 
 	/* Initiate a connection if the existing socket channel is not connected.
@@ -1445,10 +1468,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			return; // quick check before synchronization
 		}
 		synchronized (this.sockAddrToSockChannel) {
-			if (!this.isConnected(isa) && checkAndReconnect(isa)) {
+			if (!this.isConnected(isa, true) && checkAndReconnect(isa)) {
 				log.log(Level.FINE,
-						"Node {0} attempting to reconnect to {1}, probably "
-								+ "because the remote end died or closed the connection",
+						"Node {0} has no connection to {1} either because "
+								+ "one has not been established or "
+								+ "was previously closed by remote end.",
 						new Object[] { this.myID, isa });
 				this.initiateConnection(isa);
 			}
@@ -1478,7 +1502,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			Iterator<ChangeRequest> changes = this.pendingConnects.iterator();
 			while (changes.hasNext()) {
 				ChangeRequest change = (ChangeRequest) changes.next();
-				log.log(Level.FINEST, "{0} processing connect event: {1}",
+				log.log(Level.FINEST, "{0} processing connect event {1}",
 						new Object[] { this, change });
 				SelectionKey key = change.socket.keyFor(this.selector);
 				switch (change.type) {
@@ -1557,31 +1581,15 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 *         wildcard fallback in NIOTransport.
 	 */
 	public InetSocketAddress getListeningSocketAddress() {
-		return this.listeningSocketAddress;// new
-											// InetSocketAddress(getListeningAddress(),
-											// getListeningPort());
+		return this.listeningSocketAddress;
 	}
 
 	protected int getListeningPort() {
-		try {
-			return ((InetSocketAddress) (this.serverChannel.getLocalAddress()))
-					.getPort();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return -1;
+		return this.listeningPort;
 	}
 
 	protected InetAddress getListeningAddress() {
-		try {
-			return ((InetSocketAddress) (this.serverChannel.getLocalAddress()))
-					.getAddress();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return null;
+		return this.listeningAddress;
 	}
 
 	/* This method will definitely initiate a new connection and replace
@@ -1596,8 +1604,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		socketChannel.socket().setReceiveBufferSize(HINT_SOCK_BUFFER_SIZE);
 
 		// Kick off connection establishment
-		log.log(Level.FINE, "{0} connecting to socket address {1}",
-				new Object[] { this, isa });
+		log.log(Level.FINE, "{0} connecting to {1}", new Object[] { this, isa });
 
 		socketChannel.socket().setSoLinger(false, -1);
 		socketChannel.socket().setTcpNoDelay(true);
@@ -1727,7 +1734,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	public String toString() {
 		return this.getClass().getSimpleName() + ":"
-				+ (this.myID != null ? this.myID : "[]");
+				+ (this.myID != null ? this.myID : this.listeningAddress) + ":"
+				+ this.listeningPort;
 	}
 
 	/* This method notifies the selector thread that a handshake is complete so

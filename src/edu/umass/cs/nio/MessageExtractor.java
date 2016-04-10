@@ -18,6 +18,7 @@ package edu.umass.cs.nio;
 import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
+import edu.umass.cs.utils.Stringer;
 import edu.umass.cs.utils.Util;
 import net.minidev.json.JSONValue;
 
@@ -34,6 +35,7 @@ import java.util.TimerTask;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -53,7 +55,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * 
 	 */
 	public static final String STRINGIFIED = "_STRINGIFIED_";
-	
+
 	private ArrayList<AbstractPacketDemultiplexer<?>> packetDemuxes;
 	private final ScheduledExecutorService executor = Executors
 			.newScheduledThreadPool(1); // only for delay emulation
@@ -142,7 +144,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 		try {
 			if (msg.length() > 0 && JSONPacket.couldBeJSON(msg))
 				jsonData = new JSONObject(msg);
-			if(cacheStringified)
+			if (cacheStringified)
 				jsonData.put(MessageExtractor.STRINGIFIED, msg);
 			// Util.toJSONObject(msg);
 		} catch (JSONException e) {
@@ -151,6 +153,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 		}
 		return jsonData;
 	}
+
 	protected static JSONObject parseJSON(String msg) {
 		return parseJSON(msg);
 	}
@@ -215,6 +218,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 			throws UnsupportedEncodingException {
 		return new String(bytes, MessageNIOTransport.NIO_CHARSET_ENCODING);
 	}
+
 	/**
 	 * @param bytes
 	 * @param offset
@@ -224,7 +228,8 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 */
 	public static String decode(byte[] bytes, int offset, int length)
 			throws UnsupportedEncodingException {
-		return new String(bytes, offset, length, MessageNIOTransport.NIO_CHARSET_ENCODING);
+		return new String(bytes, offset, length,
+				MessageNIOTransport.NIO_CHARSET_ENCODING);
 	}
 
 	private void demultiplexMessage(NIOHeader header, ByteBuffer incoming)
@@ -273,6 +278,14 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	private boolean callDemultiplexerHandler(NIOHeader header, byte[] message,
 			AbstractPacketDemultiplexer<?> pd) {
 		try {
+			Level level = Level.FINEST;
+			log.log(level, "{0} calling {1}.handleMessageSuper({2}:{3})",
+					new Object[] {
+							this,
+							pd,
+							header,
+							log.isLoggable(level) ? new Stringer(message)
+									: message });
 			// the handler turns true if it handled the message
 			if (pd.handleMessageSuper(message, header))
 				return true;
@@ -281,7 +294,10 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 			je.printStackTrace();
 		}
 		return false;
+	}
 
+	public String toString() {
+		return this.getClass().getSimpleName();
 	}
 
 	@Override

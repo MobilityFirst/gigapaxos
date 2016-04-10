@@ -36,6 +36,7 @@ import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
+import edu.umass.cs.utils.Stringer;
 
 /**
  * @author V. Arun
@@ -179,13 +180,17 @@ public class JSONMessenger<NodeIDType> implements
 
 				// check success or failure and react accordingly
 				if (sent > 0) {
-					log.log(Level.FINEST, "Node{0} sent to {1} ", new Object[] {
-							this.nioTransport.getMyID(), mtask.recipients[r],
-							message });
+					log.log(Level.FINEST,
+							"{0}->{1}:[{2}] ",
+							new Object[] {
+									this,
+									mtask.recipients[r],
+									message != null ? message
+											: log.isLoggable(Level.FINEST) ? new Stringer(
+													msgBytes) : msgBytes });
 				} else if (sent == 0) {
-					log.info("Node "
-							+ this.nioTransport.getMyID()
-							+ " messenger experiencing congestion, this is not disastrous (yet)");
+					log.log(Level.INFO,
+							"{0} experiencing congestion; this is not disastrous (yet)");
 					Retransmitter rtxTask = new Retransmitter(
 							(mtask.recipients[r]), msgBytes, RTX_DELAY,
 							useWorkers);
@@ -348,6 +353,7 @@ public class JSONMessenger<NodeIDType> implements
 	public void addPacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
 		this.nioTransport.addPacketDemultiplexer(pd);
 	}
+
 	@Override
 	public void precedePacketDemultiplexer(AbstractPacketDemultiplexer<?> pd) {
 		this.nioTransport.precedePacketDemultiplexer(pd);
@@ -414,7 +420,7 @@ public class JSONMessenger<NodeIDType> implements
 		public String toString() {
 			return obj.toString();
 		}
-		
+
 		/**
 		 * @return The wrapped object.
 		 */

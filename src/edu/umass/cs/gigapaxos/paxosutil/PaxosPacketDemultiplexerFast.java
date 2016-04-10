@@ -79,21 +79,24 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		if (type == null)
 			fatal(bytes);
 
-		bbuf = ByteBuffer.wrap(bytes);
+		//bbuf = ByteBuffer.wrap(bytes);
+		bbuf.rewind();
 
 		PaxosPacket paxosPacket = null;
 		switch (type) {
 		case REQUEST:
-			paxosPacket = (new RequestPacket(bbuf));
+//			log.info("before new RequestPacket(ByteBuffer)");
+			paxosPacket = new RequestPacket(bbuf);
+//			log.info("after new RequestPacket(ByteBuffer)");
 			break;
 		case ACCEPT:
-			paxosPacket = (new AcceptPacket(bbuf));
+			paxosPacket = new AcceptPacket(bbuf);
 			break;
 		case BATCHED_COMMIT:
-			paxosPacket = (new BatchedCommit(bbuf));
+			paxosPacket = new BatchedCommit(bbuf);
 			break;
 		case BATCHED_ACCEPT_REPLY:
-			paxosPacket = (new BatchedAcceptReply(bbuf));
+			paxosPacket = new BatchedAcceptReply(bbuf);
 			break;
 
 		default:

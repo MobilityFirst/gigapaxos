@@ -378,7 +378,7 @@ public class TESTPaxosClient {
 			JSONException {
 		int[] group = TESTPaxosConfig.getGroup(req.getPaxosID());
 		int index = !PIN_CLIENT ? (int) (req.requestID % group.length)
-				: (int) (myID % group.length);
+				: (int) ((myID+0) % group.length);
 		assert (!(index < 0 || index >= group.length || TESTPaxosConfig
 				.isCrashed(group[index])));
 		return this.sendRequest(group[index], req);
@@ -968,8 +968,6 @@ public class TESTPaxosClient {
 			System.out.println(TESTPaxosConfig.getFromPaxosConfig(true));
 			int numReqs = Config.getGlobalInt(TC.NUM_REQUESTS);
 
-			Thread.sleep(2000);
-			
 			// begin warmup run
 			if(Config.getGlobalBoolean(TC.WARMUP)) {
 				long t1 = System.currentTimeMillis();
