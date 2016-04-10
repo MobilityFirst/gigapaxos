@@ -1,4 +1,4 @@
-# unless recursive_install is disabled!/bin/bash
+#!/bin/bash
 
 # You should normally only need to change the first local_install_dir
 # variable below and remote_user if different from the local user. 
@@ -29,7 +29,7 @@ install_host=lime
 
 # relative to remote home. Currently, remote_install_dir has to be the
 # same as local_install_dir.
-remote_install_dir=$package_name 
+remote_install_dir=$package_name/
 
 # Regular expression for local jars to be transferred. This regex is
 # used by rsync, so it must be a single file or a regex, not an

@@ -980,7 +980,6 @@ public class TESTPaxosClient {
 			// end warmup run
 
 			resetLatencyComputation(clients);
-			Thread.sleep(1000);
 
 			if (Config.getGlobalBoolean(TC.PROBE_CAPACITY))
 				TESTPaxosClient.probeCapacity(

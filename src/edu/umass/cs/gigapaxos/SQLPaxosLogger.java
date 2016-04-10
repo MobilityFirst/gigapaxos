@@ -258,8 +258,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private final ScheduledExecutorService GC;
 	private final MessageLogDiskMap messageLog;
 
-	private static Logger log = Logger.getLogger(PaxosManager.class
-			.getName());;
+	private static Logger log = Logger.getLogger(PaxosManager.class.getName());;
 
 	SQLPaxosLogger(int id, String strID, String dbPath,
 			PaxosMessenger<?> messenger) {
@@ -333,7 +332,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		MessageLogDiskMap(Diskable<String, LogIndex> disk) {
 			// super(new MultiArrayMap<String,
 			// LogIndex>(Config.getGlobalInt(PC.PINSTANCES_CAPACITY)));
-			super(128 * 1024);
+			super(Config.getGlobalInt(PC.LOG_DISKMAP_CAPACITY));
 			this.disk = disk;
 		}
 
@@ -901,6 +900,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 			return file.lastModified();
 		}
+
+		public String toString() {
+			return this.file.toString();
+		}
 	}
 
 	private static final byte[] testBytes = new byte[2000 * 1000];
@@ -969,7 +972,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					else if (PAUSABLE_INDEX_JOURNAL)
 						this.messageLog.add(packets[i].logMsg,
 								this.journaler.curLogfile,
-								this.journaler.curLogfileSize, bytes.length);
+								this.journaler.curLogfileSize, bytes.length)
+								;
 					if (USE_MAP_DB && Util.oneIn(1000))
 						this.mapDB.dbMemory.commit();
 					SQLPaxosLogger.this.journaler.appendToLogFile(bbuf.array(),
@@ -1413,7 +1417,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				ballot.ballotNumber, ballot.coordinatorID, acceptedGCSlot);
 
 	}
-	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
+
+	private static final boolean ENABLE_INSTRUMENTATION = Config
+			.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
 
 	private void deleteOutdatedMessages(String paxosID, int version,
 			Ballot ballot, int slot, int ballotnum, int coordinator,
@@ -2013,7 +2019,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		if (isClosed() /* || !isLoggingEnabled() */)
 			return null;
 
-
 		HotRestoreInfo hri = null;
 		PreparedStatement pstmt = null;
 		ResultSet rset = null;
@@ -2033,7 +2038,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				String serialized = rset.getString(1); // no clob option
 				if (serialized != null)
 					hri = new HotRestoreInfo(serialized);
-
 
 				Blob logIndexBlob = rset.getBlob(2);
 				logIndexString = lobToString(logIndexBlob);
@@ -2182,7 +2186,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 					byte[] logIndexBytes = logIndex != null ? deflate(logIndex
 							.toString().getBytes(CHARSET)) : null;
-					if (logIndexBytes != null && ENABLE_INSTRUMENTATION && Util.oneIn(Integer.MAX_VALUE))
+					if (logIndexBytes != null && ENABLE_INSTRUMENTATION
+							&& Util.oneIn(Integer.MAX_VALUE))
 						DelayProfiler.updateMovAvg("logindex_size",
 								logIndexBytes.length);
 					Blob blob = conn.createBlob();
@@ -2353,7 +2358,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		if (blob == null)
 			return null;
 		byte[] blobBytes = blob.getBytes(1L, (int) blob.length());
-		assert(blobBytes!=null);
+		assert (blobBytes != null);
 		return inflate(blobBytes);
 		// return new String(inflate(blobBytes), CHARSET);
 	}
@@ -2593,8 +2598,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					if (i == logfiles.length)
 						i = 0; // not found
 
-					log.log(Level.INFO, "{0} rolling forward logged messages from logfile {1} onwards",
-							new Object[]{this, logfiles[i]});
+					log.log(Level.INFO,
+							"{0} rolling forward logged messages from logfile {1} onwards",
+							new Object[] { this, logfiles[i] });
 
 					this.logfileIndex = i;
 					curRAF = new RandomAccessFile(logfiles[i], "r");
@@ -2746,10 +2752,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				// packetStr = new String(msg, CHARSET);
 				packetBytes = msg;
 
-				 pp = this.getPacketizer() != null ? this
-						.getPacketizer().stringToPaxosPacket(msg) : PaxosPacket
+				pp = this.getPacketizer() != null ? this.getPacketizer()
+						.stringToPaxosPacket(msg) : PaxosPacket
 						.getPaxosPacket(new String(msg, CHARSET));
-						
+
 				// also index latest log file
 				if (DB_INDEX_JOURNAL
 						&& latest != null
@@ -3159,12 +3165,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			pstmt = conn.prepareStatement(cmd);
 			messagesRS = pstmt.executeQuery();
 
-			assert (messagesRS.next()) : this
-					+ " found no minLogfile with query \"" + cmd + "\"";
 			assert (!messagesRS.isClosed());
-			while (messagesRS.next()) {
+			while (messagesRS.next())
 				logfiles.add(messagesRS.getString(1));
-			}
+			assert (!logfiles.isEmpty()) : this
+					+ " found no minLogfile with query \"" + cmd + "\"";
+
 			// DelayProfiler.updateDelay("get_indexed_logfiles", t);
 		} catch (SQLException e) {
 			log.severe(e.getClass().getSimpleName()
@@ -3191,7 +3197,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 		assert (minLogfilename != null) : this
 				+ " found no minLogfile while trying to garbage collect candidates "
-				+ candidates;
+				+ candidates + "; activeFrontier=" + activeFrontier;
 		ArrayList<String> activeLogfiles = new ArrayList<String>();
 		for (Filename candidate : candidates)
 			if (minLogfilename.compareTo(candidate) <= 0)
@@ -3508,11 +3514,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 								this.journaler.getLogfilePrefix() });
 				deleted.add(filename.file);
 			}
-		log.log(Level.INFO, "{0} "
-				+ (!deleted.isEmpty() ? "garbage collected log files"
-						: "unable to delete any log files; activeLogfiles = ")
-				+ " {1}", new Object[] { this,
-				(!deleted.isEmpty() ? deleted : activeLogfiles) });
+		log.log(Level.INFO,
+				"{0} "
+						+ (!deleted.isEmpty() ? "garbage collected log files"
+								: "unable to garbage-collect any log files; activeLogfiles = ")
+						+ " {1}", new Object[] { this,
+						(!deleted.isEmpty() ? deleted : activeLogfiles) });
 	}
 
 	public ArrayList<PaxosPacket> getLoggedMessages(String paxosID) {

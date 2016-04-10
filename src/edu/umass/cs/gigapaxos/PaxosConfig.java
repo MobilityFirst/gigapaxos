@@ -716,8 +716,21 @@ public class PaxosConfig {
 		 * 
 		 * Disabled by default.
 		 */
-		DIGEST_REQUESTS(false),
+		DIGEST_REQUESTS(true),
 
+		/**
+		 * Number of active groups up to which digesting is done. Digests seem
+		 * to hurt with many groups probably because the cost more than offsets
+		 * the benefit. With many groups, the coordinator load balancing benefit
+		 * of digests is negligible. The main benefit is that they save one
+		 * transmission of the request body, but they increase the total number
+		 * of messages by one and lose out on stringification optimizations at
+		 * acceptors. Furthermore, a digested accept is useless unless the
+		 * corresponding request body arrives, which seems to slow down the
+		 * overall throughput of the system.
+		 */
+		DIGEST_THRESHOLD(2), 
+		
 		/**
 		 * Whether paxos packets across different paxos groups should be batched
 		 * if they are going to the same set of destinations.
@@ -744,7 +757,7 @@ public class PaxosConfig {
 		 * It may give small benefits with a large number of groups and little
 		 * room for batching within each group.
 		 */
-		BATCHED_REQUESTS(false),
+		BATCHED_REQUESTS(true),
 
 		/**
 		 * Local messages are not put in {@link PaxosPacketBatcher}.
@@ -778,17 +791,9 @@ public class PaxosConfig {
 		MIN_PP_BATCH_SIZE(3),
 
 		/**
-		 * Number of active groups up to which digesting is done. Digests seem
-		 * to hurt with many groups probably because the cost more than offsets
-		 * the benefit. With many groups, the coordinator load balancing benefit
-		 * of digests is negligible. The main benefit is that they save one
-		 * transmission of the request body, but they increase the total number
-		 * of messages by one and lose out on stringification optimizations at
-		 * acceptors. Furthermore, a digested accept is useless unless the
-		 * corresponding request body arrives, which seems to slow down the
-		 * overall throughput of the system.
+		 * 
 		 */
-		DIGEST_THRESHOLD(2),
+		LOG_DISKMAP_CAPACITY (128*1024),
 
 		;
 
