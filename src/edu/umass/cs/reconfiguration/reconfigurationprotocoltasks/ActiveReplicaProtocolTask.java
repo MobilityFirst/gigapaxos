@@ -40,12 +40,14 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket
 public class ActiveReplicaProtocolTask<NodeIDType> implements
 ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 
-	private static final String HANDLER_METHOD_PREFIX = ReconfigurationPacket.HANDLER_METHOD_PREFIX; // could be any String as scope is local
+	private static final String HANDLER_METHOD_PREFIX = ReconfigurationPacket.HANDLER_METHOD_PREFIX; 
+	
 	private static final ReconfigurationPacket.PacketType[] defaultTypes = {
 		ReconfigurationPacket.PacketType.STOP_EPOCH,
 		ReconfigurationPacket.PacketType.START_EPOCH,
 		ReconfigurationPacket.PacketType.REQUEST_EPOCH_FINAL_STATE,
-		ReconfigurationPacket.PacketType.DROP_EPOCH_FINAL_STATE
+		ReconfigurationPacket.PacketType.DROP_EPOCH_FINAL_STATE,
+		ReconfigurationPacket.PacketType.ECHO_REQUEST
 	};
 	private static final ReconfigurationPacket.PacketType[] types = ReconfigurationPacket.concatenate(defaultTypes,
 		WaitEpochFinalState.types);

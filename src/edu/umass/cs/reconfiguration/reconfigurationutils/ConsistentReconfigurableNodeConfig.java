@@ -108,6 +108,17 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		return this.nodeConfig.getActiveReplicas();
 	}
 
+	/**
+	 * @return Socket addresses of active replicas. Used by reconfigurator to
+	 *         respond to broadcast queries.
+	 */
+	public Set<InetSocketAddress> getActiveReplicaSocketAddresses() {
+		Set<InetSocketAddress> actives = new HashSet<InetSocketAddress>();
+		for (NodeIDType node : this.nodeConfig.getActiveReplicas())
+			actives.add(this.getNodeSocketAddress(node));
+		return actives;
+	}
+
 	@Override
 	public Set<NodeIDType> getReconfigurators() {
 		return this.nodeConfig.getReconfigurators();
@@ -199,11 +210,11 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	public ArrayList<InetAddress> getReplicatedActivesIPs(String name) {
 		return this.getNodeIPs(this.getReplicatedActives(name));
 	}
-	
+
 	/**
 	 * @param name
 	 * @param limit
-	 * @return Active replica addresses. 
+	 * @return Active replica addresses.
 	 */
 	private Set<InetSocketAddress> getReplicatedActivesAddresses(String name,
 			int limit) {
@@ -217,12 +228,14 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		}
 		return addresses;
 	}
+
 	/**
 	 * @return Random active replica address.
 	 */
 	public Set<InetSocketAddress> getRandomActiveReplica() {
-		return this.getReplicatedActivesAddresses(""+Math.random(), 1);
+		return this.getReplicatedActivesAddresses("" + Math.random(), 1);
 	}
+
 	/**
 	 * This method maps a set of addresses, newAddresses, to a set of nodes such
 	 * that there is maximal overlap with the specified set of nodes, oldNodes.
@@ -457,10 +470,9 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 				.iterator(); nodeIter.hasNext();) {
 			NodeIDType slated = nodeIter.next();
 			if (this.removeActive(slated) != null) {
-				assert(!this.nodeExists(slated)) : slated;
+				assert (!this.nodeExists(slated)) : slated;
 				nodeIter.remove();
-			}
-			else
+			} else
 				allRemoved = false;
 		}
 		return allRemoved;

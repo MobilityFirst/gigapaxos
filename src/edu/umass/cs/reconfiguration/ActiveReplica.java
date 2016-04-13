@@ -55,6 +55,7 @@ import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
+import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
@@ -70,11 +71,13 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationP
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DefaultAppRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DropEpochFinalState;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.EchoRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StopEpoch;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.ActiveReplicaProtocolTask;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationutils.AbstractDemandProfile;
@@ -187,7 +190,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			this.recvTime = recvTime;
 		}
 	}
-	
+
 	static final MessageDigest md = initMD();
 
 	static MessageDigest initMD() {
@@ -198,9 +201,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 		return null;
 	}
-	
+
 	static BigInteger toBigInt(byte[] request) {
-		synchronized(md) {
+		synchronized (md) {
 			byte[] digest = md.digest(request);
 			md.reset();
 			return new BigInteger(digest);
@@ -208,8 +211,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	private static long REQUEST_TIMEOUT = 5000;
-	private GCConcurrentHashMap<Long, SenderAndRequest> outstanding =			
-			new GCConcurrentHashMap<Long, SenderAndRequest>(
+	private GCConcurrentHashMap<Long, SenderAndRequest> outstanding = new GCConcurrentHashMap<Long, SenderAndRequest>(
 			new GCConcurrentHashMapCallback() {
 				@Override
 				public void callbackGC(Object key, Object value) {
@@ -224,7 +226,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			value += ((long) digest[i] & 0xffL) << (8 * i);
 		return value;
 	}
-	
+
 	/* TODO: incomplete. This class may be used to allow apps to simply send a
 	 * byte[] as a request to the active replica port. However, to make this
 	 * work, we at least need the app to tell us if the request is legitimate,
@@ -264,6 +266,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		public void setNeedsCoordination(boolean b) {
 			// do nothing
 		}
+
 		public String toString() {
 			// FIXME: this won't really work
 			try {
@@ -294,8 +297,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			if (request instanceof ClientRequest
 					&& ((ClientRequest) request).getResponse() != null) {
 				try {
-					log.log(Level.FINER, "{0} sending response {1} back to requesting client {2}", new Object[]{this, 
-							((ClientRequest) request).getResponse().getSummary(), senderAndRequest.csa});
+					log.log(Level.FINER,
+							"{0} sending response {1} back to requesting client {2}",
+							new Object[] {
+									this,
+									((ClientRequest) request).getResponse()
+											.getSummary(), senderAndRequest.csa });
 					ClientRequest response = ((ClientRequest) request)
 							.getResponse();
 					((JSONMessenger<?>) this.messenger)
@@ -320,6 +327,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
+
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
 		try {
 			// try handling as reconfiguration packet through protocol task
@@ -443,8 +451,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						.getString(MessageExtractor.STRINGIFIED) : jsonObject
 						.toString());
 	}
-	
-	private static final boolean STAMP_SENDER_ADDRESS_JSON = Config.getGlobalBoolean(RC.STAMP_SENDER_ADDRESS_JSON);
+
+	private static final boolean STAMP_SENDER_ADDRESS_JSON = Config
+			.getGlobalBoolean(RC.STAMP_SENDER_ADDRESS_JSON);
 
 	@Override
 	public void executed(Request request, boolean handled) {
@@ -709,6 +718,38 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						ackDrop.getSummary(), ackDrop.getInitiator() });
 		this.garbageCollectPendingTasks(dropEpoch);
 		return deleted ? mtask.toArray() : null;
+	}
+
+	/**
+	 * @param echo
+	 * @param ptasks
+	 * @return null
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleEchoRequest(
+			EchoRequest echo,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		log.log(Level.FINE, "{0} received echo request {1}", new Object[] {
+				this, echo.getSummary() });
+		if (echo.isRequest()) {
+			try {
+				((JSONMessenger<?>) this.messenger)
+						.sendClient(
+								echo.getSender(), // can't use null initiator
+								echo.makeResponse(
+										this.nodeConfig
+												.getNodeSocketAddress(getMyID()))
+										.toJSONObject(), echo.myReceiver);
+			} catch (JSONException | IOException e) {
+				e.printStackTrace();
+			}
+		} else if (echo.hasClosest()) {
+			RTTEstimator.closest(echo.getSender(), echo.getClosest());
+			log.log(Level.INFO, "{0} received closest map {1} from {2}; RTTEstimator.closest={3}",
+					new Object[] { this, echo.getClosest(), echo.getSender(),
+					RTTEstimator.getClosest(echo.getSender().getAddress())});
+		}
+		// else
+		return null;
 	}
 
 	// drop any pending task (only WaitEpochFinalState possible) upon dropEpoch
@@ -1102,6 +1143,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				}
 				if (appTypes != null && !appTypes.isEmpty())
 					pd.register(this.appCoordinator.getRequestTypes(), this);
+				pd.register(PacketType.ECHO_REQUEST, this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();

@@ -61,6 +61,7 @@ import edu.umass.cs.gigapaxos.paxosutil.SlotBallotState;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosApp;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.NIOTransport;
+import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Keyable;
@@ -454,7 +455,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		PaxosPacket.PaxosPacketType msgType = pp != null ? pp.getType()
 				: PaxosPacket.PaxosPacketType.NO_TYPE;
 		log.log(Level.FINEST, "{0} received {1}:{2}", new Object[] { this,
-				msgType, pp });
+				msgType, pp!=null ? pp.getSummary(log.isLoggable(Level.FINEST)) :pp });
 
 		boolean isPoke = msgType.equals(PaxosPacketType.NO_TYPE);
 		if (!isPoke)
@@ -478,8 +479,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				// neither during recovery
 				: null);
 
-		log.log(level, "{0} about to switch on packet type {1}", new Object[] {
-				this, pp!=null ? pp.getSummary(log.isLoggable(level)) : null });
+		log.log(level,
+				"{0} about to switch on packet type {1}",
+				new Object[] {
+						this,
+						pp != null ? pp.getSummary(log.isLoggable(level))
+								: null });
 
 		MessagingTask mtask = null;
 		MessagingTask[] batchedTasks = null;
@@ -1631,8 +1636,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					if (!((decision instanceof PValuePacket) && ((PValuePacket) decision)
 							.isRecovery())
 							&& (shouldLog && !(shouldLog = false))) {
-						log.log(Level.INFO, "{0}",
-								new Object[] { DelayProfiler.getStats() });
+						log.log(Level.INFO, "{0} {1}",
+								new Object[] { DelayProfiler.getStats(),
+										RTTEstimator.print() });
 					}
 
 					// TESTPaxosApp tracks noops, so it needs to be feed them
@@ -1770,8 +1776,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				pid,
 				this.getVersion(),
 				this.paxosManager.getStringNodesFromIntArray(this.groupMembers),
-				cpSlot, this.paxosState.getBallot(),
-				state = this.getApp().checkpoint(pid), this.paxosState.getGCSlot());
+				cpSlot, this.paxosState.getBallot(), state = this.getApp()
+						.checkpoint(pid), this.paxosState.getGCSlot());
 		// need to acquire these without locking
 		int gcSlot = this.paxosState.getGCSlot();
 		int maxCommittedSlot = this.paxosState.getMaxCommittedSlot();
@@ -1781,9 +1787,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				: "");
 		log.log(Level.INFO,
 				"{0} forcing checkpoint at slot {1}; garbage collected accepts up to slot {2}; "
-				+ "max_committed_slot = {3} {4}; state={5}",
+						+ "max_committed_slot = {3} {4}; state={5}",
 				new Object[] { this, cpSlot, gcSlot, maxCommittedSlot,
-						maxCommittedFrontier, Util.truncate(state, 128, 128)});
+						maxCommittedFrontier, Util.truncate(state, 128, 128) });
 		return true;
 	}
 

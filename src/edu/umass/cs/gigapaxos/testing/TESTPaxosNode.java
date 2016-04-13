@@ -67,16 +67,18 @@ public class TESTPaxosNode {
 		try {
 			// shared between app and paxos manager only for testing
 			JSONMessenger<Integer> niot = null;
-			this.pm = new PaxosManager<Integer>(
-					id,
-					nc,
-					(niot = new JSONMessenger<Integer>(new MessageNIOTransport<Integer, JSONObject>(id,
-							nc, new PacketDemultiplexerDefault(), true,
-							SSLDataProcessingWorker.SSL_MODES.valueOf(Config
-									.getGlobal(PC.SERVER_SSL_MODE).toString())))),
+			this.pm = new PaxosManager<Integer>(id, nc,
+					(niot = new JSONMessenger<Integer>(
+							new MessageNIOTransport<Integer, JSONObject>(id,
+									nc, new PacketDemultiplexerDefault(), true,
+									SSLDataProcessingWorker.SSL_MODES
+											.valueOf(Config.getGlobal(
+													PC.SERVER_SSL_MODE)
+													.toString())))),
 					(this.app = new TESTPaxosApp(niot)), null, true);
-			pm.initClientMessenger(new InetSocketAddress(nc
-					.getNodeAddress(myID), nc.getNodePort(myID)), niot);
+			pm.initClientMessenger(
+					new InetSocketAddress(nc.getNodeAddress(myID), nc
+							.getNodePort(myID)), niot);
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 		}
@@ -189,10 +191,12 @@ public class TESTPaxosNode {
 					+ Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS)
 					+ " default groups");
 			me.createDefaultGroupInstances();
-			System.out.println("Creating "
-					+ (numGroups - Config
-							.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
-					+ " additional non-default groups");
+			System.out
+					.println("Creating "
+							+ ((numGroups - Config
+									.getGlobalInt(TC.PRE_CONFIGURED_GROUPS)) > 0 ? (numGroups - Config
+									.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
+									: "no") + " additional non-default groups");
 			me.createNonDefaultGroupInstanes(numGroups);
 
 			System.out.println("\n\nFinished creating all groups\n\n");

@@ -124,8 +124,9 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		RC_RECORD_REQUEST(238),
 
 		// admin -> reconfigurator
-		RECONFIGURE_RC_NODE_CONFIG(239), 
-		RECONFIGURE_ACTIVE_NODE_CONFIG(240);
+		RECONFIGURE_RC_NODE_CONFIG(239), RECONFIGURE_ACTIVE_NODE_CONFIG(240),
+
+		ECHO_REQUEST(241);
 
 		private final int number;
 
@@ -143,7 +144,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 
 	public static final ReconfigurationPacket.PacketType[] clientPacketTypes = {
 			PacketType.CREATE_SERVICE_NAME, PacketType.DELETE_SERVICE_NAME,
-			PacketType.REQUEST_ACTIVE_REPLICAS, PacketType.ACTIVE_REPLICA_ERROR };
+			PacketType.REQUEST_ACTIVE_REPLICAS, PacketType.ACTIVE_REPLICA_ERROR, PacketType.ECHO_REQUEST };
 	public static final ReconfigurationPacket.PacketType[] serverPacketTypes = {
 			PacketType.RECONFIGURE_RC_NODE_CONFIG,
 			PacketType.RECONFIGURE_ACTIVE_NODE_CONFIG };
@@ -199,6 +200,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		typeMap.put(
 				ReconfigurationPacket.PacketType.RECONFIGURE_ACTIVE_NODE_CONFIG,
 				ReconfigureActiveNodeConfig.class);
+		typeMap.put(ReconfigurationPacket.PacketType.ECHO_REQUEST,
+				EchoRequest.class);
 
 		for (ReconfigurationPacket.PacketType type : ReconfigurationPacket.PacketType.intToType
 				.values()) {
@@ -302,7 +305,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		ReconfigurationPacket.PacketType rcType = null;
 		String canonicalClassName = null;
 		try {
-			 long t = System.nanoTime();
+			long t = System.nanoTime();
 			if ((rcType = ReconfigurationPacket.PacketType.intToType
 					.get(JSONPacket.getPacketType(json))) != null
 					&& (canonicalClassName = getPacketTypeCanonicalClassName(rcType)) != null) {
@@ -310,7 +313,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 						canonicalClassName).getConstructor(JSONObject.class,
 						Stringifiable.class).newInstance(json, unstringer));
 			}
-			 DelayProfiler.updateDelayNano("rc_reflection", t);
+			DelayProfiler.updateDelayNano("rc_reflection", t);
 		} catch (NoSuchMethodException nsme) {
 			nsme.printStackTrace();
 		} catch (InvocationTargetException ite) {
@@ -349,8 +352,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 	public static BasicReconfigurationPacket<?> getReconfigurationPacketSuppressExceptions(
 			String str, Stringifiable<?> unstringer) {
 		try {
-			return JSONPacket.couldBeJSON(str) ? getReconfigurationPacket(new JSONObject(
-					str), typeMap, unstringer) : null;
+			return JSONPacket.couldBeJSON(str) ? getReconfigurationPacket(
+					new JSONObject(str), typeMap, unstringer) : null;
 		} catch (Exception e) {
 			// do nothing
 		}

@@ -552,9 +552,12 @@ public abstract class PaxosPacket extends JSONPacket {
 				return true;
 		return false;
 	}
+	
+	private static final boolean STRICT_ADDRESS_CHECKS = Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS);
 
 	// to prevent unintentional field sequence modifications
 	static void checkFields(Class<?> clazz, GetType[] expFields) {
+		if(!STRICT_ADDRESS_CHECKS) return;
 		Field[] fields = clazz.getDeclaredFields();
 		boolean print = edu.umass.cs.gigapaxos.PaxosManager.getLogger()
 				.isLoggable(Level.FINE);

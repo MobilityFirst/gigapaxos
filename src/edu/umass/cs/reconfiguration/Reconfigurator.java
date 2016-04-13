@@ -133,7 +133,7 @@ public class Reconfigurator<NodeIDType> implements
 	public static final Logger getLogger() {
 		return log;
 	}
-	
+
 	/**
 	 * For profiling statistics in {@link DelayProfiler}.
 	 */
@@ -186,7 +186,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.initClientMessenger(false);
 		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
 			this.initClientMessenger(true);
-  
+
 		assert (this.getClientMessenger() != null || this
 				.clientFacingPortIsMyPort());
 
@@ -706,8 +706,10 @@ public class Reconfigurator<NodeIDType> implements
 		return record != null && record.getState().equals(RCStates.WAIT_DELETE);
 	}
 
-	private static final String SPECIAL_NAME = Config
+	private static final String ANYCAST_NAME = Config
 			.getGlobalString(RC.SPECIAL_NAME);
+	private static final String BROADCAST_NAME = Config
+			.getGlobalString(RC.BROADCAST_NAME);
 
 	/**
 	 * This method simply looks up and returns the current set of active
@@ -732,10 +734,15 @@ public class Reconfigurator<NodeIDType> implements
 						request.getCreator(),
 						request.isForwarded() ? "from reconfigurator "
 								+ request.getSender() : "" });
-		if (request.getServiceName().equals(SPECIAL_NAME)) {
+		if (request.getServiceName().equals(ANYCAST_NAME)) {
 			this.sendClientReconfigurationPacket(request
 					.setActives(modifyPortsForSSL(this.consistentNodeConfig
 							.getRandomActiveReplica())));
+			return null;
+		} else if (request.getServiceName().equals(BROADCAST_NAME)) {
+			this.sendClientReconfigurationPacket(request
+					.setActives(modifyPortsForSSL(this.consistentNodeConfig
+							.getActiveReplicaSocketAddresses())));
 			return null;
 		}
 
@@ -1418,30 +1425,33 @@ public class Reconfigurator<NodeIDType> implements
 										+ "; created messenger listening instead on "
 										+ niot.getListeningSocketAddress());
 					log.info(this + " --------------------- here");
-				} else if (!ssl) { 
-					log.log(Level.INFO, "{0} adding self as demultiplexer to existing {1} client messenger", new Object[]{this,
-							ssl?"SSL":""});
+				} else if (!ssl) {
+					log.log(Level.INFO,
+							"{0} adding self as demultiplexer to existing {1} client messenger",
+							new Object[] { this, ssl ? "SSL" : "" });
 					if (this.messenger.getClientMessenger() instanceof Messenger)
-					((Messenger<NodeIDType, ?>) this.messenger
-							.getClientMessenger())
-							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+						((Messenger<NodeIDType, ?>) this.messenger
+								.getClientMessenger())
+								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
 				} else {
-					log.log(Level.INFO, "{0} adding self as demultiplexer to existing {1} client messenger", new Object[]{this,
-							ssl?"SSL":""});
+					log.log(Level.INFO,
+							"{0} adding self as demultiplexer to existing {1} client messenger",
+							new Object[] { this, ssl ? "SSL" : "" });
 					if (this.messenger.getSSLClientMessenger() instanceof Messenger)
-					((Messenger<NodeIDType, ?>) this.messenger
-							.getSSLClientMessenger())
-							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+						((Messenger<NodeIDType, ?>) this.messenger
+								.getSSLClientMessenger())
+								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
 				}
 				assert (pd != null);
 				pd.register(clientRequestTypes, this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			log.severe(this + " failed to initialize client messenger: " + e.getMessage());
+			log.severe(this + " failed to initialize client messenger: "
+					+ e.getMessage());
 			System.exit(1);
 		}
-		
+
 		if (cMsgr != null)
 			if (ssl && this.messenger.getSSLClientMessenger() == null)
 				this.messenger.setSSLClientMessenger(cMsgr);
@@ -2135,7 +2145,7 @@ public class Reconfigurator<NodeIDType> implements
 			public void run() {
 				try {
 					Reconfigurator.this.executeActiveNodeConfigChange(rcRecReq);
-				}catch(Exception |Error e) {
+				} catch (Exception | Error e) {
 					e.printStackTrace();
 				}
 			}
@@ -2176,7 +2186,7 @@ public class Reconfigurator<NodeIDType> implements
 				.changeActiveDBNodeConfig(rcRecReq.startEpoch.getEpochNumber());
 
 		for (NodeIDType active : this.diff(record.getActiveReplicas(),
-				record.getNewActives())) 
+				record.getNewActives()))
 			this.deleteActiveReplica(active, rcRecReq.startEpoch.creator);
 
 		try {
@@ -2189,7 +2199,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.consistentNodeConfig.removeActivesSlatedForRemoval();
 		for (NodeIDType active : this.diff(record.getActiveReplicas(),
 				record.getNewActives())) {
-			assert(!this.consistentNodeConfig.nodeExists(active));
+			assert (!this.consistentNodeConfig.nodeExists(active));
 		}
 
 		// uncoordinated change

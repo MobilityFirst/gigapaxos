@@ -706,7 +706,7 @@ public class PaxosManager<NodeIDType> {
 		public boolean handleMessage(JSONObject jsonMsg) {
 			try {
 				PaxosManager.log.log(Level.FINEST,
-						"{0} packet demultiplexer received {1}", new Object[] {
+						"{0} packet json demultiplexer received {1}", new Object[] {
 								PaxosManager.this, jsonMsg });
 				PaxosManager.this
 						.handleIncomingPacket(edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexer
@@ -770,7 +770,7 @@ public class PaxosManager<NodeIDType> {
 
 		public FastDemultiplexer(int numThreads, boolean clientFacing) {
 			super(numThreads);
-			this.setThreadName(myID + (clientFacing ? "-clientFacing" : ""));
+			this.setThreadName(PaxosManager.this.intToString(myID) + (clientFacing ? "-clientFacing" : ""));
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 		}
 
@@ -780,6 +780,7 @@ public class PaxosManager<NodeIDType> {
 
 		public boolean handleMessage(Object msg) {
 			// long t = System.nanoTime();
+			assert(msg!=null);
 			if (msg instanceof net.minidev.json.JSONObject)
 				try {
 					PaxosPacketType type = null;
@@ -787,15 +788,15 @@ public class PaxosManager<NodeIDType> {
 					assert ((type = PaxosPacket.getPaxosPacketType(jsonMsg)) != PaxosPacketType.ACCEPT || jsonMsg
 							.containsKey(RequestPacket.Keys.STRINGIFIED
 									.toString()));
-					Level level = type == PaxosPacketType.REQUEST ? Level.FINE
-							: Level.FINEST;
-					PaxosManager.log.log(level,
-							"{0} packet demultiplexer received {1}",
-							new Object[] { PaxosManager.this, msg });
 					long t = System.nanoTime();
 					PaxosPacket pp = edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast
 							.toPaxosPacket(fixNodeStringToInt(jsonMsg),
 									PaxosManager.this.unstringer);
+					Level level = type == PaxosPacketType.REQUEST ? Level.FINE
+							: Level.FINEST;
+					PaxosManager.log.log(level,
+							"{0} packet fast demultiplexer received {1}",
+							new Object[] { PaxosManager.this, pp.getSummary(log.isLoggable(level)) });
 
 					if (PaxosMessenger.INSTRUMENT_SERIALIZATION
 							&& Util.oneIn(100))
@@ -815,15 +816,19 @@ public class PaxosManager<NodeIDType> {
 				// else
 				assert (msg instanceof PaxosPacket);
 				PaxosPacketType type = ((PaxosPacket) msg).getType();
-				Level level = type == PaxosPacketType.REQUEST ? Level.FINE
-						: Level.FINEST;
+				Level level = (type == PaxosPacketType.REQUEST ? Level.FINE
+						: Level.FINEST);
 				PaxosManager.log.log(
 						level,
-						"{0} packet demultiplexer received {1}",
+						"{0} packet fast-byte demultiplexer received {1} {2}",
 						new Object[] {
 								PaxosManager.this,
-								((PaxosPacket) msg).getSummary(log
-										.isLoggable(level)) });
+								((PaxosPacket) msg).getSummary(
+										//log.isLoggable(level)
+										), msg instanceof RequestPacket && 
+										(((RequestPacket)msg).getEntryReplica()==PaxosManager.this.myID
+										|| ((RequestPacket)msg).getEntryReplica()==IntegerMap.NULL_INT_NODE)
+										? "from client" :""});
 
 				/* FIXME: Need to fixNodeStringToInt. Unclear how to do the
 				 * reverse efficiently while sending out messages. So we
@@ -875,8 +880,8 @@ public class PaxosManager<NodeIDType> {
 			.getGlobalBoolean(PC.BATCHING_ENABLED);
 
 	private void handleIncomingPacket(PaxosPacket pp) {
-		if (pp.getType() == PaxosPacket.PaxosPacketType.REQUEST)
-			((RequestPacket) pp).setEntryReplicaAndReturnCount(myID);
+		//if (pp.getType() == PaxosPacket.PaxosPacketType.REQUEST)
+			//((RequestPacket) pp).setEntryReplicaAndReturnCount(myID);
 
 		if (pp.getType() == PaxosPacketType.BATCHED_PAXOS_PACKET)
 			for (PaxosPacket packet : ((BatchedPaxosPacket) pp)
@@ -948,7 +953,7 @@ public class PaxosManager<NodeIDType> {
 				PaxosInstanceStateMachine pism = this.getInstance(request
 						.getPaxosID());
 
-				log.log(level, "{0} received paxos message for {1} : {3}",
+				log.log(level, "{0} received paxos message for {1} : {2}",
 						new Object[] { this,
 								pism != null ? pism : "non-existent instance",
 								request.getSummary(log.isLoggable(level)) });
@@ -1352,7 +1357,7 @@ public class PaxosManager<NodeIDType> {
 
 	// queue of outstanding requests
 	protected void incrOutstanding(RequestPacket request) {
-		// request.setEntryReplicaAndReturnCount(this.myID);
+		request.setEntryReplicaAndReturnCount(this.myID);
 
 		// if (request.getEntryReplica() == getMyID())
 		this.outstanding.enqueue(new RequestAndCallback(request, null));
@@ -2816,8 +2821,9 @@ public class PaxosManager<NodeIDType> {
 	 * @return Logger used by PaxosManager.
 	 */
 	public static Logger getLogger() {
-		return Logger.getLogger(PaxosManager.class.getName().replace(
-				"PaxosManager", ""));
+		return log
+				//Logger.getLogger(PaxosManager.class.getName().replace("PaxosManager", ""))
+				;
 	}
 
 	private void testingInitialization() {

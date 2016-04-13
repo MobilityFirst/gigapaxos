@@ -74,7 +74,7 @@ public class TESTReconfigurationClient {
 
 		public RCClient(Set<InetSocketAddress> reconfigurators)
 				throws IOException {
-			super(reconfigurators);
+			super(reconfigurators, true);
 		}
 
 		@Override

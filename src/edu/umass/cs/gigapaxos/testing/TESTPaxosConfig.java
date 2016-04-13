@@ -65,8 +65,14 @@ public class TESTPaxosConfig {
 		load();
 	}
 
-	private static final String TESTING_CONFIG_FILE_KEY = "testingConfig";
-	private static final String DEFAULT_TESTING_CONFIG_FILE = "testing.properties";
+	/**
+	 * 
+	 */
+	public static final String TESTING_CONFIG_FILE_KEY = "testingConfig";
+	/**
+	 * 
+	 */
+	public static final String DEFAULT_TESTING_CONFIG_FILE = "testing.properties";
 
 	/**
 	 * Gigapaxos testing config parameters.
@@ -107,7 +113,7 @@ public class TESTPaxosConfig {
 		 * number of additional groups can be created. These preconfigured
 		 * groups will have consistently random group membership.
 		 */
-		PRE_CONFIGURED_GROUPS(10),
+		PRE_CONFIGURED_GROUPS(5),
 		/**
 		 * Total number of paxos groups. Groups beyond preconfigured groups will
 		 * have a fixed default group membership.
@@ -324,6 +330,7 @@ public class TESTPaxosConfig {
 			defaultGroup[i] = Config.getGlobalInt(TC.TEST_START_NODE_ID) + i;
 
 		setDefaultGroups(Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS));
+//		setDefaultGroups(Config.getGlobalInt(TC.NUM_GROUPS));
 	}
 
 	// replies directly sendable by paxos via InterfaceClientRequest

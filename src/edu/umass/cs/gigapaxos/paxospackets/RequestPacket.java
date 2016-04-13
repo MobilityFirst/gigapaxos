@@ -395,6 +395,13 @@ public class RequestPacket extends PaxosPacket implements Request,
 				count += req.setEntryReplicaAndReturnCount(id);
 		return count;
 	}
+	
+	// minimum char length of requestValue for it to be digested
+	private static final int DIGEST_THRESHOLD_SIZE = Config.getGlobalInt(PC.DIGEST_THRESHOLD_SIZE);
+	
+	public boolean shouldDigest() {
+		return this.requestValue!=null && this.requestValue.length() > DIGEST_THRESHOLD_SIZE;
+	}
 
 	public int getEntryReplica() {
 		return this.entryReplica;

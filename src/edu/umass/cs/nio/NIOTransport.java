@@ -21,6 +21,7 @@ import edu.umass.cs.nio.interfaces.HandshakeCallback;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.nioutils.DataProcessingWorkerDefault;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
+import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.nio.nioutils.SampleNodeConfig;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Stringer;
@@ -203,12 +204,12 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	/* Maps a socket address to a socket channel. The latter may change in case
 	 * a connection breaks and a new one needs to be initiated. */
-	private HashMap<InetSocketAddress, SocketChannel> sockAddrToSockChannel = new HashMap<InetSocketAddress, SocketChannel>();
+	private final HashMap<InetSocketAddress, SocketChannel> sockAddrToSockChannel = new HashMap<InetSocketAddress, SocketChannel>();
 
 	/* Map to optimize connection attempts by the selector thread. */
-	private ConcurrentHashMap<InetSocketAddress, Long> connAttempts = new ConcurrentHashMap<InetSocketAddress, Long>();
+	private final ConcurrentHashMap<InetSocketAddress, Long> connAttempts = new ConcurrentHashMap<InetSocketAddress, Long>();
 
-	private ConcurrentHashMap<NodeIDType, Long> lastFailed = new ConcurrentHashMap<NodeIDType, Long>();
+	private final ConcurrentHashMap<NodeIDType, Long> lastFailed = new ConcurrentHashMap<NodeIDType, Long>();
 
 	private SenderTask senderTask;
 
@@ -693,6 +694,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		socketChannel.socket().setSendBufferSize(HINT_SOCK_BUFFER_SIZE);
 
 		this.updateAlive(socketChannel);
+		// record RTT if available
+		RTTEstimator.record(((InetSocketAddress) socketChannel
+				.getRemoteAddress()).getAddress());
 
 		/* Register the new SocketChannel with our Selector, indicating we'd
 		 * like to be notified when there's data waiting to be read. We could

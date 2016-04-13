@@ -207,7 +207,7 @@ public class PaxosConfig {
 		 * instances. This is also the period for which a paxos instance must be
 		 * idle in order to be paused.
 		 */
-		DEACTIVATION_PERIOD(60000), // 30s default
+		DEACTIVATION_PERIOD(30000), // 30s default
 
 		/**
 		 * Limits the rate of pausing to not interfere with request processing.
@@ -729,7 +729,7 @@ public class PaxosConfig {
 		 * corresponding request body arrives, which seems to slow down the
 		 * overall throughput of the system.
 		 */
-		DIGEST_THRESHOLD(2), 
+		DIGEST_THRESHOLD(5), 
 		
 		/**
 		 * Whether paxos packets across different paxos groups should be batched
@@ -794,6 +794,11 @@ public class PaxosConfig {
 		 * 
 		 */
 		LOG_DISKMAP_CAPACITY (128*1024),
+		
+		/**
+		 * 
+		 */
+		DIGEST_THRESHOLD_SIZE (512),
 
 		;
 

@@ -112,8 +112,7 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 	public void enqueueImpl(RequestPacket task) {
 		this.setSleepDuration(this.computeSleepDuration());
 
-		// increase outstanding count by requests entering through me
-		// this.paxosManager.incrNumOutstanding(task.setEntryReplicaAndReturnCount(this.paxosManager.getMyID()));
+		// increase outstanding count and enqueue
 		this.paxosManager.incrOutstanding(task.addDebugInfo("b",
 				this.paxosManager.getMyID()));
 

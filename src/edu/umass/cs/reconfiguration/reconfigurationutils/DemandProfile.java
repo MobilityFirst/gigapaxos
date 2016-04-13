@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.net.InetAddress;
@@ -48,6 +46,9 @@ public class DemandProfile extends AbstractDemandProfile {
 	private DemandProfile lastReconfiguredProfile = null;
 
 	/**
+	 * The string argument {@code name} is the service name for which this
+	 * demand profile is being maintained.
+	 * 
 	 * @param name
 	 */
 	public DemandProfile(String name) {
@@ -55,7 +56,9 @@ public class DemandProfile extends AbstractDemandProfile {
 	}
 
 	/**
-	 * Deep copy constructor.
+	 * Deep copy constructor. This constructor should create a copy of the
+	 * supplied DemandProfile argument {@code dp} such that the newly
+	 * constructed DemandProfile instance dpCopy != dp but dpCopy.equals(dp).
 	 * 
 	 * @param dp
 	 */
@@ -68,6 +71,9 @@ public class DemandProfile extends AbstractDemandProfile {
 	}
 
 	/**
+	 * All {@link AbstractDemandProfile} instances must be contructible from a
+	 * JSONObject.
+	 * 
 	 * @param json
 	 * @throws JSONException
 	 */
@@ -78,13 +84,26 @@ public class DemandProfile extends AbstractDemandProfile {
 		this.numTotalRequests = json.getInt(Keys.NUM_TOTAL_REQUESTS.toString());
 	}
 
+	/**
+	 * 
+	 * @param name
+	 * @return All {@link AbstractDemandProfile} instances must support a single
+	 *         String argument constructor that is the underlying service name.
+	 */
 	public static DemandProfile createDemandProfile(String name) {
 		return new DemandProfile(name);
 	}
 
-	/*
-	 * FIXME: Ignoring sender argument for now. Need to use it to develop a
-	 * demand geo-distribution profile.
+	/**
+	 * This method is used to inform the reconfiguration policy that
+	 * {@code request} received from a client at IP address {@code sender}. The
+	 * parameter {@code nodeConfig} provides the list of all active replica
+	 * locations. The reconfiguration policy may use this information to
+	 * assimilate a demand distribution and use that to determine whether and
+	 * how to reconfigure the current set of replicas.
+	 * 
+	 * The simplistic example below ignores the {@code sender} information that
+	 * in general is needed to determine the geo-distribution of demand.
 	 */
 	@Override
 	public void register(Request request, InetAddress sender,
@@ -103,7 +122,7 @@ public class DemandProfile extends AbstractDemandProfile {
 	}
 
 	/**
-	 * @return Request rate.
+	 * @return Request rate for the service name.
 	 */
 	public double getRequestRate() {
 		return this.interArrivalTime > 0 ? 1.0 / this.interArrivalTime
@@ -111,14 +130,15 @@ public class DemandProfile extends AbstractDemandProfile {
 	}
 
 	/**
-	 * @return Number of requests since the previous report.
+	 * @return Number of requests for this service name since the most recent
+	 *         demand report was sent to reconfigurators.
 	 */
 	public double getNumRequests() {
 		return this.numRequests;
 	}
 
 	/**
-	 * @return Number of total requests.
+	 * @return Total number of requests for this service name.
 	 */
 	public double getNumTotalRequests() {
 		return this.numTotalRequests;

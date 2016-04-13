@@ -260,17 +260,26 @@ public class ReconfigurationConfig {
 		 * Requesting actives returns a random active replica for this name.
 		 */
 		SPECIAL_NAME("*"),
-		
+
 		/**
 		 * True if delay profiling is enabled at various places.
 		 */
 		ENABLE_INSTRUMENTATION(false),
-		
+
 		/**
 		 * 
 		 */
-		STAMP_SENDER_ADDRESS_JSON (false), 
-		
+		STAMP_SENDER_ADDRESS_JSON(false),
+
+		/**
+		 * 
+		 */
+		BROADCAST_NAME("**"),
+
+		/**
+		 * 
+		 */
+		ORIENT_CLIENT(true),
 
 		;
 
@@ -592,7 +601,7 @@ public class ReconfigurationConfig {
 		}
 		return creates.toArray(new CreateServiceName[0]);
 	}
-	
+
 	/**
 	 * Command-line options
 	 */
@@ -604,7 +613,7 @@ public class ReconfigurationConfig {
 	};
 
 	/**
-	 * @param level 
+	 * @param level
 	 * 
 	 */
 	public static void setConsoleHandler(Level level) {
@@ -622,6 +631,7 @@ public class ReconfigurationConfig {
 		NIOTransport.getLogger().addHandler(handler);
 		NIOTransport.getLogger().setUseParentHandlers(false);
 	}
+
 	/**
 	 * 
 	 */
@@ -666,8 +676,10 @@ public class ReconfigurationConfig {
 			return getSummary(request);
 		return null;
 	}
-	
-	private static final boolean ENABLE_INSTRUMENTATION = Config.getGlobalBoolean(RC.ENABLE_INSTRUMENTATION);
+
+	private static final boolean ENABLE_INSTRUMENTATION = Config
+			.getGlobalBoolean(RC.ENABLE_INSTRUMENTATION);
+
 	/**
 	 * @param n
 	 * @return Used internally by reconfiguration classes.
@@ -675,7 +687,7 @@ public class ReconfigurationConfig {
 	public static boolean instrument(int n) {
 		return ENABLE_INSTRUMENTATION && Util.oneIn(n);
 	}
-	
+
 	/**
 	 * @param request
 	 * @return Stringifiable object.
