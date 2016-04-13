@@ -942,7 +942,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private Set<InetSocketAddress> heardFrom = new HashSet<InetSocketAddress>();
 	private ConcurrentHashMap<InetAddress, Long> closest = new ConcurrentHashMap<InetAddress, Long>();
 
-	private static final int CLOSEST_K = 2;
+	private static final int CLOSEST_K = Config.getGlobalInt(RC.CLOSEST_K);
 
 	private void updateClosest(EchoRequest response) {
 		this.heardFrom.add(response.getSender());

@@ -280,6 +280,11 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		ORIENT_CLIENT(true),
+		
+		/**
+		 * The closest K servers to a given client IP address.
+		 */
+		CLOSEST_K (3),
 
 		;
 
