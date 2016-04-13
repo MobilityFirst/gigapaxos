@@ -45,9 +45,9 @@ GigaPaxos has a simple <tt>Replicable</tt> wrapper API that any “black-box” 
 in order for it to be automatically be replicated and reconfigured as needed by GigaPaxos. 
 This API requires three methods to be implemented: 
 
-    execute(name, request) 
-    checkpoint(name)
-    restore(name, state) 
+    boolean execute(Request request) 
+    String checkpoint(String name)
+    boolean restore(String name, String state) 
 
 to respectively execute a request, obtain a state checkpoint, or 
 to roll back the state of a service named “name”. GigaPaxos ensures that applications 
@@ -76,9 +76,9 @@ replicas can.
 
     #APPLICATION=edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp
     
-    active.100=127.0.0.1:2000<br>
-    active.101=127.0.0.1:2001<br>
-    active.102=127.0.0.1:2002<br>
+    active.100=127.0.0.1:2000
+    active.101=127.0.0.1:2001
+    active.102=127.0.0.1:2002
 
     reconfigurator.RC0=127.0.0.1:3100
     reconfigurator.RC1=127.0.0.1:3101
@@ -148,7 +148,7 @@ so roughly a third of the requests will be lost with a single failure.
     bin/gpServer.sh stop 101
 
 Next, browse through the methods in <tt>NooPaxosAppClient</tt>'s parent 
-[PaxosClientAsync.java] (<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/PaxosClientAsync.java>)
+[PaxosClientAsync.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/PaxosClientAsync.java>)
 and use one of the <tt>sendRequest</tt> methods therein to direct all requests 
 to a specific active server and verify that all requests (almost always) succeed 
 despite a single active failure. You can also verify that with two failures, no
@@ -157,23 +157,188 @@ requests will succeed.
 Tutorial 2: Single-machine <tt>Reconfigurable</tt> test-drive
 -------------------------------------------------------------
 
-For this test, we will set <tt>APPLICATION</tt> to the default 
-<tt>NoopApp</tt> by simply re-commenting that line as in the
-default gigapaxos.properties file.
+For this test, we will use a fresh gigapaxos install and set
+<tt>APPLICATION</tt> to the default <tt>NoopApp</tt> by simply
+re-commenting that line as in the default gigapaxos.properties file as
+shown below.
 
-Run the servers and clients exactly as before. You will see console 
-output showing that <tt>NoopAppClient</tt> creates a few names and 
-successfully sends a few requests to them. A <tt>Reconfigurable</tt>
-application must implement slightly different semantics from just a
-<tt>Replicable</tt> application. You can browse through 
-the source of <tt>NoopApp</tt> and <tt>NoopAppClient</tt> and the 
-documentation therein below:
+    #APPLICATION=edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp  
+    #APPLICATION=edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp # default
+
+Note: It is important to use a fresh gigapaxos install as the
+<tt>APPLICATION</tt> can not be changed midway in an existing
+gigapaxos directory; doing so will lead to errors as gigapaxos will
+try to feed requests to the application that the application will fail
+to parse. An alternative to a fresh install is to remove all gigapaxos
+logs as follows from their default locations (or from their
+non-default locations if you changed them in gigapaxos.properties):
+
+    rm -rf ./paxos_logs ./reconfiguration_DB
+
+Next, run the servers and clients exactly as before. You will see
+console output showing that <tt>NoopAppClient</tt> creates a few names
+and successfully sends a few requests to them. A
+<tt>Reconfigurable</tt> application must implement slightly different
+semantics from just a <tt>Replicable</tt> application. You can browse
+through the source of <tt>NoopApp</tt> and <tt>NoopAppClient</tt> and
+the documentation therein below:
 
 [NoopApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>)
+ [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.html>)
 
 [NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
 
-Repeat the same failure scenario as above and verify that the
+Step 1: Repeat the same failure scenario as above and verify that the
 actives exhibit the same liveness properties as before.
 
-Coming soon: tutorials for writing your own sophisticated reconfiguration policies.
+Step 2: Set the property RECONFIGURE_IN_PLACE=true in gigapaxos.properties
+in order to enable *trivial* reconfiguration, which means reconfiguring
+a replica group to the same replica group while going through all of
+the motions of the three-phase reconfiguration protocol (i.e.,
+<tt>STOP</tt> the
+previous epoch at the old replica group, <tt>START</tt> the new epoch in the
+new replica group after having them fetch the final epoch state from
+the old epoch's replica group, and finally having the old replica
+group <tt>DROP</tt> all state from the previous epoch). 
+
+The default reconfiguration policy trivially reconfigures the replica
+group after *every* request. This policy is clearly an overkill as the
+overhead of reconfiguration will typically be much higher than
+processing a single application request (but it allows us to
+potentially create a new replica at every new location from near which
+even a single client request originates). Our goal here is to just
+test a proof-of-concept and understand how to implement other more
+practical policies.
+
+Step 3: Run <tt>NoopAppClient</tt> by simply invoking the client command
+like before:
+
+    bin/gpClient.sh
+
+<tt>NoopApp</tt> should print console output upon every
+reconfiguration when its <tt>restore</tt> method will be called with a
+<tt>null</tt> argument to wipe out state corresponding to the current
+epoch and again immediately after when it is initialized with the
+state corresponding to the next epoch for the service name being
+reconfigured.
+
+Step 4: Inspect the default *reconfiguration policy* in
+
+[DemandProfile.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/reconfigurationutils/DemandProfile.java>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/reconfigurationutils/DemandProfile.html>)
+
+and the abstract class
+
+[AbstractDemandProfile.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/reconfigurationutils/AbstractDemandProfile.java>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/reconfigurationutils/AbstractDemandProfile.java>)
+
+that any application-specific reconfiguration policy is expected to
+extend in order to achieve its reconfiguration goals.
+
+Change the default reconfiguration policy in <tt>DemandProfile</tt> so
+that the default service name <tt>NoopApp0</tt> is reconfigured less
+often. For example, you can set
+<tt>MIN_REQUESTS_BEFORE_RECONFIGURATION</tt> and/or
+<tt>MIN_RECONFIGURATION_INTERVAL</tt> to higher values. There are two
+ways to do this: (i) the quick and dirty way is to change
+<tt>DemandProfile.java</tt> directly and recompile gigapaxos from
+source; (ii) the cleaner and recommended way is to write your own
+policy implementation, say <tt>MyDemandProfile</tt>, that either
+extends <tt>DemandProfile</tt> or extends
+<tt>AbstractDemandProfile</tt> directly and specify it in
+gigapaxos.properties by setting the <tt>DEMAND_PROFILE_TYPE</tt>
+property by uncommenting the corresponding line and replacing the
+value with the canonical class name of your demand profile
+implementation as shown below. With this latter approach, you just
+need the gigapaxos binaries and don't have to recompile it from
+source. You do need to compile and generate the class file(s) for your
+policy implementation.
+
+	#DEMAND_PROFILE_TYPE=edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile
+
+
+If all goes well, with the above changes, you should see NoopApp
+reconfiguring itself less frequently as per the specification in your
+reconfiguration policy!
+
+Troubleshooting tips: If you run into errors:
+
+(1) Make sure the canonical class name of your policy class is
+correctly specified in gigapaxos.properties and the class exists in
+your classpath. If the simple policy change above works as expected by
+directly modifying the default <tt>DemandProfile</tt> implementation
+and recompiling gigapaxos from source, but with your own demand
+profile implementation you get <tt>ClassNotFoundException</tt> or
+other runtime errors, the most likely reason is that the JVM can not
+find your policy class.
+
+(2) Make sure that all three constructors of DemandProfile that
+respectively take a <tt>DemandProfile</tt>, <tt>String</tt>, and
+<tt>JSONObject</tt> are overridden with the corresponding default
+implementation that simply invokes <tt>super(arg)</tt>; all three
+constructors are necessary for gigapaxos' reflection-based demand
+profile instance creation to work correctly.
+
+Step 5: Inspect the code in
+
+[NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
+
+to see how it is creating a service name by sending a
+<tt>CREATE_SERVICE_NAME</tt> request. A service name corresponds to an
+RSM, but note that there is no API to specify the set of active
+replicas that should manage the RSM for the name being created. This
+is because gigapaxos randomly chooses the initial replica group for
+each service at creation time. Applications are expected to
+reconfigure the replica group as needed after creation by using a
+policy class as described above.
+
+Once a service has been created, application requests can be sent to
+it also using one of the <tt>sendRequest</tt> methods as exemplified
+in <tt>NoopAppClient</tt>.
+
+Deleting a service is as simple as issuing a
+<tt>DELETE_SERVICE_NAME</tt> request using the same
+<tt>sendRequest</tt> API as <tt>CREATE_SERVICE_NAME</tt> above.
+
+Note that unlike <tt>NoopPaxosAppClient</tt> above,
+<tt>NoopAppClient</tt> as well as the corresponding app,
+<tt>NoopApp</tt> use a different request type called <tt>
+AppRequest</tt> as opposed to the default <tt>RequestPacket</tt>
+packet type. Reconfigurable gigapaxos applications can define their
+own extensive request types as needed for different types of requests.
+The set of request types that an application processes is conveyed to
+gigapaxos via the <tt>Replicable.getRequestTypes()</tt> that the
+application needs to implement.
+
+
+Applications can also specify whether a request should be
+paxos-coordinated or served locally by an active replica. By default,
+all requests are executed locally unless the request is of type
+<tt>ReplicableRequest</tt> and its <tt>needsCoordination</tt> method
+is true (as is the case for <tt>AppRequest</tt> by default).
+
+Verify that you can create, send application requests to, and delete a
+new service using the methods above. 
+
+A list of all relevant classes for Tutorial 2 mentioned above is
+listed below for convenience:
+
+[NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
+
+[NoopApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>)
+ [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.html>)
+
+[AppRequest.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/AppRequest.java>)
+ [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/AppRequest.html>)
+
+[ReplicableRequest.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/interfaces/ReplicableRequest.java>)
+ [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/interfaces/ReplicableRequest.html>)
+
+[ClientRequest.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/interfaces/ClientRequest.java>)
+ [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/gigapaxos/interfaces/ClientRequest.html>)
+
+[ReconfigurableAppClientAsync.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/ReconfigurableAppClientAsync.java>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/ReconfigurableAppClientAsync.html>)

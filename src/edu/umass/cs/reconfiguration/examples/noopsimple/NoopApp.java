@@ -181,7 +181,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	}
 
 	/**
-	 * We need this method also at the client, so it is static.
+	 * We use this method also at the client, so it is static.
 	 * 
 	 * @param stringified
 	 * @return App request
@@ -213,7 +213,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		return staticGetRequestTypes();
 	}
 	/**
-	 * We need this method also at the client, so it is static.
+	 * We use this method also at the client, so it is static.
 	 * 
 	 * @return App request types.
 	 */

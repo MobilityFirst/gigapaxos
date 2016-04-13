@@ -27,23 +27,36 @@ import edu.umass.cs.utils.Util;
 /**
  * @author V. Arun
  * 
- *         This class maintains the deman profile for a single name and returns
- *         it into a JSONObject via its getStats() method.
+ *         This sample implementation of {@link AbstractDemandProfile} maintains
+ *         the demand profile for a single name and returns it as a JSONObject
+ *         via its getStats() method. The specification of its methods is in the
+ *         documentation of {@link AbstractDemandProfile}.
  */
 public class DemandProfile extends AbstractDemandProfile {
 	protected enum Keys {
 		SERVICE_NAME, STATS, RATE, NUM_REQUESTS, NUM_TOTAL_REQUESTS
 	};
 
-	private static final int DEFAULT_NUM_REQUESTS = 1;
-	private static final long MIN_RECONFIGURATION_INTERVAL = 000;
-	private static final long MIN_REQUESTS_BEFORE_RECONFIGURATION = DEFAULT_NUM_REQUESTS;
+	/**
+	 * The minimum number of requests after which a demand report will be sent
+	 * to reconfigurators.
+	 */
+	protected static int MIN_REQUESTS_BEORE_DEMAND_REPORT = 1;
+	/**
+	 * The minimum amount of time (ms) that must elapse since the previous
+	 * reconfiguration before the next reconfiguration can happen.
+	 */
+	protected static long MIN_RECONFIGURATION_INTERVAL = 000;
+	/**
+	 * The minimum number of requests between two successive reconfigurations.
+	 */
+	protected static long MIN_REQUESTS_BEFORE_RECONFIGURATION = MIN_REQUESTS_BEORE_DEMAND_REPORT;
 
-	private double interArrivalTime = 0.0;
-	private long lastRequestTime = 0;
-	private int numRequests = 0;
-	private int numTotalRequests = 0;
-	private DemandProfile lastReconfiguredProfile = null;
+	protected double interArrivalTime = 0.0;
+	protected long lastRequestTime = 0;
+	protected int numRequests = 0;
+	protected int numTotalRequests = 0;
+	protected DemandProfile lastReconfiguredProfile = null;
 
 	/**
 	 * The string argument {@code name} is the service name for which this
@@ -146,7 +159,7 @@ public class DemandProfile extends AbstractDemandProfile {
 
 	@Override
 	public boolean shouldReport() {
-		if (getNumRequests() >= DEFAULT_NUM_REQUESTS)
+		if (getNumRequests() >= MIN_REQUESTS_BEORE_DEMAND_REPORT)
 			return true;
 		return false;
 	}

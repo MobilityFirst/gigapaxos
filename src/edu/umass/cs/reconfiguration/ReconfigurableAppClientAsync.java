@@ -520,12 +520,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			Level level = request instanceof EchoRequest ? Level.FINE
 					: Level.INFO;
 			log.log(level,
-					"{0} sent request {1} to server {2}; [{3}]",
+					"{0} sent request {1} to server {2}",
 					new Object[] {
 							this,
 							ReconfigurationConfig.getSummary(request,
-									log.isLoggable(level)), server,
-							!sendFailed ? "success" : "failure" });
+									log.isLoggable(level)), server});
 		} finally {
 			if (sendFailed && prev == null) {
 				this.callbacks.remove(request.getRequestID(), callback);
@@ -958,7 +957,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if (maxDelayAddr != null) {
 				this.closest.remove(maxDelayAddr);
 				this.closest.put(response.getSender().getAddress(), delay);
-				log.log(Level.INFO, "{0} updated closest to {1}", new Object[] {
+				log.log(Level.INFO, "{0} updated closest server to {1}", new Object[] {
 						this, this.closest });
 			}
 		}
