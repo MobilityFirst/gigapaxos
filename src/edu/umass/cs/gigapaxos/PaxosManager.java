@@ -2816,8 +2816,7 @@ public class PaxosManager<NodeIDType> {
 	 * @return Logger used by PaxosManager.
 	 */
 	public static Logger getLogger() {
-		return Logger.getLogger(PaxosManager.class.getName().replace(
-				"PaxosManager", ""));
+		return Logger.getLogger(PaxosManager.class.getName());
 	}
 
 	private void testingInitialization() {

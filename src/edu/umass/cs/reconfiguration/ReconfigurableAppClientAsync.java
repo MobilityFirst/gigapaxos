@@ -469,7 +469,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		InetSocketAddress mostRecentlyWritten = this.mostRecentlyWrittenMap
 				.get(request.getServiceName());
 		if (mostRecentlyWritten != null && !mostRecentlyWritten.equals(server)) {
-			log.log(Level.INFO,
+			log.log(Level.FINE,
 					"{0} using replica {1} most recently written to instead of server {2}",
 					new Object[] { this, mostRecentlyWritten, server });
 			server = mostRecentlyWritten;
@@ -491,7 +491,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						request);
 
 			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
-			Level level = Level.INFO;
+			Level level = Level.FINE;
 			log.log(level,
 					"{0} sent request {1} to server {2}; [{3}]",
 					new Object[] {
@@ -812,7 +812,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			this.activeReplicas.remove(response.getServiceName());
 
 		if (!this.requestsPendingActives.containsKey(response.getServiceName())) {
-			log.log(Level.INFO,
+			log.log(Level.FINE,
 					"{0} found no requests pending actives for {1}",
 					new Object[] { this, response.getSummary() });
 			return;
@@ -878,7 +878,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						}
 					} else {
 						// or send error to all pending requests
-						log.log(Level.INFO,
+						log.log(Level.FINE,
 								"{0} returning {1} to pending request callbacks {2}",
 								new Object[] {
 										this,
