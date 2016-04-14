@@ -38,10 +38,12 @@ public class EpochFinalState<NodeIDType> extends BasicReconfigurationPacket<Node
 	 * @param name
 	 * @param epochNumber
 	 * @param state
+	 * @param sender 
 	 */
-	public EpochFinalState(NodeIDType initiator, String name, int epochNumber, String state) {
+	public EpochFinalState(NodeIDType initiator, String name, int epochNumber, String state, NodeIDType sender) {
 		super(initiator, ReconfigurationPacket.PacketType.EPOCH_FINAL_STATE, name, epochNumber);
 		this.state = state;
+		this.setSender(sender);
 	}
 	/**
 	 * @param json
@@ -70,7 +72,7 @@ public class EpochFinalState<NodeIDType> extends BasicReconfigurationPacket<Node
 	}
 	
 	public static void main(String[] args) {
-		EpochFinalState<Integer> obj1 = new EpochFinalState<Integer>(4, "name1", 2, "sample_state");
+		EpochFinalState<Integer> obj1 = new EpochFinalState<Integer>(4, "name1", 2, "sample_state", 5);
 		try {
 			System.out.println(obj1);
 			EpochFinalState<Integer> obj2 = new EpochFinalState<Integer>(obj1.toJSONObject(), new StringifiableDefault<Integer>(0));

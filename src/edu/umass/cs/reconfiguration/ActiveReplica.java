@@ -790,7 +790,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 		EpochFinalState<NodeIDType> epochState = new EpochFinalState<NodeIDType>(
 				request.getInitiator(), request.getServiceName(),
-				request.getEpochNumber(), stateContainer.state);
+				request.getEpochNumber(), stateContainer.state, this.getMyID());
 		GenericMessagingTask<NodeIDType, EpochFinalState<NodeIDType>> mtask = null;
 
 		log.log(Level.INFO, "{0} returning epoch final state to {1} {2}",

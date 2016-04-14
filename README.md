@@ -341,4 +341,4 @@ listed below for convenience:
  [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/gigapaxos/interfaces/ClientRequest.html>)
 
 [ReconfigurableAppClientAsync.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/ReconfigurableAppClientAsync.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/ReconfigurableAppClientAsync.html>)
+[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/ReconfigurableAppClientAsync.html>)
