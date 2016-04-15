@@ -103,6 +103,10 @@ public class RTTEstimator {
 		return -1;
 	}
 
+	/**
+	 * Utility methods to fetch Amazon EC2 information although that isn't used by
+	 * the estimation methods in this class.
+	 */
 	private static final String AWS_IP_RANGES = "https://ip-ranges.amazonaws.com/ip-ranges.json";
 	private static final String AWS_PREFIXES_KEY = "prefixes";
 	private static final String AWS_IP_PREFIX_KEY = "ip_prefix";

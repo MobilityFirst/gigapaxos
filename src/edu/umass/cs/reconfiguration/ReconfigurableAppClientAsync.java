@@ -477,6 +477,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return ReconfigurableAppClientAsync.this.toString();
 		}
 	}
+	
+	private static final boolean READ_YOUR_WRITES = Config.getGlobalBoolean(PC.READ_YOUR_WRITES);
 
 	/**
 	 * @param request
@@ -492,8 +494,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		RequestCallback prev = null;
 
 		// use replica recently written to if any
-		InetSocketAddress mostRecentlyWritten = this.mostRecentlyWrittenMap
-				.get(request.getServiceName());
+		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
+				.get(request.getServiceName()) : null;
 		if (mostRecentlyWritten != null && !mostRecentlyWritten.equals(server)) {
 			log.log(Level.FINE,
 					"{0} using replica {1} most recently written to instead of server {2}",
