@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -65,9 +66,11 @@ import edu.umass.cs.utils.Util;
  *
  */
 public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
-	/* Could be any high value coz we clear cached entry upon error or deletion.
+	/*
+	 * Could be any high value coz we clear cached entry upon error or deletion.
 	 * Having it too small means more query overhead (and potentially marginally
-	 * improved responsiveness to replica failures). */
+	 * improved responsiveness to replica failures).
+	 */
 	private static final long MIN_REQUEST_ACTIVES_INTERVAL = 60000;
 
 	private static final long DEFAULT_GC_TIMEOUT = 8000;
@@ -112,8 +115,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	final GCConcurrentHashMapCallback defaultGCCallback = new GCConcurrentHashMapCallback() {
 		@Override
 		public void callbackGC(Object key, Object value) {
-			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
-					key, value });
+			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this, key, value });
 		}
 	};
 
@@ -134,12 +136,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		public void callbackGC(Object key, Object value) {
 			assert (value instanceof RequestAndCallback);
 			if (value instanceof RequestAndCallback)
-				ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
-						((RequestAndCallback) value).serverSentTo,
-						System.currentTimeMillis()
-								- ((RequestAndCallback) value).sentTime);
-			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
-					key, value });
+				ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(((RequestAndCallback) value).serverSentTo,
+						System.currentTimeMillis() - ((RequestAndCallback) value).sentTime);
+			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this, key, value });
 		}
 	};
 
@@ -197,25 +196,20 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @throws IOException
 	 */
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
-			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset,
-			boolean checkConnectivity) throws IOException {
+			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset, boolean checkConnectivity)
+			throws IOException {
 		this.sslMode = sslMode;
 		(this.niot = (new MessageNIOTransport<String, String>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
 				// This will be set in the gigapaxos.properties file that we
 				// invoke the client using.
 				sslMode))).setName(this.toString());
-		log.log(Level.INFO,
-				"{0} listening on {1}; ssl mode = {2}; client port offset = {3}",
-				new Object[] { this, niot.getListeningSocketAddress(),
-						this.sslMode, clientPortOffset });
-		this.reconfigurators = (PaxosConfig.offsetSocketAddresses(
-				reconfigurators, clientPortOffset));
+		log.log(Level.INFO, "{0} listening on {1}; ssl mode = {2}; client port offset = {3}",
+				new Object[] { this, niot.getListeningSocketAddress(), this.sslMode, clientPortOffset });
+		this.reconfigurators = (PaxosConfig.offsetSocketAddresses(reconfigurators, clientPortOffset));
 
-		log.log(Level.FINE, "{0} reconfigurators={1}", new Object[] { this,
-				(this.reconfigurators) });
-		this.e2eRedirector = new E2ELatencyAwareRedirector(
-				this.niot.getListeningSocketAddress());
+		log.log(Level.FINE, "{0} reconfigurators={1}", new Object[] { this, (this.reconfigurators) });
+		this.e2eRedirector = new E2ELatencyAwareRedirector(this.niot.getListeningSocketAddress());
 
 		if (checkConnectivity)
 			this.checkConnectivity();
@@ -228,8 +222,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @throws IOException
 	 */
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
-			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
-			throws IOException {
+			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset) throws IOException {
 		this(reconfigurators, sslMode, clientPortOffset, false);
 	}
 
@@ -237,10 +230,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param reconfigurators
 	 * @throws IOException
 	 */
-	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators)
-			throws IOException {
-		this(reconfigurators, ReconfigurationConfig.getClientSSLMode(),
-				(ReconfigurationConfig.getClientPortOffset()), false);
+	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators) throws IOException {
+		this(reconfigurators, ReconfigurationConfig.getClientSSLMode(), (ReconfigurationConfig.getClientPortOffset()),
+				false);
 	}
 
 	/**
@@ -248,10 +240,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param checkConnectivity
 	 * @throws IOException
 	 */
-	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
-			boolean checkConnectivity) throws IOException {
-		this(reconfigurators, ReconfigurationConfig.getClientSSLMode(),
-				(ReconfigurationConfig.getClientPortOffset()),
+	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators, boolean checkConnectivity)
+			throws IOException {
+		this(reconfigurators, ReconfigurationConfig.getClientSSLMode(), (ReconfigurationConfig.getClientPortOffset()),
 				checkConnectivity);
 	}
 
@@ -266,8 +257,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		INCOMING_STRING
 	};
 
-	private static Stringifiable<?> unstringer = new StringifiableDefault<String>(
-			"");
+	private static Stringifiable<?> unstringer = new StringifiableDefault<String>("");
 
 	class ClientPacketDemultiplexer extends AbstractPacketDemultiplexer<Object> {
 
@@ -277,32 +267,31 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			this.register(types);
 		}
 
-		private BasicReconfigurationPacket<?> parseAsReconfigurationPacket(
-				Object strMsg) {
+		private BasicReconfigurationPacket<?> parseAsReconfigurationPacket(Object strMsg) {
 			if (!(strMsg instanceof JSONObject))
 				return null;
 
 			BasicReconfigurationPacket<?> rcPacket = ReconfigurationPacket
-					.getReconfigurationPacketSuppressExceptions(
-							(JSONObject) strMsg, unstringer);
+					.getReconfigurationPacketSuppressExceptions((JSONObject) strMsg, unstringer);
 			return (rcPacket instanceof ClientReconfigurationPacket) ? (ClientReconfigurationPacket) rcPacket
 					: rcPacket instanceof ServerReconfigurationPacket ? ((ServerReconfigurationPacket<?>) rcPacket)
-							: rcPacket instanceof EchoRequest ? ((EchoRequest) rcPacket)
-									: null;
+							: rcPacket instanceof EchoRequest ? ((EchoRequest) rcPacket) : null;
 		}
 
 		private Request parseAsAppRequest(Object msg) {
 			Request request = null;
 			try {
-				request = ReconfigurableAppClientAsync.this.jsonPackets
-						&& msg instanceof JSONObject ? getRequestFromJSON((JSONObject) msg)
+				request = ReconfigurableAppClientAsync.this.jsonPackets && msg instanceof JSONObject
+						? getRequestFromJSON((JSONObject) msg)
 						: getRequest(msg instanceof String ? (String) msg
-						/* This case below may happen if the app hasn't enabled
-						 * JSON messages but the incoming message happened to be
-						 * JSON formatted anyway. In this case, we will do the
-						 * right thing by giving the app the incoming string. */
-						: ((JSONObject) msg).getString(Keys.INCOMING_STRING
-								.toString()));
+								/*
+								 * This case below may happen if the app hasn't
+								 * enabled JSON messages but the incoming
+								 * message happened to be JSON formatted anyway.
+								 * In this case, we will do the right thing by
+								 * giving the app the incoming string.
+								 */
+								: ((JSONObject) msg).getString(Keys.INCOMING_STRING.toString()));
 			} catch (RequestParseException | JSONException e) {
 				// should never happen unless app has bugs
 				log.log(Level.WARNING,
@@ -317,23 +306,20 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		private void updateBestReplica(RequestCallback callback, Object msg) {
 			assert (callback instanceof RequestAndCallback);
 			Request request = ((RequestAndCallback) callback).request;
-			if (request instanceof ReplicableRequest
-					&& ((ReplicableRequest) request).needsCoordination()) {
+			if (request instanceof ReplicableRequest && ((ReplicableRequest) request).needsCoordination()) {
 				// we could just always rely on serverSentTo here
-				InetSocketAddress mostRecentReplica = msg instanceof JSONObject ? MessageNIOTransport
-						.getSenderAddress((JSONObject) msg)
+				InetSocketAddress mostRecentReplica = msg instanceof JSONObject
+						? MessageNIOTransport.getSenderAddress((JSONObject) msg)
 						: ((RequestAndCallback) callback).serverSentTo;
 
 				assert (!ReconfigurableAppClientAsync.this.jsonPackets || mostRecentReplica != null);
-				ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap.put(
-						request.getServiceName(), mostRecentReplica);
+				ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap.put(request.getServiceName(),
+						mostRecentReplica);
 				log.log(Level.FINE,
 						"{0} most recently received a commit for a coordinated request [{1}] from replica {2}",
-						new Object[] { this, request.getSummary(),
-								mostRecentReplica });
+						new Object[] { this, request.getSummary(), mostRecentReplica });
 			} else
-				log.log(Level.FINEST,
-						"{0} did not update most recently written replica for request {1}",
+				log.log(Level.FINEST, "{0} did not update most recently written replica for request {1}",
 						new Object[] { this, request.getSummary() });
 		}
 
@@ -348,34 +334,30 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			RequestCallback callback = null;
 			if (response != null) {
 				// execute registered callback
-				if ((response instanceof ClientRequest)
-						&& ((callback = ReconfigurableAppClientAsync.this.callbacks
-								.remove(((ClientRequest) response)
-										.getRequestID())) != null || (callback = ReconfigurableAppClientAsync.this.callbacksLongTimeout
-								.remove(((ClientRequest) response)
-										.getRequestID())) != null)) {
+				if ((response instanceof ClientRequest) && ((callback = ReconfigurableAppClientAsync.this.callbacks
+						.remove(((ClientRequest) response).getRequestID())) != null
+						|| (callback = ReconfigurableAppClientAsync.this.callbacksLongTimeout
+								.remove(((ClientRequest) response).getRequestID())) != null)) {
 					callback.handleResponse(((ClientRequest) response));
 					updateBestReplica(callback, strMsg);
 				}
 				// ActiveReplicaError has to be dealt with separately
 				else if ((response instanceof ActiveReplicaError)
-						&& (callback = callbacks
-								.remove(((ActiveReplicaError) response)
-										.getRequestID())) != null
+						&& (callback = callbacks.remove(((ActiveReplicaError) response).getRequestID())) != null
 						&& callback instanceof RequestAndCallback) {
 
 					ReconfigurableAppClientAsync.this.activeReplicas
-							.remove(((RequestAndCallback) callback).request
-									.getServiceName());
+							.remove(((RequestAndCallback) callback).request.getServiceName());
 					ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap
-							.remove(((RequestAndCallback) callback).request
-									.getServiceName());
-					/* auto-retransmitting can cause an infinite loop if the
+							.remove(((RequestAndCallback) callback).request.getServiceName());
+					/*
+					 * auto-retransmitting can cause an infinite loop if the
 					 * name does not exist at all, so we just throw the ball
 					 * back to the app.
 					 * 
 					 * TODO: We could also retransmit once or a small number of
-					 * times here before throwing back to the app. */
+					 * times here before throwing back to the app.
+					 */
 					callback.handleResponse(response);
 				} else if (response instanceof ClientReconfigurationPacket) {
 					// call create/delete app callback
@@ -386,15 +368,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						callback.handleResponse(response);
 
 					// if name deleted, clear cached actives
-					if (response instanceof DeleteServiceName
-							&& !((DeleteServiceName) response).isFailed())
-						ReconfigurableAppClientAsync.this.activeReplicas
-								.remove(response.getServiceName());
+					if (response instanceof DeleteServiceName && !((DeleteServiceName) response).isFailed())
+						ReconfigurableAppClientAsync.this.activeReplicas.remove(response.getServiceName());
 
 					// if RequestActiveReplicas, send or unpend pending requests
 					if (response instanceof RequestActiveReplicas)
-						ReconfigurableAppClientAsync.this
-								.sendRequestsPendingActives((RequestActiveReplicas) response);
+						ReconfigurableAppClientAsync.this.sendRequestsPendingActives((RequestActiveReplicas) response);
 
 				} else if (response instanceof ServerReconfigurationPacket<?>) {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksSRP
@@ -427,10 +406,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		@Override
 		protected Integer getPacketType(Object strMsg) {
 			if (SHORT_CUT_TYPE_CHECK)
-				return ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME
-						.getInt();
-			Request request = strMsg instanceof String ? this
-					.parseAsAppRequest((String) strMsg) : null;
+				return ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME.getInt();
+			Request request = strMsg instanceof String ? this.parseAsAppRequest((String) strMsg) : null;
 			if (request == null)
 				request = this.parseAsReconfigurationPacket(strMsg);
 			return request != null ? request.getRequestType().getInt() : null;
@@ -438,23 +415,23 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		@Override
 		protected Object processHeader(byte[] bytes, NIOHeader header) {
-			log.log(Level.FINEST, "{0} received message from {1}",
-					new Object[] { this, header.sndr });
+			log.log(Level.FINEST, "{0} received message from {1}", new Object[] { this, header.sndr });
 			String message = null;
 			try {
 				message = MessageExtractor.decode(bytes);
 				long t = System.nanoTime();
-				/* FIXME: This is inefficient and inelegant, but it is unclear
+				/*
+				 * FIXME: This is inefficient and inelegant, but it is unclear
 				 * what else we can do to avoid at least one unnecessary
 				 * JSON<->string back and forth with the current NIO API and the
 				 * fact that apps in general may not use JSON for their packets
 				 * but we do. The alternative is to not provide the
 				 * sender-address feature to async clients; if so, we don't need
-				 * the JSON'ization below. */
+				 * the JSON'ization below.
+				 */
 				if (JSONPacket.couldBeJSON(message)) {
 					JSONObject json = new JSONObject(message);
-					MessageExtractor.stampAddressIntoJSONObject(header.sndr,
-							header.rcvr, json);
+					MessageExtractor.stampAddressIntoJSONObject(header.sndr, header.rcvr, json);
 					if (ReconfigurationConfig.instrument(100))
 						DelayProfiler.updateDelayNano("headerInsertion", t);
 					// some inelegance to avoid a needless stringification
@@ -477,7 +454,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return ReconfigurableAppClientAsync.this.toString();
 		}
 	}
-	
+
 	private static final boolean READ_YOUR_WRITES = Config.getGlobalBoolean(PC.READ_YOUR_WRITES);
 
 	/**
@@ -487,18 +464,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, InetSocketAddress server,
-			RequestCallback callback) throws IOException {
+	public Long sendRequest(ClientRequest request, InetSocketAddress server, RequestCallback callback)
+			throws IOException {
 		boolean sendFailed = false;
 		assert (request.getServiceName() != null);
 		RequestCallback prev = null;
 
 		// use replica recently written to if any
-		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
-				.get(request.getServiceName()) : null;
+		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES
+				? this.mostRecentlyWrittenMap.get(request.getServiceName()) : null;
 		if (mostRecentlyWritten != null && !mostRecentlyWritten.equals(server)) {
-			log.log(Level.FINE,
-					"{0} using replica {1} most recently written to instead of server {2}",
+			log.log(Level.FINE, "{0} using replica {1} most recently written to instead of server {2}",
 					new Object[] { this, mostRecentlyWritten, server });
 			server = mostRecentlyWritten;
 		}
@@ -508,30 +484,19 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		try {
 			RequestCallback original = callback;
-			prev = (!hasLongTimeout(callback) ? this.callbacks
-					: this.callbacksLongTimeout).put(
-					request.getRequestID(),
-					callback = new RequestAndCallback(request, callback)
-							.setServerSentTo(server));
+			prev = (!hasLongTimeout(callback) ? this.callbacks : this.callbacksLongTimeout).put(request.getRequestID(),
+					callback = new RequestAndCallback(request, callback).setServerSentTo(server));
 			if (hasLongTimeout(original))
-				this.spawnGCClientRequest(
-						((TimeoutRequestCallback) original).getTimeout(),
-						request);
+				this.spawnGCClientRequest(((TimeoutRequestCallback) original).getTimeout(), request);
 
 			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
-			Level level = request instanceof EchoRequest ? Level.FINE
-					: Level.INFO;
-			log.log(level,
-					"{0} sent request {1} to server {2}",
-					new Object[] {
-							this,
-							ReconfigurationConfig.getSummary(request,
-									log.isLoggable(level)), server});
+			Level level = request instanceof EchoRequest ? Level.FINE : Level.INFO;
+			log.log(level, "{0} sent request {1} to server {2}",
+					new Object[] { this, ReconfigurationConfig.getSummary(request, log.isLoggable(level)), server });
 		} finally {
 			if (sendFailed && prev == null) {
 				this.callbacks.remove(request.getRequestID(), callback);
-				this.callbacksLongTimeout.remove(request.getRequestID(),
-						callback);
+				this.callbacksLongTimeout.remove(request.getRequestID(), callback);
 				// FIXME: return an error to the caller
 				return null;
 			}
@@ -549,9 +514,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param callback
 	 * @throws IOException
 	 */
-	public void sendReconfigurationRequest(
-			ReconfigurationPacket.PacketType type, String name,
-			String initialState, RequestCallback callback) throws IOException {
+	public void sendReconfigurationRequest(ReconfigurationPacket.PacketType type, String name, String initialState,
+			RequestCallback callback) throws IOException {
 		ClientReconfigurationPacket request = null;
 		switch (type) {
 		case CREATE_SERVICE_NAME:
@@ -578,22 +542,19 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param callback
 	 * @throws IOException
 	 */
-	public void sendServerReconfigurationRequest(
-			ServerReconfigurationPacket<?> rcPacket, RequestCallback callback)
+	public void sendServerReconfigurationRequest(ServerReconfigurationPacket<?> rcPacket, RequestCallback callback)
 			throws IOException {
 		if (this.numOutStandingCRPs() > MAX_OUTSTANDING_CRP_REQUESTS)
 			throw new IOException("Too many outstanding requests");
 
-		InetSocketAddress isa = getRandom(this.reconfigurators
-				.toArray(new InetSocketAddress[0]));
+		InetSocketAddress isa = getRandom(this.reconfigurators.toArray(new InetSocketAddress[0]));
 		// overwrite the most recent callback
 		this.callbacksSRP.put(getKey(rcPacket), callback);
-		this.niot.sendToAddress(Util.offsetPort(
-				isa,
+		this.niot.sendToAddress(Util.offsetPort(isa,
 				// subtract offset to go to server-server port
-				this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
-						.getClientPortClearOffset() : -ReconfigurationConfig
-						.getClientPortSSLOffset()), rcPacket.toString());
+				this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig.getClientPortClearOffset()
+						: -ReconfigurationConfig.getClientPortSSLOffset()),
+				rcPacket.toString());
 	}
 
 	/**
@@ -601,16 +562,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param callback
 	 * @throws IOException
 	 */
-	public void sendRequest(ClientReconfigurationPacket request,
-			RequestCallback callback) throws IOException {
-		this.sendRequest(request, callback,
-				this.e2eRedirector.getNearest(this.reconfigurators));
+	public void sendRequest(ClientReconfigurationPacket request, RequestCallback callback) throws IOException {
+		this.sendRequest(request, callback, this.e2eRedirector.getNearest(this.reconfigurators));
 	}
 
-	private void sendRequest(ClientReconfigurationPacket request)
-			throws IOException {
-		this.sendRequest(request, null,
-				this.e2eRedirector.getNearest(this.reconfigurators));
+	private void sendRequest(ClientReconfigurationPacket request) throws IOException {
+		this.sendRequest(request, null, this.e2eRedirector.getNearest(this.reconfigurators));
 	}
 
 	private boolean hasLongTimeout(RequestCallback callback) {
@@ -626,15 +583,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
-	private void spawnGCClientReconfigurationPacket(long timeout,
-			ClientReconfigurationPacket request) {
+	private void spawnGCClientReconfigurationPacket(long timeout, ClientReconfigurationPacket request) {
 		initTimerIfNeeded();
 		this.timer.schedule(new TimerTask() {
 
 			@Override
 			public void run() {
-				ReconfigurableAppClientAsync.this.callbacksCRPLongTimeout
-						.remove(request.getKey());
+				ReconfigurableAppClientAsync.this.callbacksCRPLongTimeout.remove(request.getKey());
 			}
 
 		}, timeout);
@@ -646,32 +601,26 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 			@Override
 			public void run() {
-				ReconfigurableAppClientAsync.this.callbacksLongTimeout
-						.remove(request.getRequestID());
+				ReconfigurableAppClientAsync.this.callbacksLongTimeout.remove(request.getRequestID());
 			}
 
 		}, timeout);
 	}
 
-	private void sendRequest(ClientReconfigurationPacket request,
-			RequestCallback callback, InetSocketAddress reconfigurator)
-			throws IOException {
+	private void sendRequest(ClientReconfigurationPacket request, RequestCallback callback,
+			InetSocketAddress reconfigurator) throws IOException {
 		if (callback != null)
 			if (!hasLongTimeout(callback))
 				this.callbacksCRP.put(getKey(request), callback);
-			else if (this.callbacksCRPLongTimeout
-					.put(getKey(request), callback) == null)
-				spawnGCClientReconfigurationPacket(
-						((TimeoutRequestCallback) callback).getTimeout(),
-						request);
-		this.niot.sendToAddress(reconfigurator != null ? reconfigurator
-				: this.e2eRedirector.getNearest(reconfigurators), request
-				.toString());
+			else if (this.callbacksCRPLongTimeout.put(getKey(request), callback) == null)
+				spawnGCClientReconfigurationPacket(((TimeoutRequestCallback) callback).getTimeout(), request);
+		this.niot.sendToAddress(
+				reconfigurator != null ? reconfigurator : this.e2eRedirector.getNearest(reconfigurators),
+				request.toString());
 	}
 
 	private InetSocketAddress getRandom(InetSocketAddress[] isas) {
-		return isas != null && isas.length > 0 ? isas[(int) (Math.random() * isas.length)]
-				: null;
+		return isas != null && isas.length > 0 ? isas[(int) (Math.random() * isas.length)] : null;
 	}
 
 	private String getKey(ClientReconfigurationPacket crp) {
@@ -679,11 +628,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	}
 
 	private String getKey(ServerReconfigurationPacket<?> changeRCs) {
-		return changeRCs.getRequestType()
-				+ ":"
-				+ (changeRCs.hasAddedNodes() ? changeRCs.newlyAddedNodes
-						.keySet() : "") + ":"
-				+ (changeRCs.hasDeletedNodes() ? changeRCs.deletedNodes : "");
+		return changeRCs.getRequestType() + ":" + (changeRCs.hasAddedNodes() ? changeRCs.newlyAddedNodes.keySet() : "")
+				+ ":" + (changeRCs.hasDeletedNodes() ? changeRCs.deletedNodes : "");
 	}
 
 	class RequestAndCallback implements RequestCallback {
@@ -697,8 +643,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			this(request, callback, null);
 		}
 
-		RequestAndCallback(ClientRequest request, RequestCallback callback,
-				NearestServerSelector redirector) {
+		RequestAndCallback(ClientRequest request, RequestCallback callback, NearestServerSelector redirector) {
 			this.request = request;
 			this.callback = callback;
 			this.redirector = redirector;
@@ -731,13 +676,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, RequestCallback callback)
-			throws IOException {
+	public Long sendRequest(ClientRequest request, RequestCallback callback) throws IOException {
 		return this.sendRequest(request, callback, this.e2eRedirector);
 	}
 
-	private static final String ANY_ACTIVE = Config
-			.getGlobalString(ReconfigurationConfig.RC.SPECIAL_NAME);
+	private static final String ANY_ACTIVE = Config.getGlobalString(ReconfigurationConfig.RC.SPECIAL_NAME);
 
 	/**
 	 * @param request
@@ -745,16 +688,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @return Request ID of sent or enqueued request
 	 * @throws IOException
 	 */
-	public Long sendRequestAnycast(ClientRequest request,
-			RequestCallback callback) throws IOException {
+	public Long sendRequestAnycast(ClientRequest request, RequestCallback callback) throws IOException {
 		Set<InetSocketAddress> active = null;
-		if ((active = this.activeReplicas.get(ANY_ACTIVE)) != null
-				&& this.queriedActivesRecently(ANY_ACTIVE))
-			return this
-					.sendRequest(request, active.iterator().next(), callback);
+		if ((active = this.activeReplicas.get(ANY_ACTIVE)) != null && this.queriedActivesRecently(ANY_ACTIVE))
+			return this.sendRequest(request, active.iterator().next(), callback);
 		// else
-		this.enqueueAndQueryForActives(
-				new RequestAndCallback(request, callback), true, true);
+		this.enqueueAndQueryForActives(new RequestAndCallback(request, callback), true, true);
 		return request.getRequestID();
 	}
 
@@ -765,8 +704,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 			return true;
 		}
-		Reconfigurator.getLogger().log(Level.FINE,
-				"{0} last queried time for {1} is {2}",
+		Reconfigurator.getLogger().log(Level.FINE, "{0} last queried time for {1} is {2}",
 				new Object[] { this, name, lastQueriedTime });
 		return false;
 	}
@@ -778,36 +716,30 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, RequestCallback callback,
-			NearestServerSelector redirector) throws IOException {
+	public Long sendRequest(ClientRequest request, RequestCallback callback, NearestServerSelector redirector)
+			throws IOException {
 
 		Set<InetSocketAddress> actives = null;
 		// lookup actives in the cache first
 		if ((actives = this.activeReplicas.get(request.getServiceName())) != null
 				&& this.queriedActivesRecently(request.getServiceName()))
-			return this.sendRequest(request,
-					redirector != null ? redirector.getNearest(actives)
-							: (InetSocketAddress) (Util.selectRandom(actives)),
-					callback);
+			return this.sendRequest(request, redirector != null ? redirector.getNearest(actives)
+					: (InetSocketAddress) (Util.selectRandom(actives)), callback);
 
 		// else enqueue them
-		this.enqueueAndQueryForActives(new RequestAndCallback(request,
-				callback, redirector), true, false);
+		this.enqueueAndQueryForActives(new RequestAndCallback(request, callback, redirector), true, false);
 		return request.getRequestID();
 	}
 
-	private synchronized boolean enqueueAndQueryForActives(
-			RequestAndCallback rc, boolean force, boolean anycast)
+	private synchronized boolean enqueueAndQueryForActives(RequestAndCallback rc, boolean force, boolean anycast)
 			throws IOException {
 		boolean queued = this.enqueue(rc, anycast);
-		this.queryForActives(
-				anycast ? ANY_ACTIVE : rc.request.getServiceName(), force);
+		this.queryForActives(anycast ? ANY_ACTIVE : rc.request.getServiceName(), force);
 		return queued;
 	}
 
 	private synchronized boolean enqueue(RequestAndCallback rc, boolean anycast) {
-		this.requestsPendingActives.putIfAbsent(anycast ? ANY_ACTIVE
-				: rc.request.getServiceName(),
+		this.requestsPendingActives.putIfAbsent(anycast ? ANY_ACTIVE : rc.request.getServiceName(),
 				new LinkedBlockingQueue<RequestAndCallback>());
 		LinkedBlockingQueue<RequestAndCallback> pending = this.requestsPendingActives
 				.get(anycast ? ANY_ACTIVE : rc.request.getServiceName());
@@ -815,16 +747,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		return pending.add(rc);
 	}
 
-	private void queryForActives(String name, boolean forceRefresh)
-			throws IOException {
+	private void queryForActives(String name, boolean forceRefresh) throws IOException {
 		if (forceRefresh || !this.queriedActivesRecently(name)) {
 			if (forceRefresh) {
 				this.activeReplicas.remove(name);
 				this.mostRecentlyWrittenMap.remove(name);
 			}
-			Reconfigurator.getLogger().log(Level.FINE,
-					"{0} sending actives request for ",
-					new Object[] { this, name });
+			Reconfigurator.getLogger().log(Level.FINE, "{0} sending actives request for ", new Object[] { this, name });
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
 		}
@@ -832,15 +761,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private void sendRequestsPendingActives(RequestActiveReplicas response) {
 		// learn sample latency
-		this.e2eRedirector.learnSample(response.getMyReceiver(),
-				System.currentTimeMillis() - response.getCreateTime());
+		this.e2eRedirector.learnSample(response.getMyReceiver(), System.currentTimeMillis() - response.getCreateTime());
 
 		Set<InetSocketAddress> actives = response.getActives();
 		if (actives != null && !actives.isEmpty()) {
 			this.activeReplicas.put(response.getServiceName(), actives);
 			if (this.mostRecentlyWrittenMap.contains(response.getServiceName())
-					&& !actives.contains(this.mostRecentlyWrittenMap
-							.get(response.getServiceName())))
+					&& !actives.contains(this.mostRecentlyWrittenMap.get(response.getServiceName())))
 				this.mostRecentlyWrittenMap.remove(response.getServiceName());
 		} else {
 			this.activeReplicas.remove(response.getServiceName());
@@ -848,19 +775,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 
 		if (!this.requestsPendingActives.containsKey(response.getServiceName())) {
-			log.log(Level.FINE,
-					"{0} found no requests pending actives for {1}",
+			log.log(Level.FINE, "{0} found no requests pending actives for {1}",
 					new Object[] { this, response.getSummary() });
 			return;
 		}
 		// else
-		log.log(Level.FINE,
-				"{0} trying to release requests pending actives for {1} : {2}",
-				new Object[] {
-						this,
-						response.getSummary(),
-						Util.truncatedLog(this.requestsPendingActives
-								.get(response.getServiceName()), 8) });
+		log.log(Level.FINE, "{0} trying to release requests pending actives for {1} : {2}",
+				new Object[] { this, response.getSummary(),
+						Util.truncatedLog(this.requestsPendingActives.get(response.getServiceName()), 8) });
 		LinkedBlockingQueue<RequestAndCallback> pendingRequests = this.requestsPendingActives
 				.get(response.getServiceName());
 		if (pendingRequests == null)
@@ -869,12 +791,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if (pendingRequests.isEmpty())
 				this.requestsPendingActives.remove(response.getServiceName());
 			else
-				for (Iterator<RequestAndCallback> reqIter = this.requestsPendingActives
-						.get(response.getServiceName()).iterator(); reqIter
-						.hasNext();) {
+				for (Iterator<RequestAndCallback> reqIter = this.requestsPendingActives.get(response.getServiceName())
+						.iterator(); reqIter.hasNext();) {
 					RequestAndCallback rc = reqIter.next();
 					if (rc.isExpired()) {
-						/* Drop silently. The app must have assumed a timeout
+						/*
+						 * Drop silently. The app must have assumed a timeout
 						 * anyway by now. This is the case when a request
 						 * pending actives has spent more time waiting for
 						 * actives than the app request timeout, so it makes
@@ -890,7 +812,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						 * Note that the first request may not necessarily get
 						 * garbage collected by GCConcurrentHashMap even if
 						 * CRP_GC_TIMEOUT is less than APP_REQUEST_TIMEOUT as GC
-						 * is done only when really needed. */
+						 * is done only when really needed.
+						 */
 
 						continue;
 					}
@@ -898,34 +821,21 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					if (actives != null && !actives.isEmpty()) {
 						// release requests pending actives
 						try {
-							this.sendRequest(
-									rc.request,
-									rc.redirector != null ? rc.redirector
-											.getNearest(actives)
-											: (InetSocketAddress) (Util
-													.selectRandom(actives)),
-									rc.callback);
+							this.sendRequest(rc.request, rc.redirector != null ? rc.redirector.getNearest(actives)
+									: (InetSocketAddress) (Util.selectRandom(actives)), rc.callback);
 						} catch (IOException e) {
 							log.log(Level.WARNING,
-									"{0} encountered IOException while trying "
-											+ "to release requests pending {1}",
+									"{0} encountered IOException while trying " + "to release requests pending {1}",
 									new Object[] { this, response.getSummary() });
 							e.printStackTrace();
 						}
 					} else {
 						// or send error to all pending requests
-						log.log(Level.FINE,
-								"{0} returning {1} to pending request callbacks {2}",
-								new Object[] {
-										this,
-										ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR,
-										pendingRequests });
+						log.log(Level.FINE, "{0} returning {1} to pending request callbacks {2}", new Object[] { this,
+								ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR, pendingRequests });
 						for (RequestAndCallback pendingRequest : pendingRequests)
-							pendingRequest.callback
-									.handleResponse(new ActiveReplicaError(
-											response.getServiceName(),
-											pendingRequest.request
-													.getRequestID(), response)
+							pendingRequest.callback.handleResponse(new ActiveReplicaError(response.getServiceName(),
+									pendingRequest.request.getRequestID(), response)
 											.setResponseMessage(ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR
 													+ ": No active replicas found for name \""
 													+ response.getServiceName()
@@ -939,6 +849,15 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
+	// also update e2e redirector if we are actively probing anyway
+	private void updateE2ERedirector(EchoRequest response) {
+		if (response.isRequest())
+			return;
+		for (InetSocketAddress isa : this.actives)
+			if (isa.getAddress().equals(response.getSender()))
+				this.e2eRedirector.learnSample(isa, System.currentTimeMillis() - response.sentTime);
+	}
+
 	private Set<InetSocketAddress> actives = new HashSet<InetSocketAddress>();
 	private Set<InetSocketAddress> heardFrom = new HashSet<InetSocketAddress>();
 	private ConcurrentHashMap<InetAddress, Long> closest = new ConcurrentHashMap<InetAddress, Long>();
@@ -946,11 +865,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private static final int CLOSEST_K = Config.getGlobalInt(RC.CLOSEST_K);
 
 	private void updateClosest(EchoRequest response) {
+		this.updateE2ERedirector(response);
 		this.heardFrom.add(response.getSender());
 		synchronized (this.closest) {
 			long delay = System.currentTimeMillis() - response.sentTime;
-			if (closest.size() < CLOSEST_K
-					&& !closest.containsKey(response.getSender()))
+			if (closest.size() < CLOSEST_K && !closest.containsKey(response.getSender()))
 				closest.put(response.getSender().getAddress(), delay);
 			InetAddress maxDelayAddr = null;
 			for (InetAddress addr : closest.keySet())
@@ -959,20 +878,19 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if (maxDelayAddr != null) {
 				this.closest.remove(maxDelayAddr);
 				this.closest.put(response.getSender().getAddress(), delay);
-				log.log(Level.INFO, "{0} updated closest server to {1}", new Object[] {
-						this, this.closest });
+				log.log(Level.INFO, "{0} updated closest server to {1}", new Object[] { this, this.closest });
 			}
 		}
 		if (this.heardFrom.size() > this.actives.size() / 2 + 1)
 			for (InetSocketAddress address : actives) {
 				try {
-					this.sendRequest(new EchoRequest((InetSocketAddress) null,
-							this.closest), address, new RequestCallback() {
-						@Override
-						public void handleResponse(Request response) {
-							// do nothing
-						}
-					});
+					this.sendRequest(new EchoRequest((InetSocketAddress) null, this.closest), address,
+							new RequestCallback() {
+								@Override
+								public void handleResponse(Request response) {
+									// do nothing
+								}
+							});
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -980,31 +898,25 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	}
 
-	private static final boolean ORIENT_CLIENT = Config
-			.getGlobalBoolean(RC.ORIENT_CLIENT);
+	private static final boolean ORIENT_CLIENT = Config.getGlobalBoolean(RC.ORIENT_CLIENT);
 
 	private void orient() {
 		if (!ORIENT_CLIENT)
 			return;
 		assert (!actives.isEmpty());
-		log.log(Level.INFO, "{0} orienting itself against {1}", new Object[] {
-				this, actives });
+		log.log(Level.INFO, "{0} orienting itself against {1}", new Object[] { this, actives });
 		this.heardFrom.clear();
 		for (InetSocketAddress address : actives) {
 			try {
-				this.sendRequest(new EchoRequest((InetSocketAddress) null),
-						address, new RequestCallback() {
-							@Override
-							public void handleResponse(Request response) {
-								log.log(Level.FINE,
-										"{0} received response {1} for echo request",
-										new Object[] {
-												ReconfigurableAppClientAsync.this,
-												response.getSummary() });
-								assert (response instanceof EchoRequest);
-								updateClosest((EchoRequest) response);
-							}
-						});
+				this.sendRequest(new EchoRequest((InetSocketAddress) null), address, new RequestCallback() {
+					@Override
+					public void handleResponse(Request response) {
+						log.log(Level.FINE, "{0} received response {1} for echo request",
+								new Object[] { ReconfigurableAppClientAsync.this, response.getSummary() });
+						assert (response instanceof EchoRequest);
+						updateClosest((EchoRequest) response);
+					}
+				});
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -1024,9 +936,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		Object monitor = new Object();
 		boolean[] success = new boolean[1];
 		try {
-			this.sendRequest(
-					new RequestActiveReplicas(Config
-							.getGlobalString(RC.BROADCAST_NAME)),
+			this.sendRequest(new RequestActiveReplicas(Config.getGlobalString(RC.BROADCAST_NAME)),
 					new RequestCallback() {
 						@Override
 						public void handleResponse(Request response) {
@@ -1040,14 +950,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							}
 						}
 					},
-					address != null ? address : this
-							.getRandom(this.reconfigurators
-									.toArray(new InetSocketAddress[0])));
+					address != null ? address : this.getRandom(this.reconfigurators.toArray(new InetSocketAddress[0])));
 
-			log.log(Level.INFO,
-					"{0} sent connectivity check {1}",
-					new Object[] { this,
-							Config.getGlobalString(RC.BROADCAST_NAME) });
+			log.log(Level.INFO, "{0} sent connectivity check {1}",
+					new Object[] { this, Config.getGlobalString(RC.BROADCAST_NAME) });
 
 			if (!success[0])
 				synchronized (monitor) {
@@ -1057,10 +963,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return false;
 		}
 		if (success[0])
-			log.log(Level.INFO,
-					"{0} connectivity check {1} successful",
-					new Object[] { this,
-							Config.getGlobalString(RC.BROADCAST_NAME) });
+			log.log(Level.INFO, "{0} connectivity check {1} successful",
+					new Object[] { this, Config.getGlobalString(RC.BROADCAST_NAME) });
 		this.orient();
 		return success[0];
 	}
@@ -1076,16 +980,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @param address
 	 * @return
 	 */
-	protected boolean checkConnectivity(long attemptTimeout, int numAttempts,
-			InetSocketAddress address) {
+	protected boolean checkConnectivity(long attemptTimeout, int numAttempts, InetSocketAddress address) {
 		int attempts = 0;
 		while (attempts++ < numAttempts)
 			if (this.checkConnectivity(attemptTimeout, address)) {
 				return true;
 			} else {
-				System.out
-						.print((attempts == 1 ? "Retrying connection check..."
-								: "") + attempts + " ");
+				System.out.print((attempts == 1 ? "Retrying connection check..." : "") + attempts + " ");
 				this.checkConnectivity(attemptTimeout, address);
 			}
 		return false;
@@ -1129,8 +1030,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	public String toString() {
 		return this.getClass().getSimpleName()
-				+ (this.niot != null ? this.niot.getListeningSocketAddress()
-						.getPort() : "");
+				+ (this.niot != null ? this.niot.getListeningSocketAddress().getPort() : "");
 	}
 
 	static class AsyncClient extends ReconfigurableAppClientAsync {
@@ -1139,8 +1039,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 
 		@Override
-		public Request getRequest(String stringified)
-				throws RequestParseException {
+		public Request getRequest(String stringified) throws RequestParseException {
 			return null;
 		}
 
@@ -1155,8 +1054,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @return Request created from JSON {@code json}
 	 * @throws RequestParseException
 	 */
-	public Request getRequestFromJSON(JSONObject json)
-			throws RequestParseException {
+	public Request getRequestFromJSON(JSONObject json) throws RequestParseException {
 		throw new RuntimeException(
 				"enableJSONPackets() is true but getJSONRequest(JSONObject) has not been overridden");
 	}
@@ -1190,8 +1088,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
-	public static void main(String[] args) throws IOException,
-			InterruptedException {
+	public static void main(String[] args) throws IOException, InterruptedException {
 		ReconfigurableAppClientAsync client = new AsyncClient();
 		client.close();
 	}
