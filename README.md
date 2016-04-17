@@ -184,10 +184,10 @@ through the source of <tt>NoopApp</tt> and <tt>NoopAppClient</tt> and
 the documentation therein below:
 
 [NoopApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>)
- [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.html>)
+ [[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.html>)
 
 [NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
+[[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
 
 Step 1: Repeat the same failure scenario as above and verify that the
 actives exhibit the same liveness properties as before.
@@ -226,12 +226,12 @@ reconfigured.
 Step 4: Inspect the default *reconfiguration policy* in
 
 [DemandProfile.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/reconfigurationutils/DemandProfile.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/reconfigurationutils/DemandProfile.html>)
+[[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/reconfigurationutils/DemandProfile.html>)
 
 and the abstract class
 
 [AbstractDemandProfile.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/reconfigurationutils/AbstractDemandProfile.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/reconfigurationutils/AbstractDemandProfile.java>)
+[[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/reconfigurationutils/AbstractDemandProfile.java>)
 
 that any application-specific reconfiguration policy is expected to
 extend in order to achieve its reconfiguration goals.
@@ -283,7 +283,7 @@ profile instance creation to work correctly.
 Step 5: Inspect the code in
 
 [NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
+[[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
 
 to see how it is creating a service name by sending a
 <tt>CREATE_SERVICE_NAME</tt> request. A service name corresponds to an
@@ -326,19 +326,19 @@ A list of all relevant classes for Tutorial 2 mentioned above is
 listed below for convenience:
 
 [NoopAppClient.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/NoopAppClient.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
+[[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/examples/NoopAppClient.html>)
 
 [NoopApp.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.java>)
- [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.html>)
+ [[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/examples/noopsimple/NoopApp.html>)
 
 [AppRequest.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/examples/AppRequest.java>)
- [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/examples/AppRequest.html>)
+ [[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/examples/AppRequest.html>)
 
 [ReplicableRequest.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/interfaces/ReplicableRequest.java>)
- [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/interfaces/ReplicableRequest.html>)
+ [[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/interfaces/ReplicableRequest.html>)
 
 [ClientRequest.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/gigapaxos/interfaces/ClientRequest.java>)
- [[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/gigapaxos/interfaces/ClientRequest.html>)
+ [[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/gigapaxos/interfaces/ClientRequest.html>)
 
 [ReconfigurableAppClientAsync.java](<https://github.com/MobilityFirst/gigapaxos/blob/master/src/edu/umass/cs/reconfiguration/ReconfigurableAppClientAsync.java>)
-[[doc]](<https://github.com/MobilityFirst/gigapaxos/blob/master/doc/edu/umass/cs/reconfiguration/ReconfigurableAppClientAsync.html>)
+[[doc]](<https://mobilityfirst.github.io/gigapaxos/doc/edu/umass/cs/reconfiguration/ReconfigurableAppClientAsync.html>)

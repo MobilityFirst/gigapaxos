@@ -29,11 +29,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 
 import edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp;
+import edu.umass.cs.gigapaxos.paxosutil.E2ELatencyAwareRedirector;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
+import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.MultiArrayMap;
 import edu.umass.cs.utils.Util;
@@ -497,7 +499,21 @@ public class PaxosConfig {
 		 */
 		CLIENT_DEMULTIPLEXER_THREADS(0),
 
-		READ_YOUR_WRITES(true),
+		/**
+		 * Disables the feature that redirects requests to the most recent
+		 * replica from which a response to a coordinated request, i.e., a
+		 * {@link ReplicableRequest} with
+		 * {@link ReplicableRequest#needsCoordination()} {@code true}, was
+		 * received. Note that enabling this feature means that latency-based
+		 * request redirection at the client will not happen, so the client may
+		 * be sending requests to far away active replicas even though nearer
+		 * ones exist. This is because latency-based redirection works by
+		 * probing, i.e., a small fraction,
+		 * {@link E2ELatencyAwareRedirector#PROBE_RATIO} of requests are sent to
+		 * a random active replica, in order to enable nearest-server
+		 * redirection.
+		 */
+		READ_YOUR_WRITES(false),
 
 		/**
 		 * FIXME: The options below only exist for testing stringification

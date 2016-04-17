@@ -288,22 +288,6 @@ public class ReconfigurationConfig {
 		 */
 		CLOSEST_K(3),
 
-		/**
-		 * Disables the feature that redirects requests to the most recent
-		 * replica from which a response to a coordinated request, i.e., a
-		 * {@link ReplicableRequest} with
-		 * {@link ReplicableRequest#needsCoordination()} {@code true}, was
-		 * received. Note that enabling this feature means that latency-based
-		 * request redirection at the client will not happen, so the client may
-		 * be sending requests to far away active replicas even though nearer
-		 * ones exist. This is because latency-based redirection works by
-		 * probing, i.e., a small fraction,
-		 * {@link E2ELatencyAwareRedirector#PROBE_RATIO} of requests are sent to
-		 * a random active replica, in order to enable nearest-server
-		 * redirection.
-		 */
-		READ_YOUR_WRITES(true),
-
 		;
 
 		final Object defaultValue;
