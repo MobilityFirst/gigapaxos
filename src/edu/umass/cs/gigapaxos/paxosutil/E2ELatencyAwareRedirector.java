@@ -93,6 +93,8 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 				&& System.currentTimeMillis() - lastProbedTime > this.minProbeTime;
 	}
 
+	private static final double ALPHA = 1.0 / 8;
+
 	/**
 	 * @param isa
 	 * @param latency
@@ -101,7 +103,8 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 		Double historical;
 		assert (isa != null);
 		if ((historical = e2eLatencies.putIfAbsent(isa, latency)) != null)
-			e2eLatencies.put(isa, Util.movingAverage(latency, historical));
+			e2eLatencies.put(isa,
+					Util.movingAverage(latency, historical, ALPHA));
 	}
 
 	/**
@@ -264,6 +267,10 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 	 */
 	public Class<?> getTestClass() {
 		return E2ELatencyAwareRedirectorTest.class;
+	}
+
+	public String toString() {
+		return this.e2eLatencies.toString();
 	}
 
 	/**

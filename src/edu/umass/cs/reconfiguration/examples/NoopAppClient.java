@@ -29,37 +29,46 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 		super();
 	}
 
+	private static final long INTER_REQUEST_TIME = 50;
+
 	private void testSendBunchOfRequests(String name, int numRequests)
-			throws IOException, JSONException {
+			throws IOException {
 		System.out.println("Created " + name
 				+ " and beginning to send test requests");
-		for (int i = 0; i < numRequests; i++) {
-			long reqInitime = System.currentTimeMillis();
-			this.sendRequest(new AppRequest(name, "request_value" + i,
-					AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
-					new RequestCallback() {
+		new Thread(new Runnable() {
+			public void run() {
+				for (int i = 0; i < numRequests; i++) {
+					long reqInitime = System.currentTimeMillis();
+					try {
+						NoopAppClient.this.sendRequest(new AppRequest(name,
+								"request_value" + i,
+								AppRequest.PacketType.DEFAULT_APP_REQUEST,
+								false), new RequestCallback() {
 
-						@Override
-						public void handleResponse(Request response) {
-							if (response instanceof ActiveReplicaError)
-								return;
-							// else
-							System.out.println("Received response: " + response
-									+ "  [" + (System.currentTimeMillis() - reqInitime)
-									+ "ms]");
-							synchronized (NoopAppClient.this) {
-								NoopAppClient.this.numResponses++;
-								NoopAppClient.this.notify();
+							@Override
+							public void handleResponse(Request response) {
+								if (response instanceof ActiveReplicaError)
+									return;
+								// else
+								System.out.println("Received response: "
+										+ response
+										+ "  ["
+										+ (System.currentTimeMillis() - reqInitime)
+										+ "ms]");
+								synchronized (NoopAppClient.this) {
+									NoopAppClient.this.numResponses++;
+									NoopAppClient.this.notify();
+								}
 							}
-						}
-					});
-			try {
-				Thread.sleep(50);
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+						});
+						Thread.sleep(INTER_REQUEST_TIME);
+					} catch (IOException | InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
 			}
-		}
+		}).start();
 	}
 
 	@Override
@@ -111,14 +120,15 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 								else
 									System.out.println(this
 											+ " failed to create name " + name);
-							} catch (IOException | JSONException e) {
+							} catch (IOException e) {
 								e.printStackTrace();
 							}
 						}
 					});
 		}
 		synchronized (client) {
-			long maxWaitTime = 8000, waitInitTime = System.currentTimeMillis();
+			long maxWaitTime = numReqs * INTER_REQUEST_TIME + 4000, waitInitTime = System
+					.currentTimeMillis();
 			while (client.numResponses < numNames * numReqs
 					&& (System.currentTimeMillis() - waitInitTime < maxWaitTime))
 				try {

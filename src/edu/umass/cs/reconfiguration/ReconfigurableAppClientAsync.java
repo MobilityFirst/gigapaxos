@@ -66,6 +66,9 @@ import edu.umass.cs.utils.Util;
  *
  */
 public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
+	static {
+		ReconfigurationConfig.load();
+	}
 	/* Could be any high value coz we clear cached entry upon error or deletion.
 	 * Having it too small means more query overhead (and potentially marginally
 	 * improved responsiveness to replica failures). */
@@ -229,7 +232,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
 			throws IOException {
-		this(reconfigurators, sslMode, clientPortOffset, false);
+		this(reconfigurators, sslMode, clientPortOffset, true);
 	}
 
 	/**
@@ -239,7 +242,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators)
 			throws IOException {
 		this(reconfigurators, ReconfigurationConfig.getClientSSLMode(),
-				(ReconfigurationConfig.getClientPortOffset()), false);
+				(ReconfigurationConfig.getClientPortOffset()), true);
 	}
 
 	/**
@@ -269,6 +272,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			"");
 
 	class ClientPacketDemultiplexer extends AbstractPacketDemultiplexer<Object> {
+
+		private Logger log = ReconfigurableAppClientAsync.log;
 
 		ClientPacketDemultiplexer(Set<IntegerPacketType> types) {
 			this.register(ReconfigurationPacket.clientPacketTypes);
@@ -313,27 +318,30 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return request;
 		}
 
-		private void updateBestReplica(RequestCallback callback, Object msg) {
-			assert (callback instanceof RequestAndCallback);
-			Request request = ((RequestAndCallback) callback).request;
+		private void updateBestReplica(RequestAndCallback callback) {
+			Request request = callback.request;
 			if (request instanceof ReplicableRequest
 					&& ((ReplicableRequest) request).needsCoordination()) {
 				// we could just always rely on serverSentTo here
-				InetSocketAddress mostRecentReplica = msg instanceof JSONObject ? MessageNIOTransport
-						.getSenderAddress((JSONObject) msg)
-						: ((RequestAndCallback) callback).serverSentTo;
+				InetSocketAddress mostRecentReplica = callback.serverSentTo;
 
 				assert (!ReconfigurableAppClientAsync.this.jsonPackets || mostRecentReplica != null);
 				ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap.put(
 						request.getServiceName(), mostRecentReplica);
 				log.log(Level.FINE,
-						"{0} most recently received a commit for a coordinated request [{1}] from replica {2}",
-						new Object[] { this, request.getSummary(),
-								mostRecentReplica });
-			} else
-				log.log(Level.FINEST,
-						"{0} did not update most recently written replica for request {1}",
-						new Object[] { this, request.getSummary() });
+						"{0} most recently received a commit for a coordinated request [{1}] from replica {2} [{3}ms]",
+						new Object[] {
+								this,
+								request.getSummary(),
+								mostRecentReplica,
+								(System.currentTimeMillis() - callback.sentTime) });
+			}
+			log.log(Level.FINEST, "{0} updated latency map with sample {1}:{2} to {3}", new Object[]{this,
+					callback.serverSentTo, System.currentTimeMillis()
+					- callback.sentTime, ReconfigurableAppClientAsync.this.e2eRedirector} );
+			ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
+					callback.serverSentTo, System.currentTimeMillis()
+							- callback.sentTime);
 		}
 
 		@Override
@@ -354,7 +362,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								.remove(((ClientRequest) response)
 										.getRequestID())) != null)) {
 					callback.handleResponse(((ClientRequest) response));
-					updateBestReplica(callback, strMsg);
+					updateBestReplica((RequestAndCallback) callback);
 				}
 				// ActiveReplicaError has to be dealt with separately
 				else if ((response instanceof ActiveReplicaError)
@@ -493,6 +501,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		assert (request.getServiceName() != null);
 		RequestCallback prev = null;
 
+		assert(!READ_YOUR_WRITES);
+		
 		// use replica recently written to if any
 		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
 				.get(request.getServiceName()) : null;
@@ -765,9 +775,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 			return true;
 		}
-		Reconfigurator.getLogger().log(Level.FINE,
-				"{0} last queried time for {1} is {2}",
-				new Object[] { this, name, lastQueriedTime });
+		if (lastQueriedTime != null)
+			Reconfigurator.getLogger().log(Level.FINE,
+					"{0} last queried time for {1} is {2}",
+					new Object[] { this, name, lastQueriedTime });
 		return false;
 	}
 
@@ -792,7 +803,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		// else enqueue them
 		this.enqueueAndQueryForActives(new RequestAndCallback(request,
-				callback, redirector), true, false);
+				callback, redirector), false, false);
 		return request.getRequestID();
 	}
 
@@ -823,7 +834,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				this.mostRecentlyWrittenMap.remove(name);
 			}
 			Reconfigurator.getLogger().log(Level.FINE,
-					"{0} sending actives request for ",
+					"{0} requesting active replicas for {1}",
 					new Object[] { this, name });
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
@@ -832,7 +843,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private void sendRequestsPendingActives(RequestActiveReplicas response) {
 		// learn sample latency
-		this.e2eRedirector.learnSample(response.getMyReceiver(),
+		this.e2eRedirector.learnSample(response.getSender(),
 				System.currentTimeMillis() - response.getCreateTime());
 
 		Set<InetSocketAddress> actives = response.getActives();

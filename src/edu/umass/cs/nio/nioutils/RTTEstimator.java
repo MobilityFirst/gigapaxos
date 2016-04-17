@@ -66,6 +66,8 @@ public class RTTEstimator {
 	 * @return {@code rtt} in quartets.
 	 */
 	public static long record(InetAddress address, long rtt) {
+		if (rtt <= 0)
+			return rtt;
 		int index = addrToPrefixInt(address);
 		bitset.set(index);
 		insertTestMap(address, rtt); // for testing only
@@ -104,8 +106,8 @@ public class RTTEstimator {
 	}
 
 	/**
-	 * Utility methods to fetch Amazon EC2 information although that isn't used by
-	 * the estimation methods in this class.
+	 * Utility methods to fetch Amazon EC2 information although that isn't used
+	 * by the estimation methods in this class.
 	 */
 	private static final String AWS_IP_RANGES = "https://ip-ranges.amazonaws.com/ip-ranges.json";
 	private static final String AWS_PREFIXES_KEY = "prefixes";
@@ -135,7 +137,7 @@ public class RTTEstimator {
 	/**
 	 * @return IP-as-string to region map.
 	 */
-	public static ConcurrentHashMap<String, String> populateAWSIPToRegionMap() {
+	protected static ConcurrentHashMap<String, String> populateAWSIPToRegionMap() {
 		if (awsIPRanges == null)
 			try {
 				getAmazonIPToRegionFile();

@@ -305,7 +305,6 @@ for node_id in `cat $gigapaxos_properties|grep -v "^#"|\
     host=`cat $gigapaxos_properties|grep -v "^#"|\
       awk -F "=|:" -v id=$node_id '{if($1==("active."id) || $1==("reconfigurator."id))\
         print $2}'`
-echo $host
     run_remote_command $host $server_kill_targets $node_id\
       "$run_server_cmd $node_id 2>$log_file_prefix$node_id "&
 done

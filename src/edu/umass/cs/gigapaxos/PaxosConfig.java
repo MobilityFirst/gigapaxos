@@ -56,6 +56,11 @@ public class PaxosConfig {
 
 	private static String DEFAULT_SERVER_PREFIX = "active.";
 
+	static {
+		load();
+		// NIOTransport.setCompressionThreshold(Config.getGlobalInt(PC.COMPRESSION_THRESHOLD));
+	}
+
 	/**
 	 * Loads from a default file or file name specified as a system property. We
 	 * take a type argument so that ReconfigurationConfig.RC can also mooch off
@@ -77,12 +82,6 @@ public class PaxosConfig {
 	 */
 	public static void load() {
 		load(PC.class);
-	}
-
-	static {
-		load();
-		NIOTransport.setCompressionThreshold(Config
-				.getGlobalInt(PC.COMPRESSION_THRESHOLD));
 	}
 
 	/**
@@ -388,7 +387,7 @@ public class PaxosConfig {
 		 * 
 		 */
 		ENABLE_STATIC_CHECKS(false),
-		
+
 		/**
 		 * Whether DelayProfiler should be enabled.
 		 */
@@ -482,24 +481,24 @@ public class PaxosConfig {
 		 * json-stringified.
 		 */
 		BYTEIFICATION(true),
-		
+
 		/**
 		 * 
 		 */
-		INSTRUMENT_SERIALIZATION (false),
+		INSTRUMENT_SERIALIZATION(false),
 
 		/**
 		 * 
 		 */
 		STRICT_ADDRESS_CHECKS(false),
-		
+
 		/**
 		 * 
 		 */
-		CLIENT_DEMULTIPLEXER_THREADS (0),
-		
-		READ_YOUR_WRITES (true),
-		
+		CLIENT_DEMULTIPLEXER_THREADS(0),
+
+		READ_YOUR_WRITES(true),
+
 		/**
 		 * FIXME: The options below only exist for testing stringification
 		 * overhead. They should probably be moved to {@link TESTPaxosConfig}.
@@ -731,8 +730,8 @@ public class PaxosConfig {
 		 * corresponding request body arrives, which seems to slow down the
 		 * overall throughput of the system.
 		 */
-		DIGEST_THRESHOLD(5), 
-		
+		DIGEST_THRESHOLD(5),
+
 		/**
 		 * Whether paxos packets across different paxos groups should be batched
 		 * if they are going to the same set of destinations.
@@ -795,12 +794,12 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		LOG_DISKMAP_CAPACITY (128*1024),
-		
+		LOG_DISKMAP_CAPACITY(128 * 1024),
+
 		/**
 		 * 
 		 */
-		DIGEST_THRESHOLD_SIZE (512),
+		DIGEST_THRESHOLD_SIZE(512),
 
 		;
 
