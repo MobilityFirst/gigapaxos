@@ -30,4 +30,4 @@ fi
 
 echo "Running $CLIENT"
 
-java $JVMFLAGS $SSL_OPTIONS $CLIENT
+java $JVMFLAGS $SSL_OPTIONS $CLIENT "${@:2}"

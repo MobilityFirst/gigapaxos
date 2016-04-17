@@ -29,8 +29,12 @@ import edu.umass.cs.utils.Util;
  */
 public class E2ELatencyAwareRedirector implements NearestServerSelector {
 
-	static final double PROBE_RATIO = 0.05;
-	static final long MIN_PROBE_TIME = 10 * 1000;
+	/**
+	 * The fraction of requests that are sent to a random replica as probes in
+	 * order to maintain an up-to-date map of latencies to different replicas.
+	 */
+	public static final double PROBE_RATIO = 0.05;
+	static final long MIN_PROBE_TIME = 10 * 1000; // 10s
 
 	final ConcurrentHashMap<InetSocketAddress, Double> e2eLatencies = new ConcurrentHashMap<InetSocketAddress, Double>();
 	final ConcurrentHashMap<InetSocketAddress, Long> lastProbed = new ConcurrentHashMap<InetSocketAddress, Long>();

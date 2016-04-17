@@ -30,10 +30,12 @@ import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
+import edu.umass.cs.gigapaxos.paxosutil.E2ELatencyAwareRedirector;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
+import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
@@ -280,11 +282,27 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		ORIENT_CLIENT(true),
-		
+
 		/**
 		 * The closest K servers to a given client IP address.
 		 */
-		CLOSEST_K (3),
+		CLOSEST_K(3),
+
+		/**
+		 * Disables the feature that redirects requests to the most recent
+		 * replica from which a response to a coordinated request, i.e., a
+		 * {@link ReplicableRequest} with
+		 * {@link ReplicableRequest#needsCoordination()} {@code true}, was
+		 * received. Note that enabling this feature means that latency-based
+		 * request redirection at the client will not happen, so the client may
+		 * be sending requests to far away active replicas even though nearer
+		 * ones exist. This is because latency-based redirection works by
+		 * probing, i.e., a small fraction,
+		 * {@link E2ELatencyAwareRedirector#PROBE_RATIO} of requests are sent to
+		 * a random active replica, in order to enable nearest-server
+		 * redirection.
+		 */
+		READ_YOUR_WRITES(true),
 
 		;
 

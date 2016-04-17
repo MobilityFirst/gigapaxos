@@ -202,8 +202,6 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		this.sslMode = sslMode;
 		(this.niot = (new MessageNIOTransport<String, String>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
-				// This will be set in the gigapaxos.properties file that we
-				// invoke the client using.
 				sslMode))).setName(this.toString());
 		log.log(Level.INFO,
 				"{0} listening on {1}; ssl mode = {2}; client port offset = {3}",
@@ -821,7 +819,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				this.mostRecentlyWrittenMap.remove(name);
 			}
 			Reconfigurator.getLogger().log(Level.FINE,
-					"{0} sending actives request for ",
+					"{0} sending actives request for {1}",
 					new Object[] { this, name });
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());

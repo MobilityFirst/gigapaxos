@@ -60,8 +60,10 @@ client_kill_targets="TESTPaxosClient" # can add other targets here
 
 # command for distributed test
 #paxos_server=reconfiguration.ReconfigurableNode
-paxos_server=gigapaxos.PaxosServer
-paxos_client=gigapaxos.testing.TESTPaxosClient
+#paxos_server=gigapaxos.PaxosServer
+paxos_server=reconfiguration.ReconfigurableNode
+#paxos_client=gigapaxos.testing.TESTPaxosClient
+paxos_client=reconfiguration.examples.NoopAppClient
 # command to run single node test(s) remotely
 #paxos_server=gigapaxos.testing.TESTPaxosMain
 

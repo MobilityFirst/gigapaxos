@@ -34,6 +34,7 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 		System.out.println("Created " + name
 				+ " and beginning to send test requests");
 		for (int i = 0; i < numRequests; i++) {
+			long reqInitime = System.currentTimeMillis();
 			this.sendRequest(new AppRequest(name, "request_value" + i,
 					AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
 					new RequestCallback() {
@@ -43,8 +44,9 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 							if (response instanceof ActiveReplicaError)
 								return;
 							// else
-							System.out
-									.println("Received response: " + response);
+							System.out.println("Received response: " + response
+									+ "  [" + (System.currentTimeMillis() - reqInitime)
+									+ "ms]");
 							synchronized (NoopAppClient.this) {
 								NoopAppClient.this.numResponses++;
 								NoopAppClient.this.notify();

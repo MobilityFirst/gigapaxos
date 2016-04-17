@@ -46,10 +46,10 @@ public abstract class ClientReconfigurationPacket extends
 		BasicReconfigurationPacket<InetSocketAddress> {
 
 	private static enum Keys {
-		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED, 
-		
-		RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY, 
-		
+		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED,
+
+		RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY,
+
 		CREATE_TIME, RESPONSE_CODE
 	};
 
@@ -184,7 +184,7 @@ public abstract class ClientReconfigurationPacket extends
 		this.isRequest = json.getBoolean(Keys.IS_QUERY.toString());
 
 		this.createTime = json.getLong(Keys.CREATE_TIME.toString());
-		
+
 		this.responseCode = json.has(Keys.RESPONSE_CODE.toString()) ? ResponseCodes
 				.valueOf(json.getString(Keys.RESPONSE_CODE.toString())) : null;
 	}
@@ -404,7 +404,8 @@ public abstract class ClientReconfigurationPacket extends
 
 	public String getSummary() {
 		return super.getSummary() + ":" + (this.isRequest() ? "Q" : "R") + ":"
-				+ this.getCreator() + ":" + this.getForwader()
+				+ this.getCreator() + ":"
+				+ (this.getForwader() != null ? this.getForwader() : "")
 				+ (this.isFailed() ? ":FAILED" : "");
 	}
 }
