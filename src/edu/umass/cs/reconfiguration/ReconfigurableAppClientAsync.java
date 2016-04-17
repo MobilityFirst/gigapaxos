@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -476,6 +477,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
+	private static final boolean READ_YOUR_WRITES = Config
+			.getGlobalBoolean(PC.READ_YOUR_WRITES);
+
 	/**
 	 * @param request
 	 * @param server
@@ -490,8 +494,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		RequestCallback prev = null;
 
 		// use replica recently written to if any
-		InetSocketAddress mostRecentlyWritten = this.mostRecentlyWrittenMap
-				.get(request.getServiceName());
+		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
+				.get(request.getServiceName()) : null;
 		if (mostRecentlyWritten != null && !mostRecentlyWritten.equals(server)) {
 			log.log(Level.FINE,
 					"{0} using replica {1} most recently written to instead of server {2}",
@@ -522,7 +526,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					new Object[] {
 							this,
 							ReconfigurationConfig.getSummary(request,
-									log.isLoggable(level)), server});
+									log.isLoggable(level)), server });
 		} finally {
 			if (sendFailed && prev == null) {
 				this.callbacks.remove(request.getRequestID(), callback);
@@ -819,7 +823,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				this.mostRecentlyWrittenMap.remove(name);
 			}
 			Reconfigurator.getLogger().log(Level.FINE,
-					"{0} sending actives request for {1}",
+					"{0} sending actives request for ",
 					new Object[] { this, name });
 			this.sendRequest(new RequestActiveReplicas(name));
 			this.lastQueriedActives.put(name, System.currentTimeMillis());
@@ -935,6 +939,16 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
+	// also update e2e redirector if we are actively probing anyway
+	private void updateE2ERedirector(EchoRequest response) {
+		if (response.isRequest())
+			return;
+		for (InetSocketAddress isa : this.actives)
+			if (isa.getAddress().equals(response.getSender()))
+				this.e2eRedirector.learnSample(isa, System.currentTimeMillis()
+						- response.sentTime);
+	}
+
 	private Set<InetSocketAddress> actives = new HashSet<InetSocketAddress>();
 	private Set<InetSocketAddress> heardFrom = new HashSet<InetSocketAddress>();
 	private ConcurrentHashMap<InetAddress, Long> closest = new ConcurrentHashMap<InetAddress, Long>();
@@ -942,6 +956,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private static final int CLOSEST_K = Config.getGlobalInt(RC.CLOSEST_K);
 
 	private void updateClosest(EchoRequest response) {
+		this.updateE2ERedirector(response);
 		this.heardFrom.add(response.getSender());
 		synchronized (this.closest) {
 			long delay = System.currentTimeMillis() - response.sentTime;
@@ -955,8 +970,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if (maxDelayAddr != null) {
 				this.closest.remove(maxDelayAddr);
 				this.closest.put(response.getSender().getAddress(), delay);
-				log.log(Level.INFO, "{0} updated closest server to {1}", new Object[] {
-						this, this.closest });
+				log.log(Level.INFO, "{0} updated closest server to {1}",
+						new Object[] { this, this.closest });
 			}
 		}
 		if (this.heardFrom.size() > this.actives.size() / 2 + 1)

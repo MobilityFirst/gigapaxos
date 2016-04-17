@@ -498,6 +498,8 @@ public class PaxosConfig {
 		 */
 		CLIENT_DEMULTIPLEXER_THREADS (0),
 		
+		READ_YOUR_WRITES (true),
+		
 		/**
 		 * FIXME: The options below only exist for testing stringification
 		 * overhead. They should probably be moved to {@link TESTPaxosConfig}.
