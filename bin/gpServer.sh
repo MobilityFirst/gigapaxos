@@ -7,9 +7,6 @@ LOG4J_PROPERTIES=log4j.properties
 GP_PROPERTIES=gigapaxos.properties
 
 JAVA=java
-JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
- -DgigapaxosConfig=$GP_PROPERTIES \
--Dlog4j.configuration=log4j.properties"
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
@@ -25,12 +22,21 @@ index=0
 for arg in "$@"; do
   if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
     JVMARGS="$JVMARGS $arg"
+    key=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/=.*//g`
+    value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
+    if [[ $key == "gigapaxosConfig" ]]; then
+      GP_PROPERTIES=$value
+    fi
   else 
     args[$index]=$arg
     index=`expr $index + 1`
   fi
 done
 #echo $JVMARGS "|" ${args[*]}
+
+JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
+ -DgigapaxosConfig=$GP_PROPERTIES \
+-Dlog4j.configuration=log4j.properties"
 
 if [[ ${args[1]} == "all" ]]; then
 

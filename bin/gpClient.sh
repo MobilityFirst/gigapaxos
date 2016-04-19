@@ -19,6 +19,11 @@ index=0
 for arg in "$@"; do
   if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
     JVMARGS="$JVMARGS $arg"
+    key=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/=.*//g`
+    value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
+    if [[ $key == "gigapaxosConfig" ]]; then
+      GP_PROPERTIES=$value
+    fi
   else
     args[$index]=$arg
     index=`expr $index + 1`
@@ -42,6 +47,6 @@ CLIENT=$1
 fi 
 fi
 
-echo "Running $CLIENT"
+echo "Running $CLIENT using $GP_PROPERTIES"
 
 java $JVMARGS $SSL_OPTIONS $CLIENT "${@:2}"
