@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.interfaces;
 
 /**
@@ -33,26 +31,27 @@ public interface Replicable extends Application {
 	 * @param doNotReplyToClient
 	 *            If true, the application is expected to not send a response
 	 *            back to the originating client (say, because this request is
-	 *            part of a post-crash roll-forward or only the primary replica
-	 *            or the "entry replica" that received the request from the
-	 *            client is expected to respond back. If false, the application
-	 *            is expected to either send a response (if any) back to the
-	 *            client via the {@link ClientMessenger} interface or delegate
-	 *            response messaging to paxos via the {@link ClientRequest} and
+	 *            part of a post-crash roll-forward or only the "entry replica"
+	 *            that received the request from the client is expected to
+	 *            respond back. If false, the application is expected to either
+	 *            send a response (if any) back to the client via the
+	 *            {@link ClientMessenger} interface or delegate response
+	 *            messaging to paxos via the {@link ClientRequest#getResponse()}
 	 *            interface.
 	 * 
 	 * @return Returns true if the application handled the request successfully.
-	 *         If the request is bad and is to be discarded, the application
-	 *         must still return true (after "successfully" discarding it). If
-	 *         the application returns false, the replica coordination protocol
-	 *         (e.g., paxos) might try to repeatedly re-execute it until
-	 *         successful or kill this replica group (
-	 *         {@code request.getServiceName()}) altogether after a limited
-	 *         number of retries, so the replica group may get stuck unless it
-	 *         returns true after a limited number of retries. Thus, with paxos
-	 *         as the replica coordination protocol, returning false is not
-	 *         really an option as paxos has no way to "roll back" a request
-	 *         whose global order has already been agreed upon.
+	 *         For safety, executing a request must have a deterministic effect on the
+	 *         safety-critical state. If the request is bad and is to be
+	 *         discarded, the application must still return true (after
+	 *         "successfully" discarding it). If the application returns false,
+	 *         the replica coordination protocol (e.g., paxos) might try to
+	 *         repeatedly re-execute it until successful or kill this replica
+	 *         group ( {@code request.getServiceName()}) altogether after a
+	 *         limited number of retries, so the replica group may get stuck
+	 *         unless it returns true after a limited number of retries. Thus,
+	 *         with paxos as the replica coordination protocol, returning false
+	 *         is not really an option as paxos has no way to "roll back" a
+	 *         request whose global order has already been agreed upon.
 	 *         <p>
 	 *         With replica coordination protocols other than paxos, the boolean
 	 *         return value could be used in protocol-specific ways, e.g., a

@@ -13,8 +13,9 @@ public interface AppRequestParser {
 	/**
 	 * An application must support string-to-{@link Request} conversion and
 	 * back. Furthermore, the conversion to a string and back must preserve the
-	 * return values of all InterfaceRequest methods, i.e., {@link Application}
-	 * .getRequest(request.toString())).equals(request) must be true.
+	 * return values of all {@link Request} methods, i.e.,
+	 * {@link Application#getRequest(String) Application.getRequest}
+	 * {@code (request.toString())).equals(request)} must be true.
 	 * 
 	 * @param stringified
 	 * @return {@link Request} corresponding to {@code stringified}.

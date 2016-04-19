@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.examples.noopsimple;
 
 import java.io.IOException;
@@ -50,7 +48,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	private static final String DEFAULT_INIT_STATE = "";
 	// total number of reconfigurations across all records
 	private int numReconfigurationsSinceRecovery = -1;
-	private boolean verbose=false;
+	private boolean verbose = false;
 
 	private class AppData {
 		final String name;
@@ -76,11 +74,10 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	private SSLMessenger<?, JSONObject> messenger;
 
 	/**
-	 * Constructor used to create app replica via reflection. A 
-	 * reconfigurable app must support a constructor with a single
-	 * String[] as an argument.
+	 * Constructor used to create app replica via reflection. A reconfigurable
+	 * app must support a constructor with a single String[] as an argument.
 	 * 
-	 * @param args 
+	 * @param args
 	 */
 	public NoopApp(String[] args) {
 	}
@@ -93,16 +90,15 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	}
 
 	@Override
-	public boolean execute(Request request,
-			boolean doNotReplyToClient) {
+	public boolean execute(Request request, boolean doNotReplyToClient) {
 		if (request.toString().equals(Request.NO_OP))
 			return true;
-			switch ((AppRequest.PacketType) (request.getRequestType())) {
-			case DEFAULT_APP_REQUEST:
-				return processRequest((AppRequest) request, doNotReplyToClient);
-			default:
-				break;
-			}
+		switch ((AppRequest.PacketType) (request.getRequestType())) {
+		case DEFAULT_APP_REQUEST:
+			return processRequest((AppRequest) request, doNotReplyToClient);
+		default:
+			break;
+		}
 		return false;
 	}
 
@@ -118,15 +114,15 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		if (data == null) {
 			System.out.println("App-" + myID + " has no record for "
 					+ request.getServiceName() + " for " + request);
-			assert(request.getResponse()==null)
-			;
+			assert (request.getResponse() == null);
 			return false;
 		}
 		assert (data != null);
 		data.setState(request.getValue());
 		this.appData.put(request.getServiceName(), data);
-		if(verbose) System.out.println("App-" + myID + " wrote to " + data.name
-				+ " with state " + data.getState());
+		if (verbose)
+			System.out.println("App-" + myID + " wrote to " + data.name
+					+ " with state " + data.getState());
 		if (DELEGATE_RESPONSE_MESSAGING)
 			this.sendResponse(request);
 		else
@@ -169,13 +165,12 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	}
 
 	@Override
-	public Request getRequest(String stringified)
-			throws RequestParseException {
+	public Request getRequest(String stringified) throws RequestParseException {
 		try {
 			return staticGetRequest(stringified);
 		} catch (JSONException je) {
-			Reconfigurator.getLogger().fine("App-" + 
-					myID + " unable to parse request " + stringified);
+			Reconfigurator.getLogger().fine(
+					"App-" + myID + " unable to parse request " + stringified);
 			throw new RequestParseException(je);
 		}
 	}
@@ -196,9 +191,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		return new AppRequest(new JSONObject(stringified));
 	}
 
-	/*
-	 * This is a special no-op request unlike any other NoopAppRequest.
-	 */
+	/* This is a special no-op request unlike any other NoopAppRequest. */
 	private static Request getNoopRequest() {
 		return new AppRequest(null, 0, 0, Request.NO_OP,
 				AppRequest.PacketType.DEFAULT_APP_REQUEST, false);
@@ -212,6 +205,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	public Set<IntegerPacketType> getRequestTypes() {
 		return staticGetRequestTypes();
 	}
+
 	/**
 	 * We use this method also at the client, so it is static.
 	 * 
@@ -220,7 +214,6 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	public static Set<IntegerPacketType> staticGetRequestTypes() {
 		return new HashSet<IntegerPacketType>(Arrays.asList(types));
 	}
-
 
 	@Override
 	public boolean execute(Request request) {
@@ -236,28 +229,31 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	@Override
 	public boolean restore(String name, String state) {
 		AppData data = this.appData.get(name);
-		/*
-		 * If no previous state, set epoch to initial epoch, otherwise
-		 * putInitialState will be called.
-		 */
 
+		// if no previous state, this is a creation epoch.
 		if (data == null && state != null) {
 			data = new AppData(name, state);
-			if(verbose) System.out.println(">>>App-" + myID + " creating " + name
-					+ " with state " + state);
+			if (verbose)
+				System.out.println(">>>App-" + myID + " creating " + name
+						+ " with state " + state);
 			numReconfigurationsSinceRecovery++;
-		} else if (state == null) {
+		}
+		// if state==null => end of epoch
+		else if (state == null) {
 			if (data != null)
 				if (verbose)
 					System.out.println("App-" + myID + " deleting " + name
-						+ " with final state " + data.state);
+							+ " with final state " + data.state);
 			this.appData.remove(name);
 			assert (this.appData.get(name) == null);
-		} else if (data != null && state != null) {
+		} 
+		// typical reconfiguration or epoch change
+		else if (data != null && state != null) {
 			System.out.println("App-" + myID + " updating " + name
 					+ " with state " + state);
 			data.state = state;
-		} else
+		} 
+		else
 			// do nothing when data==null && state==null
 			;
 		if (state != null)
@@ -265,7 +261,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 
 		return true;
 	}
-	
+
 	public String toString() {
 		return NoopApp.class.getSimpleName();
 	}

@@ -36,6 +36,7 @@ import edu.umass.cs.utils.Util;
 /**
  * @author V. Arun
  *         <p>
+ *         
  *         A class like this is necessary if the app wants to use its own packet
  *         types to send requests and responses (as opposed to just using
  *         {@link RequestPacket}. The main requirements of application requests
