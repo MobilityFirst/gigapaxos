@@ -514,6 +514,15 @@ public class PaxosConfig {
 		 * redirection.
 		 */
 		READ_YOUR_WRITES(false),
+		
+		/**
+		 * If true, gigapaxos will try to prevent executing (retransmitted) requests
+		 * if they had already been executed in the <i>recent</i> past. In such 
+		 * cases, the response from the first execution will be returned to the app.
+		 * This method can not be relied upon for safety as gigapaxos will cache
+		 * executed requests for a limited time and is space-contrained.
+		 */
+		PREVENT_DOUBLE_EXECUTION (true),
 
 		/**
 		 * FIXME: The options below only exist for testing stringification

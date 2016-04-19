@@ -22,10 +22,10 @@ import java.net.InetSocketAddress;
 /**
  * @author arun
  *
- * @param <NodeIDType>
+ * @param <Node>
  */
-public interface ModifiableActiveConfig<NodeIDType> extends
-		ReconfigurableNodeConfig<NodeIDType> {
+public interface ModifiableActiveConfig<Node> extends
+		ReconfigurableNodeConfig<Node> {
 	
 	/**
 	 * @param id
@@ -33,12 +33,12 @@ public interface ModifiableActiveConfig<NodeIDType> extends
 	 * @return Socket address previously mapped to this id. But we really should
 	 * not allow mappings to be changed via an add method. 
 	 */
-	public InetSocketAddress addActiveReplica(NodeIDType id, InetSocketAddress sockAddr);
+	public InetSocketAddress addActiveReplica(Node id, InetSocketAddress sockAddr);
 	/**
 	 * @param id
 	 * @return Socket address to which {@code id} was mapped.
 	 */
-	public InetSocketAddress removeActiveReplica(NodeIDType id);
+	public InetSocketAddress removeActiveReplica(Node id);
 	
 	/**
 	 * @return Version number of node config.

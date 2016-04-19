@@ -1078,12 +1078,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		} catch (InterruptedException | IOException e) {
 			return false;
 		}
-		if (success[0])
+		if (success[0]) {
 			log.log(Level.INFO,
 					"{0} connectivity check {1} successful",
 					new Object[] { this,
 							Config.getGlobalString(RC.BROADCAST_NAME) });
-		this.orient();
+			this.orient();
+		}
 		return success[0];
 	}
 

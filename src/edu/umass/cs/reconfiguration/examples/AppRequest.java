@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.examples;
 
 import java.net.InetSocketAddress;
@@ -24,18 +22,20 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
+import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
- * 
+ *         <p>
  *         A class like this is necessary if the app wants to use its own packet
  *         types to send requests and responses (as opposed to just using
  *         {@link RequestPacket}. The main requirements of application requests
@@ -46,9 +46,8 @@ import edu.umass.cs.utils.Util;
  *         messaging to gigapaxos.
  */
 
-public class AppRequest extends JSONPacket implements
-		ReconfigurableRequest, ReplicableRequest,
-		ClientRequest {
+public class AppRequest extends JSONPacket implements ReconfigurableRequest,
+		ReplicableRequest, ClientRequest {
 
 	/**
 	 * Packet type class for NoopApp requests.
@@ -65,10 +64,7 @@ public class AppRequest extends JSONPacket implements
 
 		/******************************** BEGIN static ******************************************/
 		private static HashMap<Integer, PacketType> numbers = new HashMap<Integer, PacketType>();
-		/*
-		 * ************* BEGIN static code block to ensure correct
-		 * initialization *************
-		 */
+		/* *****BEGIN static code block to ensure correct initialization ****** */
 		static {
 			for (PacketType type : PacketType.values()) {
 				if (!PacketType.numbers.containsKey(type.number)) {
@@ -81,10 +77,8 @@ public class AppRequest extends JSONPacket implements
 			}
 		}
 
-		/*
-		 * *************** END static code block to ensure correct
-		 * initialization *************
-		 */
+		/*  *************** END static code block to ensure correct
+		 * initialization ************* */
 		/**
 		 * @param type
 		 * @return PacketType from int type.
@@ -163,7 +157,7 @@ public class AppRequest extends JSONPacket implements
 	};
 
 	private final String name;
-	private final int epoch;
+	private/* final */int epoch;
 	private final long id;
 	private final boolean stop;
 	private final String value;
@@ -216,7 +210,6 @@ public class AppRequest extends JSONPacket implements
 		this(name, 0, id, value, type, stop);
 	}
 
-
 	/**
 	 * @param value
 	 * @param req
@@ -240,15 +233,13 @@ public class AppRequest extends JSONPacket implements
 		this.value = json.getString(Keys.QVAL.toString());
 		this.coordType = (json.has(Keys.COORD.toString()) ? json
 				.getBoolean(Keys.COORD.toString()) : false);
-		/*
-		 * We read from json using JSONNIOTransport convention, but there is no
-		 * corresponding operation in toJSONObjectImpl().
-		 */
+		/* We read from json using JSONNIOTransport convention, but there is no
+		 * corresponding operation in toJSONObjectImpl(). */
 		InetSocketAddress isa = MessageNIOTransport.getSenderAddress(json);
 		this.clientAddress = json.has(Keys.CSA.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.CSA
 						.toString())) : isa;
-				
+
 		this.response = json.has(Keys.RVAL.toString()) ? json
 				.getString(Keys.RVAL.toString()) : null;
 
@@ -326,8 +317,10 @@ public class AppRequest extends JSONPacket implements
 
 	@Override
 	public ClientRequest getResponse() {
-		if(this.response!=null) return new AppRequest(this.response, this);
-		else return null;
+		if (this.response != null)
+			return new AppRequest(this.response, this);
+		else
+			return null;
 	}
 
 	/**
@@ -338,20 +331,37 @@ public class AppRequest extends JSONPacket implements
 	}
 
 	/**
-	 * It is a bad idea to use an oblivious stop request. An oblivious stop
-	 * request is not actually passed to the application's handleRequest(.)
-	 * method, so it won't know that it has been stopped and will not be in a
-	 * position to do any garbage collection if needed.
+	 * An oblivious stop request is a no-op stop request that is not actually
+	 * passed to {@link Replicable#execute(Request)}. It is generally not a good
+	 * idea to use an oblivious stop request as the app won't know that the
+	 * current epoch has been stopped and will not be in a position to do any
+	 * garbage collection if needed right away.
+	 * 
+	 * This method is deprecated. gigapaxos currently generates its own oblivous
+	 * stop request and subsequently invokes
+	 * {@link Replicable#restore(String, String)} with a null state argument to
+	 * indicate to the app that the current epoch is over. For coordination
+	 * protocols other than paxos,
+	 * {@link Reconfigurable#getStopRequest(String, int)} suffices.
 	 * 
 	 * @param name
 	 * @param epoch
 	 * @return Default oblivious stop request.
 	 */
+	@Deprecated
 	public static AppRequest getObliviousPaxosStopRequest(String name, int epoch) {
 		return new AppRequest(name, epoch,
-				(long) (Math.random() * Long.MAX_VALUE),
-				Request.NO_OP,
+				(long) (Math.random() * Long.MAX_VALUE), Request.NO_OP,
 				AppRequest.PacketType.DEFAULT_APP_REQUEST, true);
+	}
+
+	/**
+	 * @param epoch
+	 * @return New AppRequest with epoch changed.
+	 */
+	public AppRequest setEpoch(int epoch) {
+		this.epoch = epoch;
+		return this;
 	}
 
 	/**

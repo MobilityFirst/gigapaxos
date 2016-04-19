@@ -93,13 +93,13 @@ import edu.umass.cs.utils.Util;
  *            active replicas for a name.
  * 
  *            It relies on the following helper protocol tasks:
- *            {@code WaitAckStopEpoch,
- *            WaitAckStartEpoch, WaitAckDropEpoch, WaitCoordinatedCommit, 
- *            WaitPrimaryExecution}. The last one is to enable exactly one
- *            primary Reconfigurator in the common case to conduct
- *            reconfigurations but ensure that others safely complete the
- *            reconfiguration if the primary fails to do so.
- *            WaitCoordinatedCommit is a worker that is needed to ensure that a
+ *            {@link WaitAckStopEpoch WaitAckStopEpoch},
+ *            {@link WaitAckStartEpoch}, {@link WaitAckDropEpoch},
+ *            {@link CommitWorker}, {@link WaitPrimaryExecution}. The last one
+ *            is to enable exactly one primary Reconfigurator in the common case
+ *            to conduct reconfigurations but ensure that others safely complete
+ *            the reconfiguration if the primary fails to do so.
+ *            CommitWorker is a worker that is needed to ensure that a
  *            paxos-coordinated request eventually gets committed; we need this
  *            property to ensure that a reconfiguration operation terminates,
  *            but paxos itself provides us no such liveness guarantee.

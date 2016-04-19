@@ -26,6 +26,7 @@ public abstract class AbstractReconfigurablePaxosApp<NodeIDType> implements
 	 * will appear just like any no-op, so the app may not be able to do garbage
 	 * collection or other app-specific activities when an epoch is stopped.
 	 */
+	@SuppressWarnings("deprecation")
 	@Override
 	public ReconfigurableRequest getStopRequest(String name, int epoch) {
 		return AppRequest.getObliviousPaxosStopRequest(name, epoch);

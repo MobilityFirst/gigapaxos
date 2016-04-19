@@ -279,7 +279,8 @@ public class ReconfigurationConfig {
 		BROADCAST_NAME("**"),
 
 		/**
-		 * 
+		 * If true, a client actively probes active replicas in order to
+		 * determine which active replicas are closest to it.
 		 */
 		ORIENT_CLIENT(true),
 

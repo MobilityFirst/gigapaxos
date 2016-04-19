@@ -22,7 +22,8 @@ import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
  * @author V. Arun
  *         <p>
  *         A reconfigurable request can also be a stop request and comes with an
- *         epoch number. The application must be aware of both of these.
+ *         epoch number. The application must be aware of both of these if it
+ *         uses any coordination protocol other than paxos.
  */
 public interface ReconfigurableRequest extends Request {
 	/**

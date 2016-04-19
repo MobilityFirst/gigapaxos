@@ -28,6 +28,10 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 	public NoopAppClient() throws IOException {
 		super();
 	}
+	
+	private synchronized void incrNumResponses() {
+		this.numResponses++;
+	}
 
 	private static final long INTER_REQUEST_TIME = 50;
 
@@ -56,7 +60,7 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 										+ (System.currentTimeMillis() - reqInitime)
 										+ "ms]");
 								synchronized (NoopAppClient.this) {
-									NoopAppClient.this.numResponses++;
+									NoopAppClient.this.incrNumResponses();;
 									NoopAppClient.this.notify();
 								}
 							}

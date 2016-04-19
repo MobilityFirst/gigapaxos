@@ -7,7 +7,7 @@ LOG4J_PROPERTIES=log4j.properties
 GP_PROPERTIES=gigapaxos.properties
 
 JAVA=java
-JVMFLAGS="-ea -Djava.util.logging.config.file=$LOG_PROPERTIES \
+JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
  -DgigapaxosConfig=$GP_PROPERTIES \
 -Dlog4j.configuration=log4j.properties"
 
@@ -19,7 +19,20 @@ SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty \
 -Djavax.net.ssl.trustStorePassword=qwerty \
 -Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"
 
-if [[ $2 == "all" ]]; then
+# separate out JVM args
+declare -a args
+index=0
+for arg in "$@"; do
+  if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
+    JVMARGS="$JVMARGS $arg"
+  else 
+    args[$index]=$arg
+    index=`expr $index + 1`
+  fi
+done
+#echo $JVMARGS "|" ${args[*]}
+
+if [[ ${args[1]} == "all" ]]; then
 
 # get reconfigurators
   reconfigurators=`cat $GP_PROPERTIES|grep "^[ \t]*$RECONFIGURATOR"|\
@@ -33,14 +46,15 @@ servers="$actives $reconfigurators"
 
 fi
 
+
 function start_server {
 
-  $JAVA $JVMFLAGS $SSL_OPTIONS \
+  $JAVA $JVMARGS $SSL_OPTIONS \
 edu.umass.cs.reconfiguration.ReconfigurableNode "$@"&
 
 }
 
-case $1 in
+case ${args[0]} in
 
 start)
 
@@ -51,10 +65,9 @@ if [[ $servers != "" ]]; then
       start_server $servers
 
 else 
-  for i in $@; do
-    if [[ $i != $1 ]]; then
+  for i in ${args[*]}; do
+    if [[ $i != ${args[0]} ]]; then
       start_server $i
-      echo
     fi
   done
 fi
@@ -67,7 +80,7 @@ if [[ $servers != "" ]]; then
     kill -9 `ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}'` 2>/dev/null
 
 else
-  for i in $@; do
+  for i in ${args[*]}; do
     if [[ $i != $1 ]]; then
       KILL_TARGET="ReconfigurableNode $i"
       kill -9 `ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}'` 2>/dev/null
