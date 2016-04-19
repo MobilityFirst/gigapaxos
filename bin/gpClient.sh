@@ -4,8 +4,6 @@ HEAD=`dirname $0`
 CLASSPATH=`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`:$CLASSPATH
 LOG_PROPERTIES=logging.properties
 GP_PROPERTIES=gigapaxos.properties
-JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
- -DgigapaxosConfig=$GP_PROPERTIES"
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
@@ -27,6 +25,9 @@ for arg in "$@"; do
   fi
 done
 #echo $JVMARGS "|" ${args[*]}
+
+JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
+ -DgigapaxosConfig=$GP_PROPERTIES"
 
 APP=`cat $GP_PROPERTIES|grep "^[ \t]*APPLICATION="|                \
 sed s/"^[ \t]*APPLICATION="//g`

@@ -34,15 +34,19 @@ done
 
 if [[ ${args[1]} == "all" ]]; then
 
-# get reconfigurators
-  reconfigurators=`cat $GP_PROPERTIES|grep "^[ \t]*$RECONFIGURATOR"|\
-sed s/"^.*$RECONFIGURATOR."//g|sed s/"=.*$"//g`
+  # get reconfigurators
+    reconfigurators=`cat $GP_PROPERTIES|grep "^[ \t]*$RECONFIGURATOR"|\
+  sed s/"^.*$RECONFIGURATOR."//g|sed s/"=.*$"//g`
+  
+  # get actives
+    actives=`cat $GP_PROPERTIES|grep "^[ \t]*$ACTIVE"|\
+  sed s/"^.*$ACTIVE."//g|sed s/"=.*$"//g`
+  
+  servers="$actives $reconfigurators"
+  
+else 
 
-# get actives
-  actives=`cat $GP_PROPERTIES|grep "^[ \t]*$ACTIVE"|\
-sed s/"^.*$ACTIVE."//g|sed s/"=.*$"//g`
-
-servers="$actives $reconfigurators"
+  servers="${args[@]:1}"
 
 fi
 
@@ -61,9 +65,7 @@ start)
 if [[ $servers != "" ]]; then
 
   echo Starting $servers
-
-      start_server $servers
-
+  start_server $servers
 else 
   for i in ${args[*]}; do
     if [[ $i != ${args[0]} ]]; then
@@ -74,18 +76,10 @@ fi
 ;;
 
 stop)
-if [[ $servers != "" ]]; then
-
-    KILL_TARGET="ReconfigurableNode $i"
-    kill -9 `ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}'` 2>/dev/null
-
-else
-  for i in ${args[*]}; do
-    if [[ $i != $1 ]]; then
+  echo killing $servers
+  for i in $servers; do
       KILL_TARGET="ReconfigurableNode $i"
       kill -9 `ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}'` 2>/dev/null
-    fi
   done
-fi
 
 esac

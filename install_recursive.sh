@@ -40,7 +40,7 @@ local_jar_files=dist/$package_name-[0-9].[0-9]*.jar
 # local_install_dir.
 transfer_list="$local_jar_files\
   gigapaxos.properties testing.properties\
-  logging.properties tests bin"
+  logging.properties tests bin 590cc"
 
 # disabling warnings to prevent manual override; can supply ssh keys
 # here if needed, but they must be the same on the local host and on
@@ -152,13 +152,15 @@ if [[ $1 == "kill" || $2 == "kill" ]]; then
 
   for i in `echo $kill_hosts`; do
     # get node_id from node_config file
-    node_id=`cat $gigapaxos_properties|grep $i|awk '{print $1}'`
+    node_id=`cat $gigapaxos_properties|grep $i|sed s/"active."//g|\
+  sed s/"reconfigurator."//g|awk -F "=|:" '{print $1}'`
+
     # kill running instances of this command and (re-)start
     echo $SSH $remote_user@$i "\"kill -9 \`ps -ef|\
-      grep \"$server_kill_targets\|$client_kill_targets\"\
+      grep \"[$server_kill_targets] $node_id\|$client_kill_targets\"\
       |grep -v grep|awk '{print \$2}'\`;$command\""
     $SSH $remote_user@$i "kill -9 \`ps -ef|grep \
-    \"$server_kill_targets\|$client_kill_targets\"|\
+    \"[$server_kill_targets] $node_id\|$client_kill_targets\"|\
     grep -v grep|awk '{print \$2}'\` 2>/dev/null; $command"
   done
   exit
@@ -171,23 +173,23 @@ me=`dirname $0`/`basename $0`
 # transfers transer_list to host argument
 function transfer {
   # transfer each entry in list
-  for i in `echo $transfer_list`; do
-    if [[ -e $i ]]; then
-      echo [`hostname`] $RSYNC --rsh=\"$SSH\" $i\
+  #for i in `echo $transfer_list`; do
+    #if [[ -e $i ]]; then
+      echo [`hostname`] $RSYNC --rsh=\"$SSH\" $transfer_list\
          $remote_user@$1:$remote_install_dir
-      $RSYNC --rsh="$SSH" $i $remote_user@$1:$remote_install_dir
-    fi
-  done
+      $RSYNC --rsh="$SSH" $transfer_list $remote_user@$1:$remote_install_dir
+    #fi
+  #done
 }
 
 # executes command remotely 
 function run_remote_command { remote_host=$1
   # process identifiers to be killed
   kill_targets=$2 
-  # needed to kill with precision
-  node_id=$3 
+  # kill with precision
+  #node_id=$3 
   # command to be executed remotely
-  command=$4 
+  command=$3 
 
   # kill running instances of this command and (re-)start
   echo [`hostname`] "$SSH" $remote_user@$remote_host "\"kill -9\
@@ -305,7 +307,7 @@ for node_id in `cat $gigapaxos_properties|grep -v "^#"|\
     host=`cat $gigapaxos_properties|grep -v "^#"|\
       awk -F "=|:" -v id=$node_id '{if($1==("active."id) || $1==("reconfigurator."id))\
         print $2}'`
-    run_remote_command $host $server_kill_targets $node_id\
+    run_remote_command $host "[$server_kill_targets] $node_id"\
       "$run_server_cmd $node_id 2>$log_file_prefix$node_id "&
 done
 
