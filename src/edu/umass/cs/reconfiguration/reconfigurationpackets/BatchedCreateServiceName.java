@@ -18,6 +18,7 @@ import edu.umass.cs.utils.Util;
 /**
  * @author arun
  *
+ * This class is not used.
  */
 public class BatchedCreateServiceName extends CreateServiceName {
 

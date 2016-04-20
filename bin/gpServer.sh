@@ -16,6 +16,13 @@ SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty \
 -Djavax.net.ssl.trustStorePassword=qwerty \
 -Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"
 
+if [[ -z "$@" ]]; then
+  echo "Usage: "`dirname $0`/`basename $0`" [-Dsysprop1=val1 \
+-Dsysprop2=val2 ...] [-appArgs=\"-opt1=val1 -flag2 \
+-str3="\\""\"hello world""\\""\"" ...\"] \
+ stop|start  all|server_names"
+fi
+
 # separate out JVM args
 declare -a args
 index=0
@@ -27,6 +34,12 @@ for arg in "$@"; do
     if [[ $key == "gigapaxosConfig" ]]; then
       GP_PROPERTIES=$value
     fi
+  elif [[ ! -z `echo $arg|grep "\-appArgs.*="` ]]; then
+    APP_ARGS="`echo $arg|grep "\-appArgs.*="|sed s/\-appArgs=//g`"
+    APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
+    if [[ -z $APP ]]; then
+      APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
+    fi
   else 
     args[$index]=$arg
     index=`expr $index + 1`
@@ -34,6 +47,7 @@ for arg in "$@"; do
 done
 #echo $JVMARGS "|" ${args[*]}
 
+# can add more JVM args here
 JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
  -DgigapaxosConfig=$GP_PROPERTIES \
 -Dlog4j.configuration=log4j.properties"
@@ -60,7 +74,7 @@ fi
 function start_server {
 
   $JAVA $JVMARGS $SSL_OPTIONS \
-edu.umass.cs.reconfiguration.ReconfigurableNode "$@"&
+edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $servers&
 
 }
 
@@ -69,22 +83,15 @@ case ${args[0]} in
 start)
 
 if [[ $servers != "" ]]; then
-
-  echo Starting $servers
+  echo "[$APP $APP_ARGS]"
   start_server $servers
-else 
-  for i in ${args[*]}; do
-    if [[ $i != ${args[0]} ]]; then
-      start_server $i
-    fi
-  done
 fi
 ;;
 
 stop)
-  echo killing $servers
+  echo Killing $servers
   for i in $servers; do
-      KILL_TARGET="ReconfigurableNode $i"
+      KILL_TARGET="ReconfigurableNode .* $i"
       kill -9 `ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}'` 2>/dev/null
   done
 

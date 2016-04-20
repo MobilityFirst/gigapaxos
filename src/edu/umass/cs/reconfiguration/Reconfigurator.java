@@ -249,7 +249,7 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	public String toString() {
-		return "RC" + getMyID();
+		return "RC." + getMyID();
 	}
 
 	/**
@@ -710,6 +710,7 @@ public class Reconfigurator<NodeIDType> implements
 			.getGlobalString(RC.SPECIAL_NAME);
 	private static final String BROADCAST_NAME = Config
 			.getGlobalString(RC.BROADCAST_NAME);
+	
 
 	/**
 	 * This method simply looks up and returns the current set of active
@@ -737,12 +738,12 @@ public class Reconfigurator<NodeIDType> implements
 		if (request.getServiceName().equals(ANYCAST_NAME)) {
 			this.sendClientReconfigurationPacket(request
 					.setActives(modifyPortsForSSL(this.consistentNodeConfig
-							.getRandomActiveReplica())));
+							.getRandomActiveReplica(), receivedOnSSLPort(request))));
 			return null;
 		} else if (request.getServiceName().equals(BROADCAST_NAME)) {
 			this.sendClientReconfigurationPacket(request
 					.setActives(modifyPortsForSSL(this.consistentNodeConfig
-							.getActiveReplicaSocketAddresses())));
+							.getActiveReplicaSocketAddresses(), receivedOnSSLPort(request))));
 			return null;
 		}
 
@@ -781,7 +782,7 @@ public class Reconfigurator<NodeIDType> implements
 		for (NodeIDType node : record.getActiveReplicas())
 			activeIPs.add(this.consistentNodeConfig.getNodeSocketAddress(node));
 		// to support different client facing ports
-		request.setActives(modifyPortsForSSL(activeIPs));
+		request.setActives(modifyPortsForSSL(activeIPs, receivedOnSSLPort(request)));
 		this.sendClientReconfigurationPacket(request.makeResponse());
 		/* We message using sendActiveReplicasToClient above as opposed to
 		 * returning a messaging task below because protocolExecutor's messenger
@@ -1172,6 +1173,14 @@ public class Reconfigurator<NodeIDType> implements
 
 	}
 
+	// utility method used to determine how to offset ports in responses
+	private boolean receivedOnSSLPort(ClientReconfigurationPacket request) {
+		return request.getMyReceiver() != null
+				&& request.getMyReceiver().getPort() == ReconfigurationConfig
+						.getClientFacingSSLPort(this.consistentNodeConfig
+								.getNodePort(getMyID()));
+	}
+
 	private void spawnSecondaryReconfiguratorTask(
 			RCRecordRequest<NodeIDType> rcRecReq) {
 		/* This assert follows from the fact that the return value handled can
@@ -1260,20 +1269,17 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	private static Set<InetSocketAddress> modifyPortsForSSL(
-			Set<InetSocketAddress> replicas, boolean actives) {
-		if (ReconfigurationConfig.getClientPortOffset() == 0)
+			Set<InetSocketAddress> replicas, boolean ssl) {
+		if ((ssl && ReconfigurationConfig.getClientPortSSLOffset() == 0)
+				|| (!ssl && ReconfigurationConfig.getClientPortOffset() == 0))
 			return replicas;
 		Set<InetSocketAddress> modified = new HashSet<InetSocketAddress>();
 		for (InetSocketAddress sockAddr : replicas)
 			modified.add(new InetSocketAddress(sockAddr.getAddress(),
-					ReconfigurationConfig.getClientFacingPort(sockAddr
-							.getPort())));
+					ssl ? ReconfigurationConfig.getClientFacingSSLPort(sockAddr
+							.getPort()) : ReconfigurationConfig
+							.getClientFacingClearPort(sockAddr.getPort())));
 		return modified;
-	}
-
-	private static Set<InetSocketAddress> modifyPortsForSSL(
-			Set<InetSocketAddress> replicas) {
-		return modifyPortsForSSL(replicas, false);
 	}
 
 	private boolean clientFacingPortIsMyPort() {
@@ -1318,7 +1324,7 @@ public class Reconfigurator<NodeIDType> implements
 							modifyPortsForSSL(this
 									.getSocketAddresses(this.consistentNodeConfig
 											.getReplicatedReconfigurators(request
-													.getServiceName()))))
+													.getServiceName())), receivedOnSSLPort(request)))
 					.setResponseMessage(
 							" <Wrong number! I am not the reconfigurator responsible>"));
 		return true;

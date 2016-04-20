@@ -20,12 +20,14 @@ package edu.umass.cs.gigapaxos.interfaces;
  */
 public interface Replicable extends Application {
 	/**
-	 * This method must handle the request atomically and return true or throw
-	 * an exception or return false. It is the application's responsibility to
-	 * ensure atomicity, i.e., it should return true iff the request was
-	 * successfully executed; if it returns false or throws an exception, the
-	 * application should ensure that the state of the application rolls back
-	 * any partial execution of this request.
+	 * This method must handle the request atomically and return true if
+	 * successful or throw an exception or return false. It is the application's
+	 * responsibility to ensure atomicity, i.e., it should return true iff the
+	 * request was successfully executed; if it returns false or throws an
+	 * exception, the application should ensure that the state of the
+	 * application rolls back any partial execution of this request. If it
+	 * returns false or throws an exception, the replica coordination protocol
+	 * may try to re-attempt executing the request.
 	 * 
 	 * @param request
 	 * @param doNotReplyToClient
@@ -39,19 +41,21 @@ public interface Replicable extends Application {
 	 *            messaging to paxos via the {@link ClientRequest#getResponse()}
 	 *            interface.
 	 * 
-	 * @return Returns true if the application handled the request successfully.
-	 *         For safety, executing a request must have a deterministic effect on the
-	 *         safety-critical state. If the request is bad and is to be
-	 *         discarded, the application must still return true (after
-	 *         "successfully" discarding it). If the application returns false,
-	 *         the replica coordination protocol (e.g., paxos) might try to
-	 *         repeatedly re-execute it until successful or kill this replica
-	 *         group ( {@code request.getServiceName()}) altogether after a
-	 *         limited number of retries, so the replica group may get stuck
-	 *         unless it returns true after a limited number of retries. Thus,
-	 *         with paxos as the replica coordination protocol, returning false
-	 *         is not really an option as paxos has no way to "roll back" a
-	 *         request whose global order has already been agreed upon.
+	 * @return Must return true if and only if the application handled the
+	 *         request successfully. For safety, executing a request must have a
+	 *         deterministic effect on the safety-critical state. If the request
+	 *         is bad and is to be discarded, the application must still return
+	 *         true (after "successfully" discarding it).
+	 * 
+	 *         If the application returns false, the replica coordination
+	 *         protocol (e.g., paxos) might try to repeatedly re-execute it
+	 *         until successful or kill this replica group (
+	 *         {@code request.getServiceName()}) altogether after a limited
+	 *         number of retries, so the replica group may get stuck unless it
+	 *         returns true after a limited number of retries. Thus, with paxos
+	 *         as the replica coordination protocol, returning false is not
+	 *         really an option as paxos has no way to "roll back" a request
+	 *         whose global order has already been agreed upon.
 	 *         <p>
 	 *         With replica coordination protocols other than paxos, the boolean
 	 *         return value could be used in protocol-specific ways, e.g., a

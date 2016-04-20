@@ -289,7 +289,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				PaxosConfig.getActives(),
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
-		System.out.print("Creating node(s) [ ");
+		System.out.print("Initializing gigapaxos server(s) [ ");
 		for (String node : getAllNodes(args))
 		// if (nodeConfig.nodeExists(args[i]))
 		{

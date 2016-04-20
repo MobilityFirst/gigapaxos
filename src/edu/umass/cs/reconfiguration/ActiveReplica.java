@@ -810,7 +810,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	public String toString() {
-		return "AR" + this.messenger.getMyID();
+		return "AR." + this.messenger.getMyID();
 	}
 
 	/* ************ End of protocol task handler methods ************* */

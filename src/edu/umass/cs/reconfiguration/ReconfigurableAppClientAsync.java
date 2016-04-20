@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
@@ -137,43 +138,93 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		@Override
 		public void callbackGC(Object key, Object value) {
 			assert (value instanceof RequestAndCallback);
-			if (value instanceof RequestAndCallback)
-				ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
-						((RequestAndCallback) value).serverSentTo,
-						System.currentTimeMillis()
-								- ((RequestAndCallback) value).sentTime);
+			ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
+					((RequestAndCallback) value).serverSentTo,
+					System.currentTimeMillis()
+							- ((RequestAndCallback) value).sentTime);
+			ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap
+					.remove(((RequestAndCallback) value).request
+							.getServiceName());
+			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
+					key, value });
+		}
+	};
+
+	final GCConcurrentHashMapCallback crpGCCallback = new GCConcurrentHashMapCallback() {
+		@Override
+		public void callbackGC(Object key, Object value) {
+			assert (value instanceof CRPRequestCallback);
+			CRPRequestCallback callback = (CRPRequestCallback) value;
+			// clear creation memory if a timeout happens
+			ReconfigurableAppClientAsync.this.mostRecentlyCreatedMap
+					.remove(callback.request.getServiceName());
+			// forget failed reconfigurators
+			ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
+					callback.serverSentTo, System.currentTimeMillis()
+							- callback.sentTime);
 			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
 					key, value });
 		}
 	};
 
 	// all app client request callbacks
-	final GCConcurrentHashMap<Long, RequestCallback> callbacks = new GCConcurrentHashMap<Long, RequestCallback>(
-			defaultGCCallback, APP_REQUEST_TIMEOUT);
-	final GCConcurrentHashMap<Long, RequestCallback> callbacksLongTimeout = new GCConcurrentHashMap<Long, RequestCallback>(
+	private final GCConcurrentHashMap<Long, RequestCallback> callbacks = new GCConcurrentHashMap<Long, RequestCallback>(
+			appGCCallback, APP_REQUEST_TIMEOUT);
+	private final GCConcurrentHashMap<Long, RequestCallback> callbacksLongTimeout = new GCConcurrentHashMap<Long, RequestCallback>(
 			defaultGCCallback, APP_REQUEST_LONG_TIMEOUT);
 
 	// client reconfiguration packet callbacks
-	final GCConcurrentHashMap<String, RequestCallback> callbacksCRP = new GCConcurrentHashMap<String, RequestCallback>(
-			defaultGCCallback, CRP_GC_TIMEOUT);
-	final GCConcurrentHashMap<String, RequestCallback> callbacksCRPLongTimeout = new GCConcurrentHashMap<String, RequestCallback>(
-			defaultGCCallback, CRP_GC_TIMEOUT);
+	private final GCConcurrentHashMap<String, RequestCallback> callbacksCRP = new GCConcurrentHashMap<String, RequestCallback>(
+			crpGCCallback, CRP_GC_TIMEOUT);
+	private final GCConcurrentHashMap<String, RequestCallback> callbacksCRPLongTimeout = new GCConcurrentHashMap<String, RequestCallback>(
+			crpGCCallback, CRP_GC_TIMEOUT);
 
 	// server reconfiguration packet callbacks,
-	final GCConcurrentHashMap<String, RequestCallback> callbacksSRP = new GCConcurrentHashMap<String, RequestCallback>(
-			defaultGCCallback, SRP_GC_TIMEOUT);
+	private final GCConcurrentHashMap<String, RequestCallback> callbacksSRP = new GCConcurrentHashMap<String, RequestCallback>(
+			crpGCCallback, SRP_GC_TIMEOUT);
 
 	// name->actives map
-	final GCConcurrentHashMap<String, Set<InetSocketAddress>> activeReplicas = new GCConcurrentHashMap<String, Set<InetSocketAddress>>(
+	private final GCConcurrentHashMap<String, ActivesInfo> activeReplicas = new GCConcurrentHashMap<String, ActivesInfo>(
 			defaultGCCallback, MIN_REQUEST_ACTIVES_INTERVAL);
 	// name->unsent app requests for which active replicas are not yet known
-	final GCConcurrentHashMap<String, LinkedBlockingQueue<RequestAndCallback>> requestsPendingActives = new GCConcurrentHashMap<String, LinkedBlockingQueue<RequestAndCallback>>(
+	private final GCConcurrentHashMap<String, LinkedBlockingQueue<RequestAndCallback>> requestsPendingActives = new GCConcurrentHashMap<String, LinkedBlockingQueue<RequestAndCallback>>(
 			defaultGCCallback, CRP_GC_TIMEOUT); // FIXME: long timeout version
-	// name->last queried time to rate limit RequestActiveReplicas queries
-	final GCConcurrentHashMap<String, Long> lastQueriedActives = new GCConcurrentHashMap<String, Long>(
-			defaultGCCallback, DEFAULT_GC_TIMEOUT);
-	final GCConcurrentHashMap<String, InetSocketAddress> mostRecentlyWrittenMap = new GCConcurrentHashMap<String, InetSocketAddress>(
+
+	/**
+	 * name->last replica from which coordinated response.
+	 * 
+	 * This map is used to implement {@link PaxosConfig.PC#READ_YOUR_WRITES} by
+	 * sending a request to the active replica from which a response to the most
+	 * recent coordinated request was received.
+	 * 
+	 * It is important to forget this entry when an app request times out, otherwise
+	 * we may lose liveness even if a single active replica crashes.
+	 */
+	private final GCConcurrentHashMap<String, InetSocketAddress> mostRecentlyWrittenMap = new GCConcurrentHashMap<String, InetSocketAddress>(
 			defaultGCCallback, MAX_COORDINATION_LATENCY);
+
+	/**
+	 * name->last reconfigurator from which a create confirmation was received.
+	 * 
+	 * Sending ClientReconfigurationPackets to a reconfigurator that confirmed a
+	 * creation implies that a request for active replicas immediately after
+	 * will necessarily succeed under graceful conditions; sending to a random
+	 * replica however may not satisfy this property.
+	 * 
+	 * Sending ClientReconfigurationPackets to the same reconfigurator
+	 * repeatedly has the downside of being less agile to reconfigurator
+	 * failures, so it is important that this entry be removed when a
+	 * ClientReconfigurationPacket times out in callbacksCRP, otherwise we may
+	 * lose liveness even if a single reconfigurator crashes.
+	 */
+	@SuppressWarnings("serial")
+	// never serialized
+	private final LinkedHashMap<String, InetSocketAddress> mostRecentlyCreatedMap = new LinkedHashMap<String, InetSocketAddress>() {
+		protected boolean removeEldestEntry(
+				Map.Entry<String, InetSocketAddress> eldest) {
+			return size() > 1024;
+		}
+	};
 
 	Timer timer = null;
 
@@ -182,6 +233,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private static final int MAX_OUTSTANDING_APP_REQUESTS = 4096;
 
 	private static final int MAX_OUTSTANDING_CRP_REQUESTS = 4096;
+
+	class ActivesInfo {
+		Set<InetSocketAddress> actives = null;
+		// last queried time used to rate limit RequestActiveReplicas queries
+		final long createTime;
+
+		ActivesInfo(Set<InetSocketAddress> actives, long createTime) {
+			this.actives = actives;
+			this.createTime = createTime;
+		}
+	}
 
 	/**
 	 * The constructor specifies the default set of reconfigurators. This set
@@ -336,9 +398,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								mostRecentReplica,
 								(System.currentTimeMillis() - callback.sentTime) });
 			}
-			log.log(Level.FINEST, "{0} updated latency map with sample {1}:{2} to {3}", new Object[]{this,
-					callback.serverSentTo, System.currentTimeMillis()
-					- callback.sentTime, ReconfigurableAppClientAsync.this.e2eRedirector} );
+			log.log(Level.FINEST,
+					"{0} updated latency map with sample {1}:{2} to {3}",
+					new Object[] { this, callback.serverSentTo,
+							System.currentTimeMillis() - callback.sentTime,
+							ReconfigurableAppClientAsync.this.e2eRedirector });
 			ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
 					callback.serverSentTo, System.currentTimeMillis()
 							- callback.sentTime);
@@ -402,6 +466,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					if (response instanceof RequestActiveReplicas)
 						ReconfigurableAppClientAsync.this
 								.sendRequestsPendingActives((RequestActiveReplicas) response);
+
+					// remember reconfigurator that confirmed creation
+					if (response instanceof CreateServiceName
+							&& !((CreateServiceName) response).isFailed())
+						ReconfigurableAppClientAsync.this.mostRecentlyCreatedMap
+								.put(response.getServiceName(),
+										((ClientReconfigurationPacket) response)
+												.getSender());
 
 				} else if (response instanceof ServerReconfigurationPacket<?>) {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksSRP
@@ -501,8 +573,6 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		assert (request.getServiceName() != null);
 		RequestCallback prev = null;
 
-		assert(!READ_YOUR_WRITES);
-		
 		// use replica recently written to if any
 		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
 				.get(request.getServiceName()) : null;
@@ -613,14 +683,19 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 */
 	public void sendRequest(ClientReconfigurationPacket request,
 			RequestCallback callback) throws IOException {
-		this.sendRequest(request, callback,
-				this.e2eRedirector.getNearest(this.reconfigurators));
+		InetSocketAddress server = null;
+		this.sendRequest(request,
+				callback,
+				// to avoid lagging reconfigurators
+				(server = this.mostRecentlyCreatedMap.get(request
+						.getServiceName())) != null ? server
+				// could also select random reconfigurator here
+						: this.e2eRedirector.getNearest(this.reconfigurators));
 	}
 
 	private void sendRequest(ClientReconfigurationPacket request)
 			throws IOException {
-		this.sendRequest(request, null,
-				this.e2eRedirector.getNearest(this.reconfigurators));
+		this.sendRequest(request, null);
 	}
 
 	private boolean hasLongTimeout(RequestCallback callback) {
@@ -666,7 +741,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private void sendRequest(ClientReconfigurationPacket request,
 			RequestCallback callback, InetSocketAddress reconfigurator)
 			throws IOException {
-		if (callback != null)
+		if (callback != null
+				&& (callback = new CRPRequestCallback(request, callback,
+						reconfigurator)) != null)
 			if (!hasLongTimeout(callback))
 				this.callbacksCRP.put(getKey(request), callback);
 			else if (this.callbacksCRPLongTimeout
@@ -694,6 +771,25 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				+ (changeRCs.hasAddedNodes() ? changeRCs.newlyAddedNodes
 						.keySet() : "") + ":"
 				+ (changeRCs.hasDeletedNodes() ? changeRCs.deletedNodes : "");
+	}
+
+	class CRPRequestCallback implements RequestCallback {
+		long sentTime = System.currentTimeMillis();
+		final ClientReconfigurationPacket request;
+		final RequestCallback callback;
+		final InetSocketAddress serverSentTo;
+
+		CRPRequestCallback(ClientReconfigurationPacket request,
+				RequestCallback callback, InetSocketAddress serverSentTo) {
+			this.request = request;
+			this.callback = callback;
+			this.serverSentTo = serverSentTo;
+		}
+
+		@Override
+		public void handleResponse(Request response) {
+			this.callback.handleResponse(response);
+		}
 	}
 
 	class RequestAndCallback implements RequestCallback {
@@ -724,7 +820,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					+ (System.currentTimeMillis() - this.sentTime) + "ms back";
 		}
 
-		RequestAndCallback setServerSentTo(InetSocketAddress isa) {
+		RequestCallback setServerSentTo(InetSocketAddress isa) {
 			this.sentTime = System.currentTimeMillis();
 			this.serverSentTo = isa;
 			return this;
@@ -757,11 +853,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 */
 	public Long sendRequestAnycast(ClientRequest request,
 			RequestCallback callback) throws IOException {
-		Set<InetSocketAddress> active = null;
-		if ((active = this.activeReplicas.get(ANY_ACTIVE)) != null
+		Set<InetSocketAddress> actives = null;
+		ActivesInfo activesInfo = null;
+		if ((activesInfo = this.activeReplicas.get(ANY_ACTIVE)) != null
+				&& (actives = activesInfo.actives) != null
 				&& this.queriedActivesRecently(ANY_ACTIVE))
-			return this
-					.sendRequest(request, active.iterator().next(), callback);
+			return this.sendRequest(request, actives.iterator().next(),
+					callback);
 		// else
 		this.enqueueAndQueryForActives(
 				new RequestAndCallback(request, callback), true, true);
@@ -770,13 +868,15 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private boolean queriedActivesRecently(String name) {
 		Long lastQueriedTime = null;
-		if ((lastQueriedTime = this.lastQueriedActives.get(name)) != null
+		ActivesInfo activesInfo = null;
+		if ((activesInfo = this.activeReplicas.get(name)) != null
+				&& (lastQueriedTime = activesInfo.createTime) != null
 				&& (System.currentTimeMillis() - lastQueriedTime < MIN_REQUEST_ACTIVES_INTERVAL)) {
 
 			return true;
 		}
 		if (lastQueriedTime != null)
-			Reconfigurator.getLogger().log(Level.FINE,
+			Reconfigurator.getLogger().log(Level.FINEST,
 					"{0} last queried time for {1} is {2}",
 					new Object[] { this, name, lastQueriedTime });
 		return false;
@@ -793,8 +893,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			NearestServerSelector redirector) throws IOException {
 
 		Set<InetSocketAddress> actives = null;
+		ActivesInfo activesInfo = null;
 		// lookup actives in the cache first
-		if ((actives = this.activeReplicas.get(request.getServiceName())) != null
+		if ((activesInfo = this.activeReplicas.get(request.getServiceName())) != null
+				&& (actives = activesInfo.actives) != null
 				&& this.queriedActivesRecently(request.getServiceName()))
 			return this.sendRequest(request,
 					redirector != null ? redirector.getNearest(actives)
@@ -837,7 +939,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					"{0} requesting active replicas for {1}",
 					new Object[] { this, name });
 			this.sendRequest(new RequestActiveReplicas(name));
-			this.lastQueriedActives.put(name, System.currentTimeMillis());
+			// this.lastQueriedActives.put(name, System.currentTimeMillis());
+			this.activeReplicas.put(name,
+					new ActivesInfo(null, System.currentTimeMillis()));
 		}
 	}
 
@@ -848,7 +952,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		Set<InetSocketAddress> actives = response.getActives();
 		if (actives != null && !actives.isEmpty()) {
-			this.activeReplicas.put(response.getServiceName(), actives);
+			this.activeReplicas.put(response.getServiceName(), new ActivesInfo(
+					actives, response.getCreateTime()));
 			if (this.mostRecentlyWrittenMap.contains(response.getServiceName())
 					&& !actives.contains(this.mostRecentlyWrittenMap
 							.get(response.getServiceName())))

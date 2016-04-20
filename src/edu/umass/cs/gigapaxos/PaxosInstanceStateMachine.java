@@ -337,7 +337,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		// paxosState must be typically already stopped here
 		this.forceStop();
 		if (clean // clean kill implies reset app state
-				&& this.updateState(this.getPaxosID(), null)
+				&& this.nullifyAppState(this.getPaxosID(), null)
 				// and remove database state
 				&& AbstractPaxosLogger.kill(this.paxosManager.getPaxosLogger(),
 						getPaxosID(), this.getVersion()))
@@ -357,7 +357,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		return true;
 	}
 
-	private boolean updateState(String paxosID, String state) {
+	private boolean nullifyAppState(String paxosID, String state) {
 		for (int i = 0; !this.restore(null); i++)
 			if (waitRetry(RETRY_TIMEOUT) && i < RETRY_LIMIT)
 				log.warning(this
@@ -454,8 +454,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		PaxosPacket.PaxosPacketType msgType = pp != null ? pp.getType()
 				: PaxosPacket.PaxosPacketType.NO_TYPE;
-		log.log(Level.FINEST, "{0} received {1}:{2}", new Object[] { this,
-				msgType, pp!=null ? pp.getSummary(log.isLoggable(Level.FINEST)) :pp });
+		log.log(Level.FINEST,
+				"{0} received {1}:{2}",
+				new Object[] {
+						this,
+						msgType,
+						pp != null ? pp.getSummary(log.isLoggable(Level.FINEST))
+								: pp });
 
 		boolean isPoke = msgType.equals(PaxosPacketType.NO_TYPE);
 		if (!isPoke)
@@ -1663,9 +1668,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					// must swallow any and all exceptions
 					e.printStackTrace();
 				}
-				if (!executed)
-					log.severe("App failed to execute request, retrying: "
-							+ decision.requestValue);
+				if (!executed) {
+					String error = "App failed to execute request, retrying: "
+							+ decision.requestValue;
+					log.severe(error);
+					new RuntimeException(error).printStackTrace();
+				}
 				/* We have to keep trying to execute until executed to preserve
 				 * safety. We have removed the decision from the acceptor and
 				 * there is no going back on that by design (as we assume that

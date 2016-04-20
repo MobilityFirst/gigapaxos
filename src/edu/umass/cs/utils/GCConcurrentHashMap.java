@@ -36,7 +36,7 @@ import org.junit.runner.notification.Failure;
 public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 
 	private static final int DEFAULT_GC_TIMEOUT = 10000;
-	private static final int DEFAULT_GC_THRESHOLD_SIZE = 1024 * 128;
+	private static final int DEFAULT_GC_THRESHOLD_SIZE = 1024 * 64;
 	private int gcThresholdSize = DEFAULT_GC_THRESHOLD_SIZE;
 
 	private final LinkedHashMap<K, Long> putTimes = new LinkedHashMap<K, Long>();
