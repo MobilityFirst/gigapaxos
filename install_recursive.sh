@@ -152,9 +152,10 @@ if [[ $1 == "kill" || $2 == "kill" ]]; then
 
   for i in `echo $kill_hosts`; do
     # get node_id from node_config file
-    node_id=`cat $gigapaxos_properties|grep $i|sed s/"active."//g|\
+    node_ids=`cat $gigapaxos_properties|grep $i|sed s/"active."//g|\
   sed s/"reconfigurator."//g|awk -F "=|:" '{print $1}'`
 
+    for node_id in $node_ids; do
     # kill running instances of this command and (re-)start
     echo $SSH $remote_user@$i "\"kill -9 \`ps -ef|\
       grep \"[$server_kill_targets] $node_id\|$client_kill_targets\"\
@@ -162,6 +163,7 @@ if [[ $1 == "kill" || $2 == "kill" ]]; then
     $SSH $remote_user@$i "kill -9 \`ps -ef|grep \
     \"[$server_kill_targets] $node_id\|$client_kill_targets\"|\
     grep -v grep|awk '{print \$2}'\` 2>/dev/null; $command"
+  done
   done
   exit
 fi

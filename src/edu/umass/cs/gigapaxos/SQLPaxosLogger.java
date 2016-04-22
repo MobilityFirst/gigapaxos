@@ -305,7 +305,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				: USE_DISK_MAP ? new MessageLogDiskMap(disk)
 						: new MessageLogPausable(disk);
 
-		initialize(); // will set up db, connection, tables, etc. as needed
+		// will set up db, connection, tables, etc. as needed
+		if (!initialize())
+			throw new RuntimeException("Unable to initiate "
+					+ PaxosManager.class.getSimpleName() + " for " + id);
+		;
 	}
 
 	private String getLogIndexDBPrefix() {

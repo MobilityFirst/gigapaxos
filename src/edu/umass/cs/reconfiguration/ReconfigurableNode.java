@@ -179,7 +179,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								.setThreadName(ReconfigurableNode.this.myID
 										.toString())), true,
 						ReconfigurationConfig.getServerSSLMode()))));
-		if (!niot.getListeningSocketAddress().equals(isa) && Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS)) {
+		if (!niot.getListeningSocketAddress().equals(isa)
+				&& Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS)) {
 			Reconfigurator
 					.getLogger()
 					.severe(err = this
@@ -289,9 +290,11 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				PaxosConfig.getActives(),
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
-		System.out.print("Initializing gigapaxos server(s) [ ");
-		for (String node : getAllNodes(args))
-		// if (nodeConfig.nodeExists(args[i]))
+		Set<String> servers = getAllNodes(args);
+		int numServers = servers.size();
+		System.out.print("Initializing gigapaxos server"
+				+ (numServers > 1 ? "s" : "") + " [ ");
+		for (String node : servers)
 		{
 			System.out.print(node + ":" + nodeConfig.getNodeAddress(node) + ":"
 					+ nodeConfig.getNodePort(node) + " ");
@@ -301,6 +304,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 							ReconfigurationConfig.getReconfigurators()), args,
 					false);
 		}
-		System.out.println("]; all servers ready");
+		System.out.println("]; server" + (numServers > 1 ? "s" : "") + servers
+				+ " ready");
 	}
 }

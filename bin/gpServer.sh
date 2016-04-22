@@ -36,16 +36,17 @@ for arg in "$@"; do
     fi
   elif [[ ! -z `echo $arg|grep "\-appArgs.*="` ]]; then
     APP_ARGS="`echo $arg|grep "\-appArgs.*="|sed s/\-appArgs=//g`"
-    APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
-    if [[ -z $APP ]]; then
-      APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
-    fi
   else 
     args[$index]=$arg
     index=`expr $index + 1`
   fi
 done
 #echo $JVMARGS "|" ${args[*]}
+
+APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
+  if [[ $APP == "" ]]; then
+    APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
+  fi
 
 # can add more JVM args here
 JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
@@ -72,9 +73,9 @@ fi
 
 
 function start_server {
-
+  server=$1
   $JAVA $JVMARGS $SSL_OPTIONS \
-edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $servers&
+edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $server&
 
 }
 
@@ -84,7 +85,9 @@ start)
 
 if [[ $servers != "" ]]; then
   echo "[$APP $APP_ARGS]"
-  start_server $servers
+  for server in $servers; do
+    start_server $server
+  done
 fi
 ;;
 
