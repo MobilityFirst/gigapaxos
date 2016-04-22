@@ -91,7 +91,7 @@ fi
 stop)
   echo Killing $servers
   for i in $servers; do
-      KILL_TARGET="ReconfigurableNode .* $i"
+      KILL_TARGET="ReconfigurableNode .*$i"
       kill -9 `ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}'` 2>/dev/null
   done
 
