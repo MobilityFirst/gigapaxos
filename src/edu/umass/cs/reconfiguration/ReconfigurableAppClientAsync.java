@@ -197,8 +197,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * sending a request to the active replica from which a response to the most
 	 * recent coordinated request was received.
 	 * 
-	 * It is important to forget this entry when an app request times out, otherwise
-	 * we may lose liveness even if a single active replica crashes.
+	 * It is important to forget this entry when an app request times out,
+	 * otherwise we may lose liveness even if a single active replica crashes.
 	 */
 	private final GCConcurrentHashMap<String, InetSocketAddress> mostRecentlyWrittenMap = new GCConcurrentHashMap<String, InetSocketAddress>(
 			defaultGCCallback, MAX_COORDINATION_LATENCY);
@@ -1067,7 +1067,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private Set<InetSocketAddress> actives = new HashSet<InetSocketAddress>();
 	private Set<InetSocketAddress> heardFrom = new HashSet<InetSocketAddress>();
-	private ConcurrentHashMap<InetAddress, Long> closest = new ConcurrentHashMap<InetAddress, Long>();
+	private LinkedHashMap<InetAddress, Long> closest = new LinkedHashMap<InetAddress, Long>();
 
 	private static final int CLOSEST_K = Config.getGlobalInt(RC.CLOSEST_K);
 
@@ -1090,7 +1090,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						new Object[] { this, this.closest });
 			}
 		}
-		if (this.heardFrom.size() > this.actives.size() / 2 + 1)
+		if (this.heardFrom.size() == this.actives.size() / 2 + 1) {
+			log.log(Level.INFO, "{0} sending closest-{1} map {2}",
+					new Object[] { this, this.closest.size(), this.closest });
 			for (InetSocketAddress address : actives) {
 				try {
 					this.sendRequest(new EchoRequest((InetSocketAddress) null,
@@ -1104,6 +1106,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					e.printStackTrace();
 				}
 			}
+		}
 
 	}
 
@@ -1123,7 +1126,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						address, new RequestCallback() {
 							@Override
 							public void handleResponse(Request response) {
-								log.log(Level.FINE,
+								log.log(Level.INFO,
 										"{0} received response {1} for echo request",
 										new Object[] {
 												ReconfigurableAppClientAsync.this,

@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.json.JSONArray;
@@ -42,7 +43,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 	/**
 	 * 
 	 */
-	public final long sentTime = System.currentTimeMillis();
+	public final long sentTime;
 	/**
 	 * 
 	 */
@@ -62,6 +63,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 		this.closest = closest;
 		this.requestID = (long) (Math.random() * Long.MAX_VALUE);
 		this.myReceiver = null;
+		this.sentTime = System.currentTimeMillis();
 	}
 
 	/**
@@ -87,6 +89,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 		this.requestID = json.getLong(Keys.QID.toString());
 		this.myReceiver = MessageNIOTransport.getReceiverAddress(json);
 		this.setSender(MessageNIOTransport.getSenderAddress(json));
+		this.sentTime = json.getLong(Keys.SENT_TIME.toString());
 	}
 
 	/**
@@ -109,7 +112,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 				JSONArray element = new JSONArray();
 				element.put(0, addr.getHostAddress());
 				element.put(1, this.closest.get(addr));
-				jarray.put(i, element);
+				jarray.put(i++, element);
 			}
 			json.put(Keys.CLOSEST.toString(), jarray);
 		}
@@ -121,7 +124,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 	private Map<InetAddress, Long> getClosest(JSONArray jarray)
 			throws UnknownHostException, JSONException {
 		if (jarray.length() > 0) {
-			Map<InetAddress, Long> nearest = new HashMap<InetAddress, Long>();
+			Map<InetAddress, Long> nearest = new LinkedHashMap<InetAddress, Long>();
 			for (int i = 0; i < jarray.length(); i++) {
 				nearest.put(Util.getInetAddressFromString(jarray
 						.getJSONArray(i).getString(0)), jarray.getJSONArray(i)
@@ -140,7 +143,6 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 	public boolean isRequest() {
 		return this.isRequest;
 	}
-	
 
 	@Override
 	public long getRequestID() {
@@ -162,7 +164,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 	 * @return True if it has nonempty closest map.
 	 */
 	public boolean hasClosest() {
-		return this.closest!=null && !this.closest.isEmpty();
+		return this.closest != null && !this.closest.isEmpty();
 	}
 
 	/**
@@ -182,7 +184,7 @@ public class EchoRequest extends BasicReconfigurationPacket<InetSocketAddress>
 	/**
 	 * @return closest map.
 	 */
-	public Map<InetAddress,Long> getClosest() {
+	public Map<InetAddress, Long> getClosest() {
 		return this.closest;
 	}
 }

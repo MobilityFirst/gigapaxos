@@ -8,6 +8,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.BitSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
@@ -282,11 +283,11 @@ public class RTTEstimator {
 
 	private static final int MAX_ENTRIES = 100;
 
-	private static LinkedHashMap<Integer, Set<InetAddress>> closest = new LinkedHashMap<Integer, Set<InetAddress>>() {
+	private static LinkedHashMap<Integer, LinkedHashSet<InetAddress>> closest = new LinkedHashMap<Integer, LinkedHashSet<InetAddress>>() {
 		private static final long serialVersionUID = 1L;
 
 		protected boolean removeEldestEntry(
-				Map.Entry<Integer, Set<InetAddress>> eldest) {
+				Map.Entry<Integer, LinkedHashSet<InetAddress>> eldest) {
 			return size() > MAX_ENTRIES;
 		}
 	};
@@ -298,7 +299,7 @@ public class RTTEstimator {
 	public static void closest(InetSocketAddress sender,
 			Map<InetAddress, Long> nearestMap) {
 		closest.put(new Integer(addrToPrefixInt(sender.getAddress())),
-				nearestMap.keySet());
+				new LinkedHashSet<InetAddress>(nearestMap.keySet()));
 	}
 
 	/**
