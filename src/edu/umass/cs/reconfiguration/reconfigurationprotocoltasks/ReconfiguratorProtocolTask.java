@@ -45,6 +45,7 @@ ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 		ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME,
 		ReconfigurationPacket.PacketType.DELETE_SERVICE_NAME,
 		ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS,
+		ReconfigurationPacket.PacketType.ECHO_REQUEST,
 		
 		// reconfigurator -> reconfigurator
 		ReconfigurationPacket.PacketType.RC_RECORD_REQUEST,

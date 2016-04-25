@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,13 +12,13 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Map;
 
 import org.json.JSONObject;
 
@@ -59,8 +58,10 @@ public abstract class AbstractDemandProfile {
 	/*********************** Start of abstract methods ***************/
 	/**
 	 * Creates a deep copy of this object. So, it must be the case that the
-	 * return value != this, but the return value.equals(this). You would also
-	 * need to override equals(.) and hashCode() methods accordingly.
+	 * return value != this, but the return value.equals(this). You may also
+	 * need to override equals(.) and hashCode() methods accordingly. If an
+	 * implementation of this class consists of non-primitive types, e.g., a
+	 * {@link Map}, then a new Map has to be created inside the clone() method.
 	 */
 	public abstract AbstractDemandProfile clone();
 
@@ -89,7 +90,10 @@ public abstract class AbstractDemandProfile {
 	public abstract boolean shouldReport();
 
 	/**
-	 * All relevant stats must be serializable into JSON.
+	 * All relevant stats must be serializable into JSON. Any information not
+	 * included in the returned JSONObject will not be available for use in the
+	 * reconfiguration policy in
+	 * {@link #shouldReconfigure(ArrayList, InterfaceGetActiveIPs)}.
 	 * 
 	 * @return Demand statistics as JSON.
 	 */

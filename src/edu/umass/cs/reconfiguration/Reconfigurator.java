@@ -45,6 +45,7 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
+import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ProtocolTaskCreationException;
@@ -56,6 +57,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfiguration
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.EchoRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
@@ -2080,6 +2082,33 @@ public class Reconfigurator<NodeIDType> implements
 		else
 			this.spawnSecondaryReconfiguratorTask(rcRecReq);
 		return true;
+	}
+	
+	/**
+	 * @param echo
+	 * @param ptasks
+	 * @return null
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleEchoRequest(
+			EchoRequest echo,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		log.log(Level.FINE, "{0} received echo request {1}", new Object[] {
+				this, echo.getSummary() });
+		if (echo.isRequest()) {
+			// ignore echo requests
+		} else if (echo.hasClosest()) {
+			RTTEstimator.closest(echo.getSender(), echo.getClosest());
+			log.log(Level.INFO,
+					"{0} received closest map {1} from {2}; RTTEstimator.closest={3}",
+					new Object[] {
+							this,
+							echo.getClosest(),
+							echo.getSender(),
+							RTTEstimator.getClosest(echo.getSender()
+									.getAddress()) });
+		}
+		// else
+		return null;
 	}
 
 	/* This method conducts the actual reconfiguration assuming that the

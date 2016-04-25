@@ -1091,9 +1091,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			}
 		}
 		if (this.heardFrom.size() == this.actives.size() / 2 + 1) {
-			log.log(Level.INFO, "{0} sending closest-{1} map {2}",
-					new Object[] { this, this.closest.size(), this.closest });
-			for (InetSocketAddress address : actives) {
+
+			Set<InetSocketAddress> servers = new HashSet<InetSocketAddress>(
+					actives);
+			if (SEND_CLOSEST_TO_RECONFIGURATORS)
+				servers.addAll(reconfigurators);
+			log.log(Level.INFO, "{0} sending closest-{1} map {2} to {3}",
+					new Object[] { this, this.closest.size(), this.closest, servers });
+			for (InetSocketAddress address : servers) {
 				try {
 					this.sendRequest(new EchoRequest((InetSocketAddress) null,
 							this.closest), address, new RequestCallback() {
@@ -1109,6 +1114,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 
 	}
+
+	/* Reconfigurators really have no need for closest actives information, but
+	 * we send it anyway because people seem to get confused by
+	 * RTTEstimator.getClosest(.) not working inside shouldReconfigure(.) that
+	 * is called at reconfigurators, not actives. */
+	private static final boolean SEND_CLOSEST_TO_RECONFIGURATORS = Config
+			.getGlobalBoolean(RC.SEND_CLOSEST_TO_RECONFIGURATORS);
 
 	private static final boolean ORIENT_CLIENT = Config
 			.getGlobalBoolean(RC.ORIENT_CLIENT);

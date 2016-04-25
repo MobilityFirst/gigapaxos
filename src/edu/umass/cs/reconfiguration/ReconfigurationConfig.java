@@ -285,9 +285,20 @@ public class ReconfigurationConfig {
 		ORIENT_CLIENT(true),
 
 		/**
+		 * The maximum number of actives that will be sent to a client when it
+		 * bootstraps to probe them in order to orient itself
+		 */
+		ORIENT_LIMIT(8),
+
+		/**
 		 * The closest K servers to a given client IP address.
 		 */
 		CLOSEST_K(3),
+
+		/**
+		 * 
+		 */
+		SEND_CLOSEST_TO_RECONFIGURATORS(true),
 
 		;
 

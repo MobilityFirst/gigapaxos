@@ -119,7 +119,7 @@ public class DiskMapTest extends DefaultTest {
 			}
 			assert (dmap.size() <= capacity) : dmap.size();
 		}
-		// dmap.close();
+		dmap.close();
 	}
 
 	/**

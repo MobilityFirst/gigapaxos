@@ -201,7 +201,7 @@ public class TESTPaxosClient {
 	}
 
 	/******** Start of ClientPacketDemultiplexer ******************/
-	
+
 	private class ClientPacketDemultiplexer extends
 			AbstractPacketDemultiplexer<Object> {
 		private final TESTPaxosClient client;
@@ -295,7 +295,7 @@ public class TESTPaxosClient {
 					return null;
 				}
 			}
-			
+
 			try {
 				return new RequestPacket(
 						(net.minidev.json.JSONObject) JSONValue
@@ -378,7 +378,7 @@ public class TESTPaxosClient {
 			JSONException {
 		int[] group = TESTPaxosConfig.getGroup(req.getPaxosID());
 		int index = !PIN_CLIENT ? (int) (req.requestID % group.length)
-				: (int) ((myID+0) % group.length);
+				: (int) ((myID + 0) % group.length);
 		assert (!(index < 0 || index >= group.length || TESTPaxosConfig
 				.isCrashed(group[index])));
 		return this.sendRequest(group[index], req);
@@ -405,6 +405,16 @@ public class TESTPaxosClient {
 	private static final int CLIENT_PORT_OFFSET = PaxosConfig
 			.getClientPortOffset();
 
+	private static long lastWarningTime = 0;
+
+	synchronized static boolean testAndSetLastWarningTime() {
+		if (System.currentTimeMillis() - lastWarningTime > 1000) {
+			lastWarningTime = System.currentTimeMillis();
+			return true;
+		}
+		return false;
+	}
+
 	protected boolean sendRequest(int id, RequestPacket req)
 			throws IOException, JSONException {
 		InetAddress address = nc.getNodeAddress(id);
@@ -424,9 +434,11 @@ public class TESTPaxosClient {
 			try {
 				Thread.sleep(req.lengthEstimate() / RequestPacket.SIZE_ESTIMATE
 						+ 1);
-				log.log(Level.WARNING,
-						"{0} retrying send to node {1} probably because of congestion",
-						new Object[] { this, id });
+				if (testAndSetLastWarningTime())
+					log.log(Level.WARNING,
+							"{0} retrying send to node {1} probably because of congestion",
+							new Object[] { this, id });
+
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -559,8 +571,9 @@ public class TESTPaxosClient {
 
 	private static final double TOTAL_LOAD = Config
 			.getGlobalDouble(TC.TOTAL_LOAD);
-	//private static final int NUM_GROUPS = Config.getGlobalInt(TC.NUM_GROUPS);
-	private static final int NUM_GROUPS_CLIENT = Config.getGlobalInt(TC.NUM_GROUPS_CLIENT);
+	// private static final int NUM_GROUPS = Config.getGlobalInt(TC.NUM_GROUPS);
+	private static final int NUM_GROUPS_CLIENT = Config
+			.getGlobalInt(TC.NUM_GROUPS_CLIENT);
 
 	private static final String TEST_GUID_PREFIX = Config
 			.getGlobalString(TC.TEST_GUID_PREFIX);
@@ -639,9 +652,7 @@ public class TESTPaxosClient {
 				+ " requests in "
 				+ Util.df((System.currentTimeMillis() - initTime) / 1000.0)
 				+ " secs; estimated average_sent_rate = "
-				+ Util.df(mostRecentSentRate) + "/s"
-		 + " \n "+ reqCounts
-				);
+				+ Util.df(mostRecentSentRate) + "/s" + " \n " + reqCounts);
 
 	}
 
@@ -656,8 +667,8 @@ public class TESTPaxosClient {
 			System.out.print((warmup ? "\nWarming up " : "\nTesting ")
 					+ "[#requests=" + numReqs + ", request_size="
 					+ gibberish.length() + "B, #clients=" + clients.length
-					+ ", #groups=" + NUM_GROUPS_CLIENT + ", load=" + TOTAL_LOAD + "/s"
-					+ "]...");
+					+ ", #groups=" + NUM_GROUPS_CLIENT + ", load=" + TOTAL_LOAD
+					+ "/s" + "]...");
 		RateLimiter rateLimiter = new RateLimiter(rate);
 		// long initTime = System.currentTimeMillis();
 		for (int i = 0; i < numReqs; i++) {
@@ -731,9 +742,10 @@ public class TESTPaxosClient {
 	}
 
 	private static void clearOutstanding(TESTPaxosClient[] clients) {
-		for(TESTPaxosClient client : clients)
+		for (TESTPaxosClient client : clients)
 			client.requests.clear();
 	}
+
 	private static boolean runDone = false;
 
 	protected static boolean noOutstanding(TESTPaxosClient[] clients) {
@@ -969,7 +981,7 @@ public class TESTPaxosClient {
 			int numReqs = Config.getGlobalInt(TC.NUM_REQUESTS);
 
 			// begin warmup run
-			if(Config.getGlobalBoolean(TC.WARMUP)) {
+			if (Config.getGlobalBoolean(TC.WARMUP)) {
 				long t1 = System.currentTimeMillis();
 				int numWarmupRequests = Math.min(numReqs, 10 * NUM_CLIENTS);
 				sendTestRequests(numWarmupRequests, clients, true,

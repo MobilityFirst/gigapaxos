@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -28,6 +29,7 @@ import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
@@ -113,9 +115,56 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	 *         respond to broadcast queries.
 	 */
 	public Set<InetSocketAddress> getActiveReplicaSocketAddresses() {
+		return this.getActiveReplicaSocketAddresses(Integer.MAX_VALUE);
+	}
+
+	/**
+	 * This method tries to return a limited number of active replica socket
+	 * addresses that to the extent possible have distinct IPs. The socket
+	 * addresses are a randomly chosen subset of size up to limit from the set
+	 * of all active replicas.
+	 * 
+	 * @param limit
+	 * @return Socket addresses of active replicas. Used by reconfigurator to
+	 *         respond to broadcast queries.
+	 */
+	public Set<InetSocketAddress> getActiveReplicaSocketAddresses(int limit) {
 		Set<InetSocketAddress> actives = new HashSet<InetSocketAddress>();
-		for (NodeIDType node : this.nodeConfig.getActiveReplicas())
-			actives.add(this.getNodeSocketAddress(node));
+		Set<Integer> activeIPs = new HashSet<Integer>();
+		ArrayList<InetSocketAddress> activeNodes = new ArrayList<InetSocketAddress>();
+		ArrayList<InetSocketAddress> duplicateIPs = new ArrayList<InetSocketAddress>();
+
+		/* Create up to limit-sized ArrayList for shuffling. First add socket
+		 * addresses corresponding to distinct /24 IP prefixes. */
+		for (NodeIDType node : this.getActiveReplicas()) {
+			InetSocketAddress sockAddr = this.getNodeSocketAddress(node);
+			if (!activeIPs.contains(RTTEstimator.addrToPrefixInt(sockAddr
+					.getAddress()))) {
+				activeNodes.add(sockAddr);
+				activeIPs.add(RTTEstimator.addrToPrefixInt(sockAddr
+						.getAddress()));
+			} else
+				duplicateIPs.add(sockAddr);
+			if (activeNodes.size() >= limit)
+				break;
+		}
+		/* Then check if we can add back some of the socket addresses with
+		 * duplicate /24 prefixes up to limit. */
+		if (activeNodes.size() < limit) {
+			for (InetSocketAddress duplicate : duplicateIPs) {
+				activeNodes.add(duplicate);
+				if (activeNodes.size() >= limit)
+					break;
+			}
+		}
+
+		// shuffle to return actives in random order
+		Collections.shuffle(activeNodes);
+		for (InetSocketAddress sockAddr : activeNodes) {
+			actives.add(sockAddr);
+			if (actives.size() >= limit)
+				break;
+		}
 		return actives;
 	}
 

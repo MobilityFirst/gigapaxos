@@ -576,7 +576,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 					 * are coming from the iterator here, so we either need
 					 * guaranteed fail-fast behavior (or at least need the
 					 * property that an iterator.remove() will not succeed if
-					 * corresponding entry has been modified in anyway since the
+					 * corresponding entry has been modified in any way since the
 					 * entry's value was retrieved) or need to explicitly
 					 * synchronize the iteration itself like below. */
 					synchronized (this) {
