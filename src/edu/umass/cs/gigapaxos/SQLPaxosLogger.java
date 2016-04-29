@@ -1380,7 +1380,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			} else
 				insertCP.setString(6, state);
 			insertCP.setLong(7, createTime);
-			insertCP.setString(8, minLogfile = this.getMinLogfile(paxosID));
+			insertCP.setString(8, minLogfile = this.getMinLogfile(paxosID, version, acceptedGCSlot));
 			insertCP.setString(9, paxosID);
 			insertCP.executeUpdate();
 			// conn.commit();
@@ -1577,7 +1577,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					insertCP.setString(6, task.state);
 				insertCP.setLong(7, task.createTime);
 				insertCP.setString(8,
-						minLogfile = this.getMinLogfile(task.paxosID));
+						minLogfile = this.getMinLogfile(task.paxosID, task.version, task.gcSlot));
 				insertCP.setString(9, task.paxosID);
 				insertCP.addBatch();
 				batch.add(i);
@@ -1733,7 +1733,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		ResultSet rset = null;
 		Connection conn = null;
 		try {
-			/* All accepts at or above the most recent checkpointed slot are
+			/* All accepts at or above the most recent checkpoint slot are
 			 * retained. We retain the accept at the checkpoint slot to ensure
 			 * that the accepted pvalues list is never empty unless there are
 			 * truly no accepts beyond prepare.firstUndecidedSlot. If we don't
@@ -2656,6 +2656,13 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			minLogfile = this.journaler.curLogfile;
 		return minLogfile;
 	}
+	private String getMinLogfile(String paxosID, int version, int acceptedGCSlot) {
+		this.messageLog.setGCSlot(paxosID, version, acceptedGCSlot);
+		String minLogfile = this.messageLog.getMinLogfile(paxosID);
+		if (minLogfile == null)
+			minLogfile = this.journaler.curLogfile;
+		return minLogfile;
+	}
 
 	// for roll forward point
 	private File getMinLogfile() {
@@ -3206,6 +3213,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		for (Filename candidate : candidates)
 			if (minLogfilename.compareTo(candidate) <= 0)
 				activeLogfiles.add(candidate.file.toString());
+		log.log(Level.INFO, "{0} found min_logfile={1}; returning activeLogFiles={2}", new Object[]{this, minLogfilename, activeLogfiles});
 		return activeLogfiles;
 	}
 

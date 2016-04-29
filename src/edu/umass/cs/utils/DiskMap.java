@@ -77,13 +77,26 @@ import edu.umass.cs.gigapaxos.paxosutil.LogIndex;
  * 
  *            DiskMap can use MultiArrayMap as its underlying in-memory map if
  *            that is supplied in the constructor. Although not necessary, the
- *            use of MultiArrayMap is encouraged as it is much more compact
+ *            use of MultiArrayMap makes the map more compact
  *            because of its cuckoo hashing design, but it requires values to
  *            implement the Keyable<K> interface. If values additionally also
  *            implement {@link Pausable}, DiskMap incurs just ~6B overhead per
  *            value as it does not have to maintain its own stats for last
  *            active times for map entries.
+ * 
+ *            Note: There is no way to ensure that the value pointed to in the
+ *            map is not modified after it has been paused to disk. It does not
+ *            help to verify that the value pointed to is the same as the
+ *            serialized value paused to disk as the value pointed to in the map
+ *            could be modified by a caller even after its serialized form has
+ *            been paused to disk. As a result, we can not support the
+ *            "expectation" that modifications to the value object by the caller
+ *            will be reflected in the map. So, the caller is forced to reckon
+ *            with the possibility that any modifications to the value object
+ *            may be lost unless the caller explicitly invokes a put
+ *            subsequently.
  */
+
 public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		Diskable<K, V> {
 
@@ -576,8 +589,8 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 					 * are coming from the iterator here, so we either need
 					 * guaranteed fail-fast behavior (or at least need the
 					 * property that an iterator.remove() will not succeed if
-					 * corresponding entry has been modified in any way since the
-					 * entry's value was retrieved) or need to explicitly
+					 * corresponding entry has been modified in any way since
+					 * the entry's value was retrieved) or need to explicitly
 					 * synchronize the iteration itself like below. */
 					synchronized (this) {
 						for (Iterator<Map.Entry<K, V>> iterE = this.map
@@ -667,18 +680,6 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			return this.put(key, value);
 		return null;
 	}
-
-	/* There is no way to ensure that the value pointed to in the map is not
-	 * modified after it has been paused to disk. It does not help to verify
-	 * that the value pointed to is the same as the serialized value paused to
-	 * disk as the value pointed to in the map could be modified by a caller
-	 * even after its serialized form has been paused to disk. As a result, we
-	 * can not support the "expectation" that modifications to the value object
-	 * by the caller will be reflected in the map.
-	 * 
-	 * The caller is forced to reckon with the possibility that any
-	 * modifications to the value object may be lost unless the caller
-	 * explicitly invokes a put subsequently. */
 
 	@SuppressWarnings("unchecked")
 	private Map<K, V> extractIterableMap(ConcurrentMap<K, V> m, int size) {
