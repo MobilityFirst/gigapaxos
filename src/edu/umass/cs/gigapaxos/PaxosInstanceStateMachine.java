@@ -966,6 +966,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		return mtask; // Could be unicast or multicast
 	}
+	
+	private static final boolean GC_MAJORITY_EXECUTED = Config.getGlobalBoolean(PC.GC_MAJORITY_EXECUTED);
 
 	/* Phase2a Event: Received an accept message for a proposal with some
 	 * ballot.
@@ -1031,8 +1033,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			return null; // recovery ACCEPTS do not need any reply
 
 		AcceptReplyPacket acceptReply = new AcceptReplyPacket(this.getMyID(),
-				ballot, accept.slot, lastCheckpointSlot(
-						this.paxosState.getSlot() - 1, accept.getPaxosID()),
+				ballot, accept.slot, 
+				GC_MAJORITY_EXECUTED ? this.paxosState.getSlot()-1 
+						: lastCheckpointSlot(this.paxosState.getSlot() - 1, accept.getPaxosID()),
 				accept.requestID);
 
 		// no logging if NACking anyway

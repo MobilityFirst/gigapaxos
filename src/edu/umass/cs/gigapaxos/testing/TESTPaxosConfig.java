@@ -238,7 +238,13 @@ public class TESTPaxosConfig {
 		 * Maximum time for which the client will wait for all responses 
 		 * to come back.
 		 */
-		MAX_RESPONSE_WAIT_TIME(60 * 1000), ;
+		MAX_RESPONSE_WAIT_TIME(60 * 1000), 
+		
+		/**
+		 * The extent of workload skew. 1 means the ratio of the fraction of
+		 * requests to the first group compared to other groups.
+		 */
+		WORKLOAD_SKEW(1),;
 
 		final Object defaultValue;
 

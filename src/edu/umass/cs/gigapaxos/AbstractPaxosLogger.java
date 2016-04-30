@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
@@ -106,7 +107,7 @@ public abstract class AbstractPaxosLogger {
 				
 		// checkpoint thread is not used and Checkpointer is deprecated
 		(this.collapsingCheckpointer = new Checkpointer(
-				new HashMap<String, CheckpointTask>())).start(AbstractPaxosLogger.class.getSimpleName()+myID);
+				new LinkedHashMap<String, CheckpointTask>())).start(AbstractPaxosLogger.class.getSimpleName()+myID);
 		addLogger(this);
 	}
 
@@ -175,7 +176,9 @@ public abstract class AbstractPaxosLogger {
 		logger.batchLogger.enqueue(new LogMessagingTask(decision));
 	}
 	
-	private final boolean BATCH_CHECKPOINTS = Config.getGlobalBoolean(PC.BATCH_CHECKPOINTS);
+	private static final boolean BATCH_CHECKPOINTS = Config.getGlobalBoolean(PC.BATCH_CHECKPOINTS);
+	private static final boolean BLOCKING_CHECKPOINT = Config.getGlobalBoolean(PC.BLOCKING_CHECKPOINT);
+	
 
 	/*
 	 */
@@ -185,14 +188,15 @@ public abstract class AbstractPaxosLogger {
 		if (logger.isAboutToClose())
 			return;
 
-		if (logger.BATCH_CHECKPOINTS && !sync) {
+		if (BATCH_CHECKPOINTS && !sync) {
 			// enqueueAndWait is just inelegant when we can sync checkpoint
-			//if (!sync)
-				//logger.collapsingCheckpointer
-					//	.enqueueAndWait(logger.new CheckpointTask(logger,
-						//		paxosID, version, members, slot, ballot, state,
-							//	gcSlot));
-			//else
+			if (BLOCKING_CHECKPOINT) { // redundant check 
+				logger.collapsingCheckpointer
+						.enqueueAndWait(logger.new CheckpointTask(logger,
+								paxosID, version, members, slot, ballot, state,
+								gcSlot));
+			}
+			else // currently not used
 				logger.collapsingCheckpointer
 						.enqueue(logger.new CheckpointTask(logger, paxosID,
 								version, members, slot, ballot, state, gcSlot));
@@ -200,7 +204,6 @@ public abstract class AbstractPaxosLogger {
 		else
 			logger.putCheckpointState(paxosID, version, members, slot, ballot,
 					state, gcSlot);
-		
 	}
 
 	/*
@@ -692,9 +695,9 @@ public abstract class AbstractPaxosLogger {
 
 	private class Checkpointer extends ConsumerBatchTask<CheckpointTask> {
 		// used for synchronizing.
-		private final HashMap<String, CheckpointTask> checkpoints;
+		private final Map<String, CheckpointTask> checkpoints;
 
-		Checkpointer(HashMap<String, CheckpointTask> lock) {
+		Checkpointer(Map<String, CheckpointTask> lock) {
 			super(lock, new CheckpointTask[0], true);
 			this.checkpoints = lock;
 		}
@@ -702,7 +705,7 @@ public abstract class AbstractPaxosLogger {
 		@Override
 		public void enqueueImpl(CheckpointTask newCP) {
 			CheckpointTask oldCP = checkpoints.get(newCP.paxosID);
-			if (oldCP == null || oldCP.slot < newCP.slot) {
+			if (oldCP == null || oldCP.slot - newCP.slot < 0) {
 				this.checkpoints.put(newCP.paxosID, newCP);
 			}
 		}

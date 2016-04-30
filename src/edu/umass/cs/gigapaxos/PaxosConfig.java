@@ -825,7 +825,19 @@ public class PaxosConfig {
 		 * 
 		 */
 		DIGEST_THRESHOLD_SIZE(512),
-
+		
+		/**
+		 * 
+		 */
+		BLOCKING_CHECKPOINT(false),
+		
+		/**
+		 * True means we garbage collect accepts up to the slot that a majority have executed;
+		 * otherwise up to the slot that a majority have checkpointed.
+		 */
+		GC_MAJORITY_EXECUTED (true),
+		
+		
 		;
 
 		final Object defaultValue;

@@ -1380,7 +1380,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			} else
 				insertCP.setString(6, state);
 			insertCP.setLong(7, createTime);
-			insertCP.setString(8, minLogfile = this.getMinLogfile(paxosID, version, acceptedGCSlot));
+			insertCP.setString(8, minLogfile = this.getSetGCAndGetMinLogfile(paxosID, version, slot - acceptedGCSlot < 0 ? slot : acceptedGCSlot));
 			insertCP.setString(9, paxosID);
 			insertCP.executeUpdate();
 			// conn.commit();
@@ -1433,7 +1433,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		 * least 2x the number of connections as concurrently active paxosIDs.
 		 * Realized this the hard way. :) */
 		if (ENABLE_JOURNALING && PAUSABLE_INDEX_JOURNAL)
-			this.messageLog.setGCSlot(paxosID, version, acceptedGCSlot);
+			this.messageLog.setGCSlot(paxosID, version, slot - acceptedGCSlot < 0 ? slot : acceptedGCSlot);
 		else if (Util.oneIn(getLogGCFrequency()) && this.incrNumGCs() == 0) {
 			Runnable gcTask = new TimerTask() {
 				@Override
@@ -1577,7 +1577,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					insertCP.setString(6, task.state);
 				insertCP.setLong(7, task.createTime);
 				insertCP.setString(8,
-						minLogfile = this.getMinLogfile(task.paxosID, task.version, task.gcSlot));
+						minLogfile = this.getSetGCAndGetMinLogfile(task.paxosID, task.version, task.slot - task.gcSlot < 0 ? task.slot : task.gcSlot));
 				insertCP.setString(9, task.paxosID);
 				insertCP.addBatch();
 				batch.add(i);
@@ -1689,7 +1689,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	private synchronized boolean shouldLogCheckpoint() {
-		return shouldLogCheckpoint(5);
+		return shouldLogCheckpoint(1);
 	}
 
 	private synchronized boolean shouldLogCheckpoint(int sample) {
@@ -2650,13 +2650,14 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	// for garbage collection frontier
+	@SuppressWarnings("unused")
 	private String getMinLogfile(String paxosID) {
 		String minLogfile = this.messageLog.getMinLogfile(paxosID);
 		if (minLogfile == null)
 			minLogfile = this.journaler.curLogfile;
 		return minLogfile;
 	}
-	private String getMinLogfile(String paxosID, int version, int acceptedGCSlot) {
+	private String getSetGCAndGetMinLogfile(String paxosID, int version, int acceptedGCSlot) {
 		this.messageLog.setGCSlot(paxosID, version, acceptedGCSlot);
 		String minLogfile = this.messageLog.getMinLogfile(paxosID);
 		if (minLogfile == null)
@@ -3230,7 +3231,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			// never try to compact the current log file
 			if (logfile.toString().equals(this.journaler.curLogfile))
 				break;
-			log.log(Level.FINE, "{0} compacting logfile {1}", new Object[] {
+			log.log(Level.INFO, "{0} attempting to compact logfile {1}", new Object[] {
 					this, logfile });
 			try {
 				compactLogfile(logfile, this.getPacketizer(), this.messageLog,
@@ -3299,7 +3300,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			return;
 		} else
 			log.log(Level.FINE,
-					"{0} not quick-GC'ing file {1} because dependent paxosIDs = {2}",
+					"{0} not quick-GCing file {1} because dependent paxosIDs = {2}",
 					new Object[] { msgLog.disk, file,
 							fidMap.fidMap.get(file.toString()) });
 
@@ -3359,6 +3360,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			synchronized (msgLog) {
 				modifyLogfileAndLogIndex(file, tmpFile, logIndexEntries,
 						msgLog, fidMap);
+				log.log(Level.INFO, "{0} compacted logfile {1}", new Object[]{msgLog, file});
 			}
 		else if (!neededAtAll) {
 			log.log(Level.INFO,

@@ -655,6 +655,8 @@ public class TESTPaxosClient {
 				+ Util.df(mostRecentSentRate) + "/s" + " \n " + reqCounts);
 
 	}
+	
+	private static final int WORKLOAD_SKEW = Config.getGlobalInt(TC.WORKLOAD_SKEW);
 
 	private static final int NUM_CLIENTS = Config.getGlobalInt(TC.NUM_CLIENTS);
 	private static double mostRecentSentRate = 0;
@@ -674,7 +676,8 @@ public class TESTPaxosClient {
 		for (int i = 0; i < numReqs; i++) {
 			while (!clients[i % NUM_CLIENTS]
 					.makeAndSendRequest(TEST_GUID_PREFIX
-							+ ((RANDOM_REPLAY + i) % (NUM_GROUPS_CLIENT))))
+							+ (Util.oneIn(WORKLOAD_SKEW) ? ((RANDOM_REPLAY + i) % (NUM_GROUPS_CLIENT))
+									: 0)))
 				;
 			rateLimiter.record();
 		}
