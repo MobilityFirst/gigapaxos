@@ -17,6 +17,8 @@ package edu.umass.cs.gigapaxos.testing;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.json.JSONObject;
@@ -133,6 +135,13 @@ public class TESTPaxosNode {
 
 	// Creates groups if needed more than MAX_CONFIG_GROUPS
 	protected void createNonDefaultGroupInstanes(int numGroups) {
+		if (numGroups > 10000
+				&& Config.getGlobalBoolean(TC.BATCH_CREATION_ENABLED)) {
+			this.createNonDefaultGroupInstanes(numGroups,
+					Config.getGlobalInt(TC.BATCH_CREATION_SIZE));
+			return;
+		}
+		// else
 		int j = 1;
 		if (numGroups > Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
 			System.out.println("\nNode " + this.myID
@@ -150,6 +159,42 @@ public class TESTPaxosNode {
 			}
 			if (i % j == 0 && ((j *= 2) > 1) || (i % 100000 == 0)) {
 				System.out.print(i + " ");
+			}
+		}
+	}
+
+	// Creates groups if needed more than MAX_CONFIG_GROUPS
+	protected void createNonDefaultGroupInstanes(int numGroups, int batchSize) {
+		int j = 1;
+		if (numGroups > Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
+			System.out.println("\nNode " + this.myID
+					+ " initiating creation of non-default groups"
+					+ (batchSize > 1 ? " in batches of " + batchSize : "")
+					+ ":");
+		// Creating groups beyond default configured groups (if numGroups >
+		// MAX_CONFIG_GROUPS)
+		int k = 0;
+		String groupIDPrefix = Config.getGlobalString(TC.TEST_GUID_PREFIX);
+		Map<String, String> nameStates = new HashMap<String, String>();
+		for (int i = Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS); i < numGroups; i += batchSize) {
+			nameStates.clear();
+			for (k = i; k < Math.min(numGroups, i + batchSize); k++) 
+				nameStates.put(groupIDPrefix + k, "some_initial_value");
+			for (int id : TESTPaxosConfig.getDefaultGroup()) {
+				try {
+					if (id == myID)
+						this.getPaxosManager().createPaxosInstance(
+								nameStates,
+								Util.arrayToIntSet(TESTPaxosConfig
+										.getDefaultGroup()));
+				} catch (Exception e) {
+					// ignore
+				}
+			}
+			int bcount = (i - Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS))
+					/ batchSize;
+			if (bcount % j == 0 && ((j *= 2) > 1) || (k == numGroups - 1)) {
+				System.out.print((k-Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS)) + " ");
 			}
 		}
 	}

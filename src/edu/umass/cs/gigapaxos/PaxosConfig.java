@@ -208,7 +208,7 @@ public class PaxosConfig {
 		 * instances. This is also the period for which a paxos instance must be
 		 * idle in order to be paused.
 		 */
-		DEACTIVATION_PERIOD(30000), // 30s default
+		DEACTIVATION_PERIOD(60000), // 30s default
 
 		/**
 		 * Limits the rate of pausing to not interfere with request processing.
@@ -409,7 +409,7 @@ public class PaxosConfig {
 		 * Prefix of the paxos DB's name. The whole name is obtained by
 		 * concatenating this prefix with the node ID.
 		 */
-		PAXOS_DB_PREFIX("paxos_logs."),
+		PAXOS_DB_PREFIX("paxos_db"),
 
 		/**
 		 * Maximum length in characters of a paxos group name.
@@ -671,7 +671,7 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		PAUSE_BATCH_SIZE(100),
+		PAUSE_BATCH_SIZE(1000),
 
 		/**
 		 * 
@@ -837,6 +837,15 @@ public class PaxosConfig {
 		 */
 		GC_MAJORITY_EXECUTED (true),
 		
+		/**
+		 * 
+		 */
+		DB_USER ("user"),
+		
+		/**
+		 * 
+		 */
+		DB_PASSWORD("password"),
 		
 		;
 

@@ -123,12 +123,12 @@ public class TESTPaxosConfig {
 		/**
 		 * Number of groups to which the client will actually send requests.
 		 */
-		NUM_GROUPS_CLIENT (Config.getGlobalInt(TC.NUM_GROUPS)),
-		
+		NUM_GROUPS_CLIENT(Config.getGlobalInt(TC.NUM_GROUPS)),
+
 		/**
 		 * Default group size.
 		 */
-		GROUP_SIZE (3),
+		GROUP_SIZE(3),
 		/**
 		 * 
 		 */
@@ -137,7 +137,7 @@ public class TESTPaxosConfig {
 		/**
 		 * Whether client should send a smaller number of warmup requests.
 		 */
-		WARMUP (true),
+		WARMUP(true),
 		/**
 		 * Whether a testing client should be pinned to send request to a single
 		 * server.
@@ -207,8 +207,8 @@ public class TESTPaxosConfig {
 
 		/**
 		 * Fraction of load above which the response rate must be for the
-		 * capacity probe to be considered successful. This does not 
-		 * mean anything except that the run will be marked "FAILED".
+		 * capacity probe to be considered successful. This does not mean
+		 * anything except that the run will be marked "FAILED".
 		 */
 		PROBE_RESPONSE_THRESHOLD(0.9),
 
@@ -235,16 +235,26 @@ public class TESTPaxosConfig {
 		PROBE_MAX_RUNS(50),
 
 		/**
-		 * Maximum time for which the client will wait for all responses 
-		 * to come back.
+		 * Maximum time for which the client will wait for all responses to come
+		 * back.
 		 */
-		MAX_RESPONSE_WAIT_TIME(60 * 1000), 
-		
+		MAX_RESPONSE_WAIT_TIME(60 * 1000),
+
 		/**
 		 * The extent of workload skew. 1 means the ratio of the fraction of
 		 * requests to the first group compared to other groups.
 		 */
-		WORKLOAD_SKEW(1),;
+		WORKLOAD_SKEW(1),
+
+		/**
+		 * The size of a batch for creating group at test initiation time.
+		 */
+		BATCH_CREATION_SIZE(1000),
+		
+		/**
+		 * 
+		 */
+		BATCH_CREATION_ENABLED(true), ;
 
 		final Object defaultValue;
 
@@ -330,13 +340,14 @@ public class TESTPaxosConfig {
 			.getGlobalInt(TC.NUM_NODES)];
 
 	private static void setupGroups() {
-		defaultGroup = new int[Math.min(Config.getGlobalInt(TC.GROUP_SIZE), Config.getGlobalInt(TC.NUM_NODES))];
+		defaultGroup = new int[Math.min(Config.getGlobalInt(TC.GROUP_SIZE),
+				Config.getGlobalInt(TC.NUM_NODES))];
 		assert (defaultGroup.length > 0) : Config.getGlobalInt(TC.NUM_NODES);
 		for (int i = 0; i < defaultGroup.length; i++)
 			defaultGroup[i] = Config.getGlobalInt(TC.TEST_START_NODE_ID) + i;
 
 		setDefaultGroups(Config.getGlobalInt(TC.PRE_CONFIGURED_GROUPS));
-//		setDefaultGroups(Config.getGlobalInt(TC.NUM_GROUPS));
+		// setDefaultGroups(Config.getGlobalInt(TC.NUM_GROUPS));
 	}
 
 	// replies directly sendable by paxos via InterfaceClientRequest

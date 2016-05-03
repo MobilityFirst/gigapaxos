@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -37,8 +39,8 @@ public class SQL {
 	 * These values are intentionally not configurable using gigapaxos.properties.
 	 * We might support them using System command-line properties in the future.
 	 */
-	private static final String USER = "root";
-	private static final String PASSWORD = "gnsRoot";
+	private static final String USER = Config.getGlobalString(PC.DB_USER); //"root";
+	private static final String PASSWORD = Config.getGlobalString(PC.DB_PASSWORD); //"gnsRoot";
 
 	/**
 	 *

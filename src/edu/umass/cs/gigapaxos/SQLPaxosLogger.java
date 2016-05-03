@@ -976,8 +976,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					else if (PAUSABLE_INDEX_JOURNAL)
 						this.messageLog.add(packets[i].logMsg,
 								this.journaler.curLogfile,
-								this.journaler.curLogfileSize, bytes.length)
-								;
+								this.journaler.curLogfileSize, bytes.length);
 					if (USE_MAP_DB && Util.oneIn(1000))
 						this.mapDB.dbMemory.commit();
 					SQLPaxosLogger.this.journaler.appendToLogFile(bbuf.array(),
@@ -1380,7 +1379,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			} else
 				insertCP.setString(6, state);
 			insertCP.setLong(7, createTime);
-			insertCP.setString(8, minLogfile = this.getSetGCAndGetMinLogfile(paxosID, version, slot - acceptedGCSlot < 0 ? slot : acceptedGCSlot));
+			insertCP.setString(
+					8,
+					minLogfile = this.getSetGCAndGetMinLogfile(paxosID,
+							version, slot - acceptedGCSlot < 0 ? slot
+									: acceptedGCSlot));
 			insertCP.setString(9, paxosID);
 			insertCP.executeUpdate();
 			// conn.commit();
@@ -1390,12 +1393,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			// why can't insertCP.toString() return the query string? :/
 			if (shouldLogCheckpoint())
 				log.log(Level.INFO,
-						"{0} checkpointed ({1}:{2}, {3}{4}, {5}, ({6}, {7}) [{8}]) in {9} ms",
+						"{0} checkpointed ({1}:{2}, {3}, <{4}, {5}>, ({6}, {7}) [{8}]) in {9} ms",
 						new Object[] {
 								this,
 								paxosID,
 								version,
-								Util.toJSONString(group).substring(0, 0),
+								(group),
 								slot,
 								ballot,
 								acceptedGCSlot,
@@ -1433,7 +1436,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		 * least 2x the number of connections as concurrently active paxosIDs.
 		 * Realized this the hard way. :) */
 		if (ENABLE_JOURNALING && PAUSABLE_INDEX_JOURNAL)
-			this.messageLog.setGCSlot(paxosID, version, slot - acceptedGCSlot < 0 ? slot : acceptedGCSlot);
+			this.messageLog.setGCSlot(paxosID, version,
+					slot - acceptedGCSlot < 0 ? slot : acceptedGCSlot);
 		else if (Util.oneIn(getLogGCFrequency()) && this.incrNumGCs() == 0) {
 			Runnable gcTask = new TimerTask() {
 				@Override
@@ -1576,8 +1580,12 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				} else
 					insertCP.setString(6, task.state);
 				insertCP.setLong(7, task.createTime);
-				insertCP.setString(8,
-						minLogfile = this.getSetGCAndGetMinLogfile(task.paxosID, task.version, task.slot - task.gcSlot < 0 ? task.slot : task.gcSlot));
+				insertCP.setString(
+						8,
+						minLogfile = this.getSetGCAndGetMinLogfile(
+								task.paxosID, task.version, task.slot
+										- task.gcSlot < 0 ? task.slot
+										: task.gcSlot));
 				insertCP.setString(9, task.paxosID);
 				insertCP.addBatch();
 				batch.add(i);
@@ -1589,8 +1597,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 									this,
 									task.paxosID,
 									task.version,
-									Util.toJSONString(task.members).substring(
-											0, 0),
+									(task.members),
 									task.slot,
 									task.ballot,
 									task.gcSlot,
@@ -2657,7 +2664,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			minLogfile = this.journaler.curLogfile;
 		return minLogfile;
 	}
-	private String getSetGCAndGetMinLogfile(String paxosID, int version, int acceptedGCSlot) {
+
+	private String getSetGCAndGetMinLogfile(String paxosID, int version,
+			int acceptedGCSlot) {
 		this.messageLog.setGCSlot(paxosID, version, acceptedGCSlot);
 		String minLogfile = this.messageLog.getMinLogfile(paxosID);
 		if (minLogfile == null)
@@ -3214,7 +3223,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		for (Filename candidate : candidates)
 			if (minLogfilename.compareTo(candidate) <= 0)
 				activeLogfiles.add(candidate.file.toString());
-		log.log(Level.INFO, "{0} found min_logfile={1}; returning activeLogFiles={2}", new Object[]{this, minLogfilename, activeLogfiles});
+		log.log(Level.INFO,
+				"{0} found min_logfile={1}; returning activeLogFiles={2}",
+				new Object[] { this, minLogfilename, activeLogfiles });
 		return activeLogfiles;
 	}
 
@@ -3231,8 +3242,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			// never try to compact the current log file
 			if (logfile.toString().equals(this.journaler.curLogfile))
 				break;
-			log.log(Level.INFO, "{0} attempting to compact logfile {1}", new Object[] {
-					this, logfile });
+			log.log(Level.FINE, "{0} attempting to compact logfile {1}",
+					new Object[] { this, logfile });
 			try {
 				compactLogfile(logfile, this.getPacketizer(), this.messageLog,
 						this.journaler.fidMap);
@@ -3360,7 +3371,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			synchronized (msgLog) {
 				modifyLogfileAndLogIndex(file, tmpFile, logIndexEntries,
 						msgLog, fidMap);
-				log.log(Level.INFO, "{0} compacted logfile {1}", new Object[]{msgLog, file});
+				log.log(Level.INFO, "{0} compacted logfile {1}", new Object[] {
+						msgLog, file });
 			}
 		else if (!neededAtAll) {
 			log.log(Level.INFO,

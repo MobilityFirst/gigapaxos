@@ -411,6 +411,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				}
 				if (removedKey != null)
 					entryAsMap.put(removedKey, value);
+				return entryAsMap;
 			}
 		}
 		return null;

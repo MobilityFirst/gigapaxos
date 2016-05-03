@@ -522,8 +522,8 @@ public class PaxosManager<NodeIDType> {
 				initialState, null, true) != null;
 	}
 
-	private synchronized PaxosInstanceStateMachine createPaxosInstance(
-			String paxosID, int version, Set<NodeIDType> gms, Replicable app,
+	private PaxosInstanceStateMachine createPaxosInstance(String paxosID,
+			int version, Set<NodeIDType> gms, Replicable app,
 			String initialState, HotRestoreInfo hri, boolean tryRestore) {
 		return this.createPaxosInstance(paxosID, version, gms, app,
 				initialState, hri, tryRestore, false);
@@ -531,34 +531,87 @@ public class PaxosManager<NodeIDType> {
 
 	private static final boolean SNEAKY_BATCH_CREATION = true;
 
+	private void waitPinstancesSize() {
+		while (this.pinstances.size() >= this.pinstances.capacity()) {
+			synchronized (this.pinstances) {
+				try {
+					this.pinstances.wait();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
 	/**
 	 * @param nameStates
 	 * @param gms
 	 * @return True if all successfully created.
 	 */
-	public synchronized boolean createPaxosInstance(
-			Map<String, String> nameStates, Set<NodeIDType> gms) {
-		int[] members = Util.setToIntArray(this.integerMap.put(gms));
-		log.log(Level.INFO,
-				"{0} batch-inserting initial checkpoints for {1} names: {2}",
-				new Object[] { this, nameStates.size(), nameStates });
-		if (SNEAKY_BATCH_CREATION)
-			this.paxosLogger.insertInitialCheckpoints(nameStates,
-					Util.setToStringSet(gms), members);
-		boolean created = true;
-		for (String name : nameStates.keySet()) {
-			assert (nameStates.get(name) != null);
-			created = created
-					&& (SNEAKY_BATCH_CREATION ? this.createPaxosInstance(name,
-							0, gms, this.myApp, nameStates.get(name),
-							HotRestoreInfo.createHRI(name, members,
-									PaxosInstanceStateMachine
-											.roundRobinCoordinator(name,
-													members, 0)), false) : this
-							.createPaxosInstance(name, gms,
-									nameStates.get(name))) != null;
+	public boolean createPaxosInstance(Map<String, String> nameStates,
+			Set<NodeIDType> gms) {
+		waitPinstancesSize();
+		synchronized (this) {
+			int[] members = Util.setToIntArray(this.integerMap.put(gms));
+			log.log(Level.INFO,
+					"{0} batch-inserting initial checkpoints for {1} names: {2}",
+					new Object[] { this, nameStates.size(),
+							Util.truncatedLog(nameStates.entrySet(), 8) });
+			if (SNEAKY_BATCH_CREATION)
+				this.paxosLogger.insertInitialCheckpoints(nameStates,
+						Util.setToStringSet(gms), members);
+			boolean created = true;
+			for (String name : nameStates.keySet()) {
+				assert (nameStates.get(name) != null);
+				created = created
+						&& (SNEAKY_BATCH_CREATION ? this.createPaxosInstance(
+								name, 0, gms, this.myApp, nameStates.get(name),
+								HotRestoreInfo.createHRI(name, members,
+										PaxosInstanceStateMachine
+												.roundRobinCoordinator(name,
+														members, 0)), false)
+								: this.createPaxosInstance(name, gms,
+										nameStates.get(name))) != null;
+			}
+			return created;
 		}
-		return created;
+	}
+
+	private PaxosInstanceStateMachine createPaxosInstance(String paxosID,
+			int version, Set<NodeIDType> gms, Replicable app,
+			String initialState, HotRestoreInfo hri, boolean tryRestore,
+			boolean missedBirthing) {
+		this.waitPinstancesSize();
+		return this.createPaxosInstanceFinal(paxosID, version, gms, app,
+				initialState, hri, tryRestore, missedBirthing);
+	}
+
+	private long totalInstancesCreated = 0;
+	private long totalInstancesKilled = 0;
+	private boolean totalInstancesChanged = false;
+
+	private synchronized long getNumInstances() {
+		totalInstancesChanged = false;
+		return totalInstancesCreated - totalInstancesKilled;
+	}
+
+	private synchronized long getNumInstancesAndResetChanged() {
+		totalInstancesChanged = false;
+		return this.getNumInstances();
+	}
+
+	private synchronized long getNumCreated() {
+		return totalInstancesCreated;
+	}
+
+	private synchronized long incrCreated() {
+		totalInstancesChanged = true;
+		return ++totalInstancesCreated;
+	}
+
+	private synchronized long incrKilled() {
+		totalInstancesChanged = true;
+		return ++totalInstancesKilled;
 	}
 
 	/* Synchronized in order to prevent duplicate instance creation under
@@ -567,7 +620,7 @@ public class PaxosManager<NodeIDType> {
 	 * 
 	 * private because it ensures that initialState!=null and missedBirthing are
 	 * not both true. */
-	private synchronized PaxosInstanceStateMachine createPaxosInstance(
+	private synchronized PaxosInstanceStateMachine createPaxosInstanceFinal(
 			String paxosID, int version, Set<NodeIDType> gms, Replicable app,
 			String initialState, HotRestoreInfo hri, boolean tryRestore,
 			boolean missedBirthing) {
@@ -614,6 +667,7 @@ public class PaxosManager<NodeIDType> {
 		}
 
 		pinstances.put(paxosID, pism);
+		incrCreated();
 		this.notifyUponCreation();
 		assert (this.getInstance(paxosID, false, false) != null);
 		log.log(Level.FINE,
@@ -706,8 +760,8 @@ public class PaxosManager<NodeIDType> {
 		public boolean handleMessage(JSONObject jsonMsg) {
 			try {
 				PaxosManager.log.log(Level.FINEST,
-						"{0} packet json demultiplexer received {1}", new Object[] {
-								PaxosManager.this, jsonMsg });
+						"{0} packet json demultiplexer received {1}",
+						new Object[] { PaxosManager.this, jsonMsg });
 				PaxosManager.this
 						.handleIncomingPacket(edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexer
 								.toPaxosPacket(fixNodeStringToInt(jsonMsg),
@@ -770,7 +824,8 @@ public class PaxosManager<NodeIDType> {
 
 		public FastDemultiplexer(int numThreads, boolean clientFacing) {
 			super(numThreads);
-			this.setThreadName(PaxosManager.this.intToString(myID) + (clientFacing ? "-clientFacing" : ""));
+			this.setThreadName(PaxosManager.this.intToString(myID)
+					+ (clientFacing ? "-clientFacing" : ""));
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 		}
 
@@ -780,7 +835,7 @@ public class PaxosManager<NodeIDType> {
 
 		public boolean handleMessage(Object msg) {
 			// long t = System.nanoTime();
-			assert(msg!=null);
+			assert (msg != null);
 			if (msg instanceof net.minidev.json.JSONObject)
 				try {
 					PaxosPacketType type = null;
@@ -794,9 +849,11 @@ public class PaxosManager<NodeIDType> {
 									PaxosManager.this.unstringer);
 					Level level = type == PaxosPacketType.REQUEST ? Level.FINE
 							: Level.FINEST;
-					PaxosManager.log.log(level,
+					PaxosManager.log.log(
+							level,
 							"{0} packet fast demultiplexer received {1}",
-							new Object[] { PaxosManager.this, pp.getSummary(log.isLoggable(level)) });
+							new Object[] { PaxosManager.this,
+									pp.getSummary(log.isLoggable(level)) });
 
 					if (PaxosMessenger.INSTRUMENT_SERIALIZATION
 							&& Util.oneIn(100))
@@ -818,17 +875,19 @@ public class PaxosManager<NodeIDType> {
 				PaxosPacketType type = ((PaxosPacket) msg).getType();
 				Level level = (type == PaxosPacketType.REQUEST ? Level.FINE
 						: Level.FINEST);
-				PaxosManager.log.log(
-						level,
-						"{0} packet fast-byte demultiplexer received {1} {2}",
-						new Object[] {
-								PaxosManager.this,
-								((PaxosPacket) msg).getSummary(
-										//log.isLoggable(level)
-										), msg instanceof RequestPacket && 
-										(((RequestPacket)msg).getEntryReplica()==PaxosManager.this.myID
-										|| ((RequestPacket)msg).getEntryReplica()==IntegerMap.NULL_INT_NODE)
-										? "from client" :""});
+				PaxosManager.log
+						.log(level,
+								"{0} packet fast-byte demultiplexer received {1} {2}",
+								new Object[] {
+										PaxosManager.this,
+										((PaxosPacket) msg).getSummary(
+										// log.isLoggable(level)
+												),
+										msg instanceof RequestPacket
+												&& (((RequestPacket) msg)
+														.getEntryReplica() == PaxosManager.this.myID || ((RequestPacket) msg)
+														.getEntryReplica() == IntegerMap.NULL_INT_NODE) ? "from client"
+												: "" });
 
 				/* FIXME: Need to fixNodeStringToInt. Unclear how to do the
 				 * reverse efficiently while sending out messages. So we
@@ -880,8 +939,8 @@ public class PaxosManager<NodeIDType> {
 			.getGlobalBoolean(PC.BATCHING_ENABLED);
 
 	private void handleIncomingPacket(PaxosPacket pp) {
-		//if (pp.getType() == PaxosPacket.PaxosPacketType.REQUEST)
-			//((RequestPacket) pp).setEntryReplicaAndReturnCount(myID);
+		// if (pp.getType() == PaxosPacket.PaxosPacketType.REQUEST)
+		// ((RequestPacket) pp).setEntryReplicaAndReturnCount(myID);
 
 		if (pp.getType() == PaxosPacketType.BATCHED_PAXOS_PACKET)
 			for (PaxosPacket packet : ((BatchedPaxosPacket) pp)
@@ -1296,8 +1355,10 @@ public class PaxosManager<NodeIDType> {
 								 * the system with request load. */
 								(Config.getGlobalString(PC.JSON_LIBRARY)
 										.equals("org.json") ? new JSONDemultiplexer(
-										0, true) : new FastDemultiplexer(Config.getGlobalInt(PC.CLIENT_DEMULTIPLEXER_THREADS),
-										true)),
+										0, true)
+										: new FastDemultiplexer(
+												Config.getGlobalInt(PC.CLIENT_DEMULTIPLEXER_THREADS),
+												true)),
 								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 										.getGlobalString(PC.CLIENT_SSL_MODE))
 										: SSL_MODES.CLEAR));
@@ -1934,6 +1995,7 @@ public class PaxosManager<NodeIDType> {
 		while (!pism.kill(clean))
 			log.severe("Problem stopping paxos instance " + pism.getPaxosID()
 					+ ":" + pism.getVersion());
+		incrKilled();
 		this.softCrash(pism);
 		this.corpses.put(pism.getPaxosID(), pism);
 		executor.schedule(new Cremator(pism.getPaxosID(), this.corpses),
@@ -2329,12 +2391,8 @@ public class PaxosManager<NodeIDType> {
 		notifyAll();
 	}
 
-	private final Object createLock = new Object();
-
 	protected synchronized void notifyUponCreation() {
-		synchronized (this.createLock) {
-			notifyAll();
-		}
+		notifyAll();
 	}
 
 	/**
@@ -2525,7 +2583,7 @@ public class PaxosManager<NodeIDType> {
 		}
 	}
 
-	private static final int FORCE_PAUSE_FACTOR = 20;
+	private static final int FORCE_PAUSE_FACTOR = 10;
 	private static final double PAUSE_RATE_LIMIT = Config
 			.getGlobalDouble(PC.PAUSE_RATE_LIMIT);
 
@@ -2553,7 +2611,7 @@ public class PaxosManager<NodeIDType> {
 		log.log(Level.FINE,
 				"{0} initiating deactivation attempt, |activePaxii| = {1}",
 				new Object[] { this, this.pinstances.size() });
-		ArrayList<String> paused = new ArrayList<String>();
+		int numPaused = 0;
 		Map<String, PaxosInstanceStateMachine> batch = new HashMap<String, PaxosInstanceStateMachine>();
 
 		// cuckoo hashmap now supports an efficient iterator
@@ -2564,10 +2622,9 @@ public class PaxosManager<NodeIDType> {
 			String paxosID = pism.getPaxosID();
 
 			if (pism.isLongIdle()
-					// if size > capacity/2, pause 1/FORCE_PAUSE_FACTOR fraction
-					|| (this.pinstances.size() > this.pinstances.capacity() / 2 && paused
-							.size() < this.pinstances.capacity()
-							/ FORCE_PAUSE_FACTOR)) {
+			// if size > capacity/2, pause 1/FORCE_PAUSE_FACTOR fraction
+					|| (this.pinstances.size() > this.pinstances.capacity() / 2 && numPaused < this.pinstances
+							.capacity() / FORCE_PAUSE_FACTOR)) {
 				log.log(Level.FINER, "{0} trying to pause {1} [{2}]",
 						new Object[] { this, paxosID, pism });
 				/* The sync below ensures that, at least once every deactivation
@@ -2619,35 +2676,47 @@ public class PaxosManager<NodeIDType> {
 				 * number of paxos instances in the first place. */
 				this.syncPaxosInstance(pism, false);
 				// rate limit if well under capacity
-				if (this.pinstances.size() < this.pinstances.capacity() / 2)
+				if (this.pinstances.size() < this.pinstances.capacity()
+						/ FORCE_PAUSE_FACTOR)
 					rateLimiter.record();
-				// if (pause(pism)!=null) paused.add(paxosID);
 				batch.put(pism.getPaxosID(), pism);
 				if (batch.size() >= PAUSE_BATCH_SIZE) {
 					Set<String> batchPaused = pause(batch, true);
 					if (batchPaused != null)
-						paused.addAll(batchPaused);
+						numPaused += batchPaused.size();
 					log.log(Level.FINE, "{0} paused {1}", new Object[] { this,
 							batchPaused });
+					this.printPauseLog(batchPaused);
 					batch.clear();
 				}
 			}
 		}
-		if (!batch.isEmpty())
-			paused.addAll(this.pause(batch, true));
+		if (!batch.isEmpty()) {
+			this.printPauseLog(this.pause(batch, true));
+		}
 		DelayProfiler.updateDelay("deactivation", t0);
-		log.log(paused.size() > 0 ? Level.INFO : Level.FINE,
-				"{0} deactivated {1} idle instances {2}; has {3} active instances; average_pause_delay = {4};"
-						+ " average_deactivation_delay = {5}",
+	}
+
+	private void printPauseLog(Collection<String> paused) {
+		// can not call synchronized methods inside log statements
+		long totalCreated = this.getNumCreated();
+		long totalCurrent = this.getNumInstancesAndResetChanged();
+		
+		log.log(paused.size() > 0 || this.totalInstancesChanged ? Level.INFO
+				: Level.FINE,
+				"{0} deactivated {1} idle instances {2}; has {3} active instances{4}; avg_pause_delay = {5};"
+						+ " avg_deactivation_loop_delay = {6}; total_instances_created = {7}; total_current_instances = {8}",
 				new Object[] {
 						this,
 						paused.size(),
 						Util.truncatedLog(paused, PRINT_LOG_SIZE),
+						this.pinstances.size(),
 						this.pinstances.size() < 10 ? Arrays
 								.asList(this.pinstances.keySet().toArray())
-								: this.pinstances.size(),
-						Util.nmu(DelayProfiler.get("pause")),
-						Util.ms(DelayProfiler.get("deactivation")) });
+								: "", Util.nmu(DelayProfiler.get("pause")),
+						Util.ms(DelayProfiler.get("deactivation")),
+						totalCreated,
+						totalCurrent});
 	}
 
 	private static final int PRINT_LOG_SIZE = 16;
@@ -2677,7 +2746,11 @@ public class PaxosManager<NodeIDType> {
 	 * i.e., swaps safety-critical paxos state to disk. */
 	private class Deactivator implements Runnable {
 		public void run() {
-			Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
+			/* There is a good reason not to slow down this thread as that will
+			 * essentially slow down the rate of group creation. Groups can at
+			 * most be created as fast as they can be paused, otherwise we will
+			 * run out of memory. */
+			// Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
 			try {
 				syncAndDeactivate();
 			} catch (Exception e) {
@@ -2822,8 +2895,9 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public static Logger getLogger() {
 		return log
-				//Logger.getLogger(PaxosManager.class.getName().replace("PaxosManager", ""))
-				;
+		// Logger.getLogger(PaxosManager.class.getName().replace("PaxosManager",
+		// ""))
+		;
 	}
 
 	private void testingInitialization() {

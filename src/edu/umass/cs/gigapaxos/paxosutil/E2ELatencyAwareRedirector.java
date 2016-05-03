@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,9 +37,22 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 	 */
 	public static final double PROBE_RATIO = 0.05;
 	static final long MIN_PROBE_TIME = 10 * 1000; // 10s
+	private static final int MAX_ENTRIES = 256;
 
-	final ConcurrentHashMap<InetSocketAddress, Double> e2eLatencies = new ConcurrentHashMap<InetSocketAddress, Double>();
-	final ConcurrentHashMap<InetSocketAddress, Long> lastProbed = new ConcurrentHashMap<InetSocketAddress, Long>();
+	@SuppressWarnings("serial")
+	final LinkedHashMap<InetSocketAddress, Double> e2eLatencies = new LinkedHashMap<InetSocketAddress, Double>() {
+		protected boolean removeEldestEntry(
+				@SuppressWarnings("rawtypes") Map.Entry eldest) {
+			return size() > MAX_ENTRIES;
+		}
+	};
+	@SuppressWarnings("serial")
+	final LinkedHashMap<InetSocketAddress, Long> lastProbed = new LinkedHashMap<InetSocketAddress, Long>() {
+		protected boolean removeEldestEntry(
+				@SuppressWarnings("rawtypes") Map.Entry eldest) {
+			return size() > MAX_ENTRIES;
+		}
+	};
 	final InetSocketAddress myAddress;
 	private double probeRatio = PROBE_RATIO;
 	private long minProbeTime = MIN_PROBE_TIME;

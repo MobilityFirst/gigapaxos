@@ -1,5 +1,6 @@
 package edu.umass.cs.utils;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
@@ -25,8 +26,8 @@ public class DiskMapTest extends DefaultTest {
 	private static class KeyableString extends LogIndex implements
 			Keyable<String> {
 		/**
-	* 
-	*/
+		 * 
+		 */
 		private static final long serialVersionUID = 1L;
 		final String key;
 
@@ -44,11 +45,67 @@ public class DiskMapTest extends DefaultTest {
 		}
 	}
 
+	private static DiskMap<String, KeyableString> makeTestMap() {
+		int dbSize = 4000 * 1000;
+		ConcurrentHashMap<String, KeyableString> db = new ConcurrentHashMap<String, KeyableString>(
+				dbSize);
+		boolean sleep = false;
+		int capacity = 1000000;
+		DiskMap<String, KeyableString> dmap = new DiskMap<String, KeyableString>(
+				capacity) {
+
+			@Override
+			public Set<String> commit(Map<String, KeyableString> toCommit)
+					throws IOException {
+				try {
+					if (sleep)
+						Thread.sleep(toCommit.size());
+					for (String key : toCommit.keySet()) {
+						if (toCommit.get(key) == null) {
+							db.remove(key);
+							toCommit.remove(key);
+						}
+					}
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				db.putAll(toCommit);
+				return new HashSet<String>(toCommit.keySet());
+			}
+
+			@Override
+			public KeyableString restore(String key) throws IOException {
+				try {
+					if (sleep)
+						Thread.sleep(1);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				return db.get(key);
+			}
+		};
+		return dmap;
+	}
+
 	/**
-* 
-*/
+	 * 
+	 */
 	@Test
-	public void testMain() {
+	public void test01_Remove() {
+		DiskMap<String, KeyableString> dmap = makeTestMap();
+		String key1 = "key1";
+		KeyableString val1 = new KeyableString("value1");
+		dmap.put(key1, val1);
+		Assert.assertEquals(dmap.get("key1"), val1);
+		dmap.remove(key1);
+		Assert.assertTrue(!dmap.containsKey(key1));
+	}
+
+	/**
+	 * 
+	 */
+	@Test
+	public void test99_Main() {
 		int dbSize = 4000 * 1000;
 		ConcurrentHashMap<String, KeyableString> db = new ConcurrentHashMap<String, KeyableString>(
 				dbSize);

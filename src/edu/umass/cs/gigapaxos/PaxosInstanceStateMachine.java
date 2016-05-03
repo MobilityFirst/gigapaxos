@@ -1878,7 +1878,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					// getPaxosID(), hri.toString()))
 					this.forceStop();
 				} else
-					log.log(Level.FINE,
+					log.log(Level.INFO,
 							"{0} not pausing because it is not caught up: {1} {2}",
 							new Object[] { this, this.paxosState,
 									this.coordinator });
