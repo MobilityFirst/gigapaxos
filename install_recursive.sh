@@ -40,7 +40,7 @@ local_jar_files=dist/$package_name-[0-9].[0-9]*.jar
 # local_install_dir.
 transfer_list="$local_jar_files\
   gigapaxos.properties testing.properties\
-  logging.properties tests bin 590cc"
+  logging.properties tests bin"
 
 # disabling warnings to prevent manual override; can supply ssh keys
 # here if needed, but they must be the same on the local host and on

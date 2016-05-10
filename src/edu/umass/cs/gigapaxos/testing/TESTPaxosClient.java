@@ -605,8 +605,10 @@ public class TESTPaxosClient {
 			IOException, InterruptedException, ExecutionException {
 		System.out.print("\nTesting " + "[#requests=" + numReqs
 				+ ", request_size=" + gibberish.length() + "B, #clients="
-				+ clients.length + ", #groups=" + NUM_GROUPS_CLIENT + ", load="
-				+ Util.df(load) + "/s" + "]"
+				+ clients.length + ", #groups=" + NUM_GROUPS_CLIENT
+				+ ", #total_groups=" + Config.getGlobalInt(TC.NUM_GROUPS)
+				+ ", group_size=" + Config.getGlobalInt(TC.GROUP_SIZE)
+				+ ", load=" + Util.df(load) + "/s" + "]"
 				+ (Config.getGlobalBoolean(TC.PROBE_CAPACITY) ? "" : "\n"));
 
 		Future<?>[] futures = new Future<?>[SEND_POOL_SIZE];
@@ -655,8 +657,9 @@ public class TESTPaxosClient {
 				+ Util.df(mostRecentSentRate) + "/s" + " \n " + reqCounts);
 
 	}
-	
-	private static final int WORKLOAD_SKEW = Config.getGlobalInt(TC.WORKLOAD_SKEW);
+
+	private static final int WORKLOAD_SKEW = Config
+			.getGlobalInt(TC.WORKLOAD_SKEW);
 
 	private static final int NUM_CLIENTS = Config.getGlobalInt(TC.NUM_CLIENTS);
 	private static double mostRecentSentRate = 0;

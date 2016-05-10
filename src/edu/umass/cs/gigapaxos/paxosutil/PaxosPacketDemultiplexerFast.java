@@ -79,15 +79,15 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		if (type == null)
 			fatal(bytes);
 
-		//bbuf = ByteBuffer.wrap(bytes);
+		// bbuf = ByteBuffer.wrap(bytes);
 		bbuf.rewind();
 
 		PaxosPacket paxosPacket = null;
 		switch (type) {
 		case REQUEST:
-//			log.info("before new RequestPacket(ByteBuffer)");
+			// log.info("before new RequestPacket(ByteBuffer)");
 			paxosPacket = new RequestPacket(bbuf);
-//			log.info("after new RequestPacket(ByteBuffer)");
+			// log.info("after new RequestPacket(ByteBuffer)");
 			break;
 		case ACCEPT:
 			paxosPacket = new AcceptPacket(bbuf);
@@ -264,7 +264,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				}
 			}
 			try {
-				PaxosPacket pp = toPaxosPacket(bytes);				
+				PaxosPacket pp = toPaxosPacket(bytes);
 				if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(100)) {
 					if (pp.getType() == PaxosPacketType.REQUEST)
 						DelayProfiler.updateDelayNano("<-request", t);
@@ -306,8 +306,13 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		return retval;
 	}
 
+	private final boolean ORDER_PRESERVING_REQUESTS = Config
+			.getGlobalBoolean(PC.ORDER_PRESERVING_REQUESTS);
+
 	@Override
 	public boolean isOrderPreserving(Object msg) {
+		if (!ORDER_PRESERVING_REQUESTS)
+			return false;
 		if (msg instanceof PaxosPacket)
 			return ((PaxosPacket) msg).getType() == PaxosPacketType.REQUEST;
 

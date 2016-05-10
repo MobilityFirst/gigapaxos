@@ -819,7 +819,7 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		LOG_DISKMAP_CAPACITY(128 * 1024),
+		LOG_DISKMAP_CAPACITY(Config.getGlobalInt(PINSTANCES_CAPACITY)),
 
 		/**
 		 * 
