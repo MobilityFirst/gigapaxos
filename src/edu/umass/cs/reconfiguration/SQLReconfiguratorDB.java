@@ -222,12 +222,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		PreparedStatement pstmt = null;
 		Connection conn = null;
 		Set<String> committed = new HashSet<String>();
-		ReconfigurationRecord<?>[] values = toCommit.values().toArray(
-				new ReconfigurationRecord[0]);
+		String[] keys = toCommit.keySet().toArray(
+				new String[0]);
 		try {
 			ArrayList<String> batch = new ArrayList<String>();
-			for (int i = 0; i < values.length; i++) {
-				String name = values[i].getName();
+			for (int i = 0; i < keys.length; i++) {
+				String name = keys[i];
 				if (conn == null) {
 					conn = this.getDefaultConn();
 					conn.setAutoCommit(false);

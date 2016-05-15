@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationprotocoltasks;
 
 import java.util.Arrays;
@@ -44,22 +42,18 @@ import edu.umass.cs.utils.Util;
  * @author V. Arun
  * @param <NodeIDType>
  */
-/*
- * This protocol task is initiated at a reconfigurator to await a majority of
- * acknowledgments from active replicas for StopEpoch messages.
- */
+/* This protocol task is initiated at a reconfigurator to await a majority of
+ * acknowledgments from active replicas for StopEpoch messages. */
 public class WaitAckDropEpoch<NodeIDType>
 		extends
 		ThresholdProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 
-	/*
-	 * We use different restart times for service names and RC group names as RC
+	/* We use different restart times for service names and RC group names as RC
 	 * group names may have much more variance in checkpoint transfer times.
 	 * Setting these values too low or too high will not impact safety. However,
 	 * too low values may result in inefficient, remote checkpoint transfers
 	 * while too high values may result in a large number of pending tasks
-	 * consuming memory.
-	 */
+	 * consuming memory. */
 	private static final long RESTART_PERIOD_SERVICE_NAMES = 4 * WaitAckStopEpoch.RESTART_PERIOD;
 	private static final long RESTART_PERIOD_RC_GROUP_NAMES = 16 * WaitAckStopEpoch.RESTART_PERIOD;
 	private static final long RESTART_PERIOD_NC_CHANGE = WaitAckStopEpoch.RESTART_PERIOD;
@@ -92,20 +86,18 @@ public class WaitAckDropEpoch<NodeIDType>
 	public WaitAckDropEpoch(StartEpoch<NodeIDType> startEpoch,
 			Set<NodeIDType> prevGroup,
 			RepliconfigurableReconfiguratorDB<NodeIDType> DB) {
-		/*
-		 * For node config changes, we require all *new* epoch replicas to
+		/* For node config changes, we require all *new* epoch replicas to
 		 * acknowledge "deleting" the previous epoch's final state. The final
 		 * state deletion is unnecessary, but we special case node config
 		 * changes so that only reconfigurators that have fully completed the
 		 * transition to the next epoch will respond positively to "dropping"
 		 * the previous epoch state. This allows the initiating node to know if
-		 * all current reconfigurators are current.
-		 */
+		 * all current reconfigurators are current. */
 		super(startEpoch.isRCNodeConfigChange() ? startEpoch.getCommonMembers()
 				: prevGroup != null ? prevGroup : startEpoch
 						.getPrevEpochGroup());
 		assert (prevGroup == null || !prevGroup.isEmpty());
-		assert(!DB.isRCGroupName(startEpoch.getServiceName()) );
+		assert (!DB.isRCGroupName(startEpoch.getServiceName()));
 		// use prevGroup if one specified
 		this.prevGroup = prevGroup != null ? new HashSet<NodeIDType>(prevGroup)
 				: new HashSet<NodeIDType>();
@@ -149,7 +141,7 @@ public class WaitAckDropEpoch<NodeIDType>
 						startEpoch.isRCNodeConfigChange() ? startEpoch
 								.getCommonMembers() : this.prevGroup,
 						this.ackers, this.waitfor.getResponded() });
-		
+
 		if ((// have something to drop in the first place
 				this.startEpoch.hasPrevEpochGroup()
 						&& !this.prevGroup.isEmpty()
@@ -158,12 +150,10 @@ public class WaitAckDropEpoch<NodeIDType>
 				// time limit on restarts to prevent ghost final state deletion
 				&& System.currentTimeMillis() - this.creationTime < ReconfigurationConfig
 						.getMaxFinalStateAge())
-				/*
-				 * Or is node config change coz these drop epoch tasks are meant
+				/* Or is node config change coz these drop epoch tasks are meant
 				 * to ensure that all reconfigurators have completed the node
 				 * config change, so they must go on for ever in order to be
-				 * able to respond bacj with success to the client.
-				 */
+				 * able to respond bacj with success to the client. */
 				|| startEpoch.isNodeConfigChange()) {
 			return (new GenericMessagingTask<NodeIDType, DropEpochFinalState<NodeIDType>>(
 					startEpoch.isRCNodeConfigChange() ? this.startEpoch
@@ -192,7 +182,10 @@ public class WaitAckDropEpoch<NodeIDType>
 	 */
 	@Override
 	public GenericMessagingTask<NodeIDType, ?>[] start() {
-		return null;
+		if (!this.startEpoch.hasCurEpochGroup())
+			return this.restart();
+		else
+			return null;
 	}
 
 	/**

@@ -623,9 +623,13 @@ public class Reconfigurator<NodeIDType> implements
 				if (handled)
 					this.garbageCollectPendingTasks(rcRecReq);
 			}
-		} else
+		} else {
+			log.log(rcRecReq.isReconfigurationPrevDropComplete() ? Level.INFO : Level.FINE, "{0} coordinating {1}", new
+					Object[]{this, rcRecReq.getSummary((
+							rcRecReq.isReconfigurationPrevDropComplete() ? Level.INFO : Level.FINE))});
 			// commit until committed by default
 			this.repeatUntilObviated(rcRecReq);
+		}
 
 		return mtask != null ? mtask.toArray() : null;
 	}

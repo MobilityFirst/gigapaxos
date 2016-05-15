@@ -977,8 +977,8 @@ public class TESTPaxosClient {
 	public static void main(String[] args) {
 		try {
 			TESTPaxosConfig.setConsoleHandler(Level.WARNING);
-			NIOTransport.setUseSenderTask(Config
-					.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));
+//			NIOTransport.setUseSenderTask(Config
+//					.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));
 			TESTPaxosConfig.setDistribtedTest();
 
 			TESTPaxosClient[] clients = TESTPaxosClient
