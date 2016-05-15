@@ -77,7 +77,7 @@ public class TESTPaxosConfig {
 	/**
 	 * Gigapaxos testing config parameters.
 	 */
-	public static enum TC implements Config.DefaultValueEnum {
+	public static enum TC implements Config.ConfigurableEnum {
 
 		/**
 		 * 
@@ -250,7 +250,7 @@ public class TESTPaxosConfig {
 		 * The size of a batch for creating group at test initiation time.
 		 */
 		BATCH_CREATION_SIZE(1000),
-		
+
 		/**
 		 * 
 		 */
@@ -265,6 +265,16 @@ public class TESTPaxosConfig {
 		@Override
 		public Object getDefaultValue() {
 			return this.defaultValue;
+		}
+
+		@Override
+		public String getDefaultConfigFile() {
+			return DEFAULT_TESTING_CONFIG_FILE;
+		}
+
+		@Override
+		public String getConfigFileKey() {
+			return TESTING_CONFIG_FILE_KEY;
 		}
 	}
 

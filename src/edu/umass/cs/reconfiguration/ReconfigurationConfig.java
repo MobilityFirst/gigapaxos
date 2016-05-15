@@ -102,7 +102,7 @@ public class ReconfigurationConfig {
 	/**
 	 * Reconfiguration config parameters.
 	 */
-	public static enum RC implements Config.DefaultValueEnum {
+	public static enum RC implements Config.ConfigurableEnum {
 		/**
 		 * 
 		 */
@@ -311,6 +311,16 @@ public class ReconfigurationConfig {
 		@Override
 		public Object getDefaultValue() {
 			return this.defaultValue;
+		}
+
+		@Override
+		public String getDefaultConfigFile() {
+			return PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE;
+		}
+
+		@Override
+		public String getConfigFileKey() {
+			return PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY;
 		}
 	}
 

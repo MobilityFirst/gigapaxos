@@ -75,7 +75,7 @@ public class TESTReconfigurationConfig {
 	/**
 	 * Reconfiguration testing config parameters.
 	 */
-	public static enum TRC implements Config.DefaultValueEnum {
+	public static enum TRC implements Config.ConfigurableEnum {
 
 		/**
 		 * 
@@ -178,6 +178,16 @@ public class TESTReconfigurationConfig {
 		@Override
 		public Object getDefaultValue() {
 			return this.defaultValue;
+		}
+		
+		@Override
+		public String getDefaultConfigFile() {
+			return DEFAULT_TESTING_CONFIG_FILE;
+		}
+
+		@Override
+		public String getConfigFileKey() {
+			return TESTING_CONFIG_FILE_KEY;
 		}
 	}
 

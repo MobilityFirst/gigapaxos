@@ -30,6 +30,22 @@ public class Config extends Properties {
 	};
 
 	/**
+	 *
+	 */
+	public static interface ConfigurableEnum extends DefaultValueEnum {
+		/**
+		 * @return The default properties file for this enum.
+		 */
+		public String getDefaultConfigFile();
+
+		/**
+		 * @return The JVM property key used to specify a non-default config
+		 *         file using -Dkey=/path/to/config/file.
+		 */
+		public String getConfigFileKey();
+	}
+
+	/**
 	 * An interface that makes it convenient to use commons-CLI style option
 	 * while defining all fields as an enum at one place.
 	 * 
@@ -73,6 +89,8 @@ public class Config extends Properties {
 
 	private static final HashMap<Class<?>, Config> configMap = new HashMap<Class<?>, Config>();
 
+	private static final HashMap<Class<?>, Boolean> disableCommandLine = new HashMap<Class<?>, Boolean>();
+
 	/**
 	 * Registering an enum type with a config file is convenient to statically
 	 * retrieve configuration values, i.e., without having to pass a Config
@@ -87,6 +105,8 @@ public class Config extends Properties {
 	 */
 	public static Config register(Class<?> type, String configFile)
 			throws IOException {
+		if (!type.isEnum() && !isDefaultValueEnum(type))
+			return null;
 		try {
 			return configMap.put(type, new Config(configFile));
 		} catch (IOException ioe) {
@@ -96,6 +116,13 @@ public class Config extends Properties {
 					+ configFile + "; using default values for type " + type);
 			throw ioe;
 		}
+	}
+
+	private static boolean isDefaultValueEnum(Class<?> clazz) {
+		for (Class<?> iface : clazz.getInterfaces())
+			if (iface.equals(DefaultValueEnum.class))
+				return true;
+		return false;
 	}
 
 	/**
@@ -127,6 +154,27 @@ public class Config extends Properties {
 		}
 	}
 
+	private static Config cmdLine = new Config();
+
+	/**
+	 * For registering command-line args.
+	 * 
+	 * @param args
+	 * @return Config object with updated config parameters.
+	 */
+	public static Config register(String[] args) {
+		for (String arg : args) {
+			if (!arg.contains("="))
+				continue;
+			if (arg.startsWith("-"))
+				arg = arg.replaceFirst("-", "");
+			String[] tokens = arg.split("=");
+			if (tokens.length == 2)
+				cmdLine.setProperty(tokens[0], tokens[1]);
+		}
+		return cmdLine;
+	}
+
 	/**
 	 * @param type
 	 * @return Config object registered for type.
@@ -143,15 +191,37 @@ public class Config extends Properties {
 	 */
 	public static Object getGlobal(Enum<?> field) {
 
-		if (configMap.containsKey(field.getDeclaringClass()))
-			return configMap.get(field.getDeclaringClass()).get(field);
-		else if (field instanceof DefaultValueEnum)
+		Class<?> clazz = field.getDeclaringClass();
+		Config config = configMap.get(clazz);
+		if (config != null)
+			return config.get(field);
+		String strField;
+		/* command-line takes precedence over default values unless explicitly
+		 * told to completely ignore command-line input. */
+		if (cmdLine.containsKey(strField = field.toString())
+				&& (!disableCommandLine.containsKey(clazz) || disableCommandLine
+						.get(clazz))) {
+			return cmdLine.getProperty(strField);
+		}
+		// auto-register and recursively invoke
+		else if (field instanceof Config.ConfigurableEnum
+				&& !configMap.containsKey(clazz)) {
+			try {
+				Config.register(clazz,
+						((ConfigurableEnum) field).getConfigFileKey(),
+						((ConfigurableEnum) field).getDefaultConfigFile());
+				return getGlobal(field);
+			} catch (IOException e) {
+				configMap.put(clazz, null);
+				return ((Config.ConfigurableEnum) field).getDefaultValue();
+			}
+		} else if (field instanceof DefaultValueEnum)
 			return ((DefaultValueEnum) field).getDefaultValue();
 
 		throw new RuntimeException("No matching "
 				+ Config.class.getSimpleName() + " registered for field "
-				+ field + " and/or " + field
-				+ " not instance of " + DefaultValueEnum.class.getSimpleName());
+				+ field + " and/or " + field + " not instance of "
+				+ DefaultValueEnum.class.getSimpleName());
 	}
 
 	/**
@@ -207,8 +277,9 @@ public class Config extends Properties {
 	 * @return The configuration value of {@code field}.
 	 */
 	public Object get(Enum<?> field) {
-		if (this.containsKey(field.toString()))
-			return this.get(field.toString());
+		String strField = field.toString();
+		if (this.containsKey(strField))
+			return this.get(strField);
 		else
 			return ((Config.DefaultValueEnum) field).getDefaultValue();
 	}
@@ -378,6 +449,56 @@ public class Config extends Properties {
 			return this.description;
 		}
 	};
+
+	/**
+	 * Disable command-line input for type.
+	 * 
+	 * @param type
+	 * @return Config object for type.
+	 */
+	public static Config disableCommandLine(Class<?> type) {
+		disableCommandLine.put(type, true);
+		return configMap.get(type);
+	}
+
+	private static boolean caseSensitive = false;
+
+	/**
+	 * Makes Config keys case-sensitive. By default, they are case-insensitive.
+	 */
+	public static void setCaseSensitive() {
+		caseSensitive = true;
+	}
+
+	private Object toLowerCase(Object key) {
+		return caseSensitive || !(key instanceof String) ? key : ((String) key)
+				.toLowerCase();
+	}
+
+	/**
+	 * The methods {@link #put(Object, Object)}, {@link #getProperty(String)},
+	 * and {@link #getProperty(String, String)} below make this Config
+	 * case-insensitive.
+	 */
+	public Object put(Object key, Object value) {
+		return super.put(toLowerCase(key), value);
+	}
+
+	public String getProperty(String key) {
+		return super.getProperty((String) toLowerCase(key));
+	}
+
+	public String getProperty(String key, String defaultValue) {
+		return super.getProperty((String) toLowerCase(key), defaultValue);
+	}
+
+	/**
+	 * @param key
+	 * @return True of key present.
+	 */
+	public boolean containsKey(String key) {
+		return super.containsKey(toLowerCase(key));
+	}
 
 	/**
 	 * @return Local logger.
