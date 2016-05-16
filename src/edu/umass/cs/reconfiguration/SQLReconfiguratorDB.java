@@ -235,7 +235,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				}
 				// removal
 				if (toCommit.get(name) == null) {
-					this.deleteReconfigurationRecord(name);
+					this.deleteReconfigurationRecordDB(name);
 					log.log(Level.INFO, "{0} deleted RC record {1}",
 							new Object[] { this, name });
 					committed.add(name);
@@ -264,8 +264,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					pstmt.clearBatch();
 					for (int j = 0; j < executed.length; j++) {
 						if (executed[j] > 0) {
-							log.log(Level.FINE, "{0} updated RC record {1}",
-									new Object[] { this, batch.get(j) });
+							log.log(Level.FINE, "{0} updated RC DB record to {1}",
+									new Object[] { this, toCommit.get(batch.get(j)).getSummary() });
 							committed.add(batch.get(j));
 						} else
 							log.log(Level.FINE,
@@ -319,7 +319,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				rcGroupName = this.getRCGroupName(name);
 
 			if (toCommit.get(name) == null) {
-				this.deleteReconfigurationRecord(name);
+				this.deleteReconfigurationRecordDB(name);
 				log.log(Level.INFO, "{0} deleted RC record {1}", new Object[] {
 						this, name });
 			} else {
@@ -674,13 +674,6 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return true;
 	}
 
-	private synchronized boolean deleteReconfigurationRecord(String name) {
-		ReconfigurationRecord<NodeIDType> record = this
-				.getReconfigurationRecord(name);
-		return record != null ? this.deleteReconfigurationRecord(name,
-				record.getEpoch()) : false;
-	}
-
 	@Override
 	public synchronized boolean deleteReconfigurationRecord(String name,
 			int epoch) {
@@ -696,11 +689,13 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	private synchronized boolean deleteReconfigurationRecordDB(String name,
-			int epoch) {
-		ReconfigurationRecord<NodeIDType> record = this
-				.getReconfigurationRecord(name);
-		if (record == null || record.getEpoch() != epoch)
-			return false;
+			Integer epoch) {
+		if(epoch != null) {
+			ReconfigurationRecord<NodeIDType> record = this
+					.getReconfigurationRecordDB(name);
+			if (record == null || (record.getEpoch() != epoch))
+				return false;
+		}
 
 		log.log(Level.INFO,
 				"==============================> {0} {1} -> DELETE",
@@ -710,6 +705,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.deleteReconfigurationRecord(name, this.getPendingTable());
 		this.deleteReconfigurationRecord(name, this.getDemandTable());
 		return deleted;
+	}
+	private synchronized boolean deleteReconfigurationRecordDB(String name) {
+		return this.deleteReconfigurationRecordDB(name, null);
 	}
 
 	@Override

@@ -174,7 +174,8 @@ public class LargeCheckpointer {
 	 * @return True if string is a correctly formatted checkpoint handle.
 	 */
 	public static boolean isCheckpointHandle(String string) {
-		if(string==null) return false;
+		if (string == null)
+			return false;
 		try {
 			JSONObject json = new JSONObject(string);
 			return json.has(Keys.ISA3142.toString())
@@ -209,16 +210,14 @@ public class LargeCheckpointer {
 				File file = new File(filename);
 				assert (jsonUrl.get(Keys.ISA3142.toString()) != null);
 
-				/*
-				 * If file exists, it must have been created locally or fetched
-				 * previously from a remote node.
-				 */
+				/* If file exists, it must have been created locally or fetched
+				 * previously from a remote node. */
 				if (!file.exists())
 					// fetch from remote (possibly localhost)
 					filename = fetchRemoteCheckpoint(
 							Util.getInetSocketAddressFromString(jsonUrl
-									.getString(Keys.ISA3142
-											.toString())), filename,
+									.getString(Keys.ISA3142.toString())),
+							filename,
 							jsonUrl.getLong(Keys.FSIZE6022.toString()),
 							// save with same filename first
 							filename);
@@ -241,13 +240,11 @@ public class LargeCheckpointer {
 				this);
 	}
 
-	/*
-	 * Deletes all but the most recent checkpoint for the RC group name. We
+	/* Deletes all but the most recent checkpoint for the RC group name. We
 	 * could track recency based on timestamps using either the timestamp in the
 	 * filename or the OS file creation time. Here, we just supply the latest
 	 * checkpoint filename explicitly as we know it when this method is called
-	 * anyway.
-	 */
+	 * anyway. */
 	private static boolean deleteOldCheckpoints(final String cpDir,
 			final String paxosID, int keep, Object lockMe) {
 		File dir = new File(cpDir);
@@ -360,11 +357,9 @@ public class LargeCheckpointer {
 				int nTotalRead = 0;
 				// read from sock, write to file
 				while ((nread = inStream.read(buf)) >= 0) {
-					/*
-					 * FIXME: need to ensure that the read won't block forever
+					/* FIXME: need to ensure that the read won't block forever
 					 * if the remote endpoint crashes ungracefully and there is
-					 * no exception triggered here.
-					 */
+					 * no exception triggered here. */
 					nTotalRead += nread;
 					fos.write(buf, 0, nread);
 				}
@@ -465,7 +460,8 @@ public class LargeCheckpointer {
 					public Thread newThread(Runnable r) {
 						Thread thread = Executors.defaultThreadFactory()
 								.newThread(r);
-						thread.setName(LargeCheckpointer.class.getSimpleName()+":" + myID);
+						thread.setName(LargeCheckpointer.class.getSimpleName()
+								+ ":" + myID);
 						return thread;
 					}
 				});
@@ -705,8 +701,8 @@ public class LargeCheckpointer {
 			String name = NAME;
 			String state = app.setRandomState(name);
 			String handle = (app.checkpoint(name));
-			String filename = new JSONObject(handle)
-					.getString(Keys.FNAME2178.toString());
+			String filename = new JSONObject(handle).getString(Keys.FNAME2178
+					.toString());
 			String content = new String(Files.readAllBytes(Paths.get(filename)));
 			assert (state.equals(content));
 			new File(filename).delete();
@@ -818,6 +814,10 @@ public class LargeCheckpointer {
 			@Override
 			public boolean restore(String name, String state) {
 				return pi.restore(name, state);
+			}
+
+			public String toString() {
+				return pi.toString();
 			}
 
 		};

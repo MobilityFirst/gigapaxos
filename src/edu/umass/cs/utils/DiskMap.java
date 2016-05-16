@@ -397,6 +397,11 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				try {
 					removedKey = (K) key;
 					value = this.map.remove(key);
+
+					// also remove from pauseQ
+					V enqueuePausedVal = this.pauseQ.remove(key);
+					if(value==null) value = enqueuePausedVal;
+					
 				} catch (ClassCastException cce) {
 					for (Iterator<Map.Entry<K, V>> entryIter = this.map
 							.entrySet().iterator(); entryIter.hasNext();) {
@@ -628,7 +633,15 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			Set<K> committed = null;
 			try {
 				startRecordingPuts();
-				committed = this.commit(this.pauseQ);
+				/* If the commit block below is not synchronized, it is possible to commit
+				 * keys to disk while a (synchronized) remove is concurrently happening. In
+				 * general, this commit can take a long time, so concurrent removes are 
+				 * forced to block until it finishes. It is unclear if there is a better
+				 * way to handle this commit.
+				 */
+				synchronized(this) {
+					committed = this.commit(this.pauseQ);
+				}
 			} catch (IOException e) {
 				e.printStackTrace();
 			}

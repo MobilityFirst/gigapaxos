@@ -1670,12 +1670,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					// don't try any more if stopped
 					if (pism != null && pism.isStopped())
 						return true;
-				} catch (Exception e) {
+				} catch (Exception | Error e) {
 					// must swallow any and all exceptions
 					e.printStackTrace();
 				}
 				if (!executed) {
-					String error = "App failed to execute request, retrying: "
+					String error = paxosManager.getApp(requestPacket
+							.getPaxosID())
+							+ " failed to execute request, retrying: "
 							+ decision.requestValue;
 					log.severe(error);
 					new RuntimeException(error).printStackTrace();
