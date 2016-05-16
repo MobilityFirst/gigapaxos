@@ -223,6 +223,7 @@ public class TESTPaxosNode {
 	 */
 	public static void main(String[] args) {
 		try {
+			Config.register(args);
 			TESTPaxosConfig.setConsoleHandler();
 			NIOTransport.setUseSenderTask(Config
 					.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));

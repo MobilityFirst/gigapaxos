@@ -349,6 +349,11 @@ public class PaxosConfig {
 		EMULATE_UNREPLICATED(false),
 
 		/**
+		 * If true, the servers will send no response. For testing only.
+		 */
+		NO_RESPONSE(false), 
+		
+		/**
 		 * Only for performance instrumentation. If true, replicas will simply
 		 * execute the request upon receiving an ACCEPT. This option will break
 		 * RSM safety.

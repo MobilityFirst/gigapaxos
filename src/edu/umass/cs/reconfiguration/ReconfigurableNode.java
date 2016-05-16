@@ -280,6 +280,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 */
 	public static void main(String[] args) throws IOException {
 		// Util.assertAssertionsEnabled();
+		Config.register(args);
 		ReconfigurationConfig.setConsoleHandler();
 
 		if (args.length == 0)

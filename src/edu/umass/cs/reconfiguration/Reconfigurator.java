@@ -1433,7 +1433,6 @@ public class Reconfigurator<NodeIDType> implements
 										+ isa
 										+ "; created messenger listening instead on "
 										+ niot.getListeningSocketAddress());
-					log.info(this + " --------------------- here");
 				} else if (!ssl) {
 					log.log(Level.INFO,
 							"{0} adding self as demultiplexer to existing {1} client messenger",

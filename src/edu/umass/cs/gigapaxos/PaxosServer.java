@@ -34,6 +34,7 @@ import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.utils.Config;
 
 /**
  * @author arun
@@ -135,6 +136,8 @@ public class PaxosServer {
 			throw new RuntimeException(
 					"At least one node ID must be specified as a command-line argument for starting "
 							+ PaxosServer.class.getSimpleName());
+		Config.register(args);
+		
 		PaxosConfig.load();
 		PaxosConfig.setConsoleHandler();
 		NodeConfig<String> nodeConfig = PaxosConfig.getDefaultNodeConfig();

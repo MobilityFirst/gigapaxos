@@ -462,8 +462,8 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return added;
 	}
 
-	public String getDebugInfo() {
-		return " [" + this.debugInfo + "] ";
+	public String getDebugInfo(boolean get) {
+		return get ? " [" + this.debugInfo + "] " : null;
 	}
 
 	public static boolean isPingPonging(JSONObject msg) {

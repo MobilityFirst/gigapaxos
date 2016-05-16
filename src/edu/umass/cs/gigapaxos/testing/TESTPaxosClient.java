@@ -66,11 +66,6 @@ public class TESTPaxosClient {
 		TESTPaxosConfig.load();
 	}
 
-	// private static final long createTime = System.currentTimeMillis();
-	private static final int RANDOM_REPLAY = (int) (Math.random() * Config
-			.getGlobalInt(TC.NUM_GROUPS_CLIENT));
-
-	private static int SEND_POOL_SIZE = Config.getGlobalInt(TC.NUM_CLIENTS);
 	// because the single-threaded sender is a bottleneck on multicore
 	private static ScheduledThreadPoolExecutor executor = null;
 
@@ -211,6 +206,7 @@ public class TESTPaxosClient {
 			this.client = tpc;
 			this.register(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
 			this.setThreadName("" + tpc.myID);
+			Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
 		}
 
 		public boolean handleMessage(Object msg) {
@@ -237,13 +233,15 @@ public class TESTPaxosClient {
 												client.myID,
 												client.getTotalReplyCount(),
 												latency,
-												request.getDebugInfo(),
+												request.getDebugInfo(log
+														.isLoggable(level)),
 												request.getSummary(log
 														.isLoggable(level)),
 												request });
 
-					DelayProfiler.updateInterArrivalTime("response_rate", 1,
-							100);
+					if (!PROBE_CAPACITY)
+						DelayProfiler.updateInterArrivalTime("response_rate",
+								1, 100);
 					// DelayProfiler.updateRate("response_rate2", 1000, 10);
 
 					updateLatency(latency);
@@ -258,7 +256,8 @@ public class TESTPaxosClient {
 									new Object[] {
 											client.myID,
 											client.getTotalReplyCount(),
-											request.getDebugInfo(),
+											request.getDebugInfo(log
+													.isLoggable(level)),
 											request.requestID,
 											request.getSummary(log
 													.isLoggable(level)) });
@@ -367,12 +366,10 @@ public class TESTPaxosClient {
 			if (executor == null || executor.isShutdown())
 				// one extra thread for response tracker
 				executor = (ScheduledThreadPoolExecutor) Executors
-						.newScheduledThreadPool(SEND_POOL_SIZE + 1);
+						.newScheduledThreadPool(Config
+								.getGlobalInt(TC.NUM_CLIENTS) + 1);
 		}
 	}
-
-	private static final boolean PIN_CLIENT = Config
-			.getGlobalBoolean(TC.PIN_CLIENT);
 
 	private boolean sendRequest(RequestPacket req) throws IOException,
 			JSONException {
@@ -384,7 +381,7 @@ public class TESTPaxosClient {
 		return this.sendRequest(group[index], req);
 	}
 
-	private static final boolean ENABLE_REQUEST_COUNTS = true;
+	private static final boolean ENABLE_REQUEST_COUNTS = false;
 	static ConcurrentHashMap<Integer, Integer> reqCounts = new ConcurrentHashMap<Integer, Integer>();
 
 	synchronized static void urc(int id) {
@@ -394,16 +391,15 @@ public class TESTPaxosClient {
 		}
 	}
 
-	class RequestAndCreateTime extends RequestPacket {
+	class RequestAndCreateTime {
 		final long createTime = System.currentTimeMillis();
+		final RequestPacket request;
 
 		RequestAndCreateTime(RequestPacket request) {
-			super(request);
+			// super(request);
+			this.request = request;
 		}
 	}
-
-	private static final int CLIENT_PORT_OFFSET = PaxosConfig
-			.getClientPortOffset();
 
 	private static long lastWarningTime = 0;
 
@@ -511,9 +507,6 @@ public class TESTPaxosClient {
 		return req;
 	}
 
-	private static final String TEST_GUID = Config
-			.getGlobalString(TC.TEST_GUID);
-
 	private RequestPacket makeRequest(String paxosID) {
 		RequestPacket req = this.makeRequest();
 		req.putPaxosID(paxosID != null ? paxosID : TEST_GUID, 0);
@@ -522,11 +515,8 @@ public class TESTPaxosClient {
 
 	protected boolean makeAndSendRequest(String paxosID) throws JSONException,
 			IOException, InterruptedException, ExecutionException {
-		// long t = System.nanoTime();
-		RequestPacket req = TESTPaxosClient.this.makeRequest(paxosID);
-		return TESTPaxosClient.this.sendRequest(req);
-		// if (Util.oneIn(100))
-		// DelayProfiler.updateDelayNano("makeAndSendRequest", t);
+		return TESTPaxosClient.this.sendRequest(TESTPaxosClient.this
+				.makeRequest(paxosID));
 	}
 
 	protected boolean makeAndSendRequestCallable(String paxosID)
@@ -569,21 +559,6 @@ public class TESTPaxosClient {
 		return clients;
 	}
 
-	private static final double TOTAL_LOAD = Config
-			.getGlobalDouble(TC.TOTAL_LOAD);
-	// private static final int NUM_GROUPS = Config.getGlobalInt(TC.NUM_GROUPS);
-	private static final int NUM_GROUPS_CLIENT = Config
-			.getGlobalInt(TC.NUM_GROUPS_CLIENT);
-
-	private static final String TEST_GUID_PREFIX = Config
-			.getGlobalString(TC.TEST_GUID_PREFIX);
-
-	// wait at most a minute for all responses to come back
-	private static final long MAX_WAIT_TIME = (long) (Config
-			.getGlobalInt(TC.NUM_REQUESTS) / Config
-			.getGlobalDouble(TC.TOTAL_LOAD))
-			+ Config.getGlobalInt(TC.MAX_RESPONSE_WAIT_TIME);
-
 	private static void initResponseTracker(TESTPaxosClient[] clients,
 			int numRequests) {
 		executor.submit(new Runnable() {
@@ -600,6 +575,9 @@ public class TESTPaxosClient {
 		});
 	}
 
+	private final boolean PROBE_CAPACITY = Config
+			.getGlobalBoolean(TC.PROBE_CAPACITY);
+
 	protected static void sendTestRequests(int numReqs,
 			TESTPaxosClient[] clients, double load) throws JSONException,
 			IOException, InterruptedException, ExecutionException {
@@ -611,13 +589,14 @@ public class TESTPaxosClient {
 				+ ", load=" + Util.df(load) + "/s" + "]"
 				+ (Config.getGlobalBoolean(TC.PROBE_CAPACITY) ? "" : "\n"));
 
-		Future<?>[] futures = new Future<?>[SEND_POOL_SIZE];
+		Future<?>[] futures = new Future<?>[Config.getGlobalInt(TC.NUM_CLIENTS)];
 		// assert (executor.getCorePoolSize() == SEND_POOL_SIZE);
 		if (!Config.getGlobalBoolean(TC.PROBE_CAPACITY))
 			initResponseTracker(clients, numReqs);
 		long initTime = System.currentTimeMillis();
 		// if (TOTAL_LOAD > LOAD_THRESHOLD)
 		{
+			int SEND_POOL_SIZE = Config.getGlobalInt(TC.NUM_CLIENTS);
 			if (SEND_POOL_SIZE > 0) {
 				for (int i = 0; i < SEND_POOL_SIZE; i++) {
 					final int j = i;
@@ -658,10 +637,6 @@ public class TESTPaxosClient {
 
 	}
 
-	private static final int WORKLOAD_SKEW = Config
-			.getGlobalInt(TC.WORKLOAD_SKEW);
-
-	private static final int NUM_CLIENTS = Config.getGlobalInt(TC.NUM_CLIENTS);
 	private static double mostRecentSentRate = 0;
 
 	private static void sendTestRequests(int numReqs,
@@ -672,8 +647,8 @@ public class TESTPaxosClient {
 			System.out.print((warmup ? "\nWarming up " : "\nTesting ")
 					+ "[#requests=" + numReqs + ", request_size="
 					+ gibberish.length() + "B, #clients=" + clients.length
-					+ ", #groups=" + NUM_GROUPS_CLIENT + ", load=" + TOTAL_LOAD
-					+ "/s" + "]...");
+					+ ", #groups=" + NUM_GROUPS_CLIENT + ", load="
+					+ Config.getGlobalDouble(TC.TOTAL_LOAD) + "/s" + "]...");
 		RateLimiter rateLimiter = new RateLimiter(rate);
 		// long initTime = System.currentTimeMillis();
 		for (int i = 0; i < numReqs; i++) {
@@ -767,7 +742,8 @@ public class TESTPaxosClient {
 			TESTPaxosClient[] clients) {
 		Set<RequestPacket> missing = new HashSet<RequestPacket>();
 		for (int i = 0; i < clients.length; i++) {
-			missing.addAll(clients[i].requests.values());
+			for (RequestAndCreateTime reqCT : clients[i].requests.values())
+				missing.add(reqCT.request);
 		}
 		return missing;
 	}
@@ -818,7 +794,7 @@ public class TESTPaxosClient {
 				+ Util.df(TESTPaxosClient.getAvgLatency())
 				+ "ms"
 				+ "\n  average_response_rate = "
-				+ Util.df(NUM_REQUESTS
+				+ Util.df(Config.getGlobalInt(TC.NUM_REQUESTS)
 						* 1000.0
 						/ (delay - (System.currentTimeMillis() - lastResponseReceivedTime)))
 				+ "/s"
@@ -826,15 +802,6 @@ public class TESTPaxosClient {
 				+ "\n  noop_count = " + TESTPaxosClient.getTotalNoopCount()
 				+ "\n  " + DelayProfiler.getStats() + "\n  ";
 	}
-
-	private static final int NUM_REQUESTS = Config
-			.getGlobalInt(TC.NUM_REQUESTS);
-
-	private static final long LATENCY_THRESHOLD = Config
-			.getGlobalLong(TC.PROBE_LATENCY_THRESHOLD);
-
-	private static final int PROBE_MAX_RUNS = Config
-			.getGlobalInt(TC.PROBE_MAX_RUNS);
 
 	/**
 	 * This method probes for the capacity by multiplicatively increasing the
@@ -897,9 +864,10 @@ public class TESTPaxosClient {
 			responseRate = // numRunRequests
 			numResponses * 1000.0 / (lastResponseReceivedTime - t1);
 			latency = TESTPaxosClient.getAvgLatency();
-			if (latency < LATENCY_THRESHOLD)
+			if (latency < Config.getGlobalLong(TC.PROBE_LATENCY_THRESHOLD))
 				capacity = Math.max(capacity, responseRate);
-			boolean success = (responseRate > threshold * load && latency <= LATENCY_THRESHOLD);
+			boolean success = (responseRate > threshold * load && latency <= Config
+					.getGlobalLong(TC.PROBE_LATENCY_THRESHOLD));
 			System.out.println("capacity >= " + Util.df(capacity)
 					+ "/s; (response_rate=" + Util.df(responseRate)
 					+ "/s, average_response_time=" + Util.df(latency) + "ms)"
@@ -911,7 +879,7 @@ public class TESTPaxosClient {
 				consecutiveFailures++;
 		} while (consecutiveFailures < Config
 				.getGlobalInt(TC.PROBE_MAX_CONSECUTIVE_FAILURES)
-				&& runs < PROBE_MAX_RUNS);
+				&& runs < Config.getGlobalInt(TC.PROBE_MAX_RUNS));
 		/**************** End of capacity probes *******************/
 		System.out
 				.println("capacity <= "
@@ -920,11 +888,13 @@ public class TESTPaxosClient {
 						+ (capacity < threshold * load ? " response_rate was less than 95% of injected load"
 								+ Util.df(load) + "/s; "
 								: "")
-						+ (latency > LATENCY_THRESHOLD ? " average_response_time="
+						+ (latency > Config
+								.getGlobalLong(TC.PROBE_LATENCY_THRESHOLD) ? " average_response_time="
 								+ Util.df(latency)
 								+ "ms"
 								+ " >= "
-								+ LATENCY_THRESHOLD + "ms;"
+								+ Config.getGlobalLong(TC.PROBE_LATENCY_THRESHOLD)
+								+ "ms;"
 								: "")
 						+ (loadIncreaseFactor < minLoadIncreaseFactor ? " capacity is within "
 								+ Util.df((minLoadIncreaseFactor - 1) * 100)
@@ -933,8 +903,10 @@ public class TESTPaxosClient {
 						+ (consecutiveFailures > Config
 								.getGlobalInt(TC.PROBE_MAX_CONSECUTIVE_FAILURES) ? " too many consecutive failures;"
 								: "")
-						+ (runs >= PROBE_MAX_RUNS ? " reached limit of "
-								+ PROBE_MAX_RUNS + " runs;" : ""));
+						+ (runs >= Config.getGlobalInt(TC.PROBE_MAX_RUNS) ? " reached limit of "
+								+ Config.getGlobalInt(TC.PROBE_MAX_RUNS)
+								+ " runs;"
+								: ""));
 		return responseRate;
 	}
 
@@ -950,7 +922,8 @@ public class TESTPaxosClient {
 			ExecutionException {
 		// begin first run
 		long t1 = System.currentTimeMillis();
-		sendTestRequests(numReqs, clients, TOTAL_LOAD);
+		sendTestRequests(numReqs, clients,
+				Config.getGlobalDouble(TC.TOTAL_LOAD));
 		// waitForResponses(clients, t1);
 		waitUntilRunDone();
 		long t2 = System.currentTimeMillis();
@@ -962,7 +935,8 @@ public class TESTPaxosClient {
 
 		// begin second run
 		t1 = System.currentTimeMillis();
-		sendTestRequests(numReqs, clients, TOTAL_LOAD);
+		sendTestRequests(numReqs, clients,
+				Config.getGlobalDouble(TC.TOTAL_LOAD));
 		// waitForResponses(clients, t1);
 		waitUntilRunDone();
 		t2 = System.currentTimeMillis();
@@ -976,9 +950,9 @@ public class TESTPaxosClient {
 	 */
 	public static void main(String[] args) {
 		try {
+			Config.register(args);
+			initStaticParams();
 			TESTPaxosConfig.setConsoleHandler(Level.WARNING);
-//			NIOTransport.setUseSenderTask(Config
-//					.getGlobalBoolean(PC.USE_NIO_SENDER_TASK));
 			TESTPaxosConfig.setDistribtedTest();
 
 			TESTPaxosClient[] clients = TESTPaxosClient
@@ -1011,5 +985,31 @@ public class TESTPaxosClient {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+
+	private static int NUM_CLIENTS;
+	private static String TEST_GUID_PREFIX;
+	private static int WORKLOAD_SKEW;
+	private static int RANDOM_REPLAY;
+	private static int NUM_GROUPS_CLIENT;
+	private static long MAX_WAIT_TIME;
+	private static boolean PIN_CLIENT;
+	private static String TEST_GUID;
+	private static int CLIENT_PORT_OFFSET;
+
+	// need a method like this to support command-line initialization
+	private static void initStaticParams() {
+		NUM_CLIENTS = Config.getGlobalInt(TC.NUM_CLIENTS);
+		TEST_GUID_PREFIX = Config.getGlobalString(TC.TEST_GUID_PREFIX);
+		WORKLOAD_SKEW = Config.getGlobalInt(TC.WORKLOAD_SKEW);
+		RANDOM_REPLAY = (int) (Math.random() * Config
+				.getGlobalInt(TC.NUM_GROUPS_CLIENT));
+		NUM_GROUPS_CLIENT = Config.getGlobalInt(TC.NUM_GROUPS_CLIENT);
+		PIN_CLIENT = Config.getGlobalBoolean(TC.PIN_CLIENT);
+		TEST_GUID = Config.getGlobalString(TC.TEST_GUID);
+		MAX_WAIT_TIME = (long) (Config.getGlobalInt(TC.NUM_REQUESTS) / Config
+				.getGlobalDouble(TC.TOTAL_LOAD))
+				+ Config.getGlobalInt(TC.MAX_RESPONSE_WAIT_TIME);
+		CLIENT_PORT_OFFSET = PaxosConfig.getClientPortOffset();
 	}
 }

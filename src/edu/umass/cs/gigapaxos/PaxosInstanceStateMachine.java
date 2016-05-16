@@ -846,10 +846,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					log.warning(this + " jugglinging ping-ponging proposal: "
 							+ proposal.getSummary() + " forwarded by "
 							+ proposal.getForwarderID());
-				log.log(Level.INFO,
+				Level level = Level.INFO;
+				log.log(level,
 						"{0} force running for coordinator; forwardCount={1}; debugInfo = {2}; coordinator={3}",
 						new Object[] { this, proposal.getForwardCount(),
-								proposal.getDebugInfo(), coordinator });
+								proposal.getDebugInfo(log.isLoggable(level)),
+								coordinator });
 				if (proposal.getForwarderID() != this.getMyID())
 					mtasks[1] = new MessagingTask(getMyID(), mtasks[0].msgs);
 				mtasks[0] = this.checkRunForCoordinator(true);
@@ -966,8 +968,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		return mtask; // Could be unicast or multicast
 	}
-	
-	private static final boolean GC_MAJORITY_EXECUTED = Config.getGlobalBoolean(PC.GC_MAJORITY_EXECUTED);
+
+	private static final boolean GC_MAJORITY_EXECUTED = Config
+			.getGlobalBoolean(PC.GC_MAJORITY_EXECUTED);
 
 	/* Phase2a Event: Received an accept message for a proposal with some
 	 * ballot.
@@ -1033,10 +1036,10 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			return null; // recovery ACCEPTS do not need any reply
 
 		AcceptReplyPacket acceptReply = new AcceptReplyPacket(this.getMyID(),
-				ballot, accept.slot, 
-				GC_MAJORITY_EXECUTED ? this.paxosState.getSlot()-1 
-						: lastCheckpointSlot(this.paxosState.getSlot() - 1, accept.getPaxosID()),
-				accept.requestID);
+				ballot, accept.slot,
+				GC_MAJORITY_EXECUTED ? this.paxosState.getSlot() - 1
+						: lastCheckpointSlot(this.paxosState.getSlot() - 1,
+								accept.getPaxosID()), accept.requestID);
 
 		// no logging if NACking anyway
 		AcceptPacket toLog = (accept.ballot.compareTo(ballot) >= 0

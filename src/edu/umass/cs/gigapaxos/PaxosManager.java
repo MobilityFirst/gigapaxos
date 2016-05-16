@@ -210,6 +210,8 @@ public class PaxosManager<NodeIDType> {
 			this.callback = callback;
 		}
 	}
+	
+	private static final boolean NO_RESPONSE = Config.getGlobalBoolean(PC.NO_RESPONSE);
 
 	// default callback tries to send back response
 	private void defaultCallback(RequestPacket requestPacket, Request request) {
@@ -220,7 +222,7 @@ public class PaxosManager<NodeIDType> {
 		// waiting for others to remove this method
 		@SuppressWarnings("deprecation")
 		InetSocketAddress clientAddress = clientRequest.getClientAddress();
-		if (clientAddress != null && response != null) {
+		if (clientAddress != null && response != null && !NO_RESPONSE) {
 			try {
 				this.send(clientAddress, response,
 						requestPacket.getListenAddress());

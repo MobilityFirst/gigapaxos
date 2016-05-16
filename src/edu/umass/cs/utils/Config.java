@@ -91,6 +91,8 @@ public class Config extends Properties {
 
 	private static final HashMap<Class<?>, Boolean> disableCommandLine = new HashMap<Class<?>, Boolean>();
 
+	private static final HashMap<Object, Object> cacheMap = new HashMap<Object, Object>();
+
 	/**
 	 * Registering an enum type with a config file is convenient to statically
 	 * retrieve configuration values, i.e., without having to pass a Config
@@ -154,7 +156,7 @@ public class Config extends Properties {
 		}
 	}
 
-	private static Config cmdLine = new Config();
+	private static HashMap<Object, Object> cmdLine = new HashMap<Object, Object>();
 
 	/**
 	 * For registering command-line args.
@@ -162,15 +164,21 @@ public class Config extends Properties {
 	 * @param args
 	 * @return Config object with updated config parameters.
 	 */
-	public static Config register(String[] args) {
+	public static HashMap<?, ?> register(String[] args) {
 		for (String arg : args) {
 			if (!arg.contains("="))
 				continue;
 			if (arg.startsWith("-"))
 				arg = arg.replaceFirst("-", "");
 			String[] tokens = arg.split("=");
-			if (tokens.length == 2)
-				cmdLine.setProperty(tokens[0], tokens[1]);
+			if (tokens.length == 2) {
+				cmdLine.put(tokens[0], tokens[1]);
+				/* remove cacheMap entry so that it can get repopulated with the
+				 * new value. */
+				for (Object key : cacheMap.keySet().toArray())
+					if (key.toString().equals(tokens[0]))
+						cacheMap.remove(key);
+			}
 		}
 		return cmdLine;
 	}
@@ -190,22 +198,28 @@ public class Config extends Properties {
 	 *         will be thrown.
 	 */
 	public static Object getGlobal(Enum<?> field) {
+		Object retval;
+		if ((retval = cacheMap.get(field)) != null) {
+			return retval;
+		}
 
 		Class<?> clazz = field.getDeclaringClass();
-		Config config = configMap.get(clazz);
-		if (config != null)
-			return config.get(field);
-		String strField;
+		String strField = field.toString();
 		/* command-line takes precedence over default values unless explicitly
 		 * told to completely ignore command-line input. */
-		if (cmdLine.containsKey(strField = field.toString())
+		if ((retval = cmdLine.get(strField)) != null
 				&& (!disableCommandLine.containsKey(clazz) || disableCommandLine
 						.get(clazz))) {
-			return cmdLine.getProperty(strField);
+			return retval;
+		}
+
+		// else
+		Config config = configMap.get(clazz);
+		if (config != null && (retval = config.get(field)) != null) {
+			return retval;
 		}
 		// auto-register and recursively invoke
-		else if (field instanceof Config.ConfigurableEnum
-				&& !configMap.containsKey(clazz)) {
+		else if (field instanceof Config.ConfigurableEnum && config == null) {
 			try {
 				Config.register(clazz,
 						((ConfigurableEnum) field).getConfigFileKey(),
@@ -216,7 +230,8 @@ public class Config extends Properties {
 				return ((Config.ConfigurableEnum) field).getDefaultValue();
 			}
 		} else if (field instanceof DefaultValueEnum)
-			return ((DefaultValueEnum) field).getDefaultValue();
+			return putObject(field,
+					((DefaultValueEnum) field).getDefaultValue());
 
 		throw new RuntimeException("No matching "
 				+ Config.class.getSimpleName() + " registered for field "
@@ -224,12 +239,26 @@ public class Config extends Properties {
 				+ DefaultValueEnum.class.getSimpleName());
 	}
 
+	private static Object putObject(Enum<?> field, Class<?> clazz, Object obj) {
+		if (clazz.isInstance(obj))
+			return putObject(field, obj);
+		return obj;
+	}
+
+	private static Object putObject(Enum<?> field, Object obj) {
+		if (!cacheMap.containsKey(field))
+			cacheMap.put(field, obj);
+		return obj;
+	}
+
 	/**
 	 * @param field
 	 * @return Boolean config parameter.
 	 */
 	public static boolean getGlobalBoolean(Enum<?> field) {
-		return Boolean.valueOf(getGlobal(field).toString().trim());
+		Object obj = getGlobal(field);
+		return (boolean) (obj instanceof Boolean ? obj : putObject(field,
+				Boolean.class, (Boolean.valueOf(obj.toString().trim()))));
 	}
 
 	/**
@@ -237,7 +266,10 @@ public class Config extends Properties {
 	 * @return Integer config parameter.
 	 */
 	public static int getGlobalInt(Enum<?> field) {
-		return Integer.valueOf(getGlobal(field).toString().trim());
+		Object obj = getGlobal(field);
+		return (int) (obj instanceof Integer ? obj : putObject(field,
+				Integer.class,
+				Integer.valueOf(getGlobal(field).toString().trim())));
 	}
 
 	/**
@@ -245,7 +277,9 @@ public class Config extends Properties {
 	 * @return Long config parameter.
 	 */
 	public static long getGlobalLong(Enum<?> field) {
-		return Long.valueOf(getGlobal(field).toString().trim());
+		Object obj = getGlobal(field);
+		return (long) (obj instanceof Long ? obj : putObject(field, Long.class,
+				Long.valueOf(getGlobal(field).toString().trim())));
 	}
 
 	/**
@@ -253,7 +287,10 @@ public class Config extends Properties {
 	 * @return Double config parameter.
 	 */
 	public static double getGlobalDouble(Enum<?> field) {
-		return Double.valueOf(getGlobal(field).toString().trim());
+		Object obj = getGlobal(field);
+		return (double) (obj instanceof Double ? obj : putObject(field,
+				Double.class,
+				Double.valueOf(getGlobal(field).toString().trim())));
 	}
 
 	/**
@@ -261,7 +298,9 @@ public class Config extends Properties {
 	 * @return Short config parameter.
 	 */
 	public static short getGlobalShort(Enum<?> field) {
-		return Short.valueOf(getGlobal(field).toString().trim());
+		Object obj = getGlobal(field);
+		return (short) (obj instanceof Short ? obj : putObject(field,
+				Short.class, Short.valueOf(getGlobal(field).toString().trim())));
 	}
 
 	/**
@@ -269,7 +308,7 @@ public class Config extends Properties {
 	 * @return String config parameter.
 	 */
 	public static String getGlobalString(Enum<?> field) {
-		return (getGlobal(field).toString());
+		return (String) putObject(field, (getGlobal(field).toString()));
 	}
 
 	/**
@@ -278,8 +317,9 @@ public class Config extends Properties {
 	 */
 	public Object get(Enum<?> field) {
 		String strField = field.toString();
-		if (this.containsKey(strField))
-			return this.get(strField);
+		Object retval;
+		if ((retval = this.get(strField)) != null)
+			return retval;
 		else
 			return ((Config.DefaultValueEnum) field).getDefaultValue();
 	}
@@ -461,13 +501,15 @@ public class Config extends Properties {
 		return configMap.get(type);
 	}
 
-	private static boolean caseSensitive = false;
+	private static boolean caseSensitive = true;
 
 	/**
-	 * Makes Config keys case-sensitive. By default, they are case-insensitive.
+	 * Makes Config keys case-sensitive if {@code b} is true.
+	 * 
+	 * @param b
 	 */
-	public static void setCaseSensitive() {
-		caseSensitive = true;
+	public static void setCaseSensitive(boolean b) {
+		caseSensitive = b;
 	}
 
 	private Object toLowerCase(Object key) {
@@ -486,6 +528,10 @@ public class Config extends Properties {
 
 	public String getProperty(String key) {
 		return super.getProperty((String) toLowerCase(key));
+	}
+
+	public Object get(Object key) {
+		return super.get(toLowerCase(key));
 	}
 
 	public String getProperty(String key, String defaultValue) {
