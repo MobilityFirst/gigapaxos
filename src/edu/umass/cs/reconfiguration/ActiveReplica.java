@@ -20,9 +20,11 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
@@ -289,9 +291,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			// send demand report
 			this.updateDemandStats(senderAndRequest.request,
 					senderAndRequest.csa.getAddress());
-			if (INSTRUMENT_APP)
-				DelayProfiler.updateDelay(appNameReplicableRequest,
-						senderAndRequest.recvTime);
+			instrumentApp(Instrument.replicable, senderAndRequest.recvTime);
 
 			// send response to originating client
 			if (request instanceof ClientRequest
@@ -321,13 +321,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private static final String appName = ReconfigurationConfig.application
 			.getSimpleName();
-	private static final String appNameReplicableRequest = appName
-			+ ".Replicable";
-	private static final String appNameLocalRequest = appName + ".Local";
 
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 
+		long t = System.nanoTime();
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
 		try {
 			// try handling as reconfiguration packet through protocol task
@@ -346,73 +344,80 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			else if (isAppRequest(jsonObject)) {
 				long recvTime = System.currentTimeMillis();
 				Request request = this.getRequest(jsonObject);
+				NIOHeader header = jsonObject instanceof JSONMessenger.JSONObjectWrapper ?
+						NIOHeader.getNIOHeader((byte[])((JSONMessenger.JSONObjectWrapper)jsonObject).getObj()) : 
+							new NIOHeader(MessageNIOTransport.getSenderAddress(jsonObject), 
+									MessageNIOTransport.getReceiverAddress(jsonObject));
 				log.log(Level.FINE,
-						"{0} received app request {1}:{2}",
+						"{0} received app request {1}:{2}:{3}",
 						new Object[] {
 								this,
 								request.getRequestType(),
-								request.getServiceName()
-										+ (request instanceof ClientRequest ? ":"
-												+ ((ClientRequest) request)
+								request.getServiceName(),
+										(request instanceof ClientRequest ?
+												((ClientRequest) request)
 														.getRequestID()
 												: "") });
 
 				// enqueue demand stats sending callback
-				if (request instanceof ReplicableRequest)
+				if (request instanceof ReplicableRequest && ((ReplicableRequest)request).needsCoordination()) {
 					enqueue(new SenderAndRequest((ReplicableRequest) request,
-							MessageNIOTransport.getSenderAddress(jsonObject),
-							MessageNIOTransport.getReceiverAddress(jsonObject),
+							header.sndr,
+							header.rcvr,
 							recvTime));
+				}
 
 				// send to app via its coordinator
 				boolean handled = this.handRequestToApp(request);
+				
+				InetSocketAddress sender=header.sndr, receiver=header.rcvr;
 				if (handled) {
-					if (!(request instanceof ReplicableRequest)) {
+					if (!(request instanceof ReplicableRequest && ((ReplicableRequest)request).needsCoordination())) {
 						// if handled locally, update demand stats
 						updateDemandStats(request,
-								MessageNIOTransport
-										.getSenderInetAddress(jsonObject));
-						if (INSTRUMENT_APP)
-							DelayProfiler.updateDelay(appNameLocalRequest,
-									recvTime);
+								sender.getAddress());
+
+						instrumentNanoApp(Instrument.local, t);
 
 						// send response for uncoordinated request
 						ClientRequest response = null;
 						if (request instanceof ClientRequest
 								&& (response = ((ClientRequest) request)
 										.getResponse()) != null) {
-							log.log(Level.FINER,
+							Level level = Level.FINER;
+							log.log(level,
 									"{0} sending response {1} back to requesting client {2} for request {3}",
 									new Object[] {
 											this,
-											response,
+											response, receiver==null ? receiver =
 											MessageNIOTransport
-													.getReceiverAddress(jsonObject),
-											request.getSummary() });
+													.getReceiverAddress(jsonObject) : receiver,
+											request.getSummary(log.isLoggable(level)) });
 							((JSONMessenger<?>) this.messenger).sendClient(
-									MessageNIOTransport
-											.getSenderAddress(jsonObject),
-									response, MessageNIOTransport
-											.getReceiverAddress(jsonObject));
+									sender==null ? MessageNIOTransport
+											.getSenderAddress(jsonObject) : sender,
+									response, receiver==null ? MessageNIOTransport
+											.getReceiverAddress(jsonObject) : receiver);
+							if(instrument(Instrument.getStats)) System.out.println(DelayProfiler.getStats());
 						}
 					}
 					// else do nothing until coordinated
 				} else {
 					// if failed, dequeue useless enqueue
-					if (request instanceof ReplicableRequest)
+					if (request instanceof ReplicableRequest && ((ReplicableRequest)request).needsCoordination())
 						this.dequeue(((ReplicableRequest) request));
 
 					// send error message to sender
 					((JSONMessenger<?>) this.messenger).sendClient(
 							// this.send(
-							MessageNIOTransport.getSenderAddress(jsonObject),
+							sender==null ? MessageNIOTransport.getSenderAddress(jsonObject) : sender,
 							new ActiveReplicaError(this.nodeConfig
 									.getNodeSocketAddress(getMyID()), request
 									.getServiceName(),
 									((ClientRequest) request).getRequestID())
 							// .toJSONObject()
-							, MessageNIOTransport
-									.getReceiverAddress(jsonObject));
+							, receiver==null ? MessageNIOTransport
+									.getReceiverAddress(jsonObject) : receiver);
 				}
 				if (Util.oneIn(1000))
 					log.log(Level.INFO, "{0} {1}", new Object[] { this,
@@ -428,28 +433,38 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return false; // neither reconfiguration packet nor app request
 	}
 
-	private static final boolean INSTRUMENT_APP = true;
-
 	private Request getRequest(JSONObject jsonObject)
 			throws RequestParseException, JSONException {
+		long t = System.nanoTime();
 		if (jsonObject instanceof JSONMessenger.JSONObjectWrapper)
 			try {
-				byte[] bytes;
-				return this.appCoordinator
-						.getRequest(MessageExtractor
-								.decode(bytes = (byte[]) ((JSONMessenger.JSONObjectWrapper) jsonObject)
-										.getObj(), NIOHeader.BYTES,
-										bytes.length - NIOHeader.BYTES));
-			} catch (UnsupportedEncodingException e) {
+				byte[] bytes=(byte[]) ((JSONMessenger.JSONObjectWrapper) jsonObject)
+						.getObj();
+				Request request = this.appCoordinator
+						.getRequest(
+								Arrays.copyOfRange(
+										bytes, NIOHeader.BYTES, bytes.length), NIOHeader.getNIOHeader(bytes));
+				instrumentNanoApp(Instrument.getRequest, t);
+				return request;
+
+//						this.appCoordinator
+//						.getRequest(MessageExtractor
+//								.decode(bytes = (byte[]) ((JSONMessenger.JSONObjectWrapper) jsonObject)
+//										.getObj(), NIOHeader.BYTES,
+//										bytes.length - NIOHeader.BYTES));
+			} catch (UnknownHostException e) {
 				e.printStackTrace();
 			}
-		// else
-		return STAMP_SENDER_ADDRESS_JSON ? this.appCoordinator
-				.getRequest(jsonObject.toString())
-				: this.appCoordinator.getRequest(jsonObject
-						.has(MessageExtractor.STRINGIFIED) ? jsonObject
-						.getString(MessageExtractor.STRINGIFIED) : jsonObject
-						.toString());
+		// else slow path
+		String stringified = STAMP_SENDER_ADDRESS_JSON
+				|| !jsonObject.has(MessageExtractor.STRINGIFIED) ? jsonObject
+				.toString() : jsonObject
+				.getString(MessageExtractor.STRINGIFIED);
+		instrumentNano(Instrument.restringification, t);
+
+		Request request = this.appCoordinator.getRequest(stringified);
+		instrumentNanoApp(Instrument.getRequest, t);
+		return request;
 	}
 
 	private static final boolean STAMP_SENDER_ADDRESS_JSON = Config
@@ -486,7 +501,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		 * reconfigurator as that other active replica may still be catching up.
 		 * But the point above is that this scenario can happen even with a
 		 * single replica, which is "wrong", unless we spawn a separate thread. */
-		if (handled)
+		if (handled && request instanceof ReconfigurableRequest && ((ReconfigurableRequest)request).isStop())
 			// protocol executor also allows us to just submit a Runnable
 			this.protocolExecutor.submit(new AckStopNotifier(request));
 	}
@@ -738,7 +753,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 								echo.makeResponse(
 										this.nodeConfig
 												.getNodeSocketAddress(getMyID()))
-										.toJSONObject(), echo.myReceiver);
+										//.toJSONObject()
+												, echo.myReceiver);
 			} catch (JSONException | IOException e) {
 				e.printStackTrace();
 			}
@@ -818,15 +834,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	/* ****************** Private methods below ******************* */
 
 	private boolean handRequestToApp(Request request) {
-		long t1 = System.currentTimeMillis();
+		long t1 = System.nanoTime();
 		boolean handled = false;
 		try {
 			handled = this.appCoordinator.handleIncoming(request, this);
 		} catch (OverloadException re) {
 			PaxosPacketDemultiplexer.throttleExcessiveLoad();
 		}
-		if (Util.oneIn(Integer.MAX_VALUE))
-			DelayProfiler.updateDelay("appHandleIncoming@AR", t1);
+		if (Util.oneIn(100))
+			DelayProfiler.updateDelayNano("appHandleIncoming@AR", t1);
 		return handled;
 	}
 
@@ -891,18 +907,21 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	private boolean isAppRequest(JSONObject jsonObject) throws JSONException {
-		Integer type = jsonObject instanceof JSONMessenger.JSONObjectWrapper ?
-		// int right after NIOHeader
-		ByteBuffer
-				.wrap((byte[]) (((JSONMessenger.JSONObjectWrapper) jsonObject)
-						.getObj()),
-						NIOHeader.BYTES, Integer.BYTES).getInt()
+		byte[] bytes;
+		
+		Integer type = jsonObject instanceof JSONMessenger.JSONObjectWrapper ? 
+				// for apps that don't use Byteable
+				(JSONPacket
+				.couldBeJSON(bytes = (byte[]) (((JSONMessenger.JSONObjectWrapper) jsonObject)
+						.getObj()), NIOHeader.BYTES) ? 0 :
+		// else int right after NIOHeader
+				ByteBuffer.wrap(bytes, NIOHeader.BYTES, Integer.BYTES).getInt())
 				// else parse as regular json
 				: JSONPacket.getPacketType(jsonObject);
 		if (appRequestTypes == null)
 			appRequestTypes = toIntegerSet(this.appCoordinator
 					.getRequestTypes());
-		return appRequestTypes.contains(type);
+		return appRequestTypes.contains(type) || type==0;
 	}
 
 	private static Set<Integer> appRequestTypes = null;
@@ -913,6 +932,40 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			integers.add(type.getInt());
 		return integers;
 	}
+	
+	private static enum Instrument {
+		updateDemandStats(Integer.MAX_VALUE),
+		restringification(100),
+		getRequest(100),
+		local(100),
+		replicable(100),
+		getStats (5000);
+		
+		private final int val;
+		Instrument(int val) {
+			this.val = val;
+		}
+	}
+	
+	private static final boolean instrument(int n) {
+		return n<Integer.MAX_VALUE && Util.oneIn(n);
+	}
+	private static final boolean instrument(Instrument param) {
+		return instrument(param.val);
+	}
+
+	private static final void instrumentNano(Instrument param, long t) {
+		if (instrument(param.val))
+			DelayProfiler.updateDelayNano(param.toString(), t);
+	}
+	private static final void instrumentNanoApp(Instrument param, long t) {
+		if (instrument(param.val))
+			DelayProfiler.updateDelayNano(appName+"."+param.toString(), t);
+	}
+	private static final void instrumentApp(Instrument param, long t) {
+		if (instrument(param.val))
+			DelayProfiler.updateDelay(appName+"."+param.toString(), t);
+	}
 
 	/* Demand stats are updated upon every request. Demand reports are
 	 * dispatched to reconfigurators only if warranted by the shouldReport
@@ -920,6 +973,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 * stats based on a threshold number of requests before reporting to
 	 * reconfigurators. */
 	private void updateDemandStats(Request request, InetAddress sender) {
+		long t = System.nanoTime();
 		if (this.noReporting)
 			return;
 
@@ -931,6 +985,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			report(this.demandProfiler.pluckDemandProfile(name));
 		else
 			report(this.demandProfiler.trim());
+		if (instrument(Instrument.updateDemandStats))
+			DelayProfiler.updateDelayNano("updatedDemandStats", t);
 	}
 
 	/* Report demand stats to reconfigurators. This method will necessarily

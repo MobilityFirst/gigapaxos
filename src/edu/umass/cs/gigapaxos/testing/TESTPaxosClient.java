@@ -448,12 +448,7 @@ public class TESTPaxosClient {
 	}
 
 	private int sendToID(int id, JSONObject json) throws IOException {
-		return this.niot.sendToAddress(
-				CLIENT_PORT_OFFSET > 0 ? new InetSocketAddress(this.nc
-						.getNodeAddress(id), this.nc.getNodePort(id)
-						+ CLIENT_PORT_OFFSET) : new InetSocketAddress(this.nc
-						.getNodeAddress(id), this.nc.getNodePort(id)
-						+ CLIENT_PORT_OFFSET), json);
+		return this.niot.sendToID(id, json);
 	}
 
 	private static final String GIBBERISH = "89432hoicnbsd89233u2eoiwdj-329hbousfnc";
@@ -995,7 +990,6 @@ public class TESTPaxosClient {
 	private static long MAX_WAIT_TIME;
 	private static boolean PIN_CLIENT;
 	private static String TEST_GUID;
-	private static int CLIENT_PORT_OFFSET;
 
 	// need a method like this to support command-line initialization
 	private static void initStaticParams() {
@@ -1010,6 +1004,5 @@ public class TESTPaxosClient {
 		MAX_WAIT_TIME = (long) (Config.getGlobalInt(TC.NUM_REQUESTS) / Config
 				.getGlobalDouble(TC.TOTAL_LOAD))
 				+ Config.getGlobalInt(TC.MAX_RESPONSE_WAIT_TIME);
-		CLIENT_PORT_OFFSET = PaxosConfig.getClientPortOffset();
 	}
 }

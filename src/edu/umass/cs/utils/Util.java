@@ -279,6 +279,14 @@ public class Util {
 		}
 		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
 	}
+	// assumes strict formatting and is more efficient
+	public static InetSocketAddress getInetSocketAddressFromStringStrict(String s) {
+		String[] tokens = s.split(":");
+		if (tokens.length < 2) {
+			return null;
+		}
+		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
+	}
 
 	public static InetAddress getInetAddressFromString(String s)
 			throws UnknownHostException {

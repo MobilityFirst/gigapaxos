@@ -1,7 +1,11 @@
 package edu.umass.cs.nio.nioutils;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+
+import edu.umass.cs.nio.MessageNIOTransport;
 
 /**
  * @author arun
@@ -20,6 +24,11 @@ public class NIOHeader {
 	 * 
 	 */
 	public final InetSocketAddress rcvr;
+	
+	/**
+	 * Character set used by NIO for encoding bytes to String and back.
+	 */
+	public static final String CHARSET = MessageNIOTransport.NIO_CHARSET_ENCODING;
 
 	/**
 	 * @param sndr
@@ -28,6 +37,30 @@ public class NIOHeader {
 	public NIOHeader(InetSocketAddress sndr, InetSocketAddress rcvr) {
 		this.sndr = sndr;
 		this.rcvr = rcvr;
+	}
+	
+	/**
+	 * @param bytes
+	 * @return NIOHeader constructed from the first 12 bytes.
+	 * @throws UnknownHostException
+	 */
+	public static NIOHeader getNIOHeader(byte[] bytes)
+			throws UnknownHostException {
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, 12);
+		byte[] sip = new byte[4];
+		bbuf.get(sip, 0, 4);
+		int sport = (int)bbuf.getShort();
+		if (sport < 0)
+			sport += 2 * (Short.MAX_VALUE + 1);
+
+		byte[] dip = new byte[4];
+		bbuf.get(dip, 0, 4);
+		int dport = (int)bbuf.getShort();
+		if (dport < 0)
+			dport += 2 * (Short.MAX_VALUE + 1);
+		return new NIOHeader(new InetSocketAddress(
+				InetAddress.getByAddress(sip), sport), new InetSocketAddress(
+				InetAddress.getByAddress(dip), dport));
 	}
 
 	public String toString() {

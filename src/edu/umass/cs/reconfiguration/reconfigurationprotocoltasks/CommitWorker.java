@@ -46,7 +46,10 @@ import edu.umass.cs.utils.Util;
  */
 public class CommitWorker<NodeIDType> implements Runnable {
 
-	Set<RCRecordRequest<NodeIDType>> pending = new HashSet<RCRecordRequest<NodeIDType>>();
+	/** Map, not Set, only because otherwise we will get concurrent modification exception in the
+	 * case of a single reconfigurator replica group.
+	 */
+	ConcurrentHashMap<RCRecordRequest<NodeIDType>,Boolean> pending = new ConcurrentHashMap<RCRecordRequest<NodeIDType>,Boolean>();
 	Map<RCRecordRequest<NodeIDType>, Long> lastAttempts = new ConcurrentHashMap<RCRecordRequest<NodeIDType>, Long>();
 	Set<RCRecordRequest<NodeIDType>> executed = new HashSet<RCRecordRequest<NodeIDType>>();
 	ConcurrentHashMap<String, Long> nonDefaultRestartPeriods = new ConcurrentHashMap<String, Long>();
@@ -77,12 +80,13 @@ public class CommitWorker<NodeIDType> implements Runnable {
 		if (!this.checkIfObviated(request)) {
 			log.log(Level.FINEST, "{0} enqueueing request {1}", new Object[] {
 					this, request.getSummary() });
-			enqueued = this.pending.add(request);
+			assert(request!=null);
+			enqueued = this.pending.putIfAbsent(request, true)!=null;
 		}
 		log.log(Util.oneIn(10) ? Level.INFO : Level.FINE,
 				"{0} pendingQSize = {1}; executedQSize = {2}\n {3}\n {4}",
 				new Object[] { this, this.pending.size(), this.executed.size(),
-						this.getSetSummary(pending),
+						this.getSetSummary(this.pending.keySet()),
 						this.getSetSummary(executed) });
 		this.notify();
 		return enqueued;
@@ -113,11 +117,11 @@ public class CommitWorker<NodeIDType> implements Runnable {
 		log.log(Level.FINEST, "{0} executed request {1}", new Object[] { this,
 				request.getSummary(Level.FINEST) });
 		// knock off exact match or lower in pending
-		boolean equalRemovedFromPending = this.pending.remove(request);
+		boolean equalRemovedFromPending = this.pending.remove(request)!=null;
 		log.log(Level.FINEST, "{0} exact-matched and removed pending task {1}",
 				new Object[] { this, request.getSummary(Level.FINEST) });
 		this.lastAttempts.remove(request);
-		this.knockOffLower(request, this.pending, true);
+		this.knockOffLower(request, this.pending.keySet(), true);
 
 		if (equalRemovedFromPending)
 			return true;
@@ -250,7 +254,7 @@ public class CommitWorker<NodeIDType> implements Runnable {
 		RCRecordRequest<NodeIDType> head = null;
 		long oldestAttempt = Long.MAX_VALUE;
 		for (Iterator<RCRecordRequest<NodeIDType>> reqIter = this.pending
-				.iterator(); reqIter.hasNext();) {
+				.keySet().iterator(); reqIter.hasNext();) {
 			RCRecordRequest<NodeIDType> request = reqIter.next();
 			head = head == null ? request : head;
 			// try coordinate and set last attempted timestamp

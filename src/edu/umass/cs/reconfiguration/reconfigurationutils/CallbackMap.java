@@ -39,7 +39,7 @@ public class CallbackMap<NodeIDType> {
 	 * @param stopEpoch
 	 * @return True as specified by {@link List#add(Object)}.
 	 */
-	public boolean addStopNotifiee(StopEpoch<NodeIDType> stopEpoch) {
+	public synchronized boolean addStopNotifiee(StopEpoch<NodeIDType> stopEpoch) {
 		//if (!this.listMap.containsKey(stopEpoch.getServiceName())) {
 			//ArrayList<StopEpoch<NodeIDType>> notifiees = new ArrayList<StopEpoch<NodeIDType>>();
 			//this.listMap.put(stopEpoch.getServiceName(), notifiees);
@@ -57,7 +57,7 @@ public class CallbackMap<NodeIDType> {
 	 * @param epoch
 	 * @return StopEpoch requiring acknowledgment.
 	 */
-	public StopEpoch<NodeIDType> notifyStop(String name, int epoch) {
+	public synchronized StopEpoch<NodeIDType> notifyStop(String name, int epoch) {
 		if (!this.listMap.containsKey(name))
 			return null;
 		StopEpoch<NodeIDType> notifiee = null, retval = null;

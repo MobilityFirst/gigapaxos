@@ -5,9 +5,11 @@ import java.util.Set;
 
 import org.json.JSONException;
 
+import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
@@ -18,7 +20,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
  * @author arun
  *
  */
-public class NoopAppClient extends ReconfigurableAppClientAsync {
+public class NoopAppClient extends ReconfigurableAppClientAsync implements AppRequestParserBytes{
 
 	private int numResponses = 0;
 
@@ -86,6 +88,13 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 	}
 
 	@Override
+	public Request getRequest(byte[] message, NIOHeader header)
+			throws RequestParseException {
+		return NoopApp.staticGetRequest(message, header);
+	}
+
+
+	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
 		return NoopApp.staticGetRequestTypes();
 	}
@@ -147,4 +156,5 @@ public class NoopAppClient extends ReconfigurableAppClientAsync {
 				+ " responses.");
 		client.close();
 	}
+
 }

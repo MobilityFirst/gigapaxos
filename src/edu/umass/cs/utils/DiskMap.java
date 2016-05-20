@@ -77,12 +77,12 @@ import edu.umass.cs.gigapaxos.paxosutil.LogIndex;
  * 
  *            DiskMap can use MultiArrayMap as its underlying in-memory map if
  *            that is supplied in the constructor. Although not necessary, the
- *            use of MultiArrayMap makes the map more compact
- *            because of its cuckoo hashing design, but it requires values to
- *            implement the Keyable<K> interface. If values additionally also
- *            implement {@link Pausable}, DiskMap incurs just ~6B overhead per
- *            value as it does not have to maintain its own stats for last
- *            active times for map entries.
+ *            use of MultiArrayMap makes the map more compact because of its
+ *            cuckoo hashing design, but it requires values to implement the
+ *            Keyable<K> interface. If values additionally also implement
+ *            {@link Pausable}, DiskMap incurs just ~6B overhead per value as it
+ *            does not have to maintain its own stats for last active times for
+ *            map entries.
  * 
  *            Note: There is no way to ensure that the value pointed to in the
  *            map is not modified after it has been paused to disk. It does not
@@ -333,16 +333,28 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		return prev;
 	}
 
-	boolean recordPuts = false;
+	boolean recordPuts = false, recordRemoves = false;
 	private Set<K> concurrentPuts = new HashSet<K>();
+	private Set<Object> concurrentRemoves = new HashSet<Object>();
 
 	private synchronized void recordPut(K key) {
-		if (recordingPuts())
+		if (recordingPuts()) {
 			concurrentPuts.add(key);
+		}
+	}
+
+	private synchronized void recordRemove(Object key) {
+		if (recordingRemoves()) {
+			concurrentRemoves.add(key);
+		}
 	}
 
 	private synchronized void startRecordingPuts() {
 		recordPuts = true;
+	}
+
+	private synchronized void startRecordingRemoves() {
+		recordRemoves = true;
 	}
 
 	private synchronized void stopRecordingPuts() {
@@ -350,8 +362,17 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		this.concurrentPuts.clear();
 	}
 
+	private synchronized void stopRecordingRemoves() {
+		recordRemoves = false;
+		this.concurrentRemoves.clear();
+	}
+
 	private synchronized boolean recordingPuts() {
 		return recordPuts;
+	}
+
+	private synchronized boolean recordingRemoves() {
+		return recordRemoves;
 	}
 
 	@Override
@@ -375,6 +396,10 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				throw new RuntimeException(e.getMessage());
 			}
 		}
+		// need to remove soft copies *after* commit
+		this.map.remove(key);
+		this.pauseQ.remove(key);
+		this.recordRemove(key);
 		return value;
 	}
 
@@ -400,8 +425,9 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 
 					// also remove from pauseQ
 					V enqueuePausedVal = this.pauseQ.remove(key);
-					if(value==null) value = enqueuePausedVal;
-					
+					if (value == null)
+						value = enqueuePausedVal;
+
 				} catch (ClassCastException cce) {
 					for (Iterator<Map.Entry<K, V>> entryIter = this.map
 							.entrySet().iterator(); entryIter.hasNext();) {
@@ -558,6 +584,8 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			this.lastGCAttempt = System.currentTimeMillis();
 			this.ongoingGC = true;
 		}
+		startRecordingRemoves();
+		startRecordingPuts();
 		long t = System.currentTimeMillis();
 		/* stats is directly traversed only if it is a LinkedHashMap, otherwise
 		 * we iterate over the underlying in-memory map and use stats to get
@@ -606,6 +634,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 									entry.getValue(), null, iterE))
 								break;
 						}
+						// startRecordingPuts();
 					}
 				} catch (ConcurrentModificationException cme) {
 					// do nothing, will continue to retry
@@ -632,16 +661,15 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		if (!this.pauseQ.isEmpty()) {
 			Set<K> committed = null;
 			try {
-				startRecordingPuts();
-				/* If the commit block below is not synchronized, it is possible to commit
-				 * keys to disk while a (synchronized) remove is concurrently happening. In
-				 * general, this commit can take a long time, so concurrent removes are 
-				 * forced to block until it finishes. It is unclear if there is a better
-				 * way to handle this commit.
-				 */
-				synchronized(this) {
-					committed = this.commit(this.pauseQ);
-				}
+				/* This commit can take a long time. While it is happening, it
+				 * is possible for puts or removes to happen concurrently. So we
+				 * have to explicitly check for such events by recording
+				 * concurrent puts or removes. For concurrent puts, we don't
+				 * remove the corresponding key from this.map. For concurrent
+				 * removes not superceded by a subsequent put, we should
+				 * re-remove the key just in case the pause-commit unremoved the
+				 * remove from disk. */
+				committed = this.commit(this.pauseQ);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -650,14 +678,24 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			if (committed != null)
 				for (K key : committed) {
 					synchronized (this) {
+						V pausedValue = this.pauseQ.remove(key);
 						// concurrent puts should not be removed
 						if (!this.concurrentPuts.contains(key))
-							this.map.remove(key, this.pauseQ.remove(key));
+							// remove in case intervening gets restored key
+							this.map.remove(key, pausedValue);
+
+						// concurrent removes should be (re-)removed
+						if (this.concurrentRemoves.contains(key)
+						// if no subsequent puts happened
+								&& !this.map.containsKey(key))
+							this.remove(key); // remove again for good measure
+
 						if (this.stats != null)
 							this.stats.remove(key);
 					}
 				}
 			stopRecordingPuts();
+			stopRecordingRemoves();
 			DelayProfiler.updateDelay("GC", t);
 		}
 		synchronized (this) {

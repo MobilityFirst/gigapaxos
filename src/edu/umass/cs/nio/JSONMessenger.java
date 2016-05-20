@@ -16,6 +16,7 @@
 package edu.umass.cs.nio;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.Executors;
@@ -36,7 +37,9 @@ import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
+import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Stringer;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -428,6 +431,28 @@ public class JSONMessenger<NodeIDType> implements
 			return this.obj;
 		}
 	}
+	/**
+	 *
+	 */
+	public static class JSONObjectByteableWrapper extends JSONObjectWrapper implements Byteable {
+
+		/**
+		 * @param obj
+		 */
+		public JSONObjectByteableWrapper(Object obj) {
+			super(obj);
+		}
+
+		@Override
+		public byte[] toBytes() {
+			try {
+				return obj instanceof Byteable ? ((Byteable)obj).toBytes() : obj.toString().getBytes(MessageNIOTransport.NIO_CHARSET_ENCODING);
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+			return null;
+		}
+	}
 
 	/**
 	 * A hack that relies on the fact that NIO treats JSONObject as no different
@@ -452,7 +477,9 @@ public class JSONMessenger<NodeIDType> implements
 		msgr = msgr != null ? msgr : this;
 		if (message instanceof byte[])
 			msgr.sendToAddress(sockAddr, (byte[]) message);
-		else
+		else if (message instanceof Byteable)
+			msgr.sendToAddress(sockAddr, ((Byteable)message).toBytes());
+		else 
 			msgr.sendToAddress(sockAddr, new JSONObjectWrapper(message));
 	}
 

@@ -152,6 +152,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 		Object packet = processHeaderUtil(message, header);
 		if (packet != null && packet instanceof RequestPacket)
 			return (RequestPacket) packet;
+		if(JSONPacket.couldBeJSON(message))
 		try {
 			packet = PaxosPacketDemultiplexer.toPaxosPacket(new JSONObject(
 					MessageExtractor.decode(message)));
@@ -199,6 +200,8 @@ public abstract class PaxosPacketDemultiplexerFast extends
 			return (Integer) ((net.minidev.json.JSONObject) message)
 					.get(JSONPacket.PACKET_TYPE.toString());
 
+		if(message instanceof byte[]) return ByteBuffer.wrap((byte[])message, 0, 4).getInt();
+		
 		assert (message instanceof PaxosPacket) : message;
 		return PaxosPacketType.PAXOS_PACKET.getInt();
 	}
@@ -277,6 +280,8 @@ public abstract class PaxosPacketDemultiplexerFast extends
 			}
 			return null;
 		}
+		
+		if(!JSONPacket.couldBeJSON(bytes)) return bytes;
 
 		String message;
 		long t = System.nanoTime();

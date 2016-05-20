@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -30,6 +32,7 @@ import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
@@ -63,7 +66,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.TrivialRepliconfigurabl
  * 
  */
 public abstract class AbstractReplicaCoordinator<NodeIDType> implements
-		Repliconfigurable, ReplicaCoordinator<NodeIDType> {
+		Repliconfigurable, ReplicaCoordinator<NodeIDType>, AppRequestParserBytes {
 	protected final Repliconfigurable app;
 	private final ConcurrentHashMap<IntegerPacketType, Boolean> coordinationTypes = new ConcurrentHashMap<IntegerPacketType, Boolean>();
 
@@ -220,8 +223,19 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return true;
 	}
 
-	public Request getRequest(String stringified) throws RequestParseException {
+	public final Request getRequest(String stringified) throws RequestParseException {
 		return this.app.getRequest(stringified);
+	}
+	
+	public final Request getRequest(byte[] bytes, NIOHeader header)
+			throws RequestParseException {
+		try {
+			return this.app instanceof AppRequestParserBytes ? ((AppRequestParserBytes) this.app)
+					.getRequest(bytes, header) : this.app
+					.getRequest(new String(bytes, NIOHeader.CHARSET));
+		} catch (UnsupportedEncodingException e) {
+			throw new RequestParseException(e);
+		}
 	}
 
 	/**
@@ -273,7 +287,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	/* Call back active replica for stop requests, else call default callback.
 	 * Should really be private, but sometimes we may need to trigger a callback
 	 * for an older request. */
-	protected void callCallback(Request request, boolean handled) {
+	protected final void callCallback(Request request, boolean handled) {
 		if (this.stopCallback != null
 				&& request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop()) {

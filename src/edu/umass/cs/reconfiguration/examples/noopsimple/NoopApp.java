@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration.examples.noopsimple;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -25,11 +26,13 @@ import java.util.Set;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.examples.AbstractReconfigurablePaxosApp;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
@@ -43,7 +46,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
  *         A simple no-op application example.
  */
 public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
-		Replicable, Reconfigurable, ClientMessenger {
+		Replicable, Reconfigurable, ClientMessenger, AppRequestParserBytes {
 
 	private static final String DEFAULT_INIT_STATE = "";
 	// total number of reconfigurations across all records
@@ -189,6 +192,26 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 			return getNoopRequest();
 		}
 		return new AppRequest(new JSONObject(stringified));
+	}
+	
+	@Override
+	public Request getRequest(byte[] bytes, NIOHeader header)
+			throws RequestParseException {
+		return staticGetRequest(bytes, header);
+	}
+	/**
+	 * @param bytes
+	 * @param header
+	 * @return Request constructed from bytes.
+	 * @throws RequestParseException
+	 */
+	public static Request staticGetRequest(byte[] bytes, NIOHeader header)
+			throws RequestParseException {
+		try {
+			return staticGetRequest(new String(bytes, NIOHeader.CHARSET));
+		} catch (UnsupportedEncodingException | JSONException e) {
+			throw new RequestParseException(e);
+		}
 	}
 
 	/* This is a special no-op request unlike any other NoopAppRequest. */

@@ -148,5 +148,23 @@ public abstract class JSONPacket {
 		}
 		return bytes[0]=='{' || bytes[0]=='[';
 	}
+	/**
+	 * @param bytes
+	 * @param offset 
+	 * @return True if this {@code bytes} could be possibly (but not
+	 *         necessarily) be in JSON format assuming the default
+	 *         {@link MessageExtractor} encoding.
+	 */
+	public static final boolean couldBeJSON(byte[] bytes, int offset)
+			 {
+		String str;
+		try {
+			str = MessageExtractor.decode(Arrays.copyOfRange(bytes, offset, offset+4));
+			return str.startsWith("{") || str.startsWith("[");
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return bytes[offset]=='{' || bytes[offset]=='[';
+	}
 
 }

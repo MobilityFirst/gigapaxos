@@ -1,7 +1,7 @@
 #!/bin/bash
 
 HEAD=`dirname $0`
-CLASSPATH=$CLASSPATH:`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+CLASSPATH=$CLASSPATH:$HEAD/../build/classes:`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
 LOG_PROPERTIES=logging.properties
 LOG4J_PROPERTIES=log4j.properties
 GP_PROPERTIES=gigapaxos.properties

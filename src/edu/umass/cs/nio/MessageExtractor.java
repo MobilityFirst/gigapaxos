@@ -349,7 +349,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 			// put sender address
 			if (!json.has(MessageNIOTransport.SNDR_ADDRESS_FIELD))
 				json.put(MessageNIOTransport.SNDR_ADDRESS_FIELD,
-						sndrAddress.toString());
+						sndrAddress.getAddress().getHostAddress()+":"+sndrAddress.getPort());
 
 			// TODO: remove the deprecated lines bel
 			if (!json.has(JSONNIOTransport.SNDR_IP_FIELD))
@@ -362,7 +362,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 			// put receiver address
 			if (!json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD))
 				json.put(MessageNIOTransport.RCVR_ADDRESS_FIELD,
-						rcvrAddress.toString());
+						rcvrAddress.getAddress().getHostAddress()+":"+rcvrAddress.getPort());
 
 		} catch (JSONException e) {
 			log.severe("Encountered JSONException while stamping sender address and port at receiver: ");

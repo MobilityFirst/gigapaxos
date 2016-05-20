@@ -59,4 +59,13 @@ public interface Request {
 			}
 		};
 	}
+	/**
+	 * @param get
+	 * @return Summary if get is true.
+	 */
+	default Object getSummary(boolean get) {
+		if(get) return getSummary();
+		return null;
+	}
+
 }

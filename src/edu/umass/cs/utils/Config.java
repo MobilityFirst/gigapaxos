@@ -501,7 +501,7 @@ public class Config extends Properties {
 		return configMap.get(type);
 	}
 
-	private static boolean caseSensitive = true;
+	private static boolean caseSensitive = false;
 
 	/**
 	 * Makes Config keys case-sensitive if {@code b} is true.

@@ -310,10 +310,32 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		try {
 			InetSocketAddress isa = json
 					.has(MessageNIOTransport.SNDR_ADDRESS_FIELD) ? Util
-					.getInetSocketAddressFromString(json
+					.getInetSocketAddressFromStringStrict(json
 							.getString(MessageNIOTransport.SNDR_ADDRESS_FIELD))
 					: null;
 			return isa;
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	/**
+	 * @param json
+	 * @return Sender address as String without intermediate conversion to InetSocketAddress.
+	 */
+	public static String getSenderAddressAsString(JSONObject json) {
+		if (json instanceof JSONMessenger.JSONObjectWrapper)
+			try {
+				return getSenderAddress((byte[]) ((JSONMessenger.JSONObjectWrapper) json).obj).toString();
+			} catch (UnknownHostException e1) {
+				e1.printStackTrace();
+			}
+		// else
+		try {
+			return json
+					.has(MessageNIOTransport.SNDR_ADDRESS_FIELD) ? (json
+							.getString(MessageNIOTransport.SNDR_ADDRESS_FIELD))
+					: null;
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
@@ -331,7 +353,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		byte[] addressBytes = new byte[4];
 		bbuf.get(addressBytes);
 		InetAddress address = InetAddress.getByAddress(addressBytes);
-		int port = bbuf.getShort() + 2 * (Short.MAX_VALUE + 1);
+		int port = (int) bbuf.getShort();
+		if(port < 0) port += 2 * (Short.MAX_VALUE + 1);
 		return new InetSocketAddress(address, port);
 	}
 
@@ -346,7 +369,8 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		byte[] addressBytes = new byte[4];
 		bbuf.get(addressBytes);
 		InetAddress address = InetAddress.getByAddress(addressBytes);
-		int port = bbuf.getShort() + 2 * (Short.MAX_VALUE + 1);
+		int port = (int)bbuf.getShort() ;
+		if(port < 0) port += 2 * (Short.MAX_VALUE + 1);
 		return new InetSocketAddress(address, port);
 	}
 
@@ -380,7 +404,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		InetSocketAddress isa = null;
 		try {
 			isa = json.has(MessageNIOTransport.RCVR_ADDRESS_FIELD) ? Util
-					.getInetSocketAddressFromString(json
+					.getInetSocketAddressFromStringStrict(json
 							.getString(MessageNIOTransport.RCVR_ADDRESS_FIELD))
 					: null;
 
@@ -460,7 +484,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * using MessageNIOTransport in the first place, and just use NIOTransport
 	 * directly instead.
 	 */
-	protected static final String NIO_CHARSET_ENCODING = "ISO-8859-1";
+	public static final String NIO_CHARSET_ENCODING = "ISO-8859-1";
 
 	/**
 	 * These methods are really redundant wrappers around the corresponding

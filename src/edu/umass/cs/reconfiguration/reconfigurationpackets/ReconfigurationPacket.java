@@ -15,7 +15,9 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +26,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.JSONPacket;
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.protocoltask.ProtocolTask;
@@ -38,7 +41,7 @@ import edu.umass.cs.utils.IntegerPacketTypeMap;
  */
 @SuppressWarnings("javadoc")
 public abstract class ReconfigurationPacket<NodeIDType> extends
-		ProtocolPacket<NodeIDType, ReconfigurationPacket.PacketType> {
+		ProtocolPacket<NodeIDType, ReconfigurationPacket.PacketType> implements Byteable {
 
 	/**
 	 * Reconfiguration packet type JSON key.
@@ -439,5 +442,23 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 
 	static void main(String[] args) {
 		System.out.println(ReconfigurationPacket.PacketType.intToType.get(225));
+	}
+
+	private static final String CHARSET = "ISO-8859-1";
+	
+	@Override
+	public byte[] toBytes() {
+		byte[] body=null;
+		try {
+			body = this.toString().getBytes(CHARSET);
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+			return null;
+		}
+		byte[] bytes = new byte[body.length+4];
+		ByteBuffer bbuf = ByteBuffer.wrap(bytes);
+		bbuf.putInt(this.getType().getInt());
+		bbuf.put(body);
+		return bytes;
 	}
 }

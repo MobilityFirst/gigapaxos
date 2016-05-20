@@ -17,12 +17,15 @@
  */
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
+import java.io.UnsupportedEncodingException;
 import java.util.Set;
 
+import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.Application;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.Repliconfigurable;
@@ -30,7 +33,7 @@ import edu.umass.cs.reconfiguration.interfaces.Repliconfigurable;
 /**
 @author V. Arun
  */
-public class TrivialRepliconfigurable implements Repliconfigurable {
+public class TrivialRepliconfigurable implements Repliconfigurable, AppRequestParserBytes {
 	
 	/**
 	 * The underlying app.
@@ -53,6 +56,18 @@ public class TrivialRepliconfigurable implements Repliconfigurable {
 	public Request getRequest(String stringified)
 			throws RequestParseException {
 		return this.app.getRequest(stringified);
+	}
+	
+	@Override
+	public final Request getRequest(byte[] bytes, NIOHeader header)
+			throws RequestParseException {
+		try {
+			return this.app instanceof AppRequestParserBytes ? ((AppRequestParserBytes) this.app)
+					.getRequest(bytes, header) : this.app
+					.getRequest(new String(bytes, NIOHeader.CHARSET));
+		} catch (UnsupportedEncodingException e) {
+			throw new RequestParseException(e);
+		}
 	}
 
 	@Override

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -24,6 +25,7 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
+import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -109,7 +111,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private static final long MAX_COORDINATION_LATENCY = 2000;
 
-	final MessageNIOTransport<String, String> niot;
+	final MessageNIOTransport<String, Object> niot;
 	final Set<InetSocketAddress> reconfigurators;
 	final SSL_MODES sslMode;
 	private final E2ELatencyAwareRedirector e2eRedirector;
@@ -266,7 +268,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset,
 			boolean checkConnectivity) throws IOException {
 		this.sslMode = sslMode;
-		(this.niot = (new MessageNIOTransport<String, String>(null, null,
+		(this.niot = (new MessageNIOTransport<String, Object>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
 				sslMode))).setName(this.toString());
 		log.log(Level.INFO,
@@ -338,6 +340,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		private Logger log = ReconfigurableAppClientAsync.log;
 
 		ClientPacketDemultiplexer(Set<IntegerPacketType> types) {
+			super(1);
 			this.register(ReconfigurationPacket.clientPacketTypes);
 			this.register(ReconfigurationPacket.serverPacketTypes);
 			this.register(types);
@@ -345,6 +348,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		private BasicReconfigurationPacket<?> parseAsReconfigurationPacket(
 				Object strMsg) {
+			if(strMsg instanceof BasicReconfigurationPacket<?>)
+				return (BasicReconfigurationPacket<?>)strMsg;
+			
 			if (!(strMsg instanceof JSONObject))
 				return null;
 
@@ -358,6 +364,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 
 		private Request parseAsAppRequest(Object msg) {
+			if(msg instanceof Request) return (Request)msg;
 			Request request = null;
 			try {
 				request = ReconfigurableAppClientAsync.this.jsonPackets
@@ -514,31 +521,56 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				request = this.parseAsReconfigurationPacket(strMsg);
 			return request != null ? request.getRequestType().getInt() : null;
 		}
-
+		
 		@Override
 		protected Object processHeader(byte[] bytes, NIOHeader header) {
 			log.log(Level.FINEST, "{0} received message from {1}",
 					new Object[] { this, header.sndr });
 			String message = null;
 			try {
-				message = MessageExtractor.decode(bytes);
-				long t = System.nanoTime();
-				/* FIXME: This is inefficient and inelegant, but it is unclear
-				 * what else we can do to avoid at least one unnecessary
-				 * JSON<->string back and forth with the current NIO API and the
-				 * fact that apps in general may not use JSON for their packets
-				 * but we do. The alternative is to not provide the
-				 * sender-address feature to async clients; if so, we don't need
-				 * the JSON'ization below. */
-				if (JSONPacket.couldBeJSON(message)) {
-					JSONObject json = new JSONObject(message);
-					MessageExtractor.stampAddressIntoJSONObject(header.sndr,
-							header.rcvr, json);
-					if (ReconfigurationConfig.instrument(100))
-						DelayProfiler.updateDelayNano("headerInsertion", t);
-					// some inelegance to avoid a needless stringification
-					json.put(Keys.INCOMING_STRING.toString(), message);
-					return json;// inserted;
+				// reconfiguration packet
+				if(bytes.length >= Integer.BYTES && 
+						ReconfigurationPacket.PacketType.intToType.containsKey(ByteBuffer.wrap(bytes, 0, 4).getInt())) {
+					message = MessageExtractor.decode(bytes, 4, bytes.length-4);
+					long t = System.nanoTime();
+					/* FIXME: This is inefficient and inelegant, but it is
+					 * unclear what else we can do to avoid at least one
+					 * unnecessary JSON<->string back and forth with the current
+					 * NIO API and the fact that apps in general may not use
+					 * JSON for their packets but we do. The alternative is to
+					 * not provide the sender-address feature to async clients;
+					 * if so, we don't need the JSON'ization below. */
+					if (JSONPacket.couldBeJSON(message)) {
+						JSONObject json = new JSONObject(message);
+						MessageExtractor.stampAddressIntoJSONObject(
+								header.sndr, header.rcvr, json);
+						if (ReconfigurationConfig.instrument(100))
+							DelayProfiler.updateDelayNano("headerInsertion", t);
+						if (!ReconfigurationPacket
+								.isReconfigurationPacket(json))
+							// some inelegance to avoid a needless
+							// stringification
+							json.put(Keys.INCOMING_STRING.toString(), message);
+						return json;// inserted;
+					}
+				}
+				// byte-parseable app packet
+				else if(ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
+					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
+							.getRequest(bytes, header);
+				}
+				// default stringified app packet
+				else {
+					message = MessageExtractor.decode(bytes);
+					if (JSONPacket.couldBeJSON(message)) {
+						JSONObject json = new JSONObject(message);
+						MessageExtractor.stampAddressIntoJSONObject(header.sndr,
+								header.rcvr, json);
+						if(!ReconfigurationPacket.isReconfigurationPacket(json))
+							// some inelegance to avoid a needless stringification
+							json.put(Keys.INCOMING_STRING.toString(), message);
+						return json;// inserted;
+					}					
 				}
 			} catch (Exception je) {
 				// do nothing
@@ -598,7 +630,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						((TimeoutRequestCallback) original).getTimeout(),
 						request);
 
-			sendFailed = this.niot.sendToAddress(server, request.toString()) <= 0;
+			sendFailed = this.niot.sendToAddress(server, request) <= 0;
 			Level level = request instanceof EchoRequest ? Level.FINE
 					: Level.INFO;
 			log.log(level,
@@ -673,7 +705,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				// subtract offset to go to server-server port
 				this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
 						.getClientPortClearOffset() : -ReconfigurationConfig
-						.getClientPortSSLOffset()), rcPacket.toString());
+						.getClientPortSSLOffset()), rcPacket);
 	}
 
 	/**
@@ -753,7 +785,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						request);
 		this.niot.sendToAddress(reconfigurator != null ? reconfigurator
 				: this.e2eRedirector.getNearest(reconfigurators), request
-				.toString());
+				);
 	}
 
 	private InetSocketAddress getRandom(InetSocketAddress[] isas) {

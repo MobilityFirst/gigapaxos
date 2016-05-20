@@ -404,6 +404,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * @throws IOException
 	 */
 	public int send(InetSocketAddress isa, byte[] data) throws IOException {
+		long t = System.nanoTime();
 		if (isa == null)
 			return -1;
 		if (data.length > MAX_PAYLOAD_SIZE)
@@ -416,6 +417,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		ByteBuffer bbuf = getHeaderedByteBuffer(data = this.deflate(data));
 		int written = this.canEnqueueSend(isa) ? this.enqueueSend(isa, bbuf)
 				: 0;
+		if(Util.oneIn(100)) DelayProfiler.updateDelayNano("nioSend", t);
 		return written > 0 ? written - HEADER_SIZE : written;
 	}
 
@@ -1178,7 +1180,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		int queuedBytes = 0;
 		// lock because selector thread may remove sendQueue from sendQueues
 		synchronized (this.sendQueues) {
-			this.sendQueues.putIfAbsent(isa,
+			if(!this.sendQueues.containsKey(isa))
+				this.sendQueues.putIfAbsent(isa,
 					new LinkedBlockingQueue<ByteBuffer>());
 			LinkedBlockingQueue<ByteBuffer> sendQueue = this.sendQueues
 					.get(isa);
@@ -1242,7 +1245,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	private boolean trySneakyWrite(InetSocketAddress isa, ByteBuffer data)
 			throws IOException {
-		if (!SNEAK_DIRECT_WRITE)
+		/* FIXME: sneaky writes cause problems with ssl, so they are disabled
+		 * with ssl for now. */
+		if (!SNEAK_DIRECT_WRITE || isSSL())
 			return false;
 		SocketChannel channel = this.getSockAddrToSockChannel(isa);
 		if (channel != null && channel.isConnected()

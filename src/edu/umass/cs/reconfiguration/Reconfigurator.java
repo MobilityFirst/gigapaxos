@@ -222,7 +222,7 @@ public class Reconfigurator<NodeIDType> implements
 			 * messages to a reconfigurator and they will never send any message
 			 * other than the subset of ReconfigurationPacket types meant to be
 			 * processed by reconfigurators. */
-			assert (rcType != null || ReconfigurationConfig.isTLSEnabled());
+			assert (rcType != null || ReconfigurationConfig.isTLSEnabled()) : jsonObject;
 
 			// try handling as reconfiguration packet through protocol task
 			@SuppressWarnings("unchecked")
@@ -1828,11 +1828,12 @@ public class Reconfigurator<NodeIDType> implements
 			this.messenger.sendToAddress(
 					this.consistentNodeConfig
 							.getNodeSocketAddress(randomResponsibleRC),
-					request.setForwader(
+					new JSONMessenger.JSONObjectByteableWrapper(request.setForwader(
 							this.consistentNodeConfig
 									.getNodeSocketAddress(getMyID()))
-							.toJSONObject());
-		} catch (IOException | JSONException e) {
+							//.toJSONObject()
+							));
+		} catch (IOException /*| JSONException*/ e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -1852,7 +1853,9 @@ public class Reconfigurator<NodeIDType> implements
 						new Object[] { this, response.getSummary(),
 								response.getResponseMessage(), querier });
 				(this.getClientMessenger(response.getMyReceiver()))
-						.sendToAddress(querier, response.toJSONObject());
+						.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
+								//.toJSONObject()
+								));
 			} else {
 				// may be a request or response
 				log.log(Level.INFO,
@@ -1861,9 +1864,11 @@ public class Reconfigurator<NodeIDType> implements
 								response.isRequest() ? "request" : "RESPONSE",
 								response.getSummary(), querier });
 				assert (this.messenger.sendToAddress(querier,
-						response.toJSONObject()) > 0);
+						new JSONMessenger.JSONObjectByteableWrapper(response
+						//.toJSONObject()
+						)) > 0);
 			}
-		} catch (IOException | JSONException e) {
+		} catch (IOException /*| JSONException*/ e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -1928,14 +1933,18 @@ public class Reconfigurator<NodeIDType> implements
 						new Object[] { this, response.getSummary(), querier });
 				// this.getClientMessenger()
 				(this.getMessenger(rcRecReq.startEpoch.getMyReceiver()))
-						.sendToAddress(querier, response.toJSONObject());
+						.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
+								//.toJSONObject()
+								));
 			} else {
 				log.log(Level.INFO,
 						"{0} sending creation confirmation {1} to forwarding reconfigurator {2}",
 						new Object[] { this, response.getSummary(), querier });
-				this.messenger.sendToAddress(querier, response.toJSONObject());
+				this.messenger.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
+						//.toJSONObject()
+						));
 			}
-		} catch (IOException | JSONException e) {
+		} catch (IOException /*| JSONException*/ e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -1974,14 +1983,18 @@ public class Reconfigurator<NodeIDType> implements
 				// this.getClientMessenger()
 				(this.getMessenger(rcRecReq.startEpoch.getMyReceiver()))
 						.sendToAddress(this.getQuerier(rcRecReq),
-								response.toJSONObject());
+								new JSONMessenger.JSONObjectByteableWrapper(response
+								//.toJSONObject()
+								));
 			} else {
 				log.log(Level.FINE,
 						"{0} sending deletion confirmation {1} to forwarding reconfigurator {2}",
 						new Object[] { this, response.getSummary(), querier });
-				this.messenger.sendToAddress(querier, response.toJSONObject());
+				this.messenger.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
+						//.toJSONObject()
+						));
 			}
-		} catch (IOException | JSONException e) {
+		} catch (IOException /*| JSONException*/ e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -2031,8 +2044,10 @@ public class Reconfigurator<NodeIDType> implements
 							rcRecReq.startEpoch.creator, response.getSummary(),
 							separator });
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
-					response.toJSONObject());
-		} catch (IOException | JSONException e) {
+					new JSONMessenger.JSONObjectByteableWrapper(response
+					//.toJSONObject()
+					));
+		} catch (IOException /*| JSONException*/ e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -2056,8 +2071,10 @@ public class Reconfigurator<NodeIDType> implements
 					new Object[] { separator, this, response.getSummary(),
 							rcRecReq.startEpoch.creator, separator });
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
-					response.toJSONObject());
-		} catch (IOException | JSONException e) {
+					new JSONMessenger.JSONObjectByteableWrapper(response
+					//.toJSONObject()
+					));
+		} catch (IOException /*| JSONException*/ e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();

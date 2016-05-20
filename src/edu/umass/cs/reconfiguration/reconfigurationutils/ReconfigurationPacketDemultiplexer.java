@@ -27,6 +27,10 @@ import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.nioutils.NIOHeader;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -59,27 +63,45 @@ public class ReconfigurationPacketDemultiplexer extends
 
 	@Override
 	public JSONObject processHeader(byte[] msg, NIOHeader header) {
-		if (JSONPacket.couldBeJSON(msg)) {
-			JSONObject json =  super.processHeader(msg, header, true);
-			if(json!=null) return json;
-		}
+		long t=System.nanoTime();
+		if (msg.length >= Integer.BYTES
+				&& ReconfigurationPacket.PacketType.intToType
+						.containsKey(ByteBuffer.wrap(msg, 0, 4).getInt())
+				&& JSONPacket.couldBeJSON(msg, Integer.BYTES)) {
+			JSONObject json = super.processHeader(msg, Integer.BYTES, header,
+					true);
+			if (json != null) {
+				if (Util.oneIn(50))
+					DelayProfiler.updateDelayNano("processHeader", t);
+				return json;
+			}
+		} 
 		// else prefix msg with addresses
 		byte[] stamped = new byte[NIOHeader.BYTES + msg.length];
 		ByteBuffer bbuf = ByteBuffer.wrap(stamped);
 		bbuf.put(header.toBytes());
 		bbuf.put(msg);
+		if (Util.oneIn(50))
+			DelayProfiler.updateDelayNano("processHeader", t);
 		return new JSONMessenger.JSONObjectWrapper(stamped);
 	}
 
 	@Override
 	public Integer getPacketType(JSONObject json) {
 		if (json instanceof JSONMessenger.JSONObjectWrapper) {
-			// first 4 bytes (after 12 bytes of address) must be the type
-			return ByteBuffer.wrap(
-					(byte[]) ((JSONMessenger.JSONObjectWrapper) json).getObj(),
-					NIOHeader.BYTES, Integer.BYTES).getInt();
+			byte[] bytes = (byte[]) ((JSONMessenger.JSONObjectWrapper) json).getObj();
+			if(!JSONPacket.couldBeJSON(bytes, NIOHeader.BYTES)) {
+				// first 4 bytes (after 12 bytes of address) must be the type
+				return ByteBuffer.wrap(bytes, NIOHeader.BYTES, Integer.BYTES)
+						.getInt();
+			}
+			else {
+				// return any valid type (assuming no more chained demultiplexers)
+				return PacketType.ECHO_REQUEST.getInt();
+			}
 		} else
 			try {
+				assert(ReconfigurationPacket.isReconfigurationPacket(json));
 				return JSONPacket.getPacketType(json);
 			} catch (JSONException e) {
 				e.printStackTrace();

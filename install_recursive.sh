@@ -40,7 +40,7 @@ local_jar_files=dist/$package_name-[0-9].[0-9]*.jar
 # local_install_dir.
 transfer_list="$local_jar_files\
   gigapaxos.properties testing.properties\
-  logging.properties tests bin"
+  logging.properties tests conf bin"
 
 # disabling warnings to prevent manual override; can supply ssh keys
 # here if needed, but they must be the same on the local host and on
@@ -116,10 +116,18 @@ if [[ ! -z $tmp_cmd_suffix ]]; then
   cmd_suffix=$tmp_cmd_suffix
 fi
 
+SSL_SARGS="-Djavax.net.ssl.trustStorePassword=qwerty \
+-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks \
+-Djavax.net.ssl.keyStorePassword=qwerty \
+-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks"
+
+SSL_CARGS="-Djavax.net.ssl.trustStorePassword=qwerty \
+-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks "
 
 run_server_cmd="cd; cd $remote_install_dir;\
   "$cmd_prefix"\
   java -ea -Xmx4096M -cp ./$local_jar_files \
+  $SSL_SARGS \
   -DgigapaxosConfig=$gigapaxos_properties\
   -DtestingConfig=$testing_properties\
   -Djava.util.logging.config.file=logging.properties\
@@ -128,6 +136,7 @@ run_server_cmd="cd; cd $remote_install_dir;\
 run_client_cmd="cd; cd $remote_install_dir;\
   "$cmd_prefix"\
   java -ea -Xmx1046M -cp ./$local_jar_files\
+  $SSL_CARGS \
   -DgigapaxosConfig=$gigapaxos_properties\
   -DtestingConfig=$testing_properties\
   -Djava.util.logging.config.file=logging.properties\

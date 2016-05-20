@@ -63,11 +63,15 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 
 	protected JSONObject processHeader(byte[] message, NIOHeader header,
 			boolean cacheStringified) {
+		return processHeader(message, 0, header, cacheStringified);
+	}
+	protected JSONObject processHeader(byte[] message, int offset, NIOHeader header,
+			boolean cacheStringified) {
 		try {
-			if (JSONPacket.couldBeJSON(message)) // quick reject if not
+			if (JSONPacket.couldBeJSON(message, offset)) // quick reject if not
 				return MessageExtractor.stampAddressIntoJSONObject(header.sndr,
 						header.rcvr, MessageExtractor.parseJSON(
-								MessageExtractor.decode(message),
+								MessageExtractor.decode(message, offset, message.length-offset),
 								cacheStringified));
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
