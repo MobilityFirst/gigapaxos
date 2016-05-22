@@ -41,7 +41,7 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 
 	private final LinkedHashMap<K, Long> putTimes = new LinkedHashMap<K, Long>();
 	private final GCConcurrentHashMapCallback callback;
-	private final long gcTimeout;
+	private long gcTimeout; // milliseconds
 
 	/**
 	 * @param callback
@@ -85,9 +85,19 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 
 	/**
 	 * @param size
+	 * @return {@code this}
 	 */
-	public void setGCThresholdSize(int size) {
+	public GCConcurrentHashMap<K, V> setGCThresholdSize(int size) {
 		this.gcThresholdSize = size;
+		return this;
+	}
+	/**
+	 * @param timeout
+	 * @return {@code this}
+	 */
+	public GCConcurrentHashMap<K, V> setGCTimeout(long timeout) {
+		this.gcTimeout = timeout;
+		return this;
 	}
 
 	public synchronized boolean remove(Object key, Object value) {

@@ -404,7 +404,6 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * @throws IOException
 	 */
 	public int send(InetSocketAddress isa, byte[] data) throws IOException {
-		long t = System.nanoTime();
 		if (isa == null)
 			return -1;
 		if (data.length > MAX_PAYLOAD_SIZE)
@@ -417,7 +416,6 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		ByteBuffer bbuf = getHeaderedByteBuffer(data = this.deflate(data));
 		int written = this.canEnqueueSend(isa) ? this.enqueueSend(isa, bbuf)
 				: 0;
-		if(Util.oneIn(100)) DelayProfiler.updateDelayNano("nioSend", t);
 		return written > 0 ? written - HEADER_SIZE : written;
 	}
 
