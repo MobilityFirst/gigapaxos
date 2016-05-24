@@ -692,7 +692,7 @@ public class Reconfigurator<NodeIDType> implements
 		}
 		// else failure
 		this.sendClientReconfigurationPacket(delete
-				.setFailed()
+				.setFailed(ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
 				.setResponseMessage(
 						delete.getServiceName()
 								+ (record != null ? " is being reconfigured and can not be deleted just yet."
@@ -768,8 +768,12 @@ public class Reconfigurator<NodeIDType> implements
 					+ request.getServiceName();
 			request.setResponseMessage(responseMessage
 					+ " probably because the name has not yet been created or is pending deletion");
-			this.sendClientReconfigurationPacket(request.setFailed()
-					.makeResponse());
+			this.sendClientReconfigurationPacket(request.setFailed(ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
+					.makeResponse().setHashRCs(
+							modifyPortsForSSL(this
+									.getSocketAddresses(this.consistentNodeConfig
+											.getReplicatedReconfigurators(request
+													.getServiceName())), receivedOnSSLPort(request))));
 			return null;
 		}
 

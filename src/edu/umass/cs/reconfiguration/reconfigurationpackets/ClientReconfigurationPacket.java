@@ -61,6 +61,19 @@ public abstract class ClientReconfigurationPacket extends
 		 * If a name being created already exists.
 		 */
 		DUPLICATE_ERROR,
+
+		/**
+		 * If an active replica receives a request for a name that is not
+		 * replicated at there.
+		 */
+		ACTIVE_REPLICA_EXCEPTION,
+
+		/**
+		 * If a reconfigurator receives a request for a name that does not
+		 * exist.
+		 * 
+		 */
+		NONEXISTENT_NAME_ERROR
 	}
 
 	/**

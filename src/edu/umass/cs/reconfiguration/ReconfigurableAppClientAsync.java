@@ -348,9 +348,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		private BasicReconfigurationPacket<?> parseAsReconfigurationPacket(
 				Object strMsg) {
-			if(strMsg instanceof BasicReconfigurationPacket<?>)
-				return (BasicReconfigurationPacket<?>)strMsg;
-			
+			if (strMsg instanceof BasicReconfigurationPacket<?>)
+				return (BasicReconfigurationPacket<?>) strMsg;
+
 			if (!(strMsg instanceof JSONObject))
 				return null;
 
@@ -364,7 +364,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 
 		private Request parseAsAppRequest(Object msg) {
-			if(msg instanceof Request) return (Request)msg;
+			if (msg instanceof Request)
+				return (Request) msg;
 			Request request = null;
 			try {
 				request = ReconfigurableAppClientAsync.this.jsonPackets
@@ -521,7 +522,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				request = this.parseAsReconfigurationPacket(strMsg);
 			return request != null ? request.getRequestType().getInt() : null;
 		}
-		
+
 		@Override
 		protected Object processHeader(byte[] bytes, NIOHeader header) {
 			log.log(Level.FINEST, "{0} received message from {1}",
@@ -529,9 +530,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			String message = null;
 			try {
 				// reconfiguration packet
-				if(bytes.length >= Integer.BYTES && 
-						ReconfigurationPacket.PacketType.intToType.containsKey(ByteBuffer.wrap(bytes, 0, 4).getInt())) {
-					message = MessageExtractor.decode(bytes, 4, bytes.length-4);
+				if (bytes.length >= Integer.BYTES
+						&& ReconfigurationPacket.PacketType.intToType
+								.containsKey(ByteBuffer.wrap(bytes, 0, 4)
+										.getInt())) {
+					message = MessageExtractor.decode(bytes, 4,
+							bytes.length - 4);
 					long t = System.nanoTime();
 					/* FIXME: This is inefficient and inelegant, but it is
 					 * unclear what else we can do to avoid at least one
@@ -555,7 +559,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					}
 				}
 				// byte-parseable app packet
-				else if(ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
+				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
 					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
 							.getRequest(bytes, header);
 				}
@@ -564,13 +568,15 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					message = MessageExtractor.decode(bytes);
 					if (JSONPacket.couldBeJSON(message)) {
 						JSONObject json = new JSONObject(message);
-						MessageExtractor.stampAddressIntoJSONObject(header.sndr,
-								header.rcvr, json);
-						if(!ReconfigurationPacket.isReconfigurationPacket(json))
-							// some inelegance to avoid a needless stringification
+						MessageExtractor.stampAddressIntoJSONObject(
+								header.sndr, header.rcvr, json);
+						if (!ReconfigurationPacket
+								.isReconfigurationPacket(json))
+							// some inelegance to avoid a needless
+							// stringification
 							json.put(Keys.INCOMING_STRING.toString(), message);
 						return json;// inserted;
-					}					
+					}
 				}
 			} catch (Exception je) {
 				// do nothing
@@ -727,7 +733,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	private void sendRequest(ClientReconfigurationPacket request)
 			throws IOException {
-		this.sendRequest(request, null);
+		this.sendRequest(request, (RequestCallback) null);
 	}
 
 	private boolean hasLongTimeout(RequestCallback callback) {
@@ -783,9 +789,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				spawnGCClientReconfigurationPacket(
 						((TimeoutRequestCallback) callback).getTimeout(),
 						request);
-		this.niot.sendToAddress(reconfigurator != null ? reconfigurator
-				: this.e2eRedirector.getNearest(reconfigurators), request
-				);
+		this.sendRequest(request, reconfigurator != null ? reconfigurator
+				: this.e2eRedirector.getNearest(reconfigurators));
+	}
+
+	private void sendRequest(ClientReconfigurationPacket request,
+			InetSocketAddress reconfigurator) throws IOException {
+		this.niot.sendToAddress(reconfigurator, request);
 	}
 
 	private InetSocketAddress getRandom(InetSocketAddress[] isas) {
@@ -830,6 +840,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		final RequestCallback callback;
 		final NearestServerSelector redirector;
 		InetSocketAddress serverSentTo;
+		int heardFromRCs = 0; // for request actives
 
 		RequestAndCallback(ClientRequest request, RequestCallback callback) {
 			this(request, callback, null);
@@ -860,6 +871,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		public boolean isExpired() {
 			return System.currentTimeMillis() - this.sentTime > APP_REQUEST_TIMEOUT;
+		}
+
+		private int incrHeardFromRCs() {
+			return this.heardFromRCs++;
 		}
 	}
 
@@ -1061,25 +1076,50 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							e.printStackTrace();
 						}
 					} else {
-						// or send error to all pending requests
+						// or send error to all pending requests except ones to be retried
 						log.log(Level.FINE,
 								"{0} returning {1} to pending request callbacks {2}",
 								new Object[] {
 										this,
 										ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR,
 										pendingRequests });
+						assert(response.getHashRCs()!=null && !response.getHashRCs().isEmpty());
+						Set<RequestAndCallback> removals = new HashSet<RequestAndCallback>();
 						for (RequestAndCallback pendingRequest : pendingRequests)
-							pendingRequest.callback
-									.handleResponse(new ActiveReplicaError(
-											response.getServiceName(),
-											pendingRequest.request
-													.getRequestID(), response)
-											.setResponseMessage(ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR
-													+ ": No active replicas found for name \""
-													+ response.getServiceName()
-													+ "\" likely because the name doesn't exist or because this name or"
-													+ " active replicas or reconfigurators are being reconfigured."));
-						pendingRequests.clear();
+							// retry once with rest of the reconfigurators
+							if (response.getHashRCs() != null && response.getHashRCs().size()>1
+									&& pendingRequest.incrHeardFromRCs() == 0 ) {
+								response.getHashRCs().remove(
+										response.getSender());
+								try {
+									for (InetSocketAddress reconfigurator : response
+											.getHashRCs())
+										this.sendRequest(
+												new RequestActiveReplicas(
+														response.getServiceName()),
+												reconfigurator);
+								} catch (IOException e) {
+									e.printStackTrace();
+									// do nothing
+								}
+							} else if (pendingRequest.incrHeardFromRCs() < response
+									.getHashRCs().size() / 2) {
+								// do nothing but wait to hear from majority
+							} else {
+								// name does not exist
+								pendingRequest.callback
+										.handleResponse(new ActiveReplicaError(
+												response.getServiceName(),
+												pendingRequest.request
+														.getRequestID(),
+												response).setResponseMessage(ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR
+												+ ": No active replicas found for name \""
+												+ response.getServiceName()
+												+ "\" likely because the name doesn't exist or because this name or"
+												+ " active replicas or reconfigurators are being reconfigured."));
+								removals.add(pendingRequest);
+							}
+						pendingRequests.removeAll(removals);
 						break;
 					}
 					reqIter.remove();
@@ -1129,7 +1169,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if (SEND_CLOSEST_TO_RECONFIGURATORS)
 				servers.addAll(reconfigurators);
 			log.log(Level.INFO, "{0} sending closest-{1} map {2} to {3}",
-					new Object[] { this, this.closest.size(), this.closest, servers });
+					new Object[] { this, this.closest.size(), this.closest,
+							servers });
 			for (InetSocketAddress address : servers) {
 				try {
 					this.sendRequest(new EchoRequest((InetSocketAddress) null,
