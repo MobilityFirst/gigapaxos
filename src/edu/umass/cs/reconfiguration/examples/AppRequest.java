@@ -230,6 +230,10 @@ public class AppRequest extends JSONPacket implements ReconfigurableRequest,
 		this.name = json.getString(Keys.NAME.toString());
 		this.epoch = json.getInt(Keys.EPOCH.toString());
 		this.id = json.getLong(Keys.QID.toString());
+		
+		// TODO : remove
+		assert(json.has(Keys.STOP.toString())) : json;
+		
 		this.stop = json.getBoolean(Keys.STOP.toString());
 		this.value = json.getString(Keys.QVAL.toString());
 		this.coordType = (json.has(Keys.COORD.toString()) ? json

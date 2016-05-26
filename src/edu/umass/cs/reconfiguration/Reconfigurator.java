@@ -1944,7 +1944,11 @@ public class Reconfigurator<NodeIDType> implements
 				log.log(Level.INFO,
 						"{0} sending creation confirmation {1} to forwarding reconfigurator {2}",
 						new Object[] { this, response.getSummary(), querier });
-				this.messenger.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
+				this.messenger.sendToAddress(
+						querier,
+						new JSONMessenger.JSONObjectByteableWrapper(response
+								.setForwardee(this.consistentNodeConfig
+										.getNodeSocketAddress(getMyID()))
 						//.toJSONObject()
 						));
 			}

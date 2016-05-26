@@ -649,7 +649,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						.roundRobinCoordinator(0),
 				slotBallot != null ? (slotBallot.slot + 1) : 0, null);
 		if (slotBallot == null && !missedBirthing)
-			this.putInitialState(initialState);
+			this.putInitialState(initialState); // will set nextSlot to 1
 		if (missedBirthing)
 			this.paxosState.setGCSlotAfterPuttingInitialSlot();
 
@@ -1480,10 +1480,10 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			PValuePacket loggedDecision) {
 		long methodEntryTime = System.currentTimeMillis();
 		int execCount = 0;
-		if (this.paxosState.isStopped())
-			return null;
 		PValuePacket inorderDecision = null;
 		synchronized (this) {
+			if (this.paxosState.isStopped())
+				return null;
 			// extract next in-order decision
 			while ((inorderDecision = this.paxosState
 					.putAndRemoveNextExecutable(loggedDecision)) != null) {
@@ -1546,7 +1546,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			this.paxosState.assertSlotInvariant();
 		}
 		/* The kill has been moved out of the synchronized block above as the
-		 * synchronizing on this is unnecessary and creates a potential deadlock
+		 * synchronized(this) is unnecessary and creates a potential deadlock
 		 * with scenarios like pause where paxosManger is first locked and then
 		 * this instance's acceptor is locked if in the future we make the
 		 * PaxosAcceptor inherit from PaxosInstanceStateMachine. */

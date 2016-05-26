@@ -48,9 +48,9 @@ public abstract class ClientReconfigurationPacket extends
 	private static enum Keys {
 		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED,
 
-		RECURSIVE_REDIRECT, CREATOR, FORWARDER, MY_RECEIVER, IS_QUERY,
+		RECURSIVE_REDIRECT, CREATOR, FORWARDER, FORWARDEE, MY_RECEIVER,
 
-		CREATE_TIME, RESPONSE_CODE
+		IS_QUERY, CREATE_TIME, RESPONSE_CODE
 	};
 
 	/**
@@ -97,6 +97,8 @@ public abstract class ClientReconfigurationPacket extends
 	private InetSocketAddress forwarder = null;
 	// need this to keep track of my address on which received
 	private InetSocketAddress myReceiver = null;
+	// reconfigurator to which the forwarder forwarded
+	private InetSocketAddress forwardee = null;
 	// whether this is a request as opposed to a respose
 	private boolean isRequest = true;
 	// creation time of this request
@@ -179,6 +181,9 @@ public abstract class ClientReconfigurationPacket extends
 		this.forwarder = json.has(Keys.FORWARDER.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.FORWARDER
 						.toString())) : null;
+		this.forwardee = json.has(Keys.FORWARDEE.toString()) ? Util
+				.getInetSocketAddressFromString(json.getString(Keys.FORWARDEE
+						.toString())) : null;
 
 		this.creator = json.has(Keys.CREATOR.toString()) ? Util
 				.getInetSocketAddressFromString(json.getString(Keys.CREATOR
@@ -223,6 +228,8 @@ public abstract class ClientReconfigurationPacket extends
 		json.put(Keys.RESPONSE_MESSAGE.toString(), this.responseMessage);
 		if (this.forwarder != null)
 			json.put(Keys.FORWARDER.toString(), this.forwarder.toString());
+		if (this.forwardee != null)
+			json.put(Keys.FORWARDEE.toString(), this.forwardee.toString());
 		if (this.myReceiver != null)
 			json.put(Keys.MY_RECEIVER.toString(), this.myReceiver.toString());
 		if (this.creator != null)
@@ -350,6 +357,13 @@ public abstract class ClientReconfigurationPacket extends
 	/**
 	 * @return The socket address of the forwarding node.
 	 */
+	public InetSocketAddress getForwardee() {
+		return this.forwardee;
+	}
+
+	/**
+	 * @return The socket address of the forwarding node.
+	 */
 	public InetSocketAddress getMyReceiver() {
 		return this.myReceiver;
 	}
@@ -369,6 +383,15 @@ public abstract class ClientReconfigurationPacket extends
 	 */
 	public ClientReconfigurationPacket setForwader(InetSocketAddress isa) {
 		this.forwarder = isa;
+		return this;
+	}
+
+	/**
+	 * @param isa
+	 * @return {@code this}
+	 */
+	public ClientReconfigurationPacket setForwardee(InetSocketAddress isa) {
+		this.forwardee = isa;
 		return this;
 	}
 

@@ -388,8 +388,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			return -1;
 
 		Level level = Level.FINEST;
-		log.log(level, "{0} -> {1}={2}:{3}:[{4}]", new Object[] {
-				this, id, address, port,
+		log.log(level, "{0} -> {1}={2}:{3}:[{4}]", new Object[] { this, id,
+				address, port,
 				log.isLoggable(level) ? new Stringer(data) : data });
 		if (this.nodeConfig == null)
 			throw new NullPointerException(
@@ -648,9 +648,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	private NodeIDType getNodeID(InetSocketAddress isa) {
 		if (isa != null && this.nodeConfig != null)
 			for (NodeIDType node : this.nodeConfig.getNodeIDs()) {
-				assert (this.nodeConfig.getNodeAddress(node) != null) : node;
-				if (this.nodeConfig.getNodeAddress(node).equals(
-						isa.getAddress())
+				// can happen if nodeConfig changes to remove node midway
+				// assert (this.nodeConfig.getNodeAddress(node) != null) : node;
+				if (this.nodeConfig.getNodeAddress(node) != null
+						&& isa.getAddress().equals(
+								this.nodeConfig.getNodeAddress(node))
 						&& this.nodeConfig.getNodePort(node) == isa.getPort())
 					return node;
 			}
@@ -943,7 +945,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	private static boolean useSenderTask = true;
 
-	private static final boolean useSenderTask() {
+	private final boolean useSenderTask() {
 		return useSenderTask;
 	}
 
@@ -1157,7 +1159,6 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				: SSL_MODES.CLEAR;
 	}
 
-	// invoked only by selector thread
 	private boolean isHandshakeComplete(SocketChannel socketChannel) {
 		boolean isComplete = isSSL() ? ((SSLDataProcessingWorker) this.worker)
 				.isHandshakeComplete(socketChannel) : true;
@@ -1178,9 +1179,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		int queuedBytes = 0;
 		// lock because selector thread may remove sendQueue from sendQueues
 		synchronized (this.sendQueues) {
-			if(!this.sendQueues.containsKey(isa))
+			if (!this.sendQueues.containsKey(isa))
 				this.sendQueues.putIfAbsent(isa,
-					new LinkedBlockingQueue<ByteBuffer>());
+						new LinkedBlockingQueue<ByteBuffer>());
 			LinkedBlockingQueue<ByteBuffer> sendQueue = this.sendQueues
 					.get(isa);
 			if (sendQueue.isEmpty() && (trySneakyWrite(isa, data))
@@ -1224,7 +1225,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			try {
 				// set op to write if not already set
 				if ((key = sc.keyFor(this.selector)) != null && key.isValid()
-						&& (key.interestOps() & SelectionKey.OP_WRITE) == 0)
+				// && (key.interestOps() & SelectionKey.OP_WRITE) == 0
+				)
 					key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
 			} catch (CancelledKeyException cke) {
 				// could have been cancelled upon a write attempt

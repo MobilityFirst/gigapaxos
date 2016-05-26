@@ -466,21 +466,22 @@ public class JSONMessenger<NodeIDType> implements
 	 * @param sockAddr
 	 * @param message
 	 * @param listenSocketAddress
+	 * @return Number of bytes or characters written.
 	 * @throws JSONException
 	 * @throws IOException
 	 */
-	public void sendClient(InetSocketAddress sockAddr, Object message,
+	public int sendClient(InetSocketAddress sockAddr, Object message,
 			InetSocketAddress listenSocketAddress) throws JSONException,
 			IOException {
 		AddressMessenger<JSONObject> msgr = this
 				.getClientMessenger(listenSocketAddress);
 		msgr = msgr != null ? msgr : this;
 		if (message instanceof byte[])
-			msgr.sendToAddress(sockAddr, (byte[]) message);
+			return msgr.sendToAddress(sockAddr, (byte[]) message);
 		else if (message instanceof Byteable)
-			msgr.sendToAddress(sockAddr, ((Byteable)message).toBytes());
+			return msgr.sendToAddress(sockAddr, ((Byteable)message).toBytes());
 		else 
-			msgr.sendToAddress(sockAddr, new JSONObjectWrapper(message));
+			return msgr.sendToAddress(sockAddr, new JSONObjectWrapper(message));
 	}
 
 	/**

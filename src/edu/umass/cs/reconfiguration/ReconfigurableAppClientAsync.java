@@ -48,6 +48,7 @@ import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket.ResponseCodes;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EchoRequest;
@@ -57,6 +58,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConf
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.reconfiguration.reconfigurationutils.AppInstrumenter;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
@@ -237,7 +239,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private static final int MAX_OUTSTANDING_CRP_REQUESTS = 4096;
 
 	class ActivesInfo {
-		Set<InetSocketAddress> actives = null;
+		final Set<InetSocketAddress> actives;
 		// last queried time used to rate limit RequestActiveReplicas queries
 		final long createTime;
 
@@ -357,10 +359,18 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			BasicReconfigurationPacket<?> rcPacket = ReconfigurationPacket
 					.getReconfigurationPacketSuppressExceptions(
 							(JSONObject) strMsg, unstringer);
-			return (rcPacket instanceof ClientReconfigurationPacket) ? (ClientReconfigurationPacket) rcPacket
-					: rcPacket instanceof ServerReconfigurationPacket ? ((ServerReconfigurationPacket<?>) rcPacket)
-							: rcPacket instanceof EchoRequest ? ((EchoRequest) rcPacket)
-									: null;
+
+			if (rcPacket != null
+					&& (rcPacket = (rcPacket instanceof ClientReconfigurationPacket
+							|| rcPacket instanceof ServerReconfigurationPacket
+							|| rcPacket instanceof EchoRequest ? rcPacket
+							: null)) == null)
+				log.log(Level.WARNING,
+						"{0} dropping an undecodeable reconfiguration packet {1}",
+						new Object[] { ReconfigurableAppClientAsync.this,
+								strMsg });
+
+			return rcPacket;
 		}
 
 		private Request parseAsAppRequest(Object msg) {
@@ -416,6 +426,21 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							- callback.sentTime);
 		}
 
+		private static final boolean USE_FORWARDEE_INFO = true;
+
+		/**
+		 * The main demultiplexing method for responses. It invokes the app
+		 * request callback upon getting app responses or internally processes
+		 * ReconfigurationPacket packets. It includes support for retransmitting
+		 * active replicas requests upon a failure or retransmitting app
+		 * requests upon an active replica error. Such retransmission should
+		 * make it unlikely but not impossible for errors because of laggard
+		 * replicas.
+		 * 
+		 * @param strMsg
+		 * @return True if handled.
+		 */
+
 		@Override
 		public boolean handleMessage(Object strMsg) {
 			Request response = null;
@@ -423,6 +448,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			if ((response = this.parseAsReconfigurationPacket(strMsg)) == null)
 				// else try parsing as ClientReconfigurationPacket
 				response = parseAsAppRequest(strMsg);
+
+			if (response == null)
+				log.log(Level.WARNING,
+						"{0} dropping an undecodeable response {1}",
+						new Object[] { ReconfigurableAppClientAsync.this,
+								strMsg });
 
 			RequestCallback callback = null;
 			if (response != null) {
@@ -433,8 +464,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 										.getRequestID())) != null || (callback = ReconfigurableAppClientAsync.this.callbacksLongTimeout
 								.remove(((ClientRequest) response)
 										.getRequestID())) != null)) {
+
+					if (!(response instanceof EchoRequest))
+						AppInstrumenter
+								.recvdResponse(((RequestAndCallback) callback).request);
 					callback.handleResponse(((ClientRequest) response));
 					updateBestReplica((RequestAndCallback) callback);
+				} else if (response instanceof ClientRequest) {
+					log.log(Level.WARNING,
+							"{0} received an app response with no matching callback{1}",
+							new Object[] { ReconfigurableAppClientAsync.this,
+									response.getSummary() });
 				}
 				// ActiveReplicaError has to be dealt with separately
 				else if ((response instanceof ActiveReplicaError)
@@ -442,13 +482,32 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								.remove(((ActiveReplicaError) response)
 										.getRequestID())) != null
 						&& callback instanceof RequestAndCallback) {
-
-					ReconfigurableAppClientAsync.this.activeReplicas
-							.remove(((RequestAndCallback) callback).request
-									.getServiceName());
-					ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap
-							.remove(((RequestAndCallback) callback).request
-									.getServiceName());
+					ActivesInfo activesInfo = ReconfigurableAppClientAsync.this.activeReplicas
+							.get(response.getServiceName());
+					if (activesInfo != null
+							&& activesInfo.actives != null
+							&& ((RequestAndCallback) callback)
+									.incrActiveReplicaErrors() < activesInfo.actives
+									.size())
+						try {
+							// retry with a random other active replica
+							ReconfigurableAppClientAsync.this
+									.sendRequest(
+											((RequestAndCallback) callback).request,
+											(InetSocketAddress) Util
+													.getRandomOtherThan(
+															activesInfo.actives,
+															((RequestAndCallback) callback).serverSentTo),
+											callback);
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+							ReconfigurableAppClientAsync.this
+									.cleanupActiveReplicasInfo((RequestAndCallback) callback);
+						}
+					else
+						ReconfigurableAppClientAsync.this
+								.cleanupActiveReplicasInfo((RequestAndCallback) callback);
 					/* auto-retransmitting can cause an infinite loop if the
 					 * name does not exist at all, so we just throw the ball
 					 * back to the app.
@@ -475,14 +534,20 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						ReconfigurableAppClientAsync.this
 								.sendRequestsPendingActives((RequestActiveReplicas) response);
 
-					// remember reconfigurator that confirmed creation
+					// remember reconfigurator that initiated confirmed creation
 					if (response instanceof CreateServiceName
-							&& !((CreateServiceName) response).isFailed())
+							&& !((CreateServiceName) response).isFailed()) {
 						ReconfigurableAppClientAsync.this.mostRecentlyCreatedMap
 								.put(response.getServiceName(),
 										((ClientReconfigurationPacket) response)
-												.getSender());
-
+												.getForwader() == null ? ((ClientReconfigurationPacket) response)
+												.getSender()
+												: !USE_FORWARDEE_INFO ? ((ClientReconfigurationPacket) response)
+														.getSender()
+												// initiating reconfigurator
+														: ((CreateServiceName) response)
+																.getForwardee());
+					}
 				} else if (response instanceof ServerReconfigurationPacket<?>) {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksSRP
 							.remove(getKey((ServerReconfigurationPacket<?>) response))) != null) {
@@ -537,13 +602,6 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					message = MessageExtractor.decode(bytes, 4,
 							bytes.length - 4);
 					long t = System.nanoTime();
-					/* FIXME: This is inefficient and inelegant, but it is
-					 * unclear what else we can do to avoid at least one
-					 * unnecessary JSON<->string back and forth with the current
-					 * NIO API and the fact that apps in general may not use
-					 * JSON for their packets but we do. The alternative is to
-					 * not provide the sender-address feature to async clients;
-					 * if so, we don't need the JSON'ization below. */
 					if (JSONPacket.couldBeJSON(message)) {
 						JSONObject json = new JSONObject(message);
 						MessageExtractor.stampAddressIntoJSONObject(
@@ -552,14 +610,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							DelayProfiler.updateDelayNano("headerInsertion", t);
 						if (!ReconfigurationPacket
 								.isReconfigurationPacket(json))
-							// some inelegance to avoid a needless
-							// stringification
 							json.put(Keys.INCOMING_STRING.toString(), message);
 						return json;// inserted;
 					}
 				}
 				// byte-parseable app packet
 				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
+					//AppInstrumenter.recvdAppPacket();
 					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
 							.getRequest(bytes, header);
 				}
@@ -572,8 +629,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								header.sndr, header.rcvr, json);
 						if (!ReconfigurationPacket
 								.isReconfigurationPacket(json))
-							// some inelegance to avoid a needless
-							// stringification
+							/* FIXME: This is inefficient and inelegant, but it
+							 * is unclear what else to do to avoid at least one
+							 * unnecessary JSON<->string back and forth with the
+							 * String based API for apps that need the sender
+							 * address information embedded in JSON. The
+							 * alternative is to not provide the sender-address
+							 * feature to async clients; if so, we don't need
+							 * the JSON'ization below. */
 							json.put(Keys.INCOMING_STRING.toString(), message);
 						return json;// inserted;
 					}
@@ -593,6 +656,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		public String toString() {
 			return ReconfigurableAppClientAsync.this.toString();
 		}
+	}
+
+	private void cleanupActiveReplicasInfo(RequestAndCallback callback) {
+		ReconfigurableAppClientAsync.this.activeReplicas
+				.remove(callback.request.getServiceName());
+		ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap
+				.remove(callback.request.getServiceName());
 	}
 
 	private static final boolean READ_YOUR_WRITES = Config
@@ -621,8 +691,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			server = mostRecentlyWritten;
 		}
 
-		if (this.numOutStandingAppRequests() > MAX_OUTSTANDING_APP_REQUESTS)
+		if (this.numOutstandingAppRequests() > MAX_OUTSTANDING_APP_REQUESTS)
 			throw new IOException("Too many outstanding requests");
+
+		if (!(request instanceof EchoRequest))
+			AppInstrumenter.outstandingAppRequest(
+					this.numOutstandingAppRequests(), request);
 
 		try {
 			RequestCallback original = callback;
@@ -645,6 +719,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							this,
 							ReconfigurationConfig.getSummary(request,
 									log.isLoggable(level)), server });
+			if (!sendFailed && !(request instanceof EchoRequest))
+				AppInstrumenter.sentRequest(request);
 		} finally {
 			if (sendFailed && prev == null) {
 				this.callbacks.remove(request.getRequestID(), callback);
@@ -841,6 +917,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		final NearestServerSelector redirector;
 		InetSocketAddress serverSentTo;
 		int heardFromRCs = 0; // for request actives
+		int activeReplicaErrors = 0; // for app requests
 
 		RequestAndCallback(ClientRequest request, RequestCallback callback) {
 			this(request, callback, null);
@@ -876,6 +953,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		private int incrHeardFromRCs() {
 			return this.heardFromRCs++;
 		}
+
+		private int incrActiveReplicaErrors() {
+			return this.activeReplicaErrors++;
+		}
+
 	}
 
 	/**
@@ -902,15 +984,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			RequestCallback callback) throws IOException {
 		Set<InetSocketAddress> actives = null;
 		ActivesInfo activesInfo = null;
-		if ((activesInfo = this.activeReplicas.get(ANY_ACTIVE)) != null
-				&& (actives = activesInfo.actives) != null
-				&& this.queriedActivesRecently(ANY_ACTIVE))
-			return this.sendRequest(request, actives.iterator().next(),
-					callback);
-		// else
-		this.enqueueAndQueryForActives(
-				new RequestAndCallback(request, callback), true, true);
-		return request.getRequestID();
+		synchronized (this.activeReplicas) {
+			if ((activesInfo = this.activeReplicas.get(ANY_ACTIVE)) != null
+					&& (actives = activesInfo.actives) != null
+					&& this.queriedActivesRecently(ANY_ACTIVE))
+				return this.sendRequest(request, actives.iterator().next(),
+						callback);
+			// else
+			this.enqueueAndQueryForActives(new RequestAndCallback(request,
+					callback), true, true);
+			return request.getRequestID();
+		}
 	}
 
 	private boolean queriedActivesRecently(String name) {
@@ -941,31 +1025,35 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		Set<InetSocketAddress> actives = null;
 		ActivesInfo activesInfo = null;
-		// lookup actives in the cache first
-		if ((activesInfo = this.activeReplicas.get(request.getServiceName())) != null
-				&& (actives = activesInfo.actives) != null
-				&& this.queriedActivesRecently(request.getServiceName()))
-			return this.sendRequest(request,
-					redirector != null ? redirector.getNearest(actives)
-							: (InetSocketAddress) (Util.selectRandom(actives)),
-					callback);
+		synchronized (this.activeReplicas) {
+			// lookup actives in the cache first
+			if ((activesInfo = this.activeReplicas
+					.get(request.getServiceName())) != null
+					&& (actives = activesInfo.actives) != null
+					&& this.queriedActivesRecently(request.getServiceName()))
+				return this.sendRequest(
+						request,
+						redirector != null ? redirector.getNearest(actives)
+								: (InetSocketAddress) (Util
+										.selectRandom(actives)), callback);
 
-		// else enqueue them
-		this.enqueueAndQueryForActives(new RequestAndCallback(request,
-				callback, redirector), false, false);
-		return request.getRequestID();
+			// else enqueue them
+			this.enqueueAndQueryForActives(new RequestAndCallback(request,
+					callback, redirector), false, false);
+			return request.getRequestID();
+		}
 	}
 
-	private synchronized boolean enqueueAndQueryForActives(
+	private/* synchronized */boolean enqueueAndQueryForActives(
 			RequestAndCallback rc, boolean force, boolean anycast)
 			throws IOException {
 		boolean queued = this.enqueue(rc, anycast);
-		this.queryForActives(
-				anycast ? ANY_ACTIVE : rc.request.getServiceName(), force);
+		this.queryForActives(rc.request, force, anycast);
 		return queued;
 	}
 
-	private synchronized boolean enqueue(RequestAndCallback rc, boolean anycast) {
+	private/* synchronized */boolean enqueue(RequestAndCallback rc,
+			boolean anycast) {
 		this.requestsPendingActives.putIfAbsent(anycast ? ANY_ACTIVE
 				: rc.request.getServiceName(),
 				new LinkedBlockingQueue<RequestAndCallback>());
@@ -975,8 +1063,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		return pending.add(rc);
 	}
 
-	private void queryForActives(String name, boolean forceRefresh)
-			throws IOException {
+	private void queryForActives(Request request, boolean forceRefresh,
+			boolean anycast) throws IOException {
+		String name = anycast ? ANY_ACTIVE : request.getServiceName();
 		if (forceRefresh || !this.queriedActivesRecently(name)) {
 			if (forceRefresh) {
 				this.activeReplicas.remove(name);
@@ -989,6 +1078,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			// this.lastQueriedActives.put(name, System.currentTimeMillis());
 			this.activeReplicas.put(name,
 					new ActivesInfo(null, System.currentTimeMillis()));
+		} else {
+			Level level = Level.FINER;
+			log.log(level,
+					"{0} not querying for actives for enqueued request {1}",
+					new Object[] { this,
+							request.getSummary(log.isLoggable(level)),
+							forceRefresh, queriedActivesRecently(name) });
 		}
 	}
 
@@ -999,8 +1095,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		Set<InetSocketAddress> actives = response.getActives();
 		if (actives != null && !actives.isEmpty()) {
-			this.activeReplicas.put(response.getServiceName(), new ActivesInfo(
-					actives, response.getCreateTime()));
+			synchronized (this.activeReplicas) {
+				this.activeReplicas.put(response.getServiceName(),
+						new ActivesInfo(actives, response.getCreateTime()));
+			}
 			if (this.mostRecentlyWrittenMap.contains(response.getServiceName())
 					&& !actives.contains(this.mostRecentlyWrittenMap
 							.get(response.getServiceName())))
@@ -1076,19 +1174,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							e.printStackTrace();
 						}
 					} else {
-						// or send error to all pending requests except ones to be retried
-						log.log(Level.FINE,
-								"{0} returning {1} to pending request callbacks {2}",
-								new Object[] {
-										this,
-										ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR,
-										pendingRequests });
-						assert(response.getHashRCs()!=null && !response.getHashRCs().isEmpty());
+						assert (response.getHashRCs() != null && !response
+								.getHashRCs().isEmpty());
 						Set<RequestAndCallback> removals = new HashSet<RequestAndCallback>();
 						for (RequestAndCallback pendingRequest : pendingRequests)
 							// retry once with rest of the reconfigurators
-							if (response.getHashRCs() != null && response.getHashRCs().size()>1
-									&& pendingRequest.incrHeardFromRCs() == 0 ) {
+							if (response.getHashRCs() != null
+									&& response.getHashRCs().size() > 1
+									&& pendingRequest.incrHeardFromRCs() == 0) {
 								response.getHashRCs().remove(
 										response.getSender());
 								try {
@@ -1107,6 +1200,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								// do nothing but wait to hear from majority
 							} else {
 								// name does not exist
+								// or send error to all pending requests except
+								// ones to be retried
+								log.log(Level.FINE,
+										"{0} returning {1} to pending request callbacks {2}",
+										new Object[] {
+												this,
+												ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR,
+												pendingRequests });
 								pendingRequest.callback
 										.handleResponse(new ActiveReplicaError(
 												response.getServiceName(),
@@ -1397,7 +1498,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		return this.callbacksCRP.size() + this.callbacksCRPLongTimeout.size();
 	}
 
-	private int numOutStandingAppRequests() {
+	private int numOutstandingAppRequests() {
 		return this.callbacks.size() + this.callbacksLongTimeout.size();
 	}
 

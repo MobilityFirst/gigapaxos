@@ -172,7 +172,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		assert (this.messenger.getClientMessenger() != null);
 		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
-		initInstrumenter();
+		//initInstrumenter();
 	}
 
 	protected ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
@@ -315,7 +315,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 										response instanceof Byteable ? ((Byteable) response)
 												.toBytes() : response,
 										senderAndRequest.mysa);
-						AppInstrumenter.sentResponse(senderAndRequest.request);
+						AppInstrumenter.sentResponseCoordinated(senderAndRequest.request);
 					}
 				} catch (IOException | JSONException e) {
 					e.printStackTrace();
@@ -329,7 +329,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			.getSimpleName();
 
 	// to print instrumentation stats periodically
-	private void initInstrumenter() {
+	protected void initInstrumenter() {
 		if (Config.getGlobalBoolean(RC.ENABLE_INSTRUMENTATION))
 			this.protocolExecutor.scheduleWithFixedDelay(new Runnable() {
 				public void run() {
@@ -413,7 +413,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 													: receiver,
 											request.getSummary(log
 													.isLoggable(level)) });
-							((JSONMessenger<?>) this.messenger).sendClient(
+							int written = ((JSONMessenger<?>) this.messenger).sendClient(
 									sender == null ? MessageNIOTransport
 											.getSenderAddress(jsonObject)
 											: sender,
@@ -421,7 +421,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 									receiver == null ? MessageNIOTransport
 											.getReceiverAddress(jsonObject)
 											: receiver);
-							AppInstrumenter.sentResponse(request);
+							if(written > 0)
+								AppInstrumenter.sentResponseLocal(request);
 						}
 					}
 					// else do nothing until coordinated
@@ -648,9 +649,16 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				e.printStackTrace();
 			}
 			// the creation above will throw an exception if it fails
-			assert (created && this.appCoordinator.getReplicaGroup(
-					startEpoch.getServiceName()).equals(
-					startEpoch.getCurEpochGroup()));
+			assert (created && startEpoch.getCurEpochGroup().equals(this.appCoordinator.getReplicaGroup(
+					startEpoch.getServiceName()))) : "Unable to get replica group right after creation for startEpoch"
+					+ startEpoch.getSummary()
+					+ ": created="
+					+ created
+					+ "; startEpoch.getCurEpochGroup()="
+					+ startEpoch.getCurEpochGroup()
+					+ "; this.appCoordinator.getReplicaGroup="
+					+ this.appCoordinator.getReplicaGroup(startEpoch
+							.getServiceName());
 			log.log(Level.FINE, "{0} sending to {1}: {2}", new Object[] { this,
 					startEpoch.getSender(), ackStart.getSummary() });
 

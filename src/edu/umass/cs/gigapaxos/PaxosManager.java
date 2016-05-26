@@ -1285,6 +1285,9 @@ public class PaxosManager<NodeIDType> {
 		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
 		if (pism != null && pism.getVersion() == version)
 			this.kill(pism);
+		// needed for concurrent epoch final state creation to finish
+		this.synchronizedNoop(paxosID, version);
+		assert(pism==null || pism.getVersion()!=version|| pism.isStopped());
 		return this.paxosLogger.deleteEpochFinalCheckpointState(paxosID,
 				version);
 	}

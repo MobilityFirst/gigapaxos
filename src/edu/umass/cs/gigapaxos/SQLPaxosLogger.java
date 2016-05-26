@@ -4589,16 +4589,38 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			pstmt.setString(1, paxosID);
 			int numDeleted = pstmt.executeUpdate();
 			// conn.commit();
-			deleted = true;
+			deleted = numDeleted>0;
 			if (numDeleted > 0)
 				log.log(Level.INFO,
 						"{0} dropped epoch final state for {1}:{2}",
 						new Object[] { this, paxosID, version });
-			{// sanity check block
+			{
+				/* Invariant: If delete epoch final state succeeded, then there
+				 * must either be no final epoch state immediately after or the
+				 * final epoch state must correspond to a strictly higher
+				 * version number because of the paxos invariant that epoch
+				 * numbers must strictly increase.
+				 * 
+				 * If the deleteEpochFinalCheckpointState request arrives just
+				 * before the local paxos instance has been stopped,
+				 * PaxosManager will clean-kill the instance but the instance
+				 * may still systematically stop anyway and create this final
+				 * epoch state. In such cases, ghostVersion could be equal to
+				 * the version that seemingly just got deleted above. To prevent
+				 * this concurrency situation, PaxosManager uses
+				 * synchronizedNoop on the paxos instance to allow concurrent
+				 * epoch final state creation to finish so that this method can
+				 * then delete that state. */
 				Integer ghostVersion = null;
-				assert ((ghostVersion = this
+				assert (!deleted || ((ghostVersion = this
 						.getEpochFinalCheckpointVersion(paxosID)) == null || ghostVersion
-						- version > 0);
+						- version > 0)) : ("Found ghost version "
+						+ ghostVersion
+						+ " after deleting "+paxosID+":"
+						+ version
+						+ " : "
+						+ this.getEpochFinalCheckpointState(paxosID,
+								ghostVersion).state);
 			}
 		} catch (SQLException sqle) {
 			log.severe(this + " failed to delete final state for " + paxosID

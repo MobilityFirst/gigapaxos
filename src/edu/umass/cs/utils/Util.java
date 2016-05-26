@@ -535,6 +535,13 @@ public class Util {
 		return allArray[index];
 	}
 
+	public static Object getRandomOtherThan(Set<?> all, Object exclude) {
+		for (Object obj : all)
+			if (!obj.equals(exclude))
+				return obj;
+		return null;
+	}
+
 	public static InetSocketAddress offsetPort(InetSocketAddress isa, int offset) {
 		return new InetSocketAddress(isa.getAddress(), isa.getPort() + offset);
 	}
