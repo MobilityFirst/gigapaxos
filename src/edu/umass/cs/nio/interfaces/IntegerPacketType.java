@@ -17,14 +17,12 @@
  */
 package edu.umass.cs.nio.interfaces;
 
+import edu.umass.cs.utils.IntegerType;
+
 /**
  * @author V. Arun
  * 
  *         This interface should be implemented by all packet types using NIO.
  */
-public interface IntegerPacketType {
-	/**
-	 * @return The integer value corresponding to this packet type.
-	 */
-	public int getInt();
+public interface IntegerPacketType extends IntegerType {
 }

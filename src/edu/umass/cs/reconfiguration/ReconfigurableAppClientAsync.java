@@ -616,7 +616,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				}
 				// byte-parseable app packet
 				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
-					//AppInstrumenter.recvdAppPacket();
+					// AppInstrumenter.recvdAppPacket();
 					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
 							.getRequest(bytes, header);
 				}
@@ -821,7 +821,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	private void initTimerIfNeeded() {
 		synchronized (this) {
 			if (this.timer == null)
-				this.timer = new Timer(this.toString());
+				this.timer = new Timer(this.toString(), true);
 		}
 	}
 
@@ -1044,16 +1044,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		}
 	}
 
-	private/* synchronized */boolean enqueueAndQueryForActives(
-			RequestAndCallback rc, boolean force, boolean anycast)
-			throws IOException {
+	private boolean enqueueAndQueryForActives(RequestAndCallback rc,
+			boolean force, boolean anycast) throws IOException {
 		boolean queued = this.enqueue(rc, anycast);
 		this.queryForActives(rc.request, force, anycast);
 		return queued;
 	}
 
-	private/* synchronized */boolean enqueue(RequestAndCallback rc,
-			boolean anycast) {
+	private boolean enqueue(RequestAndCallback rc, boolean anycast) {
 		this.requestsPendingActives.putIfAbsent(anycast ? ANY_ACTIVE
 				: rc.request.getServiceName(),
 				new LinkedBlockingQueue<RequestAndCallback>());
@@ -1093,6 +1091,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		this.e2eRedirector.learnSample(response.getSender(),
 				System.currentTimeMillis() - response.getCreateTime());
 
+		/* Invariants: (1) If a request is enqueued for querying for actives, at
+		 * least one request for active replicas will be subsequently sent out
+		 * or was recently (< MIN_REQUEST_ACTIVES_INTERVAL) sent. (2) If a
+		 * successful (nonempty) response to an active replicas request arrives,
+		 * it will unpend all pending requests to the corresponding name that
+		 * were issued before the activeReplicas.put below. */
 		Set<InetSocketAddress> actives = response.getActives();
 		if (actives != null && !actives.isEmpty()) {
 			synchronized (this.activeReplicas) {
@@ -1126,6 +1130,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				.get(response.getServiceName());
 		if (pendingRequests == null)
 			return;
+		/* synchronization for concurrent access by different demultiplexer
+		 * threads if there is more than one. */
 		synchronized (pendingRequests) {
 			if (pendingRequests.isEmpty())
 				this.requestsPendingActives.remove(response.getServiceName());

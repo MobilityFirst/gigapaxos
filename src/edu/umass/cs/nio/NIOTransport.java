@@ -44,6 +44,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractSelectableChannel;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.HashMap;
@@ -207,7 +208,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	private final HashMap<InetSocketAddress, SocketChannel> sockAddrToSockChannel = new HashMap<InetSocketAddress, SocketChannel>();
 
 	/* Map to optimize connection attempts by the selector thread. */
-	private final ConcurrentHashMap<InetSocketAddress, Long> connAttempts = new ConcurrentHashMap<InetSocketAddress, Long>();
+	private final HashMap<InetSocketAddress, Long> connAttempts = new HashMap<InetSocketAddress, Long>();
 
 	private final ConcurrentHashMap<NodeIDType, Long> lastFailed = new ConcurrentHashMap<NodeIDType, Long>();
 
@@ -590,10 +591,10 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	// Invoked only by the selector thread. Typical nio event handling code.
 	private void processSelectedKeys() {
 		// Iterate over the set of keys for which events are available
-		ArrayList<SelectionKey> selected = new ArrayList<SelectionKey>(
-				this.selector.selectedKeys());
+		Collection<SelectionKey> selected = // new ArrayList<SelectionKey>
+		(this.selector.selectedKeys());
 		Iterator<SelectionKey> selectedKeys = selected.iterator();
-		Collections.shuffle(selected); // to mix in reads and writes
+		//Collections.shuffle(selected); // to mix in reads and writes
 
 		while (selectedKeys.hasNext()) {
 			SelectionKey key = (SelectionKey) selectedKeys.next();
@@ -604,17 +605,18 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				continue;
 			}
 			try {
-				// Check what event is available and deal with it
-				if (key.isValid() && key.isAcceptable())
+				if(!key.isValid()) continue;
+				// check what event is available and deal with it
+				if (key.isAcceptable())
 					this.accept(key);
-				if (key.isValid() && key.isConnectable())
+				if (key.isConnectable())
 					this.finishConnection(key);
-				if (key.isValid() && key.isWritable())
+				if (key.isWritable())
 					if (useSenderTask() && this.senderTask != null)
 						this.senderTask.addKey(key);
 					else
 						this.write(key);
-				if (key.isValid() && key.isReadable())
+				if (key.isReadable())
 					this.read(key);
 			} catch (IOException | CancelledKeyException e) {
 				updateFailed(key);
@@ -833,14 +835,15 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	}
 
 	private void tryProcessCongested() throws IOException {
-		for (Iterator<SelectionKey> keyIter = this.congested.keySet()
-				.iterator(); keyIter.hasNext();) {
-			SelectionKey key = keyIter.next();
-			if (key.isValid())
-				this.read(key);
-			else
-				keyIter.remove();
-		}
+		if (!this.congested.isEmpty())
+			for (Iterator<SelectionKey> keyIter = this.congested.keySet()
+					.iterator(); keyIter.hasNext();) {
+				SelectionKey key = keyIter.next();
+				if (key.isValid())
+					this.read(key);
+				else
+					keyIter.remove();
+			}
 	}
 
 	private static boolean enableCompression = true;
@@ -943,7 +946,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		}
 	}
 
-	private static boolean useSenderTask = true;
+	private static boolean useSenderTask = false;
 
 	private final boolean useSenderTask() {
 		return useSenderTask;
@@ -1473,7 +1476,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * memory leaks over time. */
 	private void testAndIntiateConnection(InetSocketAddress isa)
 			throws IOException {
-		if (!canReconnect(isa) || this.isConnected(isa)) {
+		if (this.isConnected(isa) || !canReconnect(isa)) {
 			return; // quick check before synchronization
 		}
 		synchronized (this.sockAddrToSockChannel) {

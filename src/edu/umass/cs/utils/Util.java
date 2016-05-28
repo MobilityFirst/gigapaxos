@@ -279,8 +279,10 @@ public class Util {
 		}
 		return new InetSocketAddress(tokens[0], Integer.valueOf(tokens[1]));
 	}
+
 	// assumes strict formatting and is more efficient
-	public static InetSocketAddress getInetSocketAddressFromStringStrict(String s) {
+	public static InetSocketAddress getInetSocketAddressFromStringStrict(
+			String s) {
 		String[] tokens = s.split(":");
 		if (tokens.length < 2) {
 			return null;
@@ -348,7 +350,8 @@ public class Util {
 
 	public static Object truncate(final Object obj, final int prefixSize,
 			final int suffixSize) {
-		if(obj==null) return null;
+		if (obj == null)
+			return null;
 		final int size = prefixSize + suffixSize;
 		return new Object() {
 			@Override
@@ -373,6 +376,7 @@ public class Util {
 	public static byte[] getRandomAlphanumericBytes() {
 		return getRandomAlphanumericBytes(1024);
 	}
+
 	public static byte[] getRandomAlphanumericBytes(int size) {
 		byte[] an = Util.getAlphanumericAsBytes();
 		byte[] msg = new byte[size];
@@ -540,6 +544,24 @@ public class Util {
 			if (!obj.equals(exclude))
 				return obj;
 		return null;
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public static Set<?> getOtherThan(Set<?> set, Object exclude) {
+		Set<?> copy = new HashSet(set);
+		copy.remove(exclude);
+		return copy;
+	}
+
+	public static Object getOtherThanString(Set<?> set, Object exclude) {
+		return new Object() {
+			public String toString() {
+				@SuppressWarnings({ "rawtypes", "unchecked" })
+				Set<?> copy = new HashSet(set);
+				copy.remove(exclude);
+				return copy.toString();
+			}
+		};
 	}
 
 	public static InetSocketAddress offsetPort(InetSocketAddress isa, int offset) {
