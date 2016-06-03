@@ -22,6 +22,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -157,8 +159,11 @@ public class DemandProfile extends AbstractDemandProfile {
 		return this.numTotalRequests;
 	}
 
+	private static final boolean DISABLE_RECONFIGURATION=Config.getGlobalBoolean(RC.DISABLE_RECONFIGURATION);
+	
 	@Override
 	public boolean shouldReport() {
+		if(DISABLE_RECONFIGURATION) return false;
 		if (getNumRequests() >= MIN_REQUESTS_BEORE_DEMAND_REPORT)
 			return true;
 		return false;

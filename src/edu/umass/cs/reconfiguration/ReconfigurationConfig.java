@@ -299,6 +299,11 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		SEND_CLOSEST_TO_RECONFIGURATORS(true),
+		
+		/**
+		 * A flag to stop even all reporting.
+		 */
+		DISABLE_RECONFIGURATION(false),
 
 		;
 

@@ -1,22 +1,21 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
+import java.lang.reflect.Field;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -28,6 +27,8 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
 
+import sun.misc.Cleaner;
+import sun.nio.ch.DirectBuffer;
 import edu.umass.cs.utils.MyLogger;
 
 /**
@@ -36,7 +37,7 @@ import edu.umass.cs.utils.MyLogger;
  */
 public abstract class AbstractNIOSSL implements Runnable {
 	private final static int MAX_BUFFER_SIZE = 2048 * 1024;
-	private final static int MAX_DST_BUFFER_SIZE = 2*MAX_BUFFER_SIZE;
+	private final static int MAX_DST_BUFFER_SIZE = 2 * MAX_BUFFER_SIZE;
 
 	// final
 	ByteBuffer wrapSrc, unwrapSrc;
@@ -47,7 +48,8 @@ public abstract class AbstractNIOSSL implements Runnable {
 	final Executor taskWorkers;
 
 	final SelectionKey key;
-	private static final Logger log = Logger.getLogger(NIOTransport.class.getName());
+	private static final Logger log = Logger.getLogger(NIOTransport.class
+			.getName());
 
 	/**
 	 * @param key
@@ -186,23 +188,22 @@ public abstract class AbstractNIOSSL implements Runnable {
 								"async SSL task: ", sslTask });
 						long t0 = System.nanoTime();
 						sslTask.run();
-						log.log(Level.FINE, "async SSL task {0} took {1}ms", new Object[] {
-								sslTask, (System.nanoTime() - t0) / 1000000 });
+						log.log(Level.FINE, "async SSL task {0} took {1}ms",
+								new Object[] { sslTask,
+										(System.nanoTime() - t0) / 1000000 });
 
 						// continue handling I/O
 						AbstractNIOSSL.this.run();
-					} catch(Exception e) {
+					} catch (Exception e) {
 						e.printStackTrace();
 					}
 				}
 			};
 			taskWorkers.execute(wrappedTask);
 			return false;
-			/*
-			 * We could also run delegated tasks in blocking mode and return
+			/* We could also run delegated tasks in blocking mode and return
 			 * true here, but that would probably defeat the purpose of NIO as
-			 * some delegated tasks may require remote calls.
-			 */
+			 * some delegated tasks may require remote calls. */
 
 		case FINISHED:
 			throw new IllegalStateException("FINISHED");
@@ -249,8 +250,9 @@ public abstract class AbstractNIOSSL implements Runnable {
 			wrapDst.flip();
 			b.put(wrapDst);
 			wrapDst = b;
-			log.log(Level.FINE, MyLogger.FORMAT[0], new Object[] {
-					"Increased wrapDst buffer size to " + wrapDst.capacity() });
+			log.log(Level.FINE, MyLogger.FORMAT[0],
+					new Object[] { "Increased wrapDst buffer size to "
+							+ wrapDst.capacity() });
 			// retry the operation.
 			break;
 
@@ -308,8 +310,9 @@ public abstract class AbstractNIOSSL implements Runnable {
 			unwrapDst.flip();
 			b.put(unwrapDst);
 			unwrapDst = b;
-			log.log(Level.FINE, MyLogger.FORMAT[1], new Object[] {
-					"Increased unwrapDst buffer size to ", unwrapDst.capacity() });
+			log.log(Level.FINE, MyLogger.FORMAT[1],
+					new Object[] { "Increased unwrapDst buffer size to ",
+							unwrapDst.capacity() });
 			// retry the operation.
 			break;
 
@@ -335,5 +338,39 @@ public abstract class AbstractNIOSSL implements Runnable {
 	 */
 	public void poke() {
 		run();
+	}
+
+	/* We need to clean bytebuffers, otherwise they don't get garbage-collected
+	 * quickly enough. It seems like no matter how much memory the JVM is given,
+	 * the GC waits to clean up bytebuffers until it ends up using all that
+	 * memory. This default behavior doesn't seem to affect performance, but
+	 * makes the server look like a memory hog if many ssl connections get
+	 * created over time. */
+	protected void clean() {
+		clean(this.unwrapDst);
+		clean(this.unwrapSrc);
+		clean(this.wrapDst);
+		clean(this.wrapSrc);
+	}
+
+	private static void clean(ByteBuffer bbuf) {
+		Cleaner cleaner = null;
+		/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
+		 * just comment the line below. The code will default to using the 
+		 * reflective approach below. */
+		cleaner = ((DirectBuffer) bbuf).cleaner();
+		if (cleaner == null)
+			try {
+				Field cleanerField = bbuf.getClass()
+						.getDeclaredField("cleaner");
+				cleanerField.setAccessible(true);
+				cleaner = (Cleaner) cleanerField.get(bbuf);
+			} catch (NoSuchFieldException | SecurityException
+					| IllegalArgumentException | IllegalAccessException e) {
+				// best-effort GC purposes only, so ignore
+				e.printStackTrace();
+			}
+		if (cleaner != null)
+			cleaner.clean();
 	}
 }

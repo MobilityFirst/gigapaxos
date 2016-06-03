@@ -190,10 +190,17 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 
 	// remove entry from sslMap, no need to check containsKey
 	private void cleanup(SelectionKey key) {
-		SocketChannel socketChannel = (SocketChannel) key.channel();
 		NIOTransport.cleanup(key);
-		if (socketChannel != null)
-			this.sslMap.remove(socketChannel);
+		this.remove(key);
+	}
+	
+	// called by cleanup in NIOTransport
+	protected void remove(SelectionKey key) {
+		SocketChannel socketChannel = (SocketChannel) key.channel();
+		if (socketChannel != null) {
+			AbstractNIOSSL nioSSL = this.sslMap.remove(socketChannel);
+			if(nioSSL!=null) nioSSL.clean(); // quicker GC of byte buffers
+		}
 	}
 
 	// SSL NIO implementation

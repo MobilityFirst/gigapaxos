@@ -193,7 +193,7 @@ public class JSONMessenger<NodeIDType> implements
 													msgBytes) : msgBytes });
 				} else if (sent == 0) {
 					log.log(Level.INFO,
-							"{0} experiencing congestion; this is not disastrous (yet)");
+							"{0} experiencing congestion; this is not disastrous (yet)", new Object[]{this});
 					Retransmitter rtxTask = new Retransmitter(
 							(mtask.recipients[r]), msgBytes, RTX_DELAY,
 							useWorkers);

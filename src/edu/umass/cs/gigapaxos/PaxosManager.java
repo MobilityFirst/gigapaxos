@@ -1054,7 +1054,7 @@ public class PaxosManager<NodeIDType> {
 			matched = true;
 			requestPacket.putPaxosID(paxosID, pism.getVersion());
 
-			log.log(Level.INFO, "{0} proposing to {1}: {2}",
+			log.log(Level.FINE, "{0} proposing to {1}: {2}",
 					new Object[] { this, pism.getPaxosIDVersion(),
 							requestPacket.getSummary() });
 

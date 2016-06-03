@@ -1004,5 +1004,6 @@ public class TESTPaxosClient {
 		MAX_WAIT_TIME = (long) (Config.getGlobalInt(TC.NUM_REQUESTS) / Config
 				.getGlobalDouble(TC.TOTAL_LOAD))
 				+ Config.getGlobalInt(TC.MAX_RESPONSE_WAIT_TIME);
+		createGibberish();
 	}
 }

@@ -792,7 +792,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	protected byte[] toBytes(boolean instrument) {
 		// return cached value if already present
 		if ((this.getType() == PaxosPacketType.REQUEST || this.getType() == PaxosPacketType.ACCEPT)
-				&& this.byteifiedSelf != null)
+				&& this.byteifiedSelf != null && !instrument)
 			return this.byteifiedSelf;
 		// check if we can use byteification at all; if not, use toString()
 		if (!((BYTEIFICATION && IntegerMap.allInt()) || instrument)) {

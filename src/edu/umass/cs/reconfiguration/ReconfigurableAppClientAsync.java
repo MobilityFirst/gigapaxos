@@ -712,7 +712,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 			sendFailed = this.niot.sendToAddress(server, request) <= 0;
 			Level level = request instanceof EchoRequest ? Level.FINE
-					: Level.INFO;
+					: Level.FINE;
 			log.log(level,
 					"{0} sent request {1} to server {2}",
 					new Object[] {
@@ -1212,14 +1212,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 										"{0} returning {1} to pending request callbacks {2}",
 										new Object[] {
 												this,
-												ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR,
+												ClientReconfigurationPacket.ResponseCodes.ACTIVE_REPLICA_EXCEPTION,
 												pendingRequests });
 								pendingRequest.callback
 										.handleResponse(new ActiveReplicaError(
 												response.getServiceName(),
 												pendingRequest.request
 														.getRequestID(),
-												response).setResponseMessage(ReconfigurationPacket.PacketType.ACTIVE_REPLICA_ERROR
+												response).setResponseMessage(ClientReconfigurationPacket.ResponseCodes.ACTIVE_REPLICA_EXCEPTION
 												+ ": No active replicas found for name \""
 												+ response.getServiceName()
 												+ "\" likely because the name doesn't exist or because this name or"

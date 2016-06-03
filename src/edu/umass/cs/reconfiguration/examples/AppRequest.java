@@ -61,7 +61,12 @@ public class AppRequest extends JSONPacket implements ReconfigurableRequest,
 		/**
 		 * Another app request type that is currently not used for anything.
 		 */
-		ANOTHER_APP_REQUEST(402), ;
+		ANOTHER_APP_REQUEST(402),
+		
+		/**
+		 * 
+		 */
+		META_REQUEST_PACKET (403);
 
 		/******************************** BEGIN static ******************************************/
 		private static HashMap<Integer, PacketType> numbers = new HashMap<Integer, PacketType>();
@@ -307,7 +312,8 @@ public class AppRequest extends JSONPacket implements ReconfigurableRequest,
 
 	@Override
 	public boolean needsCoordination() {
-		return this.coordType;
+		return (this.type!=AppRequest.PacketType.META_REQUEST_PACKET.getInt()) && 
+				this.coordType;
 	}
 
 	@Override

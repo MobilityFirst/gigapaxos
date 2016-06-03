@@ -601,30 +601,35 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			selectedKeys.remove();
 
 			if (!key.isValid()) {
-				cleanup(key, (AbstractSelectableChannel) key.channel());
+				//cleanup(key, (AbstractSelectableChannel) key.channel());
+				cleanupSSL(key);
 				continue;
 			}
 			try {
-				if(!key.isValid()) continue;
 				// check what event is available and deal with it
-				if (key.isAcceptable())
+				if (key.isValid() && key.isAcceptable())
 					this.accept(key);
-				if (key.isConnectable())
+				if (key.isValid() && key.isConnectable())
 					this.finishConnection(key);
-				if (key.isWritable())
+				if (key.isValid() && key.isWritable())
 					if (useSenderTask() && this.senderTask != null)
 						this.senderTask.addKey(key);
 					else
 						this.write(key);
-				if (key.isReadable())
+				if (key.isValid() && key.isReadable())
 					this.read(key);
 			} catch (IOException | CancelledKeyException e) {
 				updateFailed(key);
-				log.info("Node" + myID + " incurred IOException on "
-						+ key.channel()
-						+ " likely because remote end closed connection");
-				cleanup(key, (AbstractSelectableChannel) key.channel());
+				log.log(Level.WARNING, "Node {0} incurred IOException on {1}"
+						+ " likely because remote end {2} closed connection",
+						new Object[] {
+								this,
+								key.channel(),
+								((SocketChannel) key.channel()).socket()
+										.getRemoteSocketAddress() });
 				e.printStackTrace(); // print and move on with other keys
+				//cleanup(key, (AbstractSelectableChannel) key.channel());
+				cleanupSSL(key);
 			}
 		}
 		this.selector.selectedKeys().clear();
@@ -758,7 +763,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			if (numRead == -1) {
 				log.log(Level.FINE, "{0} read off of channel {1}",
 						new Object[] { this, socketChannel });
-				cleanup(key, socketChannel);
+				//cleanup(key, socketChannel);
+				cleanupSSL(key);
 			}
 			// else have read something
 			if (numRead > 0) {
@@ -783,7 +789,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				: abbuf.headerBuf);
 		// end-of-stream => cleanup
 		if (bbuf.hasRemaining() && socketChannel.read(bbuf) < 0) {
-			cleanup(key);
+			//cleanup(key);
+			cleanupSSL(key);
 			return;
 		}
 
@@ -919,7 +926,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			// getSockAddrFromSockChannel(socketChannel);
 			if (isa == null) { // should never happen
 				log.severe("Null socket address for a write-ready socket!");
-				cleanup(key, socketChannel);
+				//cleanup(key, socketChannel);
+				cleanupSSL(key);
 			} else {
 				// If all data written successfully, switch back to read mode.
 				if (this.writeAllPendingWrites(isa, socketChannel))
@@ -1005,7 +1013,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 								+ " incurred IOException on "
 								+ key.channel()
 								+ " likely because remote end closed connection");
-						cleanup(key);
+						//cleanup(key);
+						cleanupSSL(key);
 						e.printStackTrace();
 					}
 				}
@@ -1319,6 +1328,12 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			}
 		}
 	}
+	
+	private void cleanupSSL(SelectionKey key) {
+		cleanup(key);
+		if (isSSL())
+			((SSLDataProcessingWorker) this.worker).remove(key);
+	}
 
 	/* Cleans up and suppresses IOException as there is little useful stuff the
 	 * selector thread can do at that point.
@@ -1348,7 +1363,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * little the selector thread can do about a failed remote end. */
 	private void cleanupRetry(SelectionKey key, SocketChannel sc,
 			InetSocketAddress isa) {
-		cleanup(key, sc);
+		//cleanup(key, sc);
+		cleanupSSL(key);
 		try {
 			if (this.canReconnect(isa)) {
 				testAndIntiateConnection(isa);
@@ -1404,7 +1420,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			SocketChannel prevChannel = this.sockAddrToSockChannel.put(isa,
 					socketChannel);
 			if (prevChannel != null) {
-				cleanup(prevChannel.keyFor(this.selector), prevChannel);
+				//cleanup(prevChannel.keyFor(this.selector), prevChannel);
+				cleanupSSL(prevChannel.keyFor(this.selector));
 			}
 		}
 	}
@@ -1526,7 +1543,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 						change.socket.register(this.selector, change.ops);
 					} catch (ClosedChannelException cce) {
 						log.severe("Socket channel likely closed before connect finished");
-						cleanup(key, (AbstractSelectableChannel) key.channel());
+						//cleanup(key, (AbstractSelectableChannel) key.channel());
+						cleanupSSL(key);
 						cce.printStackTrace();
 					}
 					break;
@@ -1714,7 +1732,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			// cancel the channel's registration with selector
 			log.log(Level.INFO, "{0} failed to (re-)connect to {1}:{2}",
 					new Object[] { this, isa, e.getMessage() });
-			cleanup(key, socketChannel);
+			//cleanup(key, socketChannel);
+			cleanupSSL(key);
 			// clearPending will also drop outstanding data here
 			if (!this.isNodeID(isa) || Util.oneIn(NUM_RETRIES))
 				this.clearPending(socketChannel);
@@ -1764,7 +1783,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			log.severe(this
 					+ " encountered IOException upon handshake completion for "
 					+ key.channel());
-			cleanup(key);
+			//cleanup(key);
+			cleanupSSL(key);
 		}
 	}
 

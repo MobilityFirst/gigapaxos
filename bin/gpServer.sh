@@ -1,10 +1,23 @@
 #!/bin/bash
 
 HEAD=`dirname $0`
-CLASSPATH=$CLASSPATH:$HEAD/../build/classes:`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+
+# Use binaries before jar if available. Convenient to use with
+# automatic building in IDEs.
+CLASSPATH=$CLASSPATH:\
+$HEAD/../build/classes:\
+`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+
+# default java.util.logging.config.file
 LOG_PROPERTIES=logging.properties
+
+# default log4j properties (used by c3p0)
 LOG4J_PROPERTIES=log4j.properties
+
+# default gigapaxos properties
 GP_PROPERTIES=gigapaxos.properties
+
+# 0 to disable
 VERBOSE=1
 
 JAVA=java
@@ -40,14 +53,16 @@ echo "    `dirname $0`/`basename $0` -cp myjars.jar \
 fi
 
 
-JVMARGS="$JVMARGS `echo "$@"|sed s/-$APPARGS.*$//g|sed s/"\( start| stop\).*$"//g`"
+JVMARGS="$JVMARGS `echo "$@"|sed s/-$APPARGS.*$//g|\
+sed s/"\( start| stop\).*$"//g`"
 
-# separate out gigapaxos.proeprties and appArgs
+# separate out gigapaxos.properties and appArgs
 declare -a args
 index=1
 start_stop_found=0
 for arg in "$@"; do
   if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
+    # JVM args and gigapaxos properties file
     JVMARGS="$JVMARGS $arg"
     key=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/=.*//g`
     value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
@@ -55,8 +70,10 @@ for arg in "$@"; do
       GP_PROPERTIES=$value
     fi
   elif [[ ! -z `echo $arg|grep "\-$APPARGS.*="` ]]; then
+    # app args
     APP_ARGS="`echo $arg|grep "\-$APPARGS.*="|sed s/\-$APPARGS=//g`"
   elif [[ $arg == "start" || $arg == "stop" ]]; then
+    # server names
     args=(${@:$index})
   fi
   index=`expr $index + 1`
@@ -67,6 +84,7 @@ done
 # get APPLICATION from gigapaxos.properties file
 APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
   if [[ $APP == "" ]]; then
+    # default app
     APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
   fi
 

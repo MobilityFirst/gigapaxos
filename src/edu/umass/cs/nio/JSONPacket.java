@@ -33,7 +33,7 @@ public abstract class JSONPacket {
 	 * JSON key for the integer packet type.
 	 */
 	public static final String PACKET_TYPE = "type";
-	protected final int type;
+	protected /*final*/ int type;
 
 	/**
 	 * @param t

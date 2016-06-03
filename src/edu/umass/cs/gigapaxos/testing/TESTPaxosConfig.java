@@ -679,7 +679,13 @@ public class TESTPaxosConfig {
 		return getFromPaxosConfig(false);
 	}
 
-	protected static NodeConfig<Integer> getFromPaxosConfig(
+	/**
+	 * FIXME: should not be public.
+	 * 
+	 * @param clientFacing
+	 * @return Paxos node config.
+	 */
+	public static NodeConfig<Integer> getFromPaxosConfig(
 			final boolean clientFacing) {
 		final NodeConfig<String> defaultNC = PaxosConfig.getDefaultNodeConfig();
 		return new NodeConfig<Integer>() {

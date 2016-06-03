@@ -563,6 +563,47 @@ public class Util {
 			}
 		};
 	}
+	
+
+    private static final Set<Class<?>> WRAPPER_TYPES = getWrapperTypes();
+
+    public static boolean isWrapperType(Class<?> clazz)
+    {
+        return WRAPPER_TYPES.contains(clazz);
+    }
+
+    private static Set<Class<?>> getWrapperTypes()
+    {
+        Set<Class<?>> ret = new HashSet<Class<?>>();
+        ret.add(Boolean.class);
+        ret.add(Character.class);
+        ret.add(Byte.class);
+        ret.add(Short.class);
+        ret.add(Integer.class);
+        ret.add(Long.class);
+        ret.add(Float.class);
+        ret.add(Double.class);
+        ret.add(Void.class);
+        return ret;
+    }
+
+	// converts to org.json JSON via json-smart
+	public static JSONObject viaJSONSmart(net.minidev.json.JSONObject jsonS)
+			throws JSONException {
+		JSONObject json = new JSONObject();
+		for (String key : jsonS.keySet()) {
+			if (jsonS.get(key) != null) {
+//				Object val = jsonS.get(key);
+//				if(WRAPPER_TYPES.contains(val.getClass()))
+					json.put(key, jsonS.get(key));
+//				else
+//					json.put("command",
+//							viaJSONSmart((net.minidev.json.JSONObject) jsonS
+//									.get("command")));
+			}
+		}
+		return json;
+	}
 
 	public static InetSocketAddress offsetPort(InetSocketAddress isa, int offset) {
 		return new InetSocketAddress(isa.getAddress(), isa.getPort() + offset);

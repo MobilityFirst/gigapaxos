@@ -257,6 +257,7 @@ public class ReconfigurableClientCreateTester {
 						notifyReply();
 						break;
 					case ANOTHER_APP_REQUEST:
+						default:
 						throw new RuntimeException(
 								"Client received unexpected APP_COORDINATION message");
 					}
