@@ -1330,9 +1330,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	}
 	
 	private void cleanupSSL(SelectionKey key) {
+          if (key != null) {
 		cleanup(key);
 		if (isSSL())
 			((SSLDataProcessingWorker) this.worker).remove(key);
+          }
 	}
 
 	/* Cleans up and suppresses IOException as there is little useful stuff the
