@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HEAD=`dirname $0`
+HEAD=`dirname $0` 
 
 DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
