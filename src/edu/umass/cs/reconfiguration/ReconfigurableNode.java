@@ -252,11 +252,19 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	private static Set<String> getAllNodes(String[] args) {
 		boolean startAll = false;
 		Set<String> nodeIDs = new HashSet<String>();
-		for (String arg : args) {
+		// search for START_ALL; only for backwards compatibility
+		for (String arg : args)
 			if (arg.equals(ReconfigurationConfig.CommandArgs.START_ALL
 					.toString()))
 				startAll = true;
-		}
+		// look for "start all" at the end
+		if (args.length >= 2
+				&& args[args.length - 1]
+						.equals(ReconfigurationConfig.CommandArgs.all)
+				&& args[args.length - 2]
+						.equals(ReconfigurationConfig.CommandArgs.start))
+			startAll = true;
+		
 		if (startAll) {
 			nodeIDs.addAll(ReconfigurationConfig.getReconfiguratorIDs());
 			nodeIDs.addAll(PaxosConfig.getActives().keySet());
@@ -270,10 +278,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	}
 
 	/**
-	 * {@code args} only contains the list of node IDs that we should try to
-	 * start in this JVM. In a typical distributed setting, we only expect one
-	 * node ID as an argument, or two if we are co-locating actives and
-	 * reconfigurators.
+	 * {@code args} contains a list of app arguments followed by a list of active or reconfigurator 
+	 * node IDs at the end. The string "start all" is accepted as a proxy for the list of all nodes
+	 * if the socket addresses of all nodes are on the local machine. 
 	 * 
 	 * @param args
 	 * @throws IOException
@@ -293,6 +300,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		PaxosConfig.sanityCheck(nodeConfig);
 		Set<String> servers = getAllNodes(args);
 		int numServers = servers.size();
+		if (numServers == 0)
+			throw new RuntimeException("No valid server names supplied");
 		System.out.print("Initializing gigapaxos server"
 				+ (numServers > 1 ? "s" : "") + " [ ");
 		for (String node : servers)

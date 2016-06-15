@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Properties;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -93,32 +94,6 @@ public class Config extends Properties {
 
 	private static final HashMap<Object, Object> cacheMap = new HashMap<Object, Object>();
 
-	/**
-	 * Registering an enum type with a config file is convenient to statically
-	 * retrieve configuration values, i.e., without having to pass a Config
-	 * object around.
-	 * 
-	 * @param type
-	 *            The declaring class of the enum type.
-	 * @param configFile
-	 * @return Previously registered config object if any for this type.
-	 * @throws IOException
-	 * 
-	 */
-	public static Config register(Class<?> type, String configFile)
-			throws IOException {
-		if (!type.isEnum() && !isDefaultValueEnum(type))
-			return null;
-		try {
-			return configMap.put(type, new Config(configFile));
-		} catch (IOException ioe) {
-			// we still use defaults
-			configMap.put(type, new Config());
-			log.warning(Config.class.getSimpleName() + " unable to find file "
-					+ configFile + "; using default values for type " + type);
-			throw ioe;
-		}
-	}
 
 	private static boolean isDefaultValueEnum(Class<?> clazz) {
 		for (Class<?> iface : clazz.getInterfaces())
@@ -134,11 +109,13 @@ public class Config extends Properties {
 	 * @param type
 	 * @param defaultConfigFile
 	 * @param systemPropertyKey
-	 * @return Previously registered config object if any for this type.
+	 * @return Registered config object for this type.
 	 * @throws IOException
 	 */
 	public static Config register(Class<?> type, String systemPropertyKey,
 			String defaultConfigFile) throws IOException {
+		if (!type.isEnum() && !isDefaultValueEnum(type))
+			return null;
 		// one time
 		if (Config.getConfig(type) != null)
 			return Config.getConfig(type);
@@ -146,7 +123,9 @@ public class Config extends Properties {
 		String configFile = System.getProperty(systemPropertyKey) != null ? System
 				.getProperty(systemPropertyKey) : defaultConfigFile;
 		try {
-			return configMap.put(type, new Config(configFile));
+			Config config = null;
+			configMap.put(type, config = new Config(configFile));
+			return config;
 		} catch (IOException ioe) {
 			// we still use defaults
 			configMap.put(type, new Config());
@@ -189,6 +168,42 @@ public class Config extends Properties {
 	 */
 	public static Config getConfig(Class<?> type) {
 		return configMap.get(type);
+	}
+
+	/**
+	 * @param type
+	 * @param systemPropertyKey
+	 * @param defaultConfigFile
+	 * @return Properties object created afresh and is case-sensitive.
+	 * @throws IOException
+	 */
+	public static Properties getProperties(Class<?> type,
+			String systemPropertyKey, String defaultConfigFile)
+			throws IOException {
+		String configFile = null;
+		Properties properties = new Properties();
+		try {
+			properties.load(new FileInputStream(configFile = (System
+					.getProperty(systemPropertyKey) != null ? System
+					.getProperty(systemPropertyKey) : defaultConfigFile)));			
+		} catch (IOException ioe) {
+			log.warning(Config.class.getSimpleName() + " unable to find file "
+					+ configFile + "; using default values for type " + type);
+			throw ioe;
+		}
+		return properties;
+	}
+
+	/**
+	 * @return {@code this}
+	 */
+	public Config setSystemProperties() {
+		String key = null;
+		for (String prop : this.stringPropertyNames())
+			if (prop.startsWith("-D")
+					&& System.getProperty(key = prop.replaceFirst("-D", "")) == null)
+				System.setProperty(key, this.getProperty(prop));
+		return this;
 	}
 
 	/**
@@ -368,8 +383,8 @@ public class Config extends Properties {
 		InputStream is = new FileInputStream(configFile);
 		this.load(is);
 		for (Object prop : this.keySet()) {
-			log.fine("Set property " + prop + "="
-					+ this.getProperty(prop.toString()));
+			log.log(Level.FINE, "Set property {0}={1}", new Object[]{prop,
+					this.getProperty(prop.toString())});
 		}
 	}
 
@@ -513,7 +528,7 @@ public class Config extends Properties {
 	}
 
 	private Object toLowerCase(Object key) {
-		return caseSensitive || !(key instanceof String) ? key : ((String) key)
+		return caseSensitive || !(key instanceof String) || ((String)key).startsWith("-D") ? key : ((String) key)
 				.toLowerCase();
 	}
 
@@ -561,7 +576,7 @@ public class Config extends Properties {
 	 */
 	public static void main(String[] args) throws IOException {
 		Util.assertAssertionsEnabled();
-		Config.register(Fields.class,
+		Config.register(Fields.class, "systemPropertyKey",
 				"/Users/arun/GNS/src/edu/umass/cs/utils/config.properties");
 		testMethod1(); // static usage option
 		testMethod2(); // object instance option

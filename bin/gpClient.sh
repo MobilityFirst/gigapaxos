@@ -1,7 +1,20 @@
 #!/bin/bash
 
 HEAD=`dirname $0`
-CLASSPATH=$HEAD/../build/classes:`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`:$CLASSPATH
+
+DEV_MODE=1
+if [[ $DEV_MODE == 1 ]]; then
+  CLASSPATH=$CLASSPATH:$HEAD/../build/classes
+  ENABLE_ASSERTS="-ea"
+fi
+
+VERBOSE=1
+
+# Use binaries before jar if available. Convenient to use with
+# automatic building in IDEs.
+CLASSPATH=$CLASSPATH:.:\
+`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+
 LOG_PROPERTIES=logging.properties
 GP_PROPERTIES=gigapaxos.properties
 
@@ -13,12 +26,22 @@ SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty \
 -Djavax.net.ssl.trustStorePassword=qwerty \
 -Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"
 
+# remove classpath
+ARGS_EXCEPT_CLASSPATH=`echo "$@"|\
+sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
+
+# reconstruct classpath by adding supplied classpath
+CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
+sed -E s/"^.* *\-(cp|classpath)  *"//g|\
+sed s/" .*$"//g`:$CLASSPATH"
+
+DEFAULT_CLIENT_ARGS=`echo "$@"|sed s/".*-D[^ ]* "//g`
+
 # separate out JVM args
 declare -a args
 index=0
-for arg in "$@"; do
+for arg in $ARGS_EXCEPT_CLASSPATH; do
   if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
-    JVMARGS="$JVMARGS $arg"
     key=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/=.*//g`
     value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
     if [[ $key == "gigapaxosConfig" ]]; then
@@ -29,24 +52,31 @@ for arg in "$@"; do
     index=`expr $index + 1`
   fi
 done
-#echo $JVMARGS "|" ${args[*]}
 
-JVMARGS="-ea -cp $CLASSPATH -Djava.util.logging.config.file=$LOG_PROPERTIES \
- -DgigapaxosConfig=$GP_PROPERTIES"
+DEFAULT_JVMARGS="$ENABLE_ASSERTS -cp $CLASSPATH \
+-Djava.util.logging.config.file=$LOG_PROPERTIES \
+-Dlog4j.configuration=log4j.properties \
+-DgigapaxosConfig=$GP_PROPERTIES"
 
-APP=`cat $GP_PROPERTIES|grep "^[ \t]*APPLICATION="|                \
+JVM_APP_ARGS="$DEFAULT_JVMARGS `echo $ARGS_EXCEPT_CLASSPATH`"
+
+APP=`cat $GP_PROPERTIES|grep "^[ \t]*APPLICATION="|\
 sed s/"^[ \t]*APPLICATION="//g`
 
-if [[ $APP == "edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp" ]];
-then CLIENT=edu.umass.cs.gigapaxos.examples.noop.NoopPaxosAppClient
-else if [[ $APP == \
-"edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp" || $APP == "" ]]; then
-CLIENT=edu.umass.cs.reconfiguration.examples.NoopAppClient 
-else
-CLIENT=$1
-fi 
+# default clients
+if [[ $APP == "edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp" && \
+-z `echo "$@"|grep edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp` ]];
+then
+  DEFAULT_CLIENT="edu.umass.cs.gigapaxos.examples.noop.NoopPaxosAppClient \
+$DEFAULT_CLIENT_ARGS"
+elif [[ $APP == \
+"edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp" && \
+-z `echo "$@"|grep edu.umass.cs.gigapaxos.examples.noop.NoopApp` ]];
+then
+  DEFAULT_CLIENT="edu.umass.cs.reconfiguration.examples.NoopAppClient \
+$DEFAULT_CLIENT_ARGS"
 fi
 
-echo "Running $CLIENT using $GP_PROPERTIES"
+echo "java $SSL_OPTIONS $JVM_APP_ARGS"
 
-java $JVMARGS $SSL_OPTIONS $CLIENT "${@:2}"
+java $SSL_OPTIONS $JVM_APP_ARGS $DEFAULT_CLIENT

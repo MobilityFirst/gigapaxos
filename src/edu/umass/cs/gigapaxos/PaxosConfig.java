@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
@@ -73,7 +74,7 @@ public class PaxosConfig {
 	public static void load(Class<?> type) {
 		try {
 			Config.register(type, GIGAPAXOS_CONFIG_FILE_KEY,
-					DEFAULT_GIGAPAXOS_CONFIG_FILE);
+					DEFAULT_GIGAPAXOS_CONFIG_FILE).setSystemProperties();
 		} catch (IOException e) {
 			// ignore as default will still be used
 		}
@@ -85,14 +86,30 @@ public class PaxosConfig {
 	public static void load() {
 		load(PC.class);
 	}
-
+	
+	/**
+	 * @return Properties in gigapaxos properties file.
+	 */
+	public static Properties getAsProperties() {
+		Properties config=null;
+		try {
+			// need to preserve case here
+			config = Config.getProperties(PC.class, GIGAPAXOS_CONFIG_FILE_KEY,
+					DEFAULT_GIGAPAXOS_CONFIG_FILE);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		if(config==null) config = Config.getConfig(PC.class);
+		return config;
+	}
 	/**
 	 * @return A map of names and socket addresses corresponding to servers
 	 *         hosting paxos replicas.
 	 */
 	public static Map<String, InetSocketAddress> getActives() {
 		Map<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
-		Config config = Config.getConfig(PC.class);
+		Properties config=getAsProperties();
+		
 		Set<String> keys = config.stringPropertyNames();
 		for (String key : keys) {
 			if (key.trim().startsWith(DEFAULT_SERVER_PREFIX)) {
