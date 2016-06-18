@@ -32,6 +32,7 @@ import org.json.JSONException;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.nioutils.NIOHeader;
+import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Stringer;
 
 import java.util.logging.Level;
@@ -141,6 +142,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	// This method will be invoked by NIO
 	protected boolean handleMessageSuper(byte[] msg, NIOHeader header)
 			throws JSONException {
+		NIOInstrumenter.incrRcvd();
 		MessageType message = null;
 		Level level = Level.FINEST;
 		try {

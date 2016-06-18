@@ -29,19 +29,27 @@ import javax.net.ssl.SSLException;
 
 import sun.misc.Cleaner;
 import sun.nio.ch.DirectBuffer;
-import edu.umass.cs.utils.MyLogger;
+import edu.umass.cs.nio.nioutils.NIOInstrumenter;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author arun
  *
  */
 public abstract class AbstractNIOSSL implements Runnable {
-	private final static int MAX_BUFFER_SIZE = 2048 * 1024;
-	private final static int MAX_DST_BUFFER_SIZE = 2 * MAX_BUFFER_SIZE;
+	private final static int DEFAULT_BUFFER_SIZE = NIOTransport.WRITE_BUFFER_SIZE;
+	/**
+	 * There isn't much benefit to increasing the buffer size and it does
+	 * introduce a speed bump, so best to leave MAX_FACTOR at 1, effectively
+	 * disabling dynamic buffer expansion.
+	 */
+	private final static int MAX_FACTOR = 1;
+	private final static int MAX_BUFFER_SIZE = MAX_FACTOR
+			* NIOTransport.WRITE_BUFFER_SIZE;
+	private final static int MAX_DST_BUFFER_SIZE = MAX_FACTOR
+			* NIOTransport.WRITE_BUFFER_SIZE;
 
-	// final
 	ByteBuffer wrapSrc, unwrapSrc;
-	// final
 	ByteBuffer wrapDst, unwrapDst;
 
 	final SSLEngine engine;
@@ -54,16 +62,14 @@ public abstract class AbstractNIOSSL implements Runnable {
 	/**
 	 * @param key
 	 * @param engine
-	 * @param bufferSize
 	 * @param taskWorkers
 	 */
-	public AbstractNIOSSL(SelectionKey key, SSLEngine engine, int bufferSize,
+	public AbstractNIOSSL(SelectionKey key, SSLEngine engine,
 			Executor taskWorkers) {
-		this.wrapSrc = ByteBuffer.allocateDirect(bufferSize);
-		this.wrapDst = ByteBuffer.allocateDirect(bufferSize);
-		this.unwrapSrc = ByteBuffer.allocateDirect(bufferSize);
-		this.unwrapDst = ByteBuffer.allocateDirect(bufferSize);
-		// this.unwrapSrc.limit(0);
+		this.wrapSrc = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
+		this.wrapDst = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
+		this.unwrapSrc = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
+		this.unwrapDst = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
 		this.engine = engine;
 		this.taskWorkers = taskWorkers;
 		this.key = key;
@@ -103,11 +109,13 @@ public abstract class AbstractNIOSSL implements Runnable {
 	 */
 	public synchronized void nioSend(final ByteBuffer unencrypted) {
 		try {
-			wrapSrc.put(unencrypted);
+			Util.put(wrapSrc, unencrypted);
+			// wrapSrc.put(unencrypted);
 		} catch (BufferOverflowException boe) {
+			// will never come here
 			wrapSrc = getBiggerBuffer(wrapSrc, unencrypted);
-			log.log(Level.INFO, MyLogger.FORMAT[1], new Object[] {
-					"Increased wrapSrc buffer size to ", wrapSrc.capacity() });
+			log.log(Level.INFO, "{0} increased wrapSrc buffer size to {1}",
+					new Object[] { this, wrapSrc.capacity() });
 		}
 		run();
 	}
@@ -118,24 +126,37 @@ public abstract class AbstractNIOSSL implements Runnable {
 	 * @param encrypted
 	 */
 	public synchronized void notifyReceived(ByteBuffer encrypted) {
+		int original = encrypted.remaining();
 		try {
-			unwrapSrc.put(encrypted);
+			Util.put(unwrapSrc, encrypted);
+			// unwrapSrc.put(encrypted);
 		} catch (BufferOverflowException boe) {
-			// try increasing buffer
+			// will never come here
 			unwrapSrc = getBiggerBuffer(unwrapSrc, encrypted);
-			log.log(Level.FINE, MyLogger.FORMAT[1],
-					new Object[] { "Increased unwrapSrc buffer size to ",
-							unwrapSrc.capacity() });
+			log.log(Level.FINE, "{0} increased unwrapSrc buffer size to {1}",
+					new Object[] { this, unwrapSrc.capacity() });
 
 		}
+		NIOInstrumenter.incrEncrBytesRcvd(original - encrypted.remaining());
 		run();
 	}
 
-	// trying to put buf2 into buf1
+	/**
+	 * Trying to put buf2 into buf1 by creating a new buffer with enough space.
+	 * Using this method seems to cause nio to get stuck at high sending rates.
+	 * Unclear why. This method currently does not get invoked during runtime.
+	 * 
+	 * @param buf1
+	 * @param buf2
+	 * @return
+	 */
+	@Deprecated
 	private ByteBuffer getBiggerBuffer(ByteBuffer buf1, ByteBuffer buf2) {
 		int biggerSize = buf1.position() + buf2.remaining();
 		if (biggerSize > MAX_BUFFER_SIZE) {
-			log.warning("Maximum allowed buffer size limit reached");
+			log.log(Level.WARNING,
+					"{0} reached maximum allowed buffer size limit",
+					new Object[] { this });
 			throw new BufferOverflowException();
 		}
 		ByteBuffer biggerBuf = ByteBuffer.allocate(biggerSize);
@@ -145,6 +166,13 @@ public abstract class AbstractNIOSSL implements Runnable {
 		buf1.compact(); // not really needed
 		return biggerBuf;
 
+	}
+
+	private static ByteBuffer getBiggerBuffer(ByteBuffer buf, int size) {
+		ByteBuffer b = ByteBuffer.allocate(size);
+		buf.flip();
+		b.put(buf);
+		return b;
 	}
 
 	public synchronized void run() {
@@ -184,12 +212,11 @@ public abstract class AbstractNIOSSL implements Runnable {
 				@Override
 				public void run() {
 					try {
-						log.log(Level.FINEST, MyLogger.FORMAT[1], new Object[] {
-								"async SSL task: ", sslTask });
 						long t0 = System.nanoTime();
 						sslTask.run();
-						log.log(Level.FINE, "async SSL task {0} took {1}ms",
-								new Object[] { sslTask,
+						log.log(Level.FINE,
+								"{0} async SSL task {1} took {2}ms",
+								new Object[] { this, sslTask,
 										(System.nanoTime() - t0) / 1000000 });
 
 						// continue handling I/O
@@ -226,34 +253,34 @@ public abstract class AbstractNIOSSL implements Runnable {
 
 		switch (wrapResult.getStatus()) {
 		case OK:
-			if (wrapDst.position() > 0) {
-				wrapDst.flip();
-				this.onOutboundData(wrapDst);
-				wrapDst.compact();
-			}
+			if (wrapDst.position() > 0)
+				this.drainOutbound();
 			break;
 
 		case BUFFER_UNDERFLOW:
-			log.fine("wrap BUFFER_UNDERFLOW");
+			log.log(Level.FINE, "{0} wrap BUFFER_UNDERFLOW",
+					new Object[] { this });
 			// try again later
 			break;
 
 		case BUFFER_OVERFLOW:
-			log.warning("wrap BUFFER_OVERFLOW: Wrapped data is coming faster than the network can send it out.");
-			// Could attempt to drain the dst buffer of any already obtained
-			// data, but we'll just increase it to the size needed.
+			log.log(Level.INFO,
+					"{0} wrap BUFFER_OVERFLOW: Wrapped data is coming faster than the network can send it out.",
+					new Object[] { this });
 			int biggerSize = engine.getSession().getApplicationBufferSize()
 					+ wrapDst.capacity();
 			if (biggerSize > MAX_DST_BUFFER_SIZE)
-				throw new IllegalStateException("failed to wrap");
-			ByteBuffer b = ByteBuffer.allocate(biggerSize);
-			wrapDst.flip();
-			b.put(wrapDst);
-			wrapDst = b;
-			log.log(Level.FINE, MyLogger.FORMAT[0],
-					new Object[] { "Increased wrapDst buffer size to "
-							+ wrapDst.capacity() });
-			// retry the operation.
+				// throw new IllegalStateException("failed to wrap")
+				;
+			// try increasing buffer size up to maximum limit
+			if (biggerSize < MAX_DST_BUFFER_SIZE) {
+				wrapDst = getBiggerBuffer(wrapDst, biggerSize);
+				log.log(Level.INFO, "{0} increased wrapDst buffer size to {1}",
+						new Object[] { this, wrapDst.capacity() });
+				// retry the operation.
+			}
+			// drain outbound buffer
+			this.drainOutbound();
 			break;
 
 		case CLOSED:
@@ -273,6 +300,48 @@ public abstract class AbstractNIOSSL implements Runnable {
 		return true;
 	}
 
+	/**
+	 * Push once and spawn task if all outbound data is not fully pushed out.
+	 * 
+	 * @param sync
+	 */
+	private void drainOutbound() {
+		if (wrapDst.position() > 0) {
+			pushOutbound();
+			if (wrapDst.position() == 0)
+				return;
+			// else spawn task
+			Runnable pushTask = new Runnable() {
+				@Override
+				public void run() {
+					while (wrapDst.position() > 0) {
+						int prev = wrapDst.position();
+						synchronized (AbstractNIOSSL.this) {
+							wrapDst.flip();
+							AbstractNIOSSL.this.onOutboundData(wrapDst);
+							wrapDst.compact();
+						}
+						if (wrapDst.position() == prev)
+							Thread.yield();
+					}
+				}
+			};
+			this.taskWorkers.execute(pushTask);
+		}
+	}
+
+	private void pushOutbound() {
+		wrapDst.flip();
+		AbstractNIOSSL.this.onOutboundData(wrapDst);
+		wrapDst.compact();
+	}
+
+	private void pullInbound() {
+		unwrapDst.flip();
+		this.onInboundData(unwrapDst);
+		unwrapDst.compact();
+	}
+
 	private synchronized boolean unwrap() {
 		SSLEngineResult unwrapResult;
 
@@ -287,11 +356,8 @@ public abstract class AbstractNIOSSL implements Runnable {
 
 		switch (unwrapResult.getStatus()) {
 		case OK:
-			if (unwrapDst.position() > 0) {
-				unwrapDst.flip();
-				this.onInboundData(unwrapDst);
-				unwrapDst.compact();
-			}
+			if (unwrapDst.position() > 0)
+				this.pullInbound();
 			break;
 
 		case CLOSED:
@@ -299,25 +365,29 @@ public abstract class AbstractNIOSSL implements Runnable {
 			return false;
 
 		case BUFFER_OVERFLOW:
-			log.info("unwrap BUFFER_OVERFLOW: Network data is coming in faster than can be unwrapped");
-			// Could attempt to drain the dst buffer of any already obtained
-			// data, but we'll just increase it to the size needed.
+			log.log(Level.INFO,
+					"{0} unwrap BUFFER_OVERFLOW: Network data is coming in faster than can be unwrapped",
+					new Object[] { this });
 			int biggerSize = engine.getSession().getApplicationBufferSize()
 					+ unwrapDst.capacity();
 			if (biggerSize > MAX_BUFFER_SIZE)
-				throw new IllegalStateException("failed to unwrap");
-			ByteBuffer b = ByteBuffer.allocate(biggerSize);
-			unwrapDst.flip();
-			b.put(unwrapDst);
-			unwrapDst = b;
-			log.log(Level.FINE, MyLogger.FORMAT[1],
-					new Object[] { "Increased unwrapDst buffer size to ",
-							unwrapDst.capacity() });
-			// retry the operation.
+				// throw new IllegalStateException("failed to unwrap")
+				;
+			// try increasing size first
+			if (biggerSize < MAX_BUFFER_SIZE) {
+				unwrapDst = getBiggerBuffer(unwrapDst, biggerSize);
+				log.log(Level.FINE,
+						"{0} increased unwrapDst buffer size to {1}",
+						new Object[] { this, unwrapDst.capacity() });
+				// retry the operation.
+			}
+			// try draining inbound buffer
+			this.pullInbound();
 			break;
 
 		case BUFFER_UNDERFLOW:
-			log.fine("unwrap BUFFER_UNDERFLOW");
+			log.log(Level.FINE, "{0} unwrap BUFFER_UNDERFLOW",
+					new Object[] { this });
 			return false;
 		}
 
@@ -331,6 +401,11 @@ public abstract class AbstractNIOSSL implements Runnable {
 		}
 
 		return true;
+	}
+
+	public String toString() {
+		return AbstractNIOSSL.class.getSimpleName()
+				+ (this.key != null ? this.key.channel() : "");
 	}
 
 	/**
@@ -356,9 +431,10 @@ public abstract class AbstractNIOSSL implements Runnable {
 	private static void clean(ByteBuffer bbuf) {
 		Cleaner cleaner = null;
 		/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
-		 * just comment the line below. The code will default to using the 
+		 * just comment the line below. The code will default to using the
 		 * reflective approach below. */
-		cleaner = ((DirectBuffer) bbuf).cleaner();
+		if (bbuf instanceof DirectBuffer)
+			cleaner = ((DirectBuffer) bbuf).cleaner();
 		if (cleaner == null)
 			try {
 				Field cleanerField = bbuf.getClass()

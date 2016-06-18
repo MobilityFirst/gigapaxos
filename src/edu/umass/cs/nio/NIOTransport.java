@@ -157,7 +157,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	/**
 	 * Hint to set socket buffer size (that may be ignored by the system).
 	 */
-	private static final int HINT_SOCK_BUFFER_SIZE = 512000;
+	private static final int HINT_SOCK_BUFFER_SIZE = 512 * 1024;
 
 	/**
 	 * True means duplex, so it will work even with one end behind a NAT.
@@ -169,7 +169,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * throughput if typical messages are much bigger than this limit.
 	 */
 	private static final int READ_BUFFER_SIZE = 1024 * 64;
-	private static final int WRITE_BUFFER_SIZE = 1024 * 256;
+	protected static final int WRITE_BUFFER_SIZE = 1024 * 256;
 
 	private static int instanceCount = 0;
 
@@ -417,6 +417,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		ByteBuffer bbuf = getHeaderedByteBuffer(data = this.deflate(data));
 		int written = this.canEnqueueSend(isa) ? this.enqueueSend(isa, bbuf)
 				: 0;
+		if(written > 0)
+			NIOInstrumenter.incrSent();
 		return written > 0 ? written - HEADER_SIZE : written;
 	}
 
@@ -1093,8 +1095,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 		// flip and send out
 		this.writeBuffer.flip();
-		this.writeBuffer.remaining();
 		int written = this.wrapWrite(socketChannel, this.writeBuffer);
+		NIOInstrumenter.incrBytesSent(written);
 		// assert(this.writeBuffer.remaining()==0);
 		log.log(Level.FINEST, "{0} wrote {1} batched bytes to {2}",
 				new Object[] { this, written, socketChannel });
@@ -1311,8 +1313,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 					// connected and handshake complete => set op_write
 					SelectionKey key = null;
 					if (((sc.isConnected() && this.isHandshakeComplete(sc))
-							&& (key = sc.keyFor(this.selector)) != null && (key
-							.interestOps() & SelectionKey.OP_WRITE) == 0))
+							&& (key = sc.keyFor(this.selector)) != null 
+							&& (key.interestOps() & SelectionKey.OP_WRITE) == 0
+							))
 						try {
 							key.interestOps(key.interestOps()
 									| SelectionKey.OP_WRITE);

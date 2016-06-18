@@ -418,13 +418,19 @@ public class Util {
 		return suicide(log, error);
 	}
 
-	// transfer from one byte buffer to another without throwing exception
+	/** Transfer from src to dst without throwing exception if src.remaining() >
+	 * dst.remaining() but copying dst.remaining() bytes from src instead. */
 	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src) {
 		if (src.remaining() < dst.remaining())
 			return dst.put(src);
-		byte[] buf = new byte[dst.remaining()];
-		src.get(buf);
-		return dst.put(buf);
+		int oldLimit = src.limit();
+		src.limit(src.position() + dst.remaining());
+		dst.put(src);
+		src.limit(oldLimit);
+		return dst;
+//		byte[] buf = new byte[dst.remaining()];
+//		src.get(buf);
+//		return dst.put(buf);
 	}
 
 	private static final String CHARSET = "ISO-8859-1";

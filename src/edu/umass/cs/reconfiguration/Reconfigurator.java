@@ -753,9 +753,6 @@ public class Reconfigurator<NodeIDType> implements
 		if (this.processRedirection(request))
 			return null;
 
-		// TODO: unused
-		NIOInstrumenter.addExcludePort(request.getCreator().getPort());
-
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(request.getServiceName());
 		if (record == null || record.getActiveReplicas() == null

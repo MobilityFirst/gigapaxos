@@ -17,6 +17,7 @@ package edu.umass.cs.nio;
 
 import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
 import edu.umass.cs.nio.nioutils.NIOHeader;
+import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
 import edu.umass.cs.reconfiguration.reconfigurationutils.AppInstrumenter;
 import edu.umass.cs.utils.Stringer;
@@ -249,6 +250,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 					msg = new byte[incoming.remaining()];
 					incoming.get(msg);
 					extracted = true;
+					NIOInstrumenter.incrBytesRcvd(msg.length + 8);
 				}
 
 				// String message = (new String(msg,

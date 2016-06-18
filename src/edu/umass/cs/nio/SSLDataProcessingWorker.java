@@ -38,6 +38,7 @@ import javax.net.ssl.SSLException;
 import edu.umass.cs.nio.interfaces.DataProcessingWorker;
 import edu.umass.cs.nio.interfaces.HandshakeCallback;
 import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
+import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -75,7 +76,6 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		MUTUAL_AUTH
 	}
 
-	private static final int DEFAULT_PER_CONNECTION_IO_BUFFER_SIZE = 64 * 1024;
 	// to handle incoming decrypted data
 	private final DataProcessingWorker decryptedWorker;
 
@@ -149,6 +149,7 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 			nioSSL.nioSend(unencrypted);
 		} catch (BufferOverflowException | IllegalStateException e) {
 			// do nothing, sender will automatically slow down
+			e.printStackTrace();
 		}
 		return originalSize - unencrypted.remaining();
 	}
@@ -178,7 +179,7 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 				new Object[] { this, (isClient ? "client" : "server"),
 						key.channel() });
 		this.sslMap.put(key.channel(), new NonBlockingSSLImpl(key, engine,
-				DEFAULT_PER_CONNECTION_IO_BUFFER_SIZE, this.taskWorkers));
+				 this.taskWorkers));
 		return true;
 	}
 
@@ -209,8 +210,8 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		private boolean handshakeComplete = false;
 
 		NonBlockingSSLImpl(SelectionKey key, SSLEngine engine,
-				int ioBufferSize, Executor taskWorkers) {
-			super(key, engine, ioBufferSize, taskWorkers);
+				 Executor taskWorkers) {
+			super(key, engine, taskWorkers);
 			this.engine = engine;
 		}
 
@@ -263,8 +264,10 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 				assert (key != null);
 				int totalLength = encrypted.remaining();
 				// hack! try few times, but can't really wait here.
-				for (int attempts = 0; attempts < 3 && encrypted.hasRemaining(); attempts++)
+				for (int attempts = 0; attempts < 1 && encrypted.hasRemaining(); attempts++)
 					channel.write(encrypted);
+
+				NIOInstrumenter.incrEncrBytesSent(totalLength - encrypted.remaining());
 
 				// not a showstopper if we don't absolutely complete the write
 				if (encrypted.hasRemaining())
@@ -275,8 +278,8 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 
 			} catch (IOException | IllegalStateException exc) {
 				// need to cleanup as we are screwed
-				log.severe(this
-						+ " ran into exception or illegal state while writing outbound data; closing channel");
+				log.severe(this + " ran into " + exc.getClass().getSimpleName()
+						+ "  while writing outbound data; closing channel");
 				cleanup(key);
 				throw new IllegalStateException(exc);
 			}
