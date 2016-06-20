@@ -20,7 +20,7 @@ recursive_install=1
 
 package_name=gigapaxos #GNS
 # absolute path of the install on the local host
-local_install_dir=~/$package_name 
+local_install_dir=`pwd`
 
 remote_user=ec2-user
 
@@ -29,7 +29,7 @@ install_host=lime
 
 # relative to remote home. Currently, remote_install_dir has to be the
 # same as local_install_dir.
-remote_install_dir=$package_name/
+remote_install_dir=`pwd|sed s/.*\\\///g`
 
 # Regular expression for local jars to be transferred. This regex is
 # used by rsync, so it must be a single file or a regex, not an
@@ -98,6 +98,12 @@ if [[ ! -z $1 && ! $1 == "kill" ]]; then
   fi
 fi
 
+# re-read remote_user from gigapaxos properties
+tmp_remote_user=`cat $gigapaxos_properties|\
+  grep "remote_user="|sed s/"remote_user="//g`
+if [[ ! -z $remore_user ]]; then
+  remote_user=$tmp_remote_user
+fi
 
 client_kill_targets=$client_kill_targets"\|"`echo $paxos_client|sed s/".*\."//g`
 

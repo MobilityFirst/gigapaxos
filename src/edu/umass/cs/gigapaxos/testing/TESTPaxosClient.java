@@ -795,7 +795,9 @@ public class TESTPaxosClient {
 				+ "/s"
 
 				+ "\n  noop_count = " + TESTPaxosClient.getTotalNoopCount()
-				+ "\n  " + DelayProfiler.getStats() + "\n  ";
+				+ "\n  " 
+				//+ DelayProfiler.getStats() + "\n  "
+				;
 	}
 
 	/**

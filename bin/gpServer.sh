@@ -2,16 +2,20 @@
 
 HEAD=`dirname $0` 
 
-DEV_MODE=1
+# wipe out any existing classpath
+export CLASSPATH=""
+
+DEV_MODE=0
 if [[ $DEV_MODE == 1 ]]; then
-  CLASSPATH=$CLASSPATH:$HEAD/../build/classes
+# Use binaries before jar if available. Convenient to use with
+# automatic building in IDEs.
+  export CLASSPATH=$CLASSPATH:$HEAD/../build/classes
   ENABLE_ASSERTS="-ea"
 fi
 
-# Use binaries before jar if available. Convenient to use with
-# automatic building in IDEs.
-CLASSPATH=$CLASSPATH:.:\
-`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+# use gigapaxos jar from default location if available
+export CLASSPATH=$CLASSPATH:\
+`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar 2>/dev/null`
 
 # default java.util.logging.config.file
 LOG_PROPERTIES=logging.properties
@@ -29,19 +33,25 @@ JAVA=java
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
-APPARGS="appArgs"
+APP_ARGS_KEY="appArgs"
+APP_RESOURCES_KEY="appResourcePath"
 
-SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=qwerty \
--Djavax.net.ssl.keyStore=conf/keyStore/node100.jks \
--Djavax.net.ssl.trustStorePassword=qwerty \
--Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"
+DEFAULT_KEYSTORE_PASSWORD="qwerty"
+DEFAULT_TRUSTSTORE_PASSWORD="qwerty"
+DEFAULT_KEYSTORE=keyStore.jks
+DEFAULT_TRUSTSTORE=trustStore.jks
+DEFAULT_SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=$DEFAULT_KEYSTORE_PASSWORD \
+-Djavax.net.ssl.keyStore=$DEFAULT_KEYSTORE \
+-Djavax.net.ssl.trustStorePassword=$DEFAULT_TRUSTSTORE_PASSWORD \
+-Djavax.net.ssl.trustStore=$DEFAULT_TRUSTSTORE"
 
 
 # Usage
 if [[ -z "$@" || -z `echo "$@"|grep " \(start\|stop\|restart\) "` ]]; then
   echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
-[-$APPARGS=\"APPARGS\"]\
- stop|start  all|server_names"
+[-$APP_ARGS_KEY=\"APP_ARGS\"] \
+[-$APP_RESOURCES_KEY=\"APP_RESOURCES_DIR\"] \
+stop|start  all|server_names"
 echo "Examples:"
 echo "    `dirname $0`/`basename $0` start AR1"
 echo "    `dirname $0`/`basename $0` start AR1 AR2 RC1"
@@ -52,8 +62,9 @@ echo "    `dirname $0`/`basename $0` \
 -DgigapaxosConfig=/path/to/gigapaxos.properties start all"
 echo "    `dirname $0`/`basename $0` -cp myjars.jar \
 -DgigapaxosConfig=/path/to/gigapaxos.properties \
--$APPARGS=\"-opt1=val1 -flag2 \
--str3=\\""\"quoted arg example\\""\" -n 100\" \
+-D$APP_RESOURCES_KEY=/path/to/app/resources/dir/ \
+-$APP_ARGS_KEY=\"-opt1=val1 -flag2 \
+-str3=\\""\"quoted arg example\\""\" -n 50\" \
  start all" 
 fi
 
@@ -62,14 +73,14 @@ ARGS_EXCEPT_CLASSPATH=`echo "$@"|\
 sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
 
 # set JVM args except classpath
-JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|sed s/-$APPARGS.*$//g|\
-sed -E s/" (start|stop) .*$"//g`"
+JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|\
+sed s/-$APP_ARGS_KEY.*$//g|\
+sed -E s/" (start|stop|restart) .*$"//g`"
 
-# reconstruct classpath by adding supplied classpath
-CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
+# reconstruct final classpath by adding supplied classpath
+export CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
 sed -E s/"^.* *\-(cp|classpath)  *"//g|\
 sed s/" .*$"//g`:$CLASSPATH"
-
 
 # separate out gigapaxos.properties and appArgs
 declare -a args
@@ -82,10 +93,14 @@ for arg in "$@"; do
     value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
     if [[ $key == "gigapaxosConfig" ]]; then
       GP_PROPERTIES=$value
+    elif [[ ! -z `echo $arg|grep "\-D$APP_RESOURCES_KEY="` ]]; then
+      # app args
+      APP_RESOURCES="`echo $arg|grep "\-D$APP_RESOURCES_KEY="|\
+        sed s/\-D$APP_RESOURCES_KEY=//g`"
     fi
-  elif [[ ! -z `echo $arg|grep "\-$APPARGS.*="` ]]; then
+  elif [[ ! -z `echo $arg|grep "\-$APP_ARGS_KEY="` ]]; then
     # app args
-    APP_ARGS="`echo $arg|grep "\-$APPARGS.*="|sed s/\-$APPARGS=//g`"
+    APP_ARGS="`echo $arg|grep "\-$APP_ARGS="|sed s/\-$APP_ARGS=//g`"
   elif [[ $arg == "start" || $arg == "stop" || $arg == "restart" ]]; then
     # server names
     args=(${@:$index})
@@ -93,12 +108,15 @@ for arg in "$@"; do
   index=`expr $index + 1`
 done
 
+APP_RESOURCES_SIMPLE=`echo $APP_RESOURCES|sed s/"^.*\/"//g`
+
 # get APPLICATION from gigapaxos.properties file
 APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
   if [[ $APP == "" ]]; then
     # default app
     APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
   fi
+APP_SIMPLE=`echo $APP|sed s/".*\."//g`
 
 # Can add more JVM args here. JVM args specified on the command-line
 # will override defaults.
@@ -113,44 +131,192 @@ JVMARGS="$DEFAULT_JVMARGS $JVMARGS"
 if [[ ${args[1]} == "all" ]]; then
 
   # get reconfigurators
-    reconfigurators=`cat $GP_PROPERTIES|grep "^[ \t]*$RECONFIGURATOR"|\
-  sed s/"^.*$RECONFIGURATOR."//g|sed s/"=.*$"//g`
+    reconfigurators=`cat $GP_PROPERTIES|grep -v "^[ \t]*#"|\
+      grep "^[ \t]*$RECONFIGURATOR"|\
+      sed s/"^.*$RECONFIGURATOR."//g|sed s/"=.*$"//g`
   
   # get actives
-	actives=`cat $GP_PROPERTIES|grep "^[ \t]*$ACTIVE"| sed \
-s/"^.*$ACTIVE."//g|sed s/"=.*$"//g`
+	actives=`cat $GP_PROPERTIES|grep -v "^[ \t]*#"|\
+      grep "^[ \t]*$ACTIVE"| sed \ s/"^.*$ACTIVE."//g|\
+      sed s/"=.*$"//g`
   
   servers="$actives $reconfigurators"
+
+echo $servers
   
 else 
   servers="${args[@]:1}"
 
 fi
 
+function get_value {
+  key=$1
+  cmdline_args=$2
+  default_value_container=$3
+  record=`echo $cmdline_args|grep $key`
+  if [[ -z $record ]]; then
+	record=`cat $GP_PROPERTIES|grep -v "^[ \t]*#"|grep $key`
+  fi
+  if [[ -z $record ]]; then
+    record=$default_value_container
+  fi
+  if [[ ! -z `echo $record|grep "="` ]]; then
+    value=`echo $record| sed s/"^.*$key="//g|\
+      sed s/" .*$"//g`
+  else 
+    value=$default_value_container
+  fi
+}
 
-# start server if local, else append to non_local list
-function start_server {
+function print {
+  level=$1
+  msg=$2
+  if [[ $VERBOSE -ge $level ]]; then
+    i=0
+    while [[ $i -lt $level ]]; do
+      echo -n "  "
+      i=`expr $i + 1`
+    done
+    echo $msg
+  fi
+}
+
+# files for remote transfers if needed
+function get_file_list {
+  cmdline_args=$@
+  jar_files="`echo $CLASSPATH|sed s/":"/" "/g`"
+  get_value "javax.net.ssl.keyStore" "$cmdline_args" "$DEFAULT_KEYSTORE"
+  keyStore=$value
+  get_value "javax.net.ssl.keyStorePassword" "$cmdline_args" "$DEFAULT_KEYSTORE_PASSWORD"
+  keyStorePassword=$value
+  get_value "javax.net.ssl.trustStore" "$cmdline_args" "$DEFAULT_TRUSTSTORE"
+  trustStore=$value
+  get_value "javax.net.ssl.trustStorePassword" "$cmdline_args" "$DEFAULT_TRUSTSTORE_PASSWORD"
+  trustStorePassword=$value
+  get_value "java.util.logging.config.file" "$cmdline_args" $LOG_PROPERTIES
+  LOG_PROPERTIES=$value
+  get_value "java.util.logging.config.file" "$cmdline_args" $LOG4J_PROPERTIES
+  LOG4J_PROPERTIES=$value
+
+  conf_transferrables="$GP_PROPERTIES $keyStore $trustStore $LOG_PROPERTIES\
+     $LOG4J_PROPERTIES $APP_RESOURCES"
+  print 3 "transferrables="$jar_files $conf_transferrables
+}
+
+function trim_file_list {
+  list=$1
+  for i in $list; do
+    if [[ -e $i ]]; then
+      existent="$existent $i"
+    fi
+  done
+  conf_transferrables=$existent
+}
+
+
+get_file_list "$@"
+trim_file_list "$conf_transferrables"
+cur_dir=`pwd|sed s/.*\\\///g`
+
+# disabling warnings to prevent manual override; can supply ssh keys
+# here if needed, but they must be the same on the local host and on
+# the first host that continues the installation.
+SSH="ssh -x -o StrictHostKeyChecking=no"
+
+RSYNC_PATH="mkdir -p $APP_SIMPLE"
+RSYNC="rsync --force -a "
+
+username=`grep "USERNAME=" $GP_PROPERTIES|grep -v "^[ \t]*#"|\
+  sed s/"^[ \t]*USERNAME="//g`
+
+function append_to_ln_cmd {
+  src_file=$1
+  default=$2
+  simple=`echo $1|sed s/".*\/"//g`
+  
+  if [[ -e $1 ]]; then
+    if [[ -z $LINK_CMD ]]; then
+      LINK_CMD="ln -fs ~/$APP_SIMPLE/conf/$simple \
+        $APP_SIMPLE/$default "
+    else
+      LINK_CMD="$LINK_CMD; ln -fs ~/$APP_SIMPLE/conf/$simple \
+        $APP_SIMPLE/$default "
+    fi
+  fi
+}
+
+append_to_ln_cmd $GP_PROPERTIES gigapaxos.properties
+append_to_ln_cmd $keyStore keyStore.jks
+append_to_ln_cmd $trustStore trustStore.jks
+append_to_ln_cmd $LOG_PROPERTIES logging.properties
+append_to_ln_cmd $LOG4J_PROPERTIES log4j.properties
+append_to_ln_cmd $APP_RESOURCES app_resources
+
+function rsync_symlink {
+  address=$1
+  print 1 "Transferring conf files to $address:$APP_SIMPLE"
+  print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH; \
+    $LINK_CMD && rsync\" $conf_transferrables $username@$address:$APP_SIMPLE/conf/"
+  $RSYNC --rsync-path="$RSYNC_PATH; \
+    $LINK_CMD && rsync" $conf_transferrables $username@$address:$APP_SIMPLE/conf/
+}
+
+SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=$keyStorePassword \
+-Djavax.net.ssl.keyStore=$keyStore \
+-Djavax.net.ssl.trustStorePassword=$trustStorePassword \
+-Djavax.net.ssl.trustStore=$trustStore"
+
+LOG_FILE=gigapaxos.log
+
+# gets address and port of server from gigapaxos properties file
+function get_address_port {
   server=$1
   # for verbose printing
   addressport=`grep "\($ACTIVE\|$RECONFIGURATOR\).$server=" $GP_PROPERTIES|\
+    grep -v "^[ \t]*#"|\
     sed s/"^[ \t]*$ACTIVE.$server="//g|\
     sed s/"^[ \t]*$RECONFIGURATOR.$server="//g`
   address=`echo $addressport|sed s/:.*//g`
   if [[ $addressport == "" ]]; then
-    non_local="$server $non_local"
+    non_existent="$server $non_existent"
     return
   fi
-  # check if interface even local
+  # check if interface is local
   ifconfig_found=`type ifconfig 2>/dev/null`
+}
+
+# start server if local, else append to non_local list
+function start_server {
+  server=$1
+  get_address_port $server
   if [[ $ifconfig_found != "" && `ifconfig|grep $address` != "" ]]; then
-  if [[ $VERBOSE == 2 ]]; then
-    echo "$JAVA $JVMARGS $SSL_OPTIONS \
-      edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $server&"
-  fi
-  $JAVA $JVMARGS $SSL_OPTIONS \
-    edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $server&
+    if [[ $VERBOSE == 2 ]]; then
+      echo "$JAVA $JVMARGS $SSL_OPTIONS \
+        edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $server&"
+    fi
+    $JAVA $JVMARGS $SSL_OPTIONS \
+      edu.umass.cs.reconfiguration.ReconfigurableNode $APP_ARGS $server&
   else
+    # first rsync files to remote server
     non_local="$server=$addressport $non_local"
+    echo "Starting remote server $server"
+    print 1 "Transferring jar files $jar_files to $address:$APP_SIMPLE"
+    print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH && rsync\" $jar_files $username@$address:$APP_SIMPLE/jars/ "
+    $RSYNC --rsync-path="$RSYNC_PATH && rsync" $jar_files $username@$address:$APP_SIMPLE/jars/ 
+    rsync_symlink $address
+
+    # then start remote server
+    print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
+      $JAVA $JVMARGS -cp jars/GNS.jar $SSL_OPTIONS \
+      -DgigapaxosConfig=gigapaxos.properties \
+      edu.umass.cs.reconfiguration.ReconfigurableNode \
+      $APP_ARGS $server \""
+    
+    $SSH $username@$address "cd $APP_SIMPLE; nohup \
+      $JAVA $JVMARGS -cp jars/GNS.jar $SSL_OPTIONS \
+      -DgigapaxosConfig=gigapaxos.properties \
+      edu.umass.cs.reconfiguration.ReconfigurableNode \
+      $APP_ARGS $server "&
   fi
 }
 
@@ -174,11 +340,23 @@ fi
 
 function stop_servers {
   for i in $servers; do
+      get_address_port $i
       KILL_TARGET="ReconfigurableNode .*$i"
-      pid=`ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}' 2>/dev/null`
-      if [[ $pid != "" ]]; then
-        foundservers="$i($pid) $foundservers"
-        pids="$pids $pid"
+      if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]]; then
+        pid=`ps -ef|grep "$KILL_TARGET"|grep -v grep|awk '{print $2}' 2>/dev/null`
+        if [[ $pid != "" ]]; then
+          foundservers="$i($pid) $foundservers"
+          pids="$pids $pid"
+        fi
+      else 
+        # remote kill
+        echo "Stopping remote server $server"
+        echo $SSH $username@$address "\"kill -9 \`ps -ef|\
+          grep \"$KILL_TARGET\"|grep -v grep|awk \
+          '{print \$2}'\` 2>/dev/null\""
+        $SSH $username@$address "kill -9 \`ps -ef|\
+          grep \"$KILL_TARGET\"|grep -v grep|awk \
+          '{print \$2}'\` 2>/dev/null"
       fi
   done
   if [[ `echo $pids|sed s/" *"//g` != "" ]]; then
