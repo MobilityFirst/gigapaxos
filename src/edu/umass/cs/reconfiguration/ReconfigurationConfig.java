@@ -658,6 +658,11 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		all,
+		
+		/**
+		 * 
+		 */
+		appArgs,
 	};
 
 	/**

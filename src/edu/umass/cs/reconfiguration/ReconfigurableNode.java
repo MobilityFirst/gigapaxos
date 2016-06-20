@@ -264,7 +264,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				&& args[args.length - 2]
 						.equals(ReconfigurationConfig.CommandArgs.start))
 			startAll = true;
-		
+
 		if (startAll) {
 			nodeIDs.addAll(ReconfigurationConfig.getReconfiguratorIDs());
 			nodeIDs.addAll(PaxosConfig.getActives().keySet());
@@ -274,13 +274,16 @@ public abstract class ReconfigurableNode<NodeIDType> {
 						args[i])
 						|| PaxosConfig.getActives().keySet().contains(args[i]))
 					nodeIDs.add(args[i]);
+				else
+					break;
 		return nodeIDs;
 	}
 
 	/**
-	 * {@code args} contains a list of app arguments followed by a list of active or reconfigurator 
-	 * node IDs at the end. The string "start all" is accepted as a proxy for the list of all nodes
-	 * if the socket addresses of all nodes are on the local machine. 
+	 * {@code args} contains a list of app arguments followed by a list of
+	 * active or reconfigurator node IDs at the end. The string "start all" is
+	 * accepted as a proxy for the list of all nodes if the socket addresses of
+	 * all nodes are on the local machine.
 	 * 
 	 * @param args
 	 * @throws IOException
@@ -299,20 +302,24 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
 		Set<String> servers = getAllNodes(args);
+		String appArgsAsString = System
+				.getProperty(ReconfigurationConfig.CommandArgs.appArgs
+						.toString());
+		String[] appArgs = appArgsAsString == null ? null : appArgsAsString
+				.split("\\s");
 		int numServers = servers.size();
 		if (numServers == 0)
 			throw new RuntimeException("No valid server names supplied");
 		System.out.print("Initializing gigapaxos server"
 				+ (numServers > 1 ? "s" : "") + " [ ");
-		for (String node : servers)
-		{
+		for (String node : servers) {
 			System.out.print(node + ":" + nodeConfig.getNodeAddress(node) + ":"
 					+ nodeConfig.getNodePort(node) + " ");
 			new DefaultReconfigurableNode(node,
 			// must use a different nodeConfig for each
 					new DefaultNodeConfig<String>(PaxosConfig.getActives(),
-							ReconfigurationConfig.getReconfigurators()), args,
-					false);
+							ReconfigurationConfig.getReconfigurators()),
+					appArgs, false);
 		}
 		System.out.println("]; server" + (numServers > 1 ? "s" : "") + servers
 				+ " ready");
