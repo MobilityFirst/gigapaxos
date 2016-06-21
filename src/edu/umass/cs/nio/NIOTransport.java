@@ -623,12 +623,10 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			} catch (IOException | CancelledKeyException e) {
 				updateFailed(key);
 				log.log(Level.WARNING, "Node {0} incurred IOException on {1}"
-						+ " likely because remote end {2} closed connection",
+						+ " likely because remote end closed connection",
 						new Object[] {
 								this,
-								key.channel(),
-								((SocketChannel) key.channel()).socket()
-										.getRemoteSocketAddress() });
+								key.channel(),});
 				e.printStackTrace(); // print and move on with other keys
 				//cleanup(key, (AbstractSelectableChannel) key.channel());
 				cleanupSSL(key);

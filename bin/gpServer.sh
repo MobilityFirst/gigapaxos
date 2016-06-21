@@ -18,17 +18,28 @@ fi
 export CLASSPATH=$CLASSPATH:\
 `ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar 2>/dev/null`
 
+CONF=conf
+
+function set_default_conf {
+  default=$1
+  if [[ ! -e $defaul && -e $CONF/$default ]]; then
+    echo $CONF/$default
+  else
+    echo $default
+  fi 
+}
+
 # default java.util.logging.config.file
 DEFAULT_LOG_PROPERTIES=logging.properties
-LOG_PROPERTIES=$DEFAULT_LOG_PROPERTIES
+LOG_PROPERTIES=$(set_default_conf $DEFAULT_LOG_PROPERTIES)
 
 # default log4j properties (used by c3p0)
 DEFAULT_LOG4J_PROPERTIES=log4j.properties
-LOG4J_PROPERTIES=$DEFAULT_LOG4J_PROPERTIES
+LOG4J_PROPERTIES=$(set_default_conf $DEFAULT_LOG4J_PROPERTIES)
 
 # default gigapaxos properties
 DEFAULT_GP_PROPERTIES=gigapaxos.properties
-GP_PROPERTIES=$DEFAULT_GP_PROPERTIES
+GP_PROPERTIES=$(set_default_conf $DEFAULT_GP_PROPERTIES)
 
 # 0 to disable
 VERBOSE=2
@@ -44,11 +55,14 @@ DEFAULT_KEYSTORE_PASSWORD="qwerty"
 DEFAULT_TRUSTSTORE_PASSWORD="qwerty"
 DEFAULT_KEYSTORE=keyStore.jks
 DEFAULT_TRUSTSTORE=trustStore.jks
+keyStore=$(set_default_conf $DEFAULT_KEYSTORE)
+trustStore=$(set_default_conf $DEFAULT_TRUSTSTORE)
+
 DEFAULT_SSL_OPTIONS="\
 -Djavax.net.ssl.keyStorePassword=$DEFAULT_KEYSTORE_PASSWORD \
--Djavax.net.ssl.keyStore=$DEFAULT_KEYSTORE \
+-Djavax.net.ssl.keyStore=$keyStore \
 -Djavax.net.ssl.trustStorePassword=$DEFAULT_TRUSTSTORE_PASSWORD \
--Djavax.net.ssl.trustStore=$DEFAULT_TRUSTSTORE"
+-Djavax.net.ssl.trustStore=$trustStore"
 
 
 # Usage
@@ -194,12 +208,12 @@ function print {
 function get_file_list {
   cmdline_args=$@
   jar_files="`echo $CLASSPATH|sed s/":"/" "/g`"
-  get_value "javax.net.ssl.keyStore" "$cmdline_args" "$DEFAULT_KEYSTORE"
+  get_value "javax.net.ssl.keyStore" "$cmdline_args" "$keyStore"
   keyStore=$value
   get_value "javax.net.ssl.keyStorePassword" "$cmdline_args" \
     "$DEFAULT_KEYSTORE_PASSWORD"
   keyStorePassword=$value
-  get_value "javax.net.ssl.trustStore" "$cmdline_args" "$DEFAULT_TRUSTSTORE"
+  get_value "javax.net.ssl.trustStore" "$cmdline_args" "$trustStore"
   trustStore=$value
   get_value "javax.net.ssl.trustStorePassword" "$cmdline_args" \
     "$DEFAULT_TRUSTSTORE_PASSWORD"
@@ -239,6 +253,9 @@ RSYNC="rsync --force -a "
 
 username=`grep "USERNAME=" $GP_PROPERTIES|grep -v "^[ \t]*#"|\
   sed s/"^[ \t]*USERNAME="//g`
+if [[ -z $username ]]; then
+  username=`whoami`
+fi
 
 function append_to_ln_cmd {
   src_file=$1
