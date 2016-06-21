@@ -1,22 +1,22 @@
-#!/bin/bash
-
 HEAD=`dirname $0` 
 
-# wipe out any existing classpath, otherwise remote installations will
-# copy unnecessary jars
-export CLASSPATH=""
-
+# use jars from default location if available
+FILESET=`ls $HEAD/../jars/*.jar 2>/dev/null`
+DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
+# developers can use quick build 
 DEV_MODE=0
 if [[ $DEV_MODE == 1 ]]; then
 # Use binaries before jar if available. Convenient to use with
 # automatic building in IDEs.
-  export CLASSPATH=$CLASSPATH:$HEAD/../build/classes
+  DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$DEFAULT_GP_CLASSPATH
   ENABLE_ASSERTS="-ea"
 fi
 
-# use gigapaxos jar from default location if available
-export CLASSPATH=$CLASSPATH:\
-`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar 2>/dev/null`
+# Wipe out any existing classpath, otherwise remote installations will
+# copy unnecessary jars. Set default classpath to jars in ../jars by
+# default. It is important to ensure that ../jars does not have
+# unnecessary jars to avoid needless copying in remote installs.
+export CLASSPATH=$DEFAULT_GP_CLASSPATH
 
 CONF=conf
 
@@ -50,6 +50,8 @@ ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
 APP_ARGS_KEY="appArgs"
 APP_RESOURCES_KEY="appResourcePath"
+
+DEFAULT_APP_RESOURCES=app_resources
 
 DEFAULT_KEYSTORE_PASSWORD="qwerty"
 DEFAULT_TRUSTSTORE_PASSWORD="qwerty"
@@ -97,10 +99,15 @@ JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|\
 sed s/-$APP_ARGS_KEY.*$//g|\
 sed -E s/" (start|stop|restart) .*$"//g`"
 
-# reconstruct final classpath by adding supplied classpath
-export CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
+# extract classpath in args
+ARG_CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
 sed -E s/"^.* *\-(cp|classpath)  *"//g|\
-sed s/" .*$"//g`:$CLASSPATH"
+sed s/" .*$"//g`"
+# Reconstruct final classpath as the classpath supplied in args plus
+# the default gigapaxos classpath. 
+if [[ ! -z $ARG_CLASSPATH ]]; then
+  CLASSPATH=$ARG_CLASSPATH:$DEFAULT_GP_CLASSPATH
+fi
 
 # separate out gigapaxos.properties and appArgs
 declare -a args
@@ -202,6 +209,9 @@ function print {
     done
     echo $msg
   fi
+  if [[ $level == 9 ]]; then
+    exit
+  fi
 }
 
 # files for remote transfers if needed
@@ -273,12 +283,12 @@ function append_to_ln_cmd {
   fi
 }
 
-append_to_ln_cmd $GP_PROPERTIES gigapaxos.properties
-append_to_ln_cmd $keyStore keyStore.jks
-append_to_ln_cmd $trustStore trustStore.jks
-append_to_ln_cmd $LOG_PROPERTIES logging.properties
-append_to_ln_cmd $LOG4J_PROPERTIES log4j.properties
-append_to_ln_cmd $APP_RESOURCES app_resources
+append_to_ln_cmd $GP_PROPERTIES $DEFAULT_GP_PROPERTIES
+append_to_ln_cmd $keyStore $DEFAULT_KEYSTORE
+append_to_ln_cmd $trustStore $DEFAULT_TRUSTSTORE
+append_to_ln_cmd $LOG_PROPERTIES $DEFAULT_LOG_PROPERTIES
+append_to_ln_cmd $LOG4J_PROPERTIES $DEFAULT_LOG4J_PROPERTIES
+append_to_ln_cmd $APP_RESOURCES $DEFAULT_APP_RESOURCES
 
 function rsync_symlink {
   address=$1
@@ -337,13 +347,13 @@ function start_server {
 
     # then start remote server
     print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
-      $JAVA $JVMARGS -cp jars/GNS.jar $SSL_OPTIONS \
+      $JAVA $JVMARGS $SSL_OPTIONS \
       -DgigapaxosConfig=gigapaxos.properties \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server \""
     
     $SSH $username@$address "cd $APP_SIMPLE; nohup \
-      $JAVA $JVMARGS -cp jars/GNS.jar $SSL_OPTIONS \
+      $JAVA $JVMARGS $SSL_OPTIONS \
       -DgigapaxosConfig=gigapaxos.properties \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server "&
