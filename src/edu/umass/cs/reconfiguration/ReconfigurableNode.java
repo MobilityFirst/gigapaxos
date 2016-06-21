@@ -305,7 +305,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		String appArgsAsString = System
 				.getProperty(ReconfigurationConfig.CommandArgs.appArgs
 						.toString());
-		String[] appArgs = appArgsAsString == null ? null : appArgsAsString
+		String[] appArgs = appArgsAsString == null ? args : appArgsAsString
 				.split("\\s");
 		int numServers = servers.size();
 		if (numServers == 0)

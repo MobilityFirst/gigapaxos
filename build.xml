@@ -4,6 +4,9 @@
   basedir="."
   default="jar" >
 
+  <!-- Properties -->
+  <property file="build.properties" />
+
   <property name="src.dir" value="src"/>
   <property name="testsrc.dir" location="test"/>
   <property name="build.dir" value="build"/>
@@ -11,12 +14,13 @@
   <property name="build.test.classes.dir" value="${build.dir}/test/classes"/>
   <property name="test.dir" value="src" />
   <property name="build.test.dir" value="${build.dir}/test"/>
-  <property name="build.jar.dir" value="${build.dir}/jars"/>
+  <property name="build.jar.dir" value="jars"/>
   <property name="lib.dir" value="lib"/>
-  <property name="dist.dir" value="dist"/>
+  <property name="dist.dir"
+value="gigapaxos-${build.major.number}.${build.minor.number}.${build.revision.number}"/>
+  <property name="bin.dir" value="bin"/>
+  <property name="conf.dir" value="conf"/>
     
-  <!-- Properties -->
-  <property file="build.properties" />
   
   <path id="classpath.base">
     <pathelement location="${build.dir}"/>
@@ -30,7 +34,8 @@
   <target name="init">
     <tstamp/>
     <mkdir dir="${build.dir}"/>
-    <mkdir dir="${build.classes.dir}"/>
+	<mkdir dir="${build.classes.dir}"/>
+    <mkdir dir="${build.jar.dir}"/>
   </target>
 
   <target name="compile" depends="init, buildnumber" description="compile java files">
@@ -43,14 +48,15 @@
   
   <target name="gigapaxos_jarbuild" depends="compile" description="generate jar files for gigpaxos">
     <mkdir dir="${build.jar.dir}"/>
-    <jar destfile="${build.jar.dir}/gigapaxos-1.0.jar" filesetmanifest="mergewithoutmain">
+    <jar
+destfile="${build.jar.dir}/gigapaxos-${build.major.number}.${build.minor.number}.${build.revision.number}.jar" filesetmanifest="mergewithoutmain">
       <manifest>
-        <attribute name="Built-By" value="${user.name}"/>
+        <attribute name="Built-By" value="${V. Arun}"/>
         <attribute name="Implementation-Vendor"
                    value="University of Massachusetts" />
-        <attribute name="Implementation-Title" value="GNS Gigapaxos Library" />
+        <attribute name="Implementation-Title" value="GigaPaxos" />
         <attribute name="Implementation-Version"
-                   value="${VERSION}-${RELEASE}" />
+                   value="${build.major.number}.${build.minor.number}.${build.revision.number}" />
         <attribute name="Class-Path" value="."/>
         <attribute name="Build-Version" value="${version.code}" />
       </manifest>
@@ -61,14 +67,15 @@
     
   <target name="nio_jarbuild" depends="compile" description="generate jar files for nio">
     <mkdir dir="${build.jar.dir}"/>
-    <jar destfile="${build.jar.dir}/nio-1.2.jar" filesetmanifest="mergewithoutmain">
+    <jar
+destfile="${build.jar.dir}/nio-${nio.build.major.number}.${nio.build.minor.number}.${nio.build.revision.number}.jar" filesetmanifest="mergewithoutmain">
       <manifest>
-        <attribute name="Built-By" value="${user.name}"/>
+        <attribute name="Built-By" value="${V. Arun}"/>
         <attribute name="Implementation-Vendor"
                    value="University of Massachusetts" />
-        <attribute name="Implementation-Title" value="GNS Nio Library" />
+        <attribute name="Implementation-Title" value="nio" />
         <attribute name="Implementation-Version"
-                   value="${VERSION}-${RELEASE}" />
+                   value="${nio.build.major.number}.${nio.build.minor.number}.${nio.build.revision.number}" />
         <attribute name="Build-Version" value="${version.code}" />
       </manifest>
       <fileset dir="${build.classes.dir}" includes="edu/umass/cs/nio/**/*.class"/>
@@ -93,7 +100,6 @@
   <target name="clean" description="remove generated files">
     <delete dir="${build.dir}"/>
     <delete dir="${dist.dir}"/>
-    <!--    <delete dir="${jars.dir}"/>-->
   </target>
 
   <target name="doc" description="generate javadoc">
@@ -112,12 +118,26 @@
   </target>
     
   <target name="jar" depends="gigapaxos_jarbuild, nio_jarbuild, gigapaxos_nio_src_jarbuild">
+  </target>
+
+    <target name="dist" depends="gigapaxos_jarbuild, nio_jarbuild">
     <mkdir dir="${dist.dir}"/>
-    <copy todir="${dist.dir}">
+    <mkdir dir="${dist.dir}/${build.jar.dir}"/>
+    <mkdir dir="${dist.dir}/${bin.dir}"/>
+    <copy todir="${dist.dir}/${build.jar.dir}">
       <fileset dir="${build.jar.dir}" includes="*.jar"/>
     </copy>  
+    <copy todir="${dist.dir}/${bin.dir}">
+      <fileset dir="${bin.dir}" includes="*"/>
+    </copy>  
+    <copy todir="${dist.dir}">
+      <fileset dir="." includes="LICENSE.txt README.md"/>
+    </copy>  
+    <copy todir="${dist.dir}/${conf.dir}">
+      <fileset dir="conf"/>
+    </copy>  
   </target>
-  
+ 
   <path id="classpath.test">
     <pathelement location="${build.classes.dir}"/>
     <pathelement location="${lib.dir}/junit-4.12.jar"/>
@@ -159,9 +179,6 @@
           depends="compiletest, ensure-test-name">
     <junit printsummary="withOutAndErr" fork="yes" showoutput="true"
 haltonfailure="on"> 
-      <!--      <jvmarg value="-Djavax.net.ssl.trustStorePassword=qwerty"/>
-      <jvmarg value="-Djavax.net.ssl.trustStore=conf/trustStore/node100.jks"/>
-      <jvmarg value="-Djavax.net.debug=ssl"/>-->
       <jvmarg value="-ea"/>
       <jvmarg value="-Djava.util.logging.config.file=logging.properties"/>
       <jvmarg value="-Djavax.net.ssl.trustStorePassword=qwerty"/>
@@ -233,9 +250,84 @@ command line with -Dclass="
   <target name="buildnumber" description="Generates version number and sets it in properties file.">
     <buildnumber file="build.number" />
 
-    <property name="version.code" value="${VERSION}_${RELEASE}_build${build.number}" />
+    <property name="version.code"
+value="${build.major.number}.${build.minor.number}.${build.revision.number}_build${build.number}" />
 
     <echo>Version: ${version.code}</echo>
 
   </target>
+
+
+
+
+<property file="build.properties"/>
+<property name="build.mmr.number" value="${build.major.number}.${build.minor.number}.${build.revision.number}"/>
+
+<target name="current-number">
+ <echo>Current build number:${build.mmr.number}</echo>
+</target>
+
+<!--
+<target name="compile">
+   <antcall target="revision"></antcall>
+</target>
+
+<target name="dist">
+  <antcall target="minor"></antcall>
+</target>
+-->
+
+<target name="revision">
+    <propertyfile  file="build.properties">
+            <entry key="build.revision.number" type="int" operation="+" value="1" pattern="00"/>
+    </propertyfile>
+</target>
+
+<target name="minor">
+    <propertyfile  file="build.properties">
+            <entry key="build.minor.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="build.revision.number" type="int" value="0" pattern="00"/>
+    </propertyfile>
+</target>
+
+<target name="major">
+    <propertyfile  file="build.properties">
+            <entry key="build.major.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="build.minor.number" type="int" value="0" pattern="00"/>
+            <entry key="build.revision.number" type="int" value="0" pattern="00"/>
+    </propertyfile>
+</target>
+
+<target name="niorevision">
+    <propertyfile  file="build.properties">
+            <entry key="no.build.revision.number" type="int" operation="+" value="1" pattern="00"/>
+    </propertyfile>
+</target>
+
+<target name="niominor">
+    <propertyfile  file="build.properties">
+            <entry key="nio.build.minor.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="build.revision.number" type="int" value="0" pattern="00"/>
+    </propertyfile>
+</target>
+
+<target name="niomajor">
+    <propertyfile  file="build.properties">
+            <entry key="nio.build.major.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="build.minor.number" type="int" value="0" pattern="00"/>
+            <entry key="build.revision.number" type="int" value="0" pattern="00"/>
+    </propertyfile>
+</target>
+
+
+<!--
+<target name="all">
+    <propertyfile  file="build_info.properties">
+            <entry key="build.major.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="build.minor.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="build.revision.number" type="int" operation="+" value="1" pattern="00"/>
+    </propertyfile>
+</target>
+-->
+
 </project>
