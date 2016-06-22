@@ -1,7 +1,32 @@
+#!/bin/bash 
+
+# Usage notes printing
+if [[ -z "$@" || -z `echo "$@"|grep "[ ]*\(start\|stop\|restart\) "` ]];
+then
+  echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
+[-D$APP_RESOURCES_KEY=APP_RESOURCES_DIR] \
+[-D$APP_ARGS_KEY=\"APP_ARGS\"] \
+stop|start  all|server_names"
+echo "Examples:"
+echo "    `dirname $0`/`basename $0` start AR1"
+echo "    `dirname $0`/`basename $0` start AR1 AR2 RC1"
+echo "    `dirname $0`/`basename $0` start all"
+echo "    `dirname $0`/`basename $0` stop AR1 RC1"
+echo "    `dirname $0`/`basename $0` stop all"
+echo "    `dirname $0`/`basename $0` \
+-DgigapaxosConfig=/path/to/gigapaxos.properties start all"
+echo "    `dirname $0`/`basename $0` -cp myjars1.jar:myjars2.jar \
+-DgigapaxosConfig=/path/to/gigapaxos.properties \
+-D$APP_RESOURCES_KEY=/path/to/app/resources/dir/ \
+-D$APP_ARGS_KEY=\"-opt1=val1 -flag2 \
+-str3=\\""\"quoted arg example\\""\" -n 50\" \
+ start all" 
+fi
+
 HEAD=`dirname $0` 
 
-# use jars from default location if available
-FILESET=`ls $HEAD/../jars/*.jar 2>/dev/null`
+# use jars and classes from default location if available
+FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
 DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
 # developers can use quick build 
 DEV_MODE=0
@@ -20,6 +45,7 @@ export CLASSPATH=$DEFAULT_GP_CLASSPATH
 
 CONF=conf
 
+# look for file in conf if it does not exist
 function set_default_conf {
   default=$1
   if [[ ! -e $defaul && -e $CONF/$default ]]; then
@@ -67,37 +93,14 @@ DEFAULT_SSL_OPTIONS="\
 -Djavax.net.ssl.trustStore=$trustStore"
 
 
-# Usage
-if [[ -z "$@" || -z `echo "$@"|grep " \(start\|stop\|restart\) "` ]];
-then
-  echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
-[-D$APP_RESOURCES_KEY=APP_RESOURCES_DIR] \
-[-D$APP_ARGS_KEY=\"APP_ARGS\"] \
-stop|start  all|server_names"
-echo "Examples:"
-echo "    `dirname $0`/`basename $0` start AR1"
-echo "    `dirname $0`/`basename $0` start AR1 AR2 RC1"
-echo "    `dirname $0`/`basename $0` start all"
-echo "    `dirname $0`/`basename $0` stop AR1 RC1"
-echo "    `dirname $0`/`basename $0` stop all"
-echo "    `dirname $0`/`basename $0` \
--DgigapaxosConfig=/path/to/gigapaxos.properties start all"
-echo "    `dirname $0`/`basename $0` -cp myjars1.jar:myjars2.jar \
--DgigapaxosConfig=/path/to/gigapaxos.properties \
--D$APP_RESOURCES_KEY=/path/to/app/resources/dir/ \
--D$APP_ARGS_KEY=\"-opt1=val1 -flag2 \
--str3=\\""\"quoted arg example\\""\" -n 50\" \
- start all" 
-fi
-
-# remove classpath
+# remove classpath from args
 ARGS_EXCEPT_CLASSPATH=`echo "$@"|\
 sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
 
 # set JVM args except classpath
 JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|\
 sed s/-$APP_ARGS_KEY.*$//g|\
-sed -E s/" (start|stop|restart) .*$"//g`"
+sed -E s/"[ ]*(start|stop|restart) .*$"//g`"
 
 # extract classpath in args
 ARG_CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
@@ -137,6 +140,7 @@ for arg in "$@"; do
   fi
   index=`expr $index + 1`
 done
+# args has "start|stop|restart all|server_names"
 
 APP_RESOURCES_SIMPLE=`echo $APP_RESOURCES|sed s/"^.*\/"//g`
 
@@ -149,7 +153,7 @@ APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
 APP_SIMPLE=`echo $APP|sed s/".*\."//g`
 
 # Can add more JVM args here. JVM args specified on the command-line
-# will override defaults.
+# will override defaults specified here.
 DEFAULT_JVMARGS="$ENABLE_ASSERTS -cp $CLASSPATH \
 -Djava.util.logging.config.file=$LOG_PROPERTIES \
 -Dlog4j.configuration=log4j.properties \
@@ -179,17 +183,23 @@ else
 
 fi
 
+# get value for key from cmdline_args or gigapaxos properties file or
+# default_value_container in that order
 function get_value {
   key=$1
   cmdline_args=$2
   default_value_container=$3
+  # search cmdline_args
   record=`echo $cmdline_args|grep $key`
+  # else search gigapaxos properties
   if [[ -z $record ]]; then
 	record=`cat $GP_PROPERTIES|grep -v "^[ \t]*#"|grep $key`
   fi
+  # else search $default_value_container
   if [[ -z $record ]]; then
     record=$default_value_container
   fi
+  # container either has the value or is the value itself
   if [[ ! -z `echo $record|grep "="` ]]; then
     value=`echo $record| sed s/"^.*$key="//g|\
       sed s/" .*$"//g`
@@ -198,6 +208,7 @@ function get_value {
   fi
 }
 
+# printing with levels
 function print {
   level=$1
   msg=$2
