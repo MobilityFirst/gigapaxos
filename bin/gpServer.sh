@@ -6,7 +6,7 @@ then
   echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
 [-D$APP_RESOURCES_KEY=APP_RESOURCES_DIR] \
 [-D$APP_ARGS_KEY=\"APP_ARGS\"] \
-stop|start  all|server_names"
+stop|start|restart  all|server_names"
 echo "Examples:"
 echo "    `dirname $0`/`basename $0` start AR1"
 echo "    `dirname $0`/`basename $0` start AR1 AR2 RC1"

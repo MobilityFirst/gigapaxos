@@ -2,21 +2,49 @@
 
 HEAD=`dirname $0`
 
-DEV_MODE=1
+VERBOSE=1
+
+# use jars and classes from default location if available
+FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
+DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
+# developers can use quick build 
+DEV_MODE=0
 if [[ $DEV_MODE == 1 ]]; then
-  CLASSPATH=$CLASSPATH:$HEAD/../build/classes
+# Use binaries before jar if available. Convenient to use with
+# automatic building in IDEs.
+  DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$DEFAULT_GP_CLASSPATH
   ENABLE_ASSERTS="-ea"
 fi
 
-VERBOSE=1
+# Wipe out any existing classpath, otherwise remote installations will
+# copy unnecessary jars. Set default classpath to jars in ../jars by
+# default. It is important to ensure that ../jars does not have
+# unnecessary jars to avoid needless copying in remote installs.
+export CLASSPATH=$DEFAULT_GP_CLASSPATH
 
-# Use binaries before jar if available. Convenient to use with
-# automatic building in IDEs.
-CLASSPATH=$CLASSPATH:.:\
-`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
+CONF=conf
 
-LOG_PROPERTIES=logging.properties
-GP_PROPERTIES=gigapaxos.properties
+# look for file in conf if it does not exist
+function set_default_conf {
+  default=$1
+  if [[ ! -e $defaul && -e $CONF/$default ]]; then
+    echo $CONF/$default
+  else
+    echo $default
+  fi
+}
+
+# default java.util.logging.config.file
+DEFAULT_LOG_PROPERTIES=logging.properties
+LOG_PROPERTIES=$(set_default_conf $DEFAULT_LOG_PROPERTIES)
+
+# default log4j properties (used by c3p0)
+DEFAULT_LOG4J_PROPERTIES=log4j.properties
+LOG4J_PROPERTIES=$(set_default_conf $DEFAULT_LOG4J_PROPERTIES)
+
+# default gigapaxos properties
+DEFAULT_GP_PROPERTIES=gigapaxos.properties
+GP_PROPERTIES=$(set_default_conf $DEFAULT_GP_PROPERTIES)
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
