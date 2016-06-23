@@ -17,6 +17,8 @@ package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -250,33 +252,45 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 	// get all nodes to be started via main
 	private static Set<String> getAllNodes(String[] args) {
-		boolean startAll = false;
 		Set<String> nodeIDs = new HashSet<String>();
 		// search for START_ALL; only for backwards compatibility
-		for (String arg : args)
-			if (arg.equals(ReconfigurationConfig.CommandArgs.START_ALL
-					.toString()))
-				startAll = true;
+		if (args[args.length - 1]
+				.equals(ReconfigurationConfig.CommandArgs.START_ALL.toString())
 		// look for "start all" at the end
-		if (args.length >= 2
-				&& args[args.length - 1]
-						.equals(ReconfigurationConfig.CommandArgs.all)
-				&& args[args.length - 2]
-						.equals(ReconfigurationConfig.CommandArgs.start))
-			startAll = true;
-
-		if (startAll) {
+				|| (args.length >= 2
+						&& args[args.length - 1]
+								.equals(ReconfigurationConfig.CommandArgs.all) && args[args.length - 2]
+						.equals(ReconfigurationConfig.CommandArgs.start))) {
 			nodeIDs.addAll(ReconfigurationConfig.getReconfiguratorIDs());
 			nodeIDs.addAll(PaxosConfig.getActives().keySet());
 		} else
 			for (int i = args.length - 1; i >= 0; i--)
-				if (ReconfigurationConfig.getReconfiguratorIDs().contains(
-						args[i])
-						|| PaxosConfig.getActives().keySet().contains(args[i]))
+				if ((ReconfigurationConfig.getReconfiguratorIDs().contains(
+						args[i]) || PaxosConfig.getActives().keySet()
+						.contains(args[i]))
+						&& !args[i]
+								.equals(ReconfigurationConfig.CommandArgs.start
+										.toString()))
 					nodeIDs.add(args[i]);
 				else
 					break;
 		return nodeIDs;
+	}
+
+	// only for backwards compatibility
+	private static String getAppArgs(String[] args) {
+		String argsAsString = "";
+		for (String arg : args)
+			argsAsString += " " + arg;
+		argsAsString = argsAsString
+				.replaceAll(
+						ReconfigurationConfig.CommandArgs.START_ALL.toString(),
+						"")
+				.replaceAll(
+						" "
+								+ ReconfigurationConfig.CommandArgs.start.toString()
+								+ " .*", "").trim();
+		return argsAsString;
 	}
 
 	/**
@@ -302,11 +316,13 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
 		Set<String> servers = getAllNodes(args);
-		String appArgsAsString = System
+		String sysPropAppArgsAsString = System
 				.getProperty(ReconfigurationConfig.CommandArgs.appArgs
 						.toString());
-		String[] appArgs = appArgsAsString == null ? args : appArgsAsString
-				.split("\\s");
+		// append cmdline args to system property based args
+		String cmdlineAppArgs = getAppArgs(args);
+		String[] appArgs = ((sysPropAppArgsAsString != null ? sysPropAppArgsAsString
+				: "") + " " + cmdlineAppArgs).split("\\s");
 		int numServers = servers.size();
 		if (numServers == 0)
 			throw new RuntimeException("No valid server names supplied");

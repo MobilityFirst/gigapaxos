@@ -2,40 +2,21 @@
 
 HEAD=`dirname $0`
 
-# use jars and classes from default location if available
-FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
-DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
-# developers can use quick build 
-DEV_MODE=0
+DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
-# Use binaries before jar if available. Convenient to use with
-# automatic building in IDEs.
-  DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$DEFAULT_GP_CLASSPATH
+  CLASSPATH=$CLASSPATH:$HEAD/../build/classes
   ENABLE_ASSERTS="-ea"
 fi
 
-# Wipe out any existing classpath, otherwise remote installations will
-# copy unnecessary jars. Set default classpath to jars in ../jars by
-# default. It is important to ensure that ../jars does not have
-# unnecessary jars to avoid needless copying in remote installs.
-export CLASSPATH=$DEFAULT_GP_CLASSPATH
-
-
 VERBOSE=1
 
-CONF=conf
-# look for file in conf if it does not exist
-function set_default_conf {
-  default=$1
-  if [[ ! -e $defaul && -e $CONF/$default ]]; then
-    echo $CONF/$default
-  else
-    echo $default
-  fi
-}
+# Use binaries before jar if available. Convenient to use with
+# automatic building in IDEs.
+CLASSPATH=$CLASSPATH:.:\
+`ls $HEAD/../dist/gigapaxos-[0-9].[0-9].jar`
 
-LOG_PROPERTIES=$(set_default_conf "logging.properties")
-GP_PROPERTIES=$(set_default_conf "gigapaxos.properties")
+LOG_PROPERTIES=logging.properties
+GP_PROPERTIES=gigapaxos.properties
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"

@@ -126,7 +126,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				}
 			});
 
-	private final int capacityEstimate;
+	private final long capacityEstimate;
 	private long idleThreshold = 30000;
 	private long pauseThreadPeriod = 30000;
 	private long lastGCAttempt = 0;
@@ -213,7 +213,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	 *            Capacity for in-memory map. If the in-memory map size reaches
 	 *            this value, GC forcibly kicks in.
 	 */
-	public DiskMap(int inMemoryCapacity) {
+	public DiskMap(long inMemoryCapacity) {
 		this.map = USE_LINKED_HASH_MAP ? Collections
 				.synchronizedMap(new LinkedHashMap<K, V>(16, (float) 0.75, true))
 				: new ConcurrentHashMap<K, V>();
@@ -492,6 +492,10 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		if (!this.map.containsKey(key) && !this.pauseQ.containsKey(key))
 			this.map.put(key, value);
 	}
+	
+	private boolean isGCEnabled() {
+		return this.capacityEstimate < Long.MAX_VALUE;
+	}
 
 	// get from map or restore from pauseQ or disk
 	@SuppressWarnings("unchecked")
@@ -499,6 +503,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		V value = null;
 		if ((value = this.map.get(key)) != null)
 			return value;
+		else if(!this.isGCEnabled()) return null;
 		else if ((value = this.pauseQ.get(key)) != null) {
 			// try restore from pauseQ
 			try {
