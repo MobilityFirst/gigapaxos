@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 # Usage notes printing
-if [[ -z "$@" || -z `echo "$@"|grep "[ ]*\(start\|stop\|restart\) "` ]];
+if [[ -z "$@" || -z `echo "$@"|grep "[ ]*\(start\|stop\|restart\|clear\) "` ]];
 then
   echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
 [-D$APP_RESOURCES_KEY=APP_RESOURCES_DIR] \
@@ -100,7 +100,7 @@ sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
 # set JVM args except classpath
 JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|\
 sed s/-$APP_ARGS_KEY.*$//g|\
-sed -E s/"[ ]*(start|stop|restart) .*$"//g`"
+sed -E s/"[ ]*(start|stop|restart|clear) .*$"//g`"
 
 # extract classpath in args
 ARG_CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
@@ -133,7 +133,7 @@ for arg in "$@"; do
       APP_ARGS="`echo $arg|grep "\-D$APP_ARGS_KEY="|\
         sed s/\-D$APP_ARGS_KEY=//g`"
     fi
-  elif [[ $arg == "start" || $arg == "stop" || $arg == "restart" ]]; 
+  elif [[ $arg == "start" || $arg == "stop" || $arg == "restart" || $arg == "clear" ]]; 
   then
     # server names
     args=(${@:$index})
@@ -167,16 +167,16 @@ if [[ ${args[1]} == "all" ]]; then
   # get reconfigurators
     reconfigurators=`cat $GP_PROPERTIES|grep -v "^[ \t]*#"|\
       grep "^[ \t]*$RECONFIGURATOR"|\
-      sed s/"^.*$RECONFIGURATOR."//g|sed s/"=.*$"//g`
+      sed s/"^.*$RECONFIGURATOR\."//g|sed s/"=.*$"//g`
   
   # get actives
 	actives=`cat $GP_PROPERTIES|grep -v "^[ \t]*#"|\
-      grep "^[ \t]*$ACTIVE"| sed \ s/"^.*$ACTIVE."//g|\
+      grep "^[ \t]*$ACTIVE"| sed \ s/"^.*$ACTIVE\."//g|\
       sed s/"=.*$"//g`
   
   servers="$actives $reconfigurators"
 
-echo $servers
+echo servers=[$servers]
   
 else 
   servers="${args[@]:1}"
@@ -418,6 +418,37 @@ function stop_servers {
   fi
 }
 
+function clear_all {
+if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
+  read -p "Are you sure you want to wipe out all paxos state? " yn
+    case $yn in
+
+        [Yy]* ) for i in $servers; do
+      get_address_port $i
+      if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]];
+      then
+        rm -rf ./paxos_logs ./reconfiguration_DB \
+          ./paxos_large_checkpoints;
+      else
+        # remote clear
+        echo "Clear remote server $server"
+        echo "$SSH $username@$address \"cd $APP_SIMPLE;\
+          rm -rf ./paxos_logs ./reconfiguration_DB \
+          ./paxos_large_checkpoints;\""
+        $SSH $username@$address "cd $APP_SIMPLE;\
+          rm -rf ./paxos_logs ./reconfiguration_DB \
+          ./paxos_large_checkpoints;\""
+      fi
+      done;;
+
+        [Nn]* ) exit;;
+        * ) echo "Please answer yes or no.";;
+    esac
+elif [[ ! -z `echo "$@"|grep "clear"` ]]; then
+  echo; echo "The 'clear' option can be used only as 'clear all'"
+fi
+}
+
 case ${args[0]} in
 
 start)
@@ -431,5 +462,9 @@ restart)
 
 stop)
   stop_servers
+;;
+
+clear)
+  clear_all "$@"
 
 esac
