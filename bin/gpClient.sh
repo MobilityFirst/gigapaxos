@@ -27,7 +27,7 @@ CONF=conf
 # look for file in conf if it does not exist
 function set_default_conf {
   default=$1
-  if [[ ! -e $defaul && -e $CONF/$default ]]; then
+  if [[ ! -e $default && -e $CONF/$default ]]; then
     echo $CONF/$default
   else
     echo $default
