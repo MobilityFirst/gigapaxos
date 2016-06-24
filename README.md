@@ -1,4 +1,4 @@
-# gigapaxos
+# Getting started
 
 Prerequisites: `Java 1.8+`, `ant`, `bash` 
 
