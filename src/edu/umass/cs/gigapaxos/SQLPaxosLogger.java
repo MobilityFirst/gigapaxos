@@ -3773,6 +3773,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						this, f });
 				f.delete();
 			}
+		// remove all paxos DB state
 		return this.remove(null, 0);
 	}
 
