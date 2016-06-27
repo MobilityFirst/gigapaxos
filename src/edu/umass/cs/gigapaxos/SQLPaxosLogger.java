@@ -64,6 +64,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
@@ -72,6 +73,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileLock;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -142,7 +144,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	/* ************ End of DB service related parameters ************** */
 
 	protected static final String LOG_DIRECTORY = Config
-			.getGlobalString(PC.PAXOS_LOGS_DIR);// "paxos_logs";
+			.getGlobalString(PC.GIGAPAXOS_DATA_DIR)
+			+ "/"
+			+ PC.PAXOS_LOGS_DIR.getDefaultValue();
 	private static final boolean CONN_POOLING = true; // should stay true
 	private static final int MAX_POOL_SIZE = 100; // no point fiddling
 
@@ -274,7 +278,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 		}); // new Timer(strID);
 		addDerbyLogger(this);
-		this.journaler = new Journaler(this.logDirectory, this.myID);
+		this.journaler = new Journaler(this.logDirectory, this.strID/* this.myID */);
 		this.deleteTmpJournalFiles();
 
 		this.mapDB = USE_MAP_DB ? new MapDBContainer(DBMaker.fileDB(
@@ -296,7 +300,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 			public String toString() {
 				return MessageLogDiskMap.class.getSimpleName()
-						+ SQLPaxosLogger.this.myID;
+						+ SQLPaxosLogger.this.strID;
 			}
 
 		};
@@ -306,14 +310,61 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						: new MessageLogPausable(disk);
 
 		// will set up db, connection, tables, etc. as needed
-		if (!initialize())
+		if (!initialize(true))
 			throw new RuntimeException("Unable to initiate "
 					+ PaxosManager.class.getSimpleName() + " for " + id);
 		;
 	}
 
+	// only used for dropping all state
+	private SQLPaxosLogger(String strID) {
+		super(IntegerMap.NULL_INT_NODE, null, null);
+		this.strID = strID;
+		this.messageLog = null;
+		this.mapDB = null;
+		this.journaler = null;
+		this.GC = null;
+		this.initialize(false);
+	}
+
+	/**
+	 * @param strID
+	 */
+	public static void dropState(String strID) {
+		if (!isEmbeddedDB())
+			new SQLPaxosLogger(strID).dropState().close();
+		else {
+			Util.recursiveRemove(SQLPaxosLogger.LOG_DIRECTORY,
+			// journal dir
+					Journaler.getJournalLogDir(SQLPaxosLogger.LOG_DIRECTORY
+							+ "/", strID),
+					// checkpoint DB
+					SQLPaxosLogger.LOG_DIRECTORY + "/" + getMyDBName(strID),
+					// logIndex match pattern
+					SQLPaxosLogger.getLogIndexDBPrefix(
+							SQLPaxosLogger.LOG_DIRECTORY, strID),
+					// locks dir
+					SQLPaxosLogger.getLocksDir()+"/"+strID);
+		}
+
+		// rmdir paxos_logs (if empty)
+		(new File(SQLPaxosLogger.getLocksDir())).delete();
+		(new File(SQLPaxosLogger.LOG_DIRECTORY)).delete();
+	}
+
+	private SQLPaxosLogger dropState() {
+		this.removeAllJournals();
+		for (String table : this.getAllTableNames())
+			this.dropTable(table);
+		return this;
+	}
+
+	private static String getLogIndexDBPrefix(String logdir, Object strID) {
+		return logdir + "/" + "logIndex" + strID;
+	}
+
 	private String getLogIndexDBPrefix() {
-		return this.logDirectory + "logIndex" + this.myID;
+		return getLogIndexDBPrefix(this.logDirectory, this.strID /* this.myID */);
 	}
 
 	/**
@@ -321,7 +372,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * @param dbPath
 	 * @param messenger
 	 */
-	public SQLPaxosLogger(int id, String dbPath, PaxosMessenger<?> messenger) {
+	private SQLPaxosLogger(int id, String dbPath, PaxosMessenger<?> messenger) {
 		this(id, "" + id, dbPath, messenger);
 
 	}
@@ -648,10 +699,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	static class Journaler {
-		private static final String SUBDIR = "paxos_journals.";
+		private static final String SUBDIR = "paxos_journal.";
 		private static final String PREFIX = "log.";
 		private static final String POSTPREFIX = ".";
-		private final int myID;
+		private final Object myID;
 		private final String logdir;
 		private final String logfilePrefix;
 		private String curLogfile = null;
@@ -663,17 +714,27 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 		private FileIDMap fidMap = new FileIDMap();
 
-		Journaler(String logdir, int myID) {
+		Journaler(String logdir, Object myID) {
 			this.myID = myID;
-			this.logdir = logdir + SUBDIR + myID + "/";
+			this.logdir = getJournalLogDir(logdir, myID) + "/";
+			// logdir + SUBDIR + myID + "/";
 			this.logfilePrefix = PREFIX + myID + POSTPREFIX;
 			assert (this.logdir != null && this.logfilePrefix != null);
 			this.curLogfile = generateLogfileName();
 			this.fos = createLogfile(curLogfile, true);
 		}
 
+		private static final String getJournalLogDir(String logdir, Object myID) {
+			return logdir + SUBDIR + myID;
+		}
+
+		public static String getLogfilePrefix(String logdir, Object myID) {
+			return logdir + PREFIX + myID + POSTPREFIX;
+		}
+
 		private String getLogfilePrefix() {
-			return this.logdir + PREFIX + this.myID + POSTPREFIX;
+			return getLogfilePrefix(this.logdir, this.myID);
+			// this.logdir + PREFIX + this.myID + POSTPREFIX;
 		}
 
 		private FileOutputStream createLogfile(String filename) {
@@ -799,6 +860,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				return candidates;
 			}
 		}
+
 	}
 
 	private static final int MAX_LOG_FILE_SIZE = Config
@@ -3494,18 +3556,24 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	private File[] getJournalFiles(String additionalMatch) {
-		File[] dirFiles = (new File(this.journaler.logdir))
-				.listFiles(new FileFilter() {
-					@Override
-					public boolean accept(File pathname) {
-						return pathname.toString().startsWith(
-								SQLPaxosLogger.this.journaler
-										.getLogfilePrefix())
-								|| (additionalMatch != null ? pathname
-										.toString().startsWith(additionalMatch)
-										: false);
-					}
-				});
+		File[] dirFiles = (new File(
+				this.journaler != null ? this.journaler.logdir
+						: this.logDirectory)).listFiles(new FileFilter() {
+			@Override
+			public boolean accept(File pathname) {
+				return pathname
+						.toString()
+						.startsWith(
+								SQLPaxosLogger.this.journaler != null ? SQLPaxosLogger.this.journaler
+										.getLogfilePrefix()
+										: Journaler
+												.getLogfilePrefix(
+														SQLPaxosLogger.this.logDirectory,
+														SQLPaxosLogger.this.strID))
+						|| (additionalMatch != null ? pathname.toString()
+								.startsWith(additionalMatch) : false);
+			}
+		});
 		return dirFiles;
 	}
 
@@ -3767,21 +3835,34 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	}
 
 	public boolean removeAll() {
-		for (File f : this.getJournalFiles(this.getLogIndexDBPrefix()))
-			if (f.length() != 0) {
-				log.log(Level.INFO, "{0} removing log file {1}", new Object[] {
-						this, f });
-				f.delete();
-			}
+		this.removeAllJournals();
 		// remove all paxos DB state
 		return this.remove(null, 0);
 	}
 
+	private boolean removeAllJournals() {
+		if (this.journaler == null)
+			return Util.recursiveRemove(new File(Journaler.getJournalLogDir(
+					this.logDirectory, this.myID)))
+					|| Util.recursiveRemove(new File(this.getLogIndexDBPrefix()));
+		// else
+		boolean allRemoved = true;
+		for (File f : this.getJournalFiles(this.getLogIndexDBPrefix()))
+			if (f.length() != 0) {
+				log.log(Level.INFO, "{0} removing log file {1}", new Object[] {
+						this, f });
+				allRemoved = f.delete() && allRemoved;
+			}
+		return allRemoved;
+	}
+
 	public void closeImpl() {
 		log.log(Level.INFO, "{0}{1}", new Object[] { this, " DB closing" });
-		this.GC.shutdownNow();// cancel();
+		if (this.GC != null)
+			this.GC.shutdownNow();// cancel();
 		// messageLog should be closed before DB
-		this.messageLog.close();
+		if (this.messageLog != null)
+			this.messageLog.close();
 		this.setClosed(true);
 		if (this.mapDB != null)
 			this.mapDB.close();
@@ -3880,10 +3961,14 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	/***************** End of public methods ********************/
 
 	// synchronized coz it should be called just onece
-	private synchronized boolean initialize() {
+	private synchronized boolean initialize(boolean all) {
 		if (!isClosed())
 			return true;
-		if (!connectDB() || !createTables())
+		if (!connectDB())
+			return false;
+		if (!all)
+			return true;
+		if (!createTables())
 			return false;
 		setClosed(false); // setting open
 		return true;
@@ -4211,6 +4296,22 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			f.mkdirs();
 	}
 
+	// having "." in db or table name is bad
+	private String getMyIDSanitized() {
+		return this.strID.replace(".", "_");
+	}
+
+	/* With mysql, there is a single DB for the tables of all nodes. The table
+	 * names already have the ID embedded in them to avoid conflicts. */
+	private static String getMyDBName(String strID) {
+		return isEmbeddedDB() ? DATABASE + strID/* this.myID */
+		: DATABASE;
+	}
+
+	private String getMyDBName() {
+		return getMyDBName(this.getMyIDSanitized())/* this.myID */;
+	}
+
 	private boolean connectDB() {
 		boolean connected = false;
 		int connAttempts = 0, maxAttempts = 1;
@@ -4221,20 +4322,21 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		 * derby (or maybe c3p0) to have different user names for different
 		 * nodes, otherwise the performance with concurrent inserts and updates
 		 * is terrible. */
-		props.put("user", SQL.getUser() + (isEmbeddedDB() ? this.myID : ""));
+		props.put("user",
+				SQL.getUser() + (isEmbeddedDB() ? this.getMyIDSanitized()/* this.myID */
+				: ""));
 		props.put("password", SQL.getPassword());
 		ensureLogDirectoryExists(this.logDirectory);
 		String dbCreation = SQL.getProtocolOrURL(SQL_TYPE)
 				+ (isEmbeddedDB() ?
 				// embedded DB pre-creates DB to avoid c3p0 stack traces
 				this.logDirectory
-						+ DATABASE
-						+ this.myID
-						+ (!existsDB(SQL_TYPE, this.logDirectory, DATABASE
-								+ this.myID) ? ";create=true" : "")
+						+ this.getMyDBName()
+						+ (!existsDB(SQL_TYPE, this.logDirectory,
+								this.getMyDBName()) ? ";create=true" : "")
 						:
 						// else just use like a typical SQL DB
-						DATABASE + this.myID + "?createDatabaseIfNotExist=true");
+						this.getMyDBName() + "?createDatabaseIfNotExist=true");
 
 		try {
 			dataSource = (ComboPooledDataSource) setupDataSourceC3P0(
@@ -4253,8 +4355,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				if (getCursorConn() == null)
 					// test opening a connection
 					this.cursorConn = dataSource.getConnection();
-				log.info("Connected to and created database " + DATABASE
-						+ this.myID);
+				log.info("Connected to and created database "
+						+ this.getMyDBName());
 				connected = true;
 				// mchange complains at unsuppressable INFO otherwise
 				if (isEmbeddedDB())
@@ -4300,20 +4402,28 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		closed = c;
 	}
 
+	/* start of table names */
 	private String getCTable() {
-		return CHECKPOINT_TABLE + this.myID;
+		return CHECKPOINT_TABLE + this.getMyIDSanitized()/* this.myID */;
 	}
 
 	private String getPCTable() {
-		return PREV_CHECKPOINT_TABLE + this.myID;
+		return PREV_CHECKPOINT_TABLE + this.getMyIDSanitized()/* this.myID */;
 	}
 
 	private String getMTable() {
-		return MESSAGES_TABLE + this.myID;
+		return MESSAGES_TABLE + this.getMyIDSanitized()/* this.myID */;
 	}
 
 	private String getPTable() {
-		return PAUSE_TABLE + this.myID;
+		return PAUSE_TABLE + this.getMyIDSanitized()/* this.myID */;
+	}
+
+	/* end of table names */
+
+	private String[] getAllTableNames() {
+		return new String[] { getCTable(), getPTable(), getMTable(),
+				getPTable() };
 	}
 
 	private synchronized void cleanupCursorConn() {
@@ -4534,7 +4644,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	private void fixURI() {
 		this.dataSource.setJdbcUrl(SQL.getProtocolOrURL(SQL_TYPE)
-				+ this.logDirectory + DATABASE + this.myID
+				+ this.logDirectory + this.getMyDBName()
 				+ (isEmbeddedDB() ? "" : "?rewriteBatchedStatements=true"));
 	}
 
@@ -4590,7 +4700,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			pstmt.setString(1, paxosID);
 			int numDeleted = pstmt.executeUpdate();
 			// conn.commit();
-			deleted = numDeleted>0;
+			deleted = numDeleted > 0;
 			if (numDeleted > 0)
 				log.log(Level.INFO,
 						"{0} dropped epoch final state for {1}:{2}",
@@ -4616,12 +4726,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				assert (!deleted || ((ghostVersion = this
 						.getEpochFinalCheckpointVersion(paxosID)) == null || ghostVersion
 						- version > 0)) : ("Found ghost version "
-						+ ghostVersion
-						+ " after deleting "+paxosID+":"
-						+ version
-						+ " : "
-						+ this.getEpochFinalCheckpointState(paxosID,
-								ghostVersion).state);
+						+ ghostVersion + " after deleting " + paxosID + ":"
+						+ version + " : " + this.getEpochFinalCheckpointState(
+						paxosID, ghostVersion).state);
 			}
 		} catch (SQLException sqle) {
 			log.severe(this + " failed to delete final state for " + paxosID

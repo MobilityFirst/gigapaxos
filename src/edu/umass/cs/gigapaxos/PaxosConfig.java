@@ -57,7 +57,10 @@ public class PaxosConfig {
 	 */
 	public static final String GIGAPAXOS_CONFIG_FILE_KEY = "gigapaxosConfig";
 
-	private static String DEFAULT_SERVER_PREFIX = "active.";
+	/**
+	 * 
+	 */
+	public static final String DEFAULT_SERVER_PREFIX = "active.";
 
 	static {
 		load();
@@ -86,12 +89,12 @@ public class PaxosConfig {
 	public static void load() {
 		load(PC.class);
 	}
-	
+
 	/**
 	 * @return Properties in gigapaxos properties file.
 	 */
 	public static Properties getAsProperties() {
-		Properties config=null;
+		Properties config = null;
 		try {
 			// need to preserve case here
 			config = Config.getProperties(PC.class, GIGAPAXOS_CONFIG_FILE_KEY,
@@ -99,17 +102,19 @@ public class PaxosConfig {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		if(config==null) config = Config.getConfig(PC.class);
+		if (config == null)
+			config = Config.getConfig(PC.class);
 		return config;
 	}
+
 	/**
 	 * @return A map of names and socket addresses corresponding to servers
 	 *         hosting paxos replicas.
 	 */
 	public static Map<String, InetSocketAddress> getActives() {
 		Map<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
-		Properties config=getAsProperties();
-		
+		Properties config = getAsProperties();
+
 		Set<String> keys = config.stringPropertyNames();
 		for (String key : keys) {
 			if (key.trim().startsWith(DEFAULT_SERVER_PREFIX)) {
@@ -143,7 +148,8 @@ public class PaxosConfig {
 	 * All gigapaxos config parameters that can be specified via a configuration
 	 * file.
 	 */
-	public static enum PC implements Config.ConfigurableEnum {
+	public static enum PC implements Config.ConfigurableEnum,
+			Config.Disableable {
 
 		/**
 		 * Default application managed by gigapaxos.
@@ -368,8 +374,8 @@ public class PaxosConfig {
 		/**
 		 * If true, the servers will send no response. For testing only.
 		 */
-		NO_RESPONSE(false), 
-		
+		NO_RESPONSE(false),
+
 		/**
 		 * Only for performance instrumentation. If true, replicas will simply
 		 * execute the request upon receiving an ACCEPT. This option will break
@@ -423,13 +429,25 @@ public class PaxosConfig {
 		JSON_LIBRARY("json.smart"),
 
 		/**
-		 * Default location for paxos logs when an embedded DB is used.
+		 * The top-level directory inside which all gigapaxos-related data is
+		 * stored. Paxos logs and checkpoints are stored in the sub-directory
+		 * PAXOS_LOGS_DIR. Reconfiguration logs are stored in the sub-directory
+		 * RECONFIGURATION_DB_DIR.
 		 */
-		PAXOS_LOGS_DIR("./paxos_logs"),
+		GIGAPAXOS_DATA_DIR("."),
+
+		/**
+		 * Location for paxos logs when an embedded DB is used. This can not be
+		 * changed.
+		 */
+		PAXOS_LOGS_DIR("paxos_logs"),
 
 		/**
 		 * Prefix of the paxos DB's name. The whole name is obtained by
 		 * concatenating this prefix with the node ID.
+		 * 
+		 * In the embedded DB case, paxos logs for "nodeID" are stored at
+		 * GIGAPAXOS_DATA_DIR/PAXOS_LOGS_DIR/PAXOS_DB_PREFIX"nodeID".
 		 */
 		PAXOS_DB_PREFIX("paxos_db"),
 
@@ -546,80 +564,6 @@ public class PaxosConfig {
 		 * space-contrained.
 		 */
 		PREVENT_DOUBLE_EXECUTION(true),
-
-		/**
-		 * FIXME: The options below only exist for testing stringification
-		 * overhead. They should probably be moved to {@link TESTPaxosConfig}.
-		 * Most of these will compromise safety.
-		 */
-
-		/***************** Start of unsafe testing options *******************/
-		/**
-		 * Testing option.
-		 */
-		JOURNAL_COMPRESSION(false),
-
-		/**
-		 * Testing option.
-		 */
-		STRINGIFY_WO_JOURNALING(false),
-
-		/**
-		 * Testing option.
-		 */
-		NON_COORD_ONLY(false),
-
-		/**
-		 * Testing option.
-		 */
-		COORD_ONLY(false),
-
-		/**
-		 * Testing option.
-		 */
-		NO_STRINGIFY_JOURNALING(false),
-
-		/**
-		 * Testing option.
-		 */
-		MESSENGER_CACHES_ACCEPT(false),
-
-		/**
-		 * Testing option.
-		 */
-		COORD_STRINGIFIES_WO_JOURNALING(false),
-
-		/**
-		 * Testing option.
-		 */
-		DONT_LOG_DECISIONS(false),
-
-		/**
-		 * Testing option.
-		 */
-		NON_COORD_DONT_LOG_DECISIONS(false),
-
-		/**
-		 * Testing option.
-		 */
-		COORD_DONT_LOG_DECISIONS(false),
-
-		/**
-		 * Testing option.
-		 */
-		COORD_JOURNALS_WO_STRINGIFYING(false),
-
-		/**
-		 * Testing option
-		 */
-		ALL_BUT_APPEND(false),
-
-		/**
-		 * Testing option. Implies no coordinator fault-tolerance.
-		 */
-		DISABLE_GET_LOGGED_MESSAGES(false),
-
-		/*********** End of unsafe testing options *****************/
 
 		/**
 		 * Whether journal entries should be synchronously indexed in the DB.
@@ -871,12 +815,82 @@ public class PaxosConfig {
 		 */
 		DB_PASSWORD("password"),
 
+		/**
+		 * FIXME: The options below only exist for testing stringification
+		 * overhead. They should probably be moved to {@link TESTPaxosConfig}.
+		 * Most of these will compromise safety.
+		 */
+
+		/***************** Start of unsafe testing options *******************/
+		/**
+		 * Testing option.
+		 */
+		JOURNAL_COMPRESSION(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		STRINGIFY_WO_JOURNALING(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		NON_COORD_ONLY(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		NO_STRINGIFY_JOURNALING(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		COORD_STRINGIFIES_WO_JOURNALING(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		DONT_LOG_DECISIONS(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		NON_COORD_DONT_LOG_DECISIONS(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		COORD_DONT_LOG_DECISIONS(false, true),
+
+		/**
+		 * Testing option.
+		 */
+		COORD_JOURNALS_WO_STRINGIFYING(false, true),
+
+		/**
+		 * Testing option
+		 */
+		ALL_BUT_APPEND(false, true),
+
+		/**
+		 * Testing option. Implies no coordinator fault-tolerance.
+		 */
+		DISABLE_GET_LOGGED_MESSAGES(false, true),
+
+		/*********** End of unsafe testing options *****************/
+
 		;
 
 		final Object defaultValue;
+		final boolean unsafeTestingOnly;
 
 		PC(Object defaultValue) {
+			this(defaultValue, false);
+		}
+
+		PC(Object defaultValue, boolean testingOnly) {
 			this.defaultValue = defaultValue;
+			this.unsafeTestingOnly = testingOnly;
 		}
 
 		@Override
@@ -893,7 +907,14 @@ public class PaxosConfig {
 		public String getConfigFileKey() {
 			return GIGAPAXOS_CONFIG_FILE_KEY;
 		}
+
+		@Override
+		public boolean isDisabled() {
+			return UNSAFE_TESTING ? false : this.unsafeTestingOnly;
+		}
 	}
+
+	private static boolean UNSAFE_TESTING = false;
 
 	/**
 	 * @return Default client port offset based on whether ssl is enabled.
@@ -949,17 +970,27 @@ public class PaxosConfig {
 						&& nodeConfig.getNodeAddress(n).equals(
 								nodeConfig.getNodeAddress(m))
 						&& (nodeConfig.getNodePort(n) == nodeConfig
-								.getNodePort(m) || nodeConfig.getNodePort(n)
-								+ Config.getGlobalInt(PC.CLIENT_PORT_OFFSET) == nodeConfig
-								.getNodePort(m)))
+								.getNodePort(m)
+								|| nodeConfig.getNodePort(n)
+										+ Config.getGlobalInt(PC.CLIENT_PORT_OFFSET) == nodeConfig
+										.getNodePort(m) || nodeConfig
+								.getNodePort(n)
+								+ Config.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET) == nodeConfig
+								.getNodePort(m)
+
+						))
 					throw new IOException(
 							"Clash in nodeConfig between "
 									+ n
 									+ " and "
 									+ m
 									+ ": node socket addresses should not be identical or "
-									+ "be exactly CLIENT_PORT_OFFSET="
+									+ "be exactly "
+									+ "CLIENT_PORT_OFFSET="
 									+ Config.getGlobalInt(PC.CLIENT_PORT_OFFSET)
+									+ " or "
+									+ "CLIENT_PORT_SSL_OFFSET="
+									+ Config.getGlobalInt(PC.CLIENT_PORT_SSL_OFFSET)
 									+ " apart.");
 		}
 	}
@@ -1034,5 +1065,25 @@ public class PaxosConfig {
 				return new HashSet<String>(actives.keySet());
 			}
 		};
+	}
+
+	private static boolean noPropertiesFile = false;
+
+	/**
+	 * Used mainly for testing.
+	 */
+	public static void setNoPropertiesFile() {
+		noPropertiesFile = true;
+	}
+
+	/**
+	 * @return Name of gigapaxos properties file.
+	 */
+	public static String getPropertiesFile() {
+		//assert(System.getProperty(PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY) ==null);
+		return System.getProperty(PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY) != null ? System
+				.getProperty(PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY)
+				: !noPropertiesFile ? PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE
+						: null;
 	}
 }

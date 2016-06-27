@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
 import java.beans.PropertyVetoException;
@@ -99,8 +97,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		AbstractReconfiguratorDB<NodeIDType> implements
 		ReconfiguratorDB<NodeIDType> {
 	/* ********************************************************************
-	 * DB related parameters to be changed to use a different database service.
-	 */
+	 * DB related parameters to be changed to use a different database service. */
 	private static final SQL.SQLType SQL_TYPE = SQL.SQLType.valueOf(Config
 			.getGlobalString(RC.SQL_TYPE));
 	private static final String DATABASE = Config
@@ -113,7 +110,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final String NODE_CONFIG_TABLE = "nodeconfig";
 
 	private static final String LOG_DIRECTORY = Config
-			.getGlobalString(RC.RECONFIGURATION_DB_DIR);// "reconfiguration_DB";
+			.getGlobalString(PC.GIGAPAXOS_DATA_DIR) + "/" +
+	// unchangeable
+			RC.RECONFIGURATION_DB_DIR.getDefaultValue();
 	private static final boolean CONN_POOLING = true; // should just be true
 	private static final int MAX_POOL_SIZE = 100;
 	private static final int MAX_NAME_SIZE = SQLPaxosLogger.MAX_PAXOS_ID_SIZE;
@@ -183,7 +182,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * @param nc
 	 * @param logDir
 	 */
-	public SQLReconfiguratorDB(NodeIDType myID,
+	private SQLReconfiguratorDB(NodeIDType myID,
 			ConsistentReconfigurableNodeConfig<NodeIDType> nc, String logDir) {
 		super(myID, nc);
 		logDirectory = (logDir == null ? SQLReconfiguratorDB.LOG_DIRECTORY
@@ -208,7 +207,44 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			}
 		}
 				: null;
-		initialize();
+		initialize(true);
+	}
+
+	private SQLReconfiguratorDB(NodeIDType myID) {
+		super(myID, null);
+		logDirectory = SQLReconfiguratorDB.LOG_DIRECTORY + "/";
+		this.rcRecords = null;
+		this.initialize(false);
+	}
+
+	/**
+	 * @param myID
+	 * @param nc
+	 */
+	public static void dropState(String myID,
+			ConsistentReconfigurableNodeConfig<String> nc) {
+		if (!isEmbeddedDB())
+			// no need to connect if embedded
+			new SQLReconfiguratorDB<String>(myID).dropState();
+		else {
+			// remove embedded reconfigurator DB
+			Util.recursiveRemove(new File(SQLReconfiguratorDB.LOG_DIRECTORY + "/"
+					+ getMyDBName(myID)));
+			// large checkpoints
+			Util.recursiveRemove(new File(getCheckpointDir(
+					SQLReconfiguratorDB.LOG_DIRECTORY, myID)));
+		}
+		// remove if empty
+		(new File(SQLReconfiguratorDB.LOG_DIRECTORY + "/" + CHECKPOINT_TRANSFER_DIR)).delete();
+		(new File(SQLReconfiguratorDB.LOG_DIRECTORY)).delete();
+		// remove paxos state
+		SQLPaxosLogger.dropState(myID);
+	}
+
+	private SQLReconfiguratorDB<?> dropState() {
+		for (String table : this.getAllTableNames())
+			this.dropTable(table);
+		return this;
 	}
 
 	private Set<String> putReconfigurationRecordDB(
@@ -222,8 +258,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		PreparedStatement pstmt = null;
 		Connection conn = null;
 		Set<String> committed = new HashSet<String>();
-		String[] keys = toCommit.keySet().toArray(
-				new String[0]);
+		String[] keys = toCommit.keySet().toArray(new String[0]);
 		try {
 			ArrayList<String> batch = new ArrayList<String>();
 			for (int i = 0; i < keys.length; i++) {
@@ -264,8 +299,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					pstmt.clearBatch();
 					for (int j = 0; j < executed.length; j++) {
 						if (executed[j] > 0) {
-							log.log(Level.FINE, "{0} updated RC DB record to {1}",
-									new Object[] { this, toCommit.get(batch.get(j)).getSummary() });
+							log.log(Level.FINE,
+									"{0} updated RC DB record to {1}",
+									new Object[] {
+											this,
+											toCommit.get(batch.get(j))
+													.getSummary() });
 							committed.add(batch.get(j));
 						} else
 							log.log(Level.FINE,
@@ -431,11 +470,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return this.setStateMerge(name, epoch, state, null, null);
 	}
 
-	/*
-	 * One of two methods that changes state. Generally, this method will change
+	/* One of two methods that changes state. Generally, this method will change
 	 * the state to READY, while setStateInitReconfiguration sets the state from
-	 * READY usually to WAIT_ACK_STOP.
-	 */
+	 * READY usually to WAIT_ACK_STOP. */
 
 	@Override
 	public synchronized boolean setStateMerge(String name, int epoch,
@@ -461,8 +498,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					.equals(RCStates.WAIT_DELETE));
 		if (record.isReady()) {
 			record.setActivesToNewActives(newActives);
-			/*
-			 * The list of pending reconfigurations is stored persistently so
+			/* The list of pending reconfigurations is stored persistently so
 			 * that we can resume the most recent incomplete reconfiguration
 			 * upon recovery. The ones before the most recent will be handled by
 			 * paxos roll forward automatically. The reason paxos is not enough
@@ -481,12 +517,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			 * DiskMap and also include the pending table information in paxos
 			 * checkpoints so that paxos can restore it upon recovery. Then,
 			 * reconfiguration can proceed essentially at half of paxos
-			 * throughput.
-			 */
+			 * throughput. */
 			if (record.isReconfigurationReady())
 				this.setPending(name, false);
-			/*
-			 * Trimming RC epochs is needed only for the NODE_CONFIG record. It
+			/* Trimming RC epochs is needed only for the NODE_CONFIG record. It
 			 * removes entries for deleted RC nodes. The entries maintain the
 			 * current epoch number for the group corresponding to each RC node
 			 * in NODE_CONFIG. This information is needed in order for nodes to
@@ -511,8 +545,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			 * groups is that manual intervention if ever needed will be
 			 * harrowing. It is much simpler to track out of date RC nodes when
 			 * all RC group epoch numbers are known to be identical to the
-			 * NODE_CONFIG epoch number.
-			 */
+			 * NODE_CONFIG epoch number. */
 			record.trimRCEpochs();
 		}
 		this.putReconfigurationRecord(record);
@@ -523,11 +556,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return record.getUnclean() > 0 && !this.isRCGroupName(record.getName());
 	}
 
-	/*
-	 * state can be changed only if the current state is READY and if so, it can
+	/* state can be changed only if the current state is READY and if so, it can
 	 * only be changed to WAIT_ACK_STOP. The epoch argument must also match the
-	 * current epoch number.
-	 */
+	 * current epoch number. */
 	@Override
 	public synchronized boolean setStateInitReconfiguration(String name,
 			int epoch, RCStates state, Set<NodeIDType> newActives) {
@@ -649,9 +680,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 	}
 
-	/*
-	 * Should put RC records only for non-RC group names.
-	 */
+	/* Should put RC records only for non-RC group names. */
 	private synchronized boolean putReconfigurationRecordIfNotName(
 			ReconfigurationRecord<NodeIDType> record, String rcGroupName,
 			String mergee) {
@@ -690,7 +719,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private synchronized boolean deleteReconfigurationRecordDB(String name,
 			Integer epoch) {
-		if(epoch != null) {
+		if (epoch != null) {
 			ReconfigurationRecord<NodeIDType> record = this
 					.getReconfigurationRecordDB(name);
 			if (record == null || (record.getEpoch() != epoch))
@@ -706,6 +735,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		this.deleteReconfigurationRecord(name, this.getDemandTable());
 		return deleted;
 	}
+
 	private synchronized boolean deleteReconfigurationRecordDB(String name) {
 		return this.deleteReconfigurationRecordDB(name, null);
 	}
@@ -828,8 +858,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return this.updateState(rcGroup, state, null);
 	}
 
-	/*
-	 * The second argument "state" here is implemented as the name of the file
+	/* The second argument "state" here is implemented as the name of the file
 	 * where the checkpoint state is actually stored. We assume that each RC
 	 * record in the checkpoint state is separated by a newline.
 	 * 
@@ -838,8 +867,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * by that name does not exist, state must be the actual state itself. This
 	 * design is for having the convenience of treating the state either as a
 	 * large checkpoint handle or the state itself as appropriate. But we need a
-	 * more systematic way of distinguishing between handles and actual state.
-	 */
+	 * more systematic way of distinguishing between handles and actual state. */
 	private boolean updateState(String rcGroup, String state, String mergee) {
 		synchronized (this.stringLocker.get(rcGroup)) {
 
@@ -904,14 +932,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 	}
 
-	/*
-	 * FIXME: unimplemented. Currently, by design, it makes no difference
+	/* FIXME: unimplemented. Currently, by design, it makes no difference
 	 * whether or not we delete the RC group state before replacing it because
 	 * of the nature of the RC group database. But paxos safety semantics
 	 * require us to do this, so we probably should as a sanity check.
 	 * 
-	 * Verify claim or implement.
-	 */
+	 * Verify claim or implement. */
 	private void wipeOutState(String rcGroup) {
 	}
 
@@ -1065,10 +1091,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return dataSource.getConnection();
 	}
 
-	private boolean initialize() {
+	private boolean initialize(boolean all) {
 		if (!isClosed())
 			return true;
-		if (!connectDB() || !createTables())
+		if (!connectDB())
+			return false;
+		if (!all)
+			return true;
+		if (!createTables())
 			return false;
 		if (!this.makeCheckpointTransferDir())
 			return false;
@@ -1083,7 +1113,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 						this.getNodeConfigRecords(this.consistentNodeConfig) });
 		return initCheckpointServer();
 	}
-	
+
 	// used only for debugging
 	protected String getNodeConfigRecords(
 			ConsistentReconfigurableNodeConfig<NodeIDType> nc) {
@@ -1122,18 +1152,20 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					public Thread newThread(Runnable r) {
 						Thread thread = Executors.defaultThreadFactory()
 								.newThread(r);
-						thread.setName(SQLReconfiguratorDB.class.getSimpleName() + myID);
+						thread.setName(SQLReconfiguratorDB.class
+								.getSimpleName() + myID);
 						return thread;
 					}
 				});
 
 		try {
-			InetAddress addr=null;
+			InetAddress addr = null;
 			try {
 				this.serverSock = new ServerSocket();
 				// first try the configured address, else fall back to wildcard
 				this.serverSock.bind(new InetSocketAddress(
-						addr=this.consistentNodeConfig.getBindAddress(myID), 0));
+						addr = this.consistentNodeConfig.getBindAddress(myID),
+						0));
 			} catch (IOException ioe) {
 				log.info(this
 						+ " unable to open large checkpoint server socket on "
@@ -1188,11 +1220,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 	}
 
-	/*
-	 * synchronized is meant to prevent concurrent file delete.
+	/* synchronized is meant to prevent concurrent file delete.
 	 * 
-	 * Reads request and transfers requested checkpoint.
-	 */
+	 * Reads request and transfers requested checkpoint. */
 	private void transferCheckpoint(Socket sock) {
 		synchronized (this.fileSystemLock) {
 			BufferedReader brSock = null, brFile = null;
@@ -1293,12 +1323,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				int nTotalRead = 0;
 				// read from sock, write to file
 				while ((nread = inStream.read(buf)) >= 0) {
-					/*
-					 * Need to ensure that the read won't block forever if the
+					/* Need to ensure that the read won't block forever if the
 					 * remote endpoint crashes ungracefully and there is no
 					 * exception triggered here. But this method itself is
-					 * currently unused.
-					 */
+					 * currently unused. */
 					nTotalRead += nread;
 					fos.write(buf, 0, nread);
 				}
@@ -1423,8 +1451,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return true;
 	}
 
+	private static String getCheckpointDir(String logdir, Object myID) {
+		return logdir + "/" + CHECKPOINT_TRANSFER_DIR + "/" + myID + "/";
+	}
+
 	private String getCheckpointDir() {
-		return this.logDirectory + CHECKPOINT_TRANSFER_DIR + "/" + myID + "/";
+		return getCheckpointDir(this.logDirectory, this.myID);
 	}
 
 	private String getCheckpointFile(String rcGroupName) {
@@ -1443,13 +1475,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				this.fileSystemLock);
 	}
 
-	/*
-	 * Deletes all but the most recent checkpoint for the RC group name. We
+	/* Deletes all but the most recent checkpoint for the RC group name. We
 	 * could track recency based on timestamps using either the timestamp in the
 	 * filename or the OS file creation time. Here, we just supply the latest
 	 * checkpoint filename explicitly as we know it when this method is called
-	 * anyway.
-	 */
+	 * anyway. */
 	private static boolean deleteOldCheckpoints(final String cpDir,
 			final String rcGroupName, int keep, Object lockMe) {
 		File dir = new File(cpDir);
@@ -1553,12 +1583,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		Connection conn = null;
 		try {
 			conn = this.getDefaultConn();
-			/*
-			 * Selects all RC group name records by asking for records where
+			/* Selects all RC group name records by asking for records where
 			 * service name equals RC group name. The index on RC group names
 			 * should make this query efficient but this performance needs to be
-			 * tested at scale.
-			 */
+			 * tested at scale. */
 			pstmt = this.getPreparedStatement(
 					conn,
 					this.getRCRecordTable(),
@@ -1587,13 +1615,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return groups;
 	}
 
-	/*
-	 * A reconfigurator needs two tables: one for all records and one for all
+	/* A reconfigurator needs two tables: one for all records and one for all
 	 * records with ongoing reconfigurations. A record contains the serviceName,
 	 * rcGroupName, epoch, actives, newActives, state, and demandProfile. We
 	 * could also move demandProfile to a separate table. We need to store
-	 * demandProfile persistently as otherwise we will run out of memory.
-	 */
+	 * demandProfile persistently as otherwise we will run out of memory. */
 	private boolean createTables() {
 		boolean createdRCRecordTable = false, createdPendingTable = false, createdDemandTable = false, createdNodeConfigTable = false;
 		// simply store everything in stringified form and pull all when needed
@@ -1691,12 +1717,43 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return created;
 	}
 
+	private boolean dropTable(String table) {
+		boolean dropped = false;
+		String cmd = "drop table " + table;
+		Connection conn = null;
+		PreparedStatement stmt = null;
+		try {
+			conn = this.getDefaultConn();
+			stmt = conn.prepareStatement(cmd);
+			stmt.execute();
+			dropped = true;
+		} catch (SQLException sqle) {
+			if (!SQL.NONEXISTENT_TABLE.contains(sqle.getSQLState())) {
+				log.severe(this + " could not drop table " + table + ":"
+						+ sqle.getSQLState() + ":" + sqle.getErrorCode());
+				sqle.printStackTrace();
+			}
+		} finally {
+			this.cleanup(conn);
+			this.cleanup(stmt);
+		}
+		return dropped;
+	}
+
 	private boolean createIndex(Statement stmt, String cmd, String table) {
 		return createTable(stmt, cmd, table);
 	}
 
 	private static boolean isEmbeddedDB() {
 		return SQL_TYPE.equals(SQL.SQLType.EMBEDDED_DERBY);
+	}
+
+	private static String getMyDBName(Object myID) {
+		return DATABASE + myID;
+	}
+
+	private String getMyDBName() {
+		return getMyDBName(this.myID);
 	}
 
 	private boolean connectDB() {
@@ -1709,13 +1766,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		props.put("password", SQL.getPassword());
 		String dbCreation = SQL.getProtocolOrURL(SQL_TYPE)
 				+ (isEmbeddedDB() ? this.logDirectory
-						+ DATABASE
-						+ this.myID
+						+ getMyDBName()
 						+ (!SQLPaxosLogger.existsDB(SQL_TYPE,
-								this.logDirectory, DATABASE + this.myID) ? ";create=true"
+								this.logDirectory, getMyDBName()) ? ";create=true"
 								: "")
-						: DATABASE + this.myID
-								+ "?createDatabaseIfNotExist=true");
+						: getMyDBName() + "?createDatabaseIfNotExist=true");
 
 		try {
 			dataSource = (ComboPooledDataSource) setupDataSourceC3P0(
@@ -1733,8 +1788,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				connAttempts++;
 				log.info("Attempting getDefaultConn() to DB " + dbCreation);
 				getDefaultConn(); // open first connection
-				log.info("Connected to and created database " + DATABASE
-						+ this.myID);
+				log.info("Connected to and created database " + getMyDBName());
 				connected = true;
 				if (isEmbeddedDB())
 					fixURI(); // remove create flag
@@ -1756,7 +1810,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private void fixURI() {
 		this.dataSource.setJdbcUrl(SQL.getProtocolOrURL(SQL_TYPE)
-				+ this.logDirectory + DATABASE + this.myID);
+				+ this.logDirectory + getMyDBName());
 	}
 
 	private static DataSource setupDataSourceC3P0(String connectURI,
@@ -1799,18 +1853,19 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		setClosed(true);
 		if (allClosed()) /* do nothing */
 			;
-		closeGracefully();
+		closeGracefully(true);
 	}
 
-	/*
-	 * This method is empty because embedded derby can be close exactly once. We
-	 * also use it inside paxos, so it is best to let that do the close.
-	 */
-	private void closeGracefully() {
-		log.log(Level.INFO,
-				"{0} closing RCDB with node config records {1}",
-				new Object[] { this,
-						this.getNodeConfigRecords(this.consistentNodeConfig) });
+	/* This method is empty because embedded derby can be close exactly once. We
+	 * also use it inside paxos, so it is best to let that do the close. */
+	private void closeGracefully(boolean printLog) {
+		if (printLog)
+			// can not invoke this.getNodeConfigRecords while dropping state
+			log.log(Level.INFO,
+					"{0} closing RCDB with node config records {1}",
+					new Object[] {
+							this,
+							this.getNodeConfigRecords(this.consistentNodeConfig) });
 		this.rcRecords.close(false);
 		try {
 			this.serverSock.close();
@@ -1843,6 +1898,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private String getNodeConfigTable() {
 		return NODE_CONFIG_TABLE + this.myID;
+	}
+
+	private String[] getAllTableNames() {
+		return new String[] { this.getRCRecordTable(), this.getPendingTable(),
+				this.getDemandTable(), this.getNodeConfigTable() };
 	}
 
 	private void cleanup(FileWriter writer) {
@@ -2152,13 +2212,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return rcMap;
 	}
 
-	/*
-	 * This method imports consistentNodeConfig from the persistent copy. The
+	/* This method imports consistentNodeConfig from the persistent copy. The
 	 * persistent copy has both the latest (unstable) version and the previous
 	 * version. At the end of this method, consistentNodeConfig has the latest
 	 * version nodes as well as the previous version nodes with nodes present in
-	 * the latter but not in the former being slated for removal.
-	 */
+	 * the latter but not in the former being slated for removal. */
 	private void initAdjustSoftNodeConfig() {
 		// get node config containing all reconfigurators from DB
 		Map<NodeIDType, InetSocketAddress> rcMapAll = this.getRCNodeConfig(
@@ -2264,13 +2322,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return added;
 	}
 
-	/*
-	 * The double synchronized is because we need to synchronize over "this" to
+	/* The double synchronized is because we need to synchronize over "this" to
 	 * perform testAndSet checks over record, but we have to do that after,
 	 * never before, stringLocker lock. The stringLocker lock is so that we
 	 * don't have to lock all records in order to just synchronize a single
-	 * group's getState or updateState.
-	 */
+	 * group's getState or updateState. */
 	@Override
 	public boolean mergeState(String rcGroupName, int epoch, String mergee,
 			int mergeeEpoch, String state) {
@@ -2307,12 +2363,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				.getReconfigurationRecord(mergee, mergeEpoch);
 		if (record == null)
 			return false;
-		/*
-		 * Fast forward to WAIT_DELETE as the paxos group must have already been
+		/* Fast forward to WAIT_DELETE as the paxos group must have already been
 		 * stopped. The only reason to not simply delete this record is to let
 		 * it pend in WAIT_DELETE state in order to prevent it from getting
-		 * recreated before MAX_FINAL_STATE_AGE.
-		 */
+		 * recreated before MAX_FINAL_STATE_AGE. */
 		this.setStateInitReconfiguration(mergee, mergeEpoch,
 				RCStates.WAIT_ACK_STOP, new HashSet<NodeIDType>());
 		this.setState(mergee, mergeEpoch + 1, RCStates.WAIT_DELETE);
@@ -2393,11 +2447,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			boolean insertedAll = true;
 			Set<String> inserted = new HashSet<String>();
 			for (String name : nameStates.keySet())
-				/*
-				 * We just directly initialize with WAIT_ACK_STOP:-1 instead of
+				/* We just directly initialize with WAIT_ACK_STOP:-1 instead of
 				 * starting with READY:-1 and pretending to go through the whole
-				 * reconfiguration protocol sequence.
-				 */
+				 * reconfiguration protocol sequence. */
 				if (insertedAll = insertedAll
 						&& (this.rcRecords.put(name,
 								new ReconfigurationRecord<NodeIDType>(name, -1,
@@ -2440,11 +2492,9 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			for (String name : nameStates.keySet()) {
 				ReconfigurationRecord<NodeIDType> record = new ReconfigurationRecord<NodeIDType>(
 						name, -1, newActives);
-				/*
-				 * We just directly initialize with WAIT_ACK_STOP:-1 instead of
+				/* We just directly initialize with WAIT_ACK_STOP:-1 instead of
 				 * starting with READY:-1 and pretending to go through the whole
-				 * reconfiguration protocol sequence.
-				 */
+				 * reconfiguration protocol sequence. */
 				record.setState(name, -1, RCStates.WAIT_ACK_STOP);
 				insertRC.setString(1, rcGroupName);
 				if (RC_RECORD_CLOB_OPTION)
@@ -2507,10 +2557,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				ReconfigurationRecord<NodeIDType> record = this.rcRecords
 						.get(name);
 				assert (record != null && record.getUnclean() == 0);
-				/*
-				 * setStateMerge will print INFO logs and invoke the setPending
-				 * DB call that is unnecessary overhead for batch creates.
-				 */
+				/* setStateMerge will print INFO logs and invoke the setPending
+				 * DB call that is unnecessary overhead for batch creates. */
 				// this.setStateMerge(name, epoch, state, null);
 				record.setState(name, epoch, state).setActivesToNewActives();
 				this.putReconfigurationRecord(record);

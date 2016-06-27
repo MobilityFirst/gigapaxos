@@ -47,6 +47,18 @@ public class Config extends Properties {
 	}
 
 	/**
+	 * Used to disallow some parameters from being configured during production
+	 * runs but allow them to be configured for testing or instrumentation
+	 * purposes.
+	 */
+	public static interface Disableable {
+		/**
+		 * @return True if this parameter can not be changed during runtime.
+		 */
+		public boolean isDisabled();
+	}
+
+	/**
 	 * An interface that makes it convenient to use commons-CLI style option
 	 * while defining all fields as an enum at one place.
 	 * 
@@ -93,7 +105,6 @@ public class Config extends Properties {
 	private static final HashMap<Class<?>, Boolean> disableCommandLine = new HashMap<Class<?>, Boolean>();
 
 	private static final HashMap<Object, Object> cacheMap = new HashMap<Object, Object>();
-
 
 	private static boolean isDefaultValueEnum(Class<?> clazz) {
 		for (Class<?> iface : clazz.getInterfaces())
@@ -185,7 +196,7 @@ public class Config extends Properties {
 		try {
 			properties.load(new FileInputStream(configFile = (System
 					.getProperty(systemPropertyKey) != null ? System
-					.getProperty(systemPropertyKey) : defaultConfigFile)));			
+					.getProperty(systemPropertyKey) : defaultConfigFile)));
 		} catch (IOException ioe) {
 			log.warning(Config.class.getSimpleName() + " unable to find file "
 					+ configFile + "; using default values for type " + type);
@@ -213,6 +224,12 @@ public class Config extends Properties {
 	 *         will be thrown.
 	 */
 	public static Object getGlobal(Enum<?> field) {
+		// if disabled, return default value
+		if (field instanceof Config.Disableable
+				&& ((Config.Disableable) field).isDisabled()
+				&& field instanceof DefaultValueEnum)
+			return ((Config.DefaultValueEnum) field).getDefaultValue();
+		
 		Object retval;
 		if ((retval = cacheMap.get(field)) != null) {
 			return retval;
@@ -383,8 +400,8 @@ public class Config extends Properties {
 		InputStream is = new FileInputStream(configFile);
 		this.load(is);
 		for (Object prop : this.keySet()) {
-			log.log(Level.FINE, "Set property {0}={1}", new Object[]{prop,
-					this.getProperty(prop.toString())});
+			log.log(Level.FINE, "Set property {0}={1}", new Object[] { prop,
+					this.getProperty(prop.toString()) });
 		}
 	}
 
@@ -528,7 +545,8 @@ public class Config extends Properties {
 	}
 
 	private Object toLowerCase(Object key) {
-		return caseSensitive || !(key instanceof String) || ((String)key).startsWith("-D") ? key : ((String) key)
+		return caseSensitive || !(key instanceof String)
+				|| ((String) key).startsWith("-D") ? key : ((String) key)
 				.toLowerCase();
 	}
 

@@ -117,13 +117,8 @@ public class ReconfigurationConfig {
 		DEMAND_PROFILE_TYPE(DemandProfile.class.getName()),
 
 		/**
-		 * File where host:port for actives and reconfigurators is stored.
-		 */
-		HOSTS_FILE(PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE),
-
-		/**
 		 * Directory where reconfiguration DB is maintained when an embedded DB
-		 * is used.
+		 * is used. Can not be changed via properties file.
 		 */
 		RECONFIGURATION_DB_DIR("reconfiguration_DB"),
 
@@ -518,7 +513,7 @@ public class ReconfigurationConfig {
 		return aggressiveReconfigurations;
 	}
 
-	private static String DEFAULT_RECONFIGURATOR_PREFIX = "reconfigurator.";
+	protected static String DEFAULT_RECONFIGURATOR_PREFIX = "reconfigurator.";
 
 	/**
 	 * @return A map of names and socket addresses corresponding to servers
@@ -658,6 +653,11 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		all,
+		
+		/**
+		 * 
+		 */
+		clear,
 		
 		/**
 		 * 

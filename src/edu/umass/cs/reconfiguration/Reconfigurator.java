@@ -32,6 +32,7 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
@@ -100,11 +101,11 @@ import edu.umass.cs.utils.Util;
  *            {@link CommitWorker}, {@link WaitPrimaryExecution}. The last one
  *            is to enable exactly one primary Reconfigurator in the common case
  *            to conduct reconfigurations but ensure that others safely complete
- *            the reconfiguration if the primary fails to do so.
- *            CommitWorker is a worker that is needed to ensure that a
- *            paxos-coordinated request eventually gets committed; we need this
- *            property to ensure that a reconfiguration operation terminates,
- *            but paxos itself provides us no such liveness guarantee.
+ *            the reconfiguration if the primary fails to do so. CommitWorker is
+ *            a worker that is needed to ensure that a paxos-coordinated request
+ *            eventually gets committed; we need this property to ensure that a
+ *            reconfiguration operation terminates, but paxos itself provides us
+ *            no such liveness guarantee.
  * 
  *            This class now supports add/remove operations for the set of
  *            Reconfigurator nodes. This is somewhat tricky, but works
@@ -158,7 +159,8 @@ public class Reconfigurator<NodeIDType> implements
 	 * the former may be a subset of the NodeConfig used by the latter, so they
 	 * are separate arguments. */
 	protected Reconfigurator(ReconfigurableNodeConfig<NodeIDType> nc,
-			SSLMessenger<NodeIDType, JSONObject> m, boolean startCleanSlate) {
+			SSLMessenger<NodeIDType, JSONObject> m, boolean startCleanSlate)
+			throws IOException {
 		this.messenger = m;
 		this.consistentNodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nc);
@@ -692,7 +694,8 @@ public class Reconfigurator<NodeIDType> implements
 		}
 		// else failure
 		this.sendClientReconfigurationPacket(delete
-				.setFailed(ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
+				.setFailed(
+						ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
 				.setResponseMessage(
 						delete.getServiceName()
 								+ (record != null ? " is being reconfigured and can not be deleted just yet."
@@ -713,7 +716,6 @@ public class Reconfigurator<NodeIDType> implements
 			.getGlobalString(RC.SPECIAL_NAME);
 	private static final String BROADCAST_NAME = Config
 			.getGlobalString(RC.BROADCAST_NAME);
-	
 
 	/**
 	 * This method simply looks up and returns the current set of active
@@ -740,13 +742,15 @@ public class Reconfigurator<NodeIDType> implements
 								+ request.getSender() : "" });
 		if (request.getServiceName().equals(ANYCAST_NAME)) {
 			this.sendClientReconfigurationPacket(request
-					.setActives(modifyPortsForSSL(this.consistentNodeConfig
-							.getRandomActiveReplica(), receivedOnSSLPort(request))));
+					.setActives(modifyPortsForSSL(
+							this.consistentNodeConfig.getRandomActiveReplica(),
+							receivedOnSSLPort(request))));
 			return null;
 		} else if (request.getServiceName().equals(BROADCAST_NAME)) {
 			this.sendClientReconfigurationPacket(request
 					.setActives(modifyPortsForSSL(this.consistentNodeConfig
-							.getActiveReplicaSocketAddresses(), receivedOnSSLPort(request))));
+							.getActiveReplicaSocketAddresses(),
+							receivedOnSSLPort(request))));
 			return null;
 		}
 
@@ -765,12 +769,16 @@ public class Reconfigurator<NodeIDType> implements
 					+ request.getServiceName();
 			request.setResponseMessage(responseMessage
 					+ " probably because the name has not yet been created or is pending deletion");
-			this.sendClientReconfigurationPacket(request.setFailed(ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
-					.makeResponse().setHashRCs(
-							modifyPortsForSSL(this
-									.getSocketAddresses(this.consistentNodeConfig
+			this.sendClientReconfigurationPacket(request
+					.setFailed(
+							ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
+					.makeResponse()
+					.setHashRCs(
+							modifyPortsForSSL(
+									this.getSocketAddresses(this.consistentNodeConfig
 											.getReplicatedReconfigurators(request
-													.getServiceName())), receivedOnSSLPort(request))));
+													.getServiceName())),
+									receivedOnSSLPort(request))));
 			return null;
 		}
 
@@ -786,7 +794,8 @@ public class Reconfigurator<NodeIDType> implements
 		for (NodeIDType node : record.getActiveReplicas())
 			activeIPs.add(this.consistentNodeConfig.getNodeSocketAddress(node));
 		// to support different client facing ports
-		request.setActives(modifyPortsForSSL(activeIPs, receivedOnSSLPort(request)));
+		request.setActives(modifyPortsForSSL(activeIPs,
+				receivedOnSSLPort(request)));
 		this.sendClientReconfigurationPacket(request.makeResponse());
 		/* We message using sendActiveReplicasToClient above as opposed to
 		 * returning a messaging task below because protocolExecutor's messenger
@@ -1325,10 +1334,11 @@ public class Reconfigurator<NodeIDType> implements
 			this.sendClientReconfigurationPacket(request
 					.setFailed()
 					.setHashRCs(
-							modifyPortsForSSL(this
-									.getSocketAddresses(this.consistentNodeConfig
+							modifyPortsForSSL(
+									this.getSocketAddresses(this.consistentNodeConfig
 											.getReplicatedReconfigurators(request
-													.getServiceName())), receivedOnSSLPort(request)))
+													.getServiceName())),
+									receivedOnSSLPort(request)))
 					.setResponseMessage(
 							" <Wrong number! I am not the reconfigurator responsible>"));
 		return true;
@@ -1712,7 +1722,7 @@ public class Reconfigurator<NodeIDType> implements
 				WaitAckStartEpoch.class, rcRecReq));
 	}
 
-	private void initFinishPendingReconfigurations() {
+	private void initFinishPendingReconfigurations() throws IOException {
 		/* Invoked just once upon recovery, but we could also invoke this
 		 * periodically. */
 		this.finishPendingReconfigurations();
@@ -1747,7 +1757,7 @@ public class Reconfigurator<NodeIDType> implements
 	/* Called initially upon recovery to finish pending reconfigurations. We
 	 * assume that the set of pending reconfigurations is not too big as this is
 	 * the set of reconfigurations that were ongoing at the time of the crash. */
-	private void finishPendingReconfigurations() {
+	private void finishPendingReconfigurations() throws IOException {
 		String[] pending = this.DB.getPendingReconfigurations();
 		for (String name : pending) {
 			ReconfigurationRecord<NodeIDType> record = this.DB
@@ -1829,12 +1839,12 @@ public class Reconfigurator<NodeIDType> implements
 			this.messenger.sendToAddress(
 					this.consistentNodeConfig
 							.getNodeSocketAddress(randomResponsibleRC),
-					new JSONMessenger.JSONObjectByteableWrapper(request.setForwader(
-							this.consistentNodeConfig
+					new JSONMessenger.JSONObjectByteableWrapper(request
+							.setForwader(this.consistentNodeConfig
 									.getNodeSocketAddress(getMyID()))
-							//.toJSONObject()
-							));
-		} catch (IOException /*| JSONException*/ e) {
+					// .toJSONObject()
+					));
+		} catch (IOException /* | JSONException */e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -1854,8 +1864,10 @@ public class Reconfigurator<NodeIDType> implements
 						new Object[] { this, response.getSummary(),
 								response.getResponseMessage(), querier });
 				(this.getClientMessenger(response.getMyReceiver()))
-						.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
-								//.toJSONObject()
+						.sendToAddress(querier,
+								new JSONMessenger.JSONObjectByteableWrapper(
+										response
+								// .toJSONObject()
 								));
 			} else {
 				// may be a request or response
@@ -1866,10 +1878,10 @@ public class Reconfigurator<NodeIDType> implements
 								response.getSummary(), querier });
 				assert (this.messenger.sendToAddress(querier,
 						new JSONMessenger.JSONObjectByteableWrapper(response
-						//.toJSONObject()
+						// .toJSONObject()
 						)) > 0);
 			}
-		} catch (IOException /*| JSONException*/ e) {
+		} catch (IOException /* | JSONException */e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -1934,8 +1946,10 @@ public class Reconfigurator<NodeIDType> implements
 						new Object[] { this, response.getSummary(), querier });
 				// this.getClientMessenger()
 				(this.getMessenger(rcRecReq.startEpoch.getMyReceiver()))
-						.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
-								//.toJSONObject()
+						.sendToAddress(querier,
+								new JSONMessenger.JSONObjectByteableWrapper(
+										response
+								// .toJSONObject()
 								));
 			} else {
 				log.log(Level.INFO,
@@ -1946,10 +1960,10 @@ public class Reconfigurator<NodeIDType> implements
 						new JSONMessenger.JSONObjectByteableWrapper(response
 								.setForwardee(this.consistentNodeConfig
 										.getNodeSocketAddress(getMyID()))
-						//.toJSONObject()
+						// .toJSONObject()
 						));
 			}
-		} catch (IOException /*| JSONException*/ e) {
+		} catch (IOException /* | JSONException */e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -1988,18 +2002,20 @@ public class Reconfigurator<NodeIDType> implements
 				// this.getClientMessenger()
 				(this.getMessenger(rcRecReq.startEpoch.getMyReceiver()))
 						.sendToAddress(this.getQuerier(rcRecReq),
-								new JSONMessenger.JSONObjectByteableWrapper(response
-								//.toJSONObject()
+								new JSONMessenger.JSONObjectByteableWrapper(
+										response
+								// .toJSONObject()
 								));
 			} else {
 				log.log(Level.FINE,
 						"{0} sending deletion confirmation {1} to forwarding reconfigurator {2}",
 						new Object[] { this, response.getSummary(), querier });
-				this.messenger.sendToAddress(querier, new JSONMessenger.JSONObjectByteableWrapper(response
-						//.toJSONObject()
+				this.messenger.sendToAddress(querier,
+						new JSONMessenger.JSONObjectByteableWrapper(response
+						// .toJSONObject()
 						));
 			}
-		} catch (IOException /*| JSONException*/ e) {
+		} catch (IOException /* | JSONException */e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -2050,9 +2066,9 @@ public class Reconfigurator<NodeIDType> implements
 							separator });
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
 					new JSONMessenger.JSONObjectByteableWrapper(response
-					//.toJSONObject()
+					// .toJSONObject()
 					));
-		} catch (IOException /*| JSONException*/ e) {
+		} catch (IOException /* | JSONException */e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -2077,9 +2093,9 @@ public class Reconfigurator<NodeIDType> implements
 							rcRecReq.startEpoch.creator, separator });
 			(this.messenger).sendToAddress(rcRecReq.startEpoch.creator,
 					new JSONMessenger.JSONObjectByteableWrapper(response
-					//.toJSONObject()
+					// .toJSONObject()
 					));
-		} catch (IOException /*| JSONException*/ e) {
+		} catch (IOException /* | JSONException */e) {
 			log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
@@ -2105,7 +2121,7 @@ public class Reconfigurator<NodeIDType> implements
 			this.spawnSecondaryReconfiguratorTask(rcRecReq);
 		return true;
 	}
-	
+
 	/**
 	 * @param echo
 	 * @param ptasks
@@ -2242,8 +2258,9 @@ public class Reconfigurator<NodeIDType> implements
 		boolean ancChanged = this.DB
 				.changeActiveDBNodeConfig(rcRecReq.startEpoch.getEpochNumber());
 
-		for (NodeIDType active : this.diff(record.getActiveReplicas(),
-				record.getNewActives()))
+		Set<NodeIDType> deletedNodes = this.diff(record.getActiveReplicas(),
+				record.getNewActives());
+		for (NodeIDType active : deletedNodes)
 			this.deleteActiveReplica(active, rcRecReq.startEpoch.creator);
 
 		try {
@@ -2273,9 +2290,36 @@ public class Reconfigurator<NodeIDType> implements
 					.spawnIfNotRunning(new WaitAckDropEpoch<NodeIDType>(
 							rcRecReq.startEpoch, this.consistentNodeConfig
 									.getReconfigurators(), this.DB));
-		// if (rcRecReq.getInitiator().equals(this.getMyID()))
-		// this.sendReconfigureActiveNodeConfigConfirmationToInitiator(rcRecReq);
+
+		this.updatePropertiesFile(rcRecReq, PaxosConfig.DEFAULT_SERVER_PREFIX);
 		return ancChanged && executed;
+	}
+
+	private void updatePropertiesFile(RCRecordRequest<NodeIDType> rcRecReq,
+			String prefix) {
+		// active node config change complete
+		if (PaxosConfig.getPropertiesFile() != null)
+			try {
+				for (NodeIDType node : rcRecReq.startEpoch.getNewlyAddedNodes())
+					Util.writeProperty(prefix + node, this.consistentNodeConfig
+							.getNodeAddress(node).getHostAddress()
+							+ ":"
+							+ this.consistentNodeConfig.getNodePort(node),
+							PaxosConfig.getPropertiesFile(), prefix);
+				for (NodeIDType node : rcRecReq.startEpoch.getDeletedNodes())
+					Util.writeProperty(prefix + node, null,
+							PaxosConfig.getPropertiesFile(), prefix);
+			} catch (IOException ioe) {
+				log.severe(this
+						+ " incurred exception while modifying properties file"
+						+ PaxosConfig.getPropertiesFile() + ioe);
+			}
+		else
+			log.log(Level.INFO,
+					"{0} not updating non-existent properties file upon adds={1}, deletes={2}",
+					new Object[] { this,
+							rcRecReq.startEpoch.getNewlyAddedNodes(),
+							rcRecReq.startEpoch.getDeletedNodes() });
 	}
 
 	/* We need to checkpoint the NC record after every NC change. Unlike other
@@ -2301,6 +2345,10 @@ public class Reconfigurator<NodeIDType> implements
 				"{0} completed node config change for epoch {1}; (forcing checkpoint..)",
 				new Object[] { this, rcRecReq.getEpochNumber() });
 		this.DB.forceCheckpoint(rcRecReq.getServiceName());
+
+		// active node config change complete
+		this.updatePropertiesFile(rcRecReq,
+				ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX);
 
 		// stop needless failure monitoring
 		for (NodeIDType node : diff(rcRecReq.startEpoch.prevEpochGroup,

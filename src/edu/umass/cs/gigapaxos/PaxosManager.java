@@ -396,19 +396,17 @@ public class PaxosManager<NodeIDType> {
 
 	/**
 	 * Refer
-	 * {@link #PaxosManager(Object, Stringifiable, InterfaceNIOTransport, Replicable, String)}
+	 * {@link #PaxosManager(Object, Stringifiable, InterfaceNIOTransport, Replicable, String, boolean)}
 	 * .
 	 * 
 	 * @param id
 	 * @param nc
 	 * @param niot
 	 * @param app
-	 * @param paxosLogFolder
 	 */
 	public PaxosManager(NodeIDType id, Stringifiable<NodeIDType> nc,
-			InterfaceNIOTransport<NodeIDType, JSONObject> niot, Replicable app,
-			String paxosLogFolder) {
-		this(id, nc, niot, (app), paxosLogFolder,
+			InterfaceNIOTransport<NodeIDType, JSONObject> niot, Replicable app) {
+		this(id, nc, niot, (app), null,
 				PaxosInstanceStateMachine.ENABLE_NULL_CHECKPOINT_STATE);
 	}
 
@@ -2971,8 +2969,7 @@ public class PaxosManager<NodeIDType> {
 			JSONNIOTransport<Integer> niot = new JSONNIOTransport<Integer>(
 					members[i], snc, new PacketDemultiplexerDefault(), true);
 			apps[i] = new TESTPaxosApp(niot); // app, PM reuse nio
-			pms[i] = new PaxosManager<Integer>(members[i], snc, niot, apps[i],
-					null);
+			pms[i] = new PaxosManager<Integer>(members[i], snc, niot, apps[i]);
 		}
 
 		System.out.println("Initiated all " + numNodes

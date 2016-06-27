@@ -85,6 +85,8 @@ public class TESTReconfigurationMain {
 	// @BeforeClass
 	public static void startLocalServers() throws IOException,
 			InterruptedException {
+		PaxosConfig.setNoPropertiesFile();
+		assert(PaxosConfig.getPropertiesFile() == null) : PaxosConfig.getPropertiesFile();
 		String[] args = new String[0];
 		dnc = new DefaultNodeConfig<String>(
 				TESTReconfigurationConfig.getLocalActives(),

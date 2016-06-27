@@ -14,6 +14,7 @@
 package edu.umass.cs.utils;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -22,19 +23,26 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 
 /**
  * @author arun
@@ -418,8 +426,10 @@ public class Util {
 		return suicide(log, error);
 	}
 
-	/** Transfer from src to dst without throwing exception if src.remaining() >
-	 * dst.remaining() but copying dst.remaining() bytes from src instead. */
+	/**
+	 * Transfer from src to dst without throwing exception if src.remaining() >
+	 * dst.remaining() but copying dst.remaining() bytes from src instead.
+	 */
 	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src) {
 		if (src.remaining() < dst.remaining())
 			return dst.put(src);
@@ -428,9 +438,9 @@ public class Util {
 		dst.put(src);
 		src.limit(oldLimit);
 		return dst;
-//		byte[] buf = new byte[dst.remaining()];
-//		src.get(buf);
-//		return dst.put(buf);
+		// byte[] buf = new byte[dst.remaining()];
+		// src.get(buf);
+		// return dst.put(buf);
 	}
 
 	private static final String CHARSET = "ISO-8859-1";
@@ -569,29 +579,26 @@ public class Util {
 			}
 		};
 	}
-	
 
-    private static final Set<Class<?>> WRAPPER_TYPES = getWrapperTypes();
+	private static final Set<Class<?>> WRAPPER_TYPES = getWrapperTypes();
 
-    public static boolean isWrapperType(Class<?> clazz)
-    {
-        return WRAPPER_TYPES.contains(clazz);
-    }
+	public static boolean isWrapperType(Class<?> clazz) {
+		return WRAPPER_TYPES.contains(clazz);
+	}
 
-    private static Set<Class<?>> getWrapperTypes()
-    {
-        Set<Class<?>> ret = new HashSet<Class<?>>();
-        ret.add(Boolean.class);
-        ret.add(Character.class);
-        ret.add(Byte.class);
-        ret.add(Short.class);
-        ret.add(Integer.class);
-        ret.add(Long.class);
-        ret.add(Float.class);
-        ret.add(Double.class);
-        ret.add(Void.class);
-        return ret;
-    }
+	private static Set<Class<?>> getWrapperTypes() {
+		Set<Class<?>> ret = new HashSet<Class<?>>();
+		ret.add(Boolean.class);
+		ret.add(Character.class);
+		ret.add(Byte.class);
+		ret.add(Short.class);
+		ret.add(Integer.class);
+		ret.add(Long.class);
+		ret.add(Float.class);
+		ret.add(Double.class);
+		ret.add(Void.class);
+		return ret;
+	}
 
 	// converts to org.json JSON via json-smart
 	public static JSONObject viaJSONSmart(net.minidev.json.JSONObject jsonS)
@@ -599,13 +606,13 @@ public class Util {
 		JSONObject json = new JSONObject();
 		for (String key : jsonS.keySet()) {
 			if (jsonS.get(key) != null) {
-//				Object val = jsonS.get(key);
-//				if(WRAPPER_TYPES.contains(val.getClass()))
-					json.put(key, jsonS.get(key));
-//				else
-//					json.put("command",
-//							viaJSONSmart((net.minidev.json.JSONObject) jsonS
-//									.get("command")));
+				// Object val = jsonS.get(key);
+				// if(WRAPPER_TYPES.contains(val.getClass()))
+				json.put(key, jsonS.get(key));
+				// else
+				// json.put("command",
+				// viaJSONSmart((net.minidev.json.JSONObject) jsonS
+				// .get("command")));
 			}
 		}
 		return json;
@@ -655,12 +662,42 @@ public class Util {
 
 	public static boolean recursiveRemove(File file) {
 		boolean deleted = true;
-		for (File f : file.listFiles())
-			if (f.isFile())
-				deleted = deleted && f.delete();
-			else
-				recursiveRemove(f);
+		if (file.isDirectory())
+			for (File f : file.listFiles())
+				if (f.isFile())
+					deleted = deleted && f.delete();
+				else
+					recursiveRemove(f);
 		return deleted && file.delete();
+	}
+
+	/**
+	 * 
+	 * @param dir
+	 * @param match
+	 * @return Files (recursively) within {@code dir} matching any of the match
+	 *         patterns in {@code match}.
+	 */
+	public static File[] getMatchingFiles(String dir, String... match) {
+		File dirFile = new File(dir);
+		Set<File> matchFiles = new HashSet<File>();
+		for (String m : match)
+			if (dirFile.getPath().toString().startsWith(m.replaceAll("/$", "")))
+				matchFiles.add(dirFile);
+		if (dirFile.isDirectory()) {
+			// check constituent files in directory
+			for (File f : dirFile.listFiles())
+				matchFiles.addAll(Arrays.asList(getMatchingFiles(f.getPath(),
+						match)));
+		}
+		return matchFiles.toArray(new File[0]);
+	}
+
+	public static boolean recursiveRemove(String dir, String... match) {
+		boolean deleted = true;
+		for (File f : getMatchingFiles(dir, match))
+			deleted = Util.recursiveRemove(f) && deleted;
+		return deleted;
 	}
 
 	public static ArrayList<String> recursiveFind(String dir, String regex) {
@@ -689,5 +726,49 @@ public class Util {
 		for (int i = 0; i < sockAddrs.length; i++)
 			IPs[i] = sockAddrs[i].getAddress();
 		return new HashSet<InetAddress>(Arrays.asList(IPs));
+	}
+
+	public static String readFileAsString(String filename) throws IOException {
+		return new String(Files.readAllBytes(Paths.get(filename)));
+	}
+
+	public static void writeProperty(String key, String value, String filename,
+			String prefix) throws IOException {
+		String props = readFileAsString(filename);
+		String modified = "";
+		String comment = "\n# automatically modified property\n";
+		// append if no prefix
+		if (prefix == null
+				|| prefix.equals("")
+				|| !Pattern
+						.compile(".*\n[\\s]*" + prefix + "[^\n]*=[^\n]*\n.*",
+								Pattern.DOTALL).matcher(props).matches())
+			modified = props + comment + key + "=" + value;
+		// replace if property exists
+		else if (Pattern
+				.compile(".*\n[\\s]*" + key + "[^\n]*=[^\n]*\n.*",
+						Pattern.DOTALL).matcher(props).matches()) {
+			if (value != null) // replace
+				modified = props
+						.replaceAll("\n[\\s]*" + key + "[^\n]*=[^\n]*\n",
+								comment + key + "=" + value + "\n");
+			else
+				// comment out
+				modified = props.replaceAll("\n[\\s]*" + key
+						+ "[^\n]*=[^\n]*\n", comment + "#" + key + "=" + value
+						+ "\n");
+		}
+		// add as new property after last prefix match
+		else {
+			String[] tokens = props.split("\n");
+			boolean oneTime = false;
+			for (int i = tokens.length - 1; i > 0; i--)
+				modified = tokens[i]
+						+ "\n"
+						+ (tokens[i].trim().startsWith(prefix)
+								&& (!oneTime && (oneTime = true)) ? comment
+								+ key + "=" + value + "\n" : "") + modified;
+		}
+		Files.write(Paths.get(filename), modified.getBytes());
 	}
 }

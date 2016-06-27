@@ -29,7 +29,7 @@ HEAD=`dirname $0`
 FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
 DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
 # developers can use quick build 
-DEV_MODE=0
+DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
 # Use binaries before jar if available. Convenient to use with
 # automatic building in IDEs.
@@ -48,7 +48,7 @@ CONF=conf
 # look for file in conf if it does not exist
 function set_default_conf {
   default=$1
-  if [[ ! -e $defaul && -e $CONF/$default ]]; then
+  if [[ ! -e $default && -e $CONF/$default ]]; then
     echo $CONF/$default
   else
     echo $default
@@ -423,23 +423,35 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
   read -p "Are you sure you want to wipe out all paxos state? " yn
     case $yn in
 
-        [Yy]* ) for i in $servers; do
-      get_address_port $i
-      if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]];
-      then
-        rm -rf ./paxos_logs ./reconfiguration_DB \
-          ./paxos_large_checkpoints;
-      else
-        # remote clear
-        echo "Clear remote server $server"
-        echo "$SSH $username@$address \"cd $APP_SIMPLE;\
-          rm -rf ./paxos_logs ./reconfiguration_DB \
-          ./paxos_large_checkpoints;\""
-        $SSH $username@$address "cd $APP_SIMPLE;\
-          rm -rf ./paxos_logs ./reconfiguration_DB \
-          ./paxos_large_checkpoints;\""
-      fi
-      done;;
+        [Yy]* ) 
+          stop_servers
+          for server in $servers; do
+            get_address_port $server
+            if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]];
+            then
+              print 3 "$JAVA $JVMARGS $SSL_OPTIONS \
+                edu.umass.cs.reconfiguration.ReconfigurableNode \
+                clear $server"
+              $JAVA $JVMARGS $SSL_OPTIONS \
+                edu.umass.cs.reconfiguration.ReconfigurableNode \
+                clear $server
+      
+            else
+              # remote clear
+              echo "Clearing state on remote server $server"
+              print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
+                $JAVA $JVMARGS $SSL_OPTIONS \
+                -DgigapaxosConfig=gigapaxos.properties \
+                edu.umass.cs.reconfiguration.ReconfigurableNode \
+                $APP_ARGS $server \""
+              $SSH $username@$address "cd $APP_SIMPLE; nohup \
+                $JAVA $JVMARGS $SSL_OPTIONS \
+                -DgigapaxosConfig=gigapaxos.properties \
+                edu.umass.cs.reconfiguration.ReconfigurableNode \
+                $APP_ARGS $server "&
+    
+              fi
+            done;;
 
         [Nn]* ) exit;;
         * ) echo "Please answer yes or no.";;
@@ -465,6 +477,8 @@ stop)
 ;;
 
 clear)
+  # stop before clearing
+  #stop_servers
   clear_all "$@"
 
 esac

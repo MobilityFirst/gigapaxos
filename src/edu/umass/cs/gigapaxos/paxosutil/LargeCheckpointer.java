@@ -108,7 +108,7 @@ public class LargeCheckpointer {
 	 */
 	public LargeCheckpointer(String dir, String myID) {
 		this.checkpointDir = (dir = (dir == null ? Config
-				.getGlobalString(PC.PAXOS_LOGS_DIR) : dir))
+				.getGlobalString(PC.GIGAPAXOS_DATA_DIR) + PC.PAXOS_LOGS_DIR.getDefaultValue() : dir))
 				+ (dir.endsWith("/") ? "" : "/");
 		this.myID = myID;
 		initCheckpointServer();
@@ -118,7 +118,7 @@ public class LargeCheckpointer {
 	 * @param myID
 	 */
 	public LargeCheckpointer(String myID) {
-		this(Config.getGlobalString(PC.PAXOS_LOGS_DIR), myID);
+		this(null, myID);
 	}
 
 	private static final String CHARSET = "ISO-8859-1";

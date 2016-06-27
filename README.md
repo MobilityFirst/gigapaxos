@@ -1,19 +1,16 @@
-# Getting started
-
-Prerequisites: `Java 1.8+`, `ant`, `bash` 
+# gigapaxos
 
 Obtaining gigapaxos
 -------------------
 
-Binary: 
-- Download the latest stable binary from `https://github.com/MobilityFirst/gigapaxos/releases`.
+Option 1: Binary:
+- Download the latest stable binary from <tt>http://date.cs.umass.edu/gigapaxos</tt>
 
-Source:
-```
-git clone https://github.com/MobilityFirst/gigapaxos
-cd gigapaxos
-ant jar
-```
+Option 2: Source:
+- Download gigapaxos from <tt>https://github.com/MobilityFirst/gigapaxos</tt> 
+- In the main directory called gigapaxos, type <tt>ant</tt>, which will create a jar file 
+  <tt>dist/gigapaxos-\<version\>.jar</tt>. Make sure that <tt>ant</tt>
+uses java1.8 or higher.
 
 GigaPaxos overview 
 ------------------ 

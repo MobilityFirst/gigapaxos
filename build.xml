@@ -235,7 +235,6 @@ command line with -Dclass="
       <jvmarg value="-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks"/>
       <jvmarg value="-Djavax.net.ssl.keyStorePassword=qwerty"/>
       <jvmarg value="-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks"/>
-      <jvmarg value="-DgigapaxosConfig=gigapaxos.properties"/>
       <classpath>
         <pathelement location="${build.test.classes.dir}"/>
       </classpath>

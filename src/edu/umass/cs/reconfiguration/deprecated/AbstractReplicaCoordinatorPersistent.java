@@ -50,7 +50,7 @@ public abstract class AbstractReplicaCoordinatorPersistent<NodeIDType> extends
 			Stringifiable<NodeIDType> unstringer) {
 		super(app, messenger);
 		this.paxosManager = new PaxosManager<NodeIDType>(messenger.getMyID(),
-				unstringer, messenger, this, null);
+				unstringer, messenger, this);
 	}
 
 	// there must be no API to set paxosManager
