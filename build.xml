@@ -99,6 +99,7 @@ destfile="${build.jar.dir}/nio-${nio.build.major.number}.${nio.build.minor.numbe
   
   <target name="clean" description="remove generated files">
     <delete dir="${build.dir}"/>
+    <delete dir="${build.jar.dir}"/>
     <delete dir="${dist.dir}"/>
   </target>
 

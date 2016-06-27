@@ -387,6 +387,8 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		V value = null;
 		if (entryAsMap != null && !entryAsMap.isEmpty()) {
 			Map.Entry<K, V> entry = entryAsMap.entrySet().iterator().next();
+			if (!this.isGCEnabled())
+				return entry.getValue();
 			value = entry.getValue();
 			entryAsMap.put(entry.getKey(), null);
 			try {

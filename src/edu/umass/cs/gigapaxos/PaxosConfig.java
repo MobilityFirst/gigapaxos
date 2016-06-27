@@ -38,6 +38,7 @@ import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DiskMap;
 import edu.umass.cs.utils.MultiArrayMap;
 import edu.umass.cs.utils.Util;
 
@@ -64,7 +65,6 @@ public class PaxosConfig {
 
 	static {
 		load();
-		// NIOTransport.setCompressionThreshold(Config.getGlobalInt(PC.COMPRESSION_THRESHOLD));
 	}
 
 	/**
@@ -585,10 +585,10 @@ public class PaxosConfig {
 		MULTITHREAD_LOGGER(false),
 
 		/**
-		 * False for testing only. We do need to index the journal files in the
-		 * DB. But this option for now emulates the (unimplemented) strategy of
-		 * maintaining a memory log and only infrequently inserting the index
-		 * entries into the DB.
+		 * True means that the journal entries will be indexed in the DB. False (default) 
+		 * means we maintain an in-memory index while infrequently pausing unused entries
+		 * to disk (using {@link DiskMap} while reconstructing unsaved entries upon 
+		 * recovery using the written-ahead journal log files.
 		 */
 		DB_INDEX_JOURNAL(false),
 
@@ -608,9 +608,9 @@ public class PaxosConfig {
 
 		/**
 		 * Whether the mapdb package should be used. It seems too slow for our
-		 * purposes, so we don
+		 * purposes, so we use our own custom write-ahead logger.
 		 */
-		USE_MAP_DB(false),
+		USE_MAP_DB(false, true),
 
 		/**
 		 * If true, the checkpoints table will be used to also store paused
