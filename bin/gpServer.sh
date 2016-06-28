@@ -88,9 +88,9 @@ trustStore=$(set_default_conf $DEFAULT_TRUSTSTORE)
 
 DEFAULT_SSL_OPTIONS="\
 -Djavax.net.ssl.keyStorePassword=$DEFAULT_KEYSTORE_PASSWORD \
--Djavax.net.ssl.keyStore=$keyStore \
+-Djavax.net.ssl.keyStore=$DEFAULT_KEYSTORE \
 -Djavax.net.ssl.trustStorePassword=$DEFAULT_TRUSTSTORE_PASSWORD \
--Djavax.net.ssl.trustStore=$trustStore"
+-Djavax.net.ssl.trustStore=$DEFAULT_TRUSTSTORE"
 
 
 # remove classpath from args
@@ -157,8 +157,16 @@ APP_SIMPLE=`echo $APP|sed s/".*\."//g`
 DEFAULT_JVMARGS="$ENABLE_ASSERTS -cp $CLASSPATH \
 -Djava.util.logging.config.file=$LOG_PROPERTIES \
 -Dlog4j.configuration=log4j.properties \
+$DEFAULT_SSL_OPTIONS \
 -DgigapaxosConfig=$GP_PROPERTIES"
 
+DEFAULT_REMOTE_JVMARGS="$ENABLE_ASSERTS \
+-Djava.util.logging.config.file=$DEFAULT_LOG_PROPERTIES \
+-Dlog4j.configuration=$DEFAULT_LOG4J_PROPERTIES \
+$DEFAULT_SSL_OPTIONS \
+-DgigapaxosConfig=$DEFAULT_GP_PROPERTIES"
+
+REMOTE_JVMARGS="$JVMARGS $DEFAULT_REMOTE_JVMARGS"
 JVMARGS="$DEFAULT_JVMARGS $JVMARGS"
 
 # set servers to start here
@@ -358,14 +366,14 @@ function start_server {
 
     # then start remote server
     print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
-      $JAVA $JVMARGS $SSL_OPTIONS \
-      -DgigapaxosConfig=gigapaxos.properties \
+      $JAVA $REMOTE_JVMARGS \
+      -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server \""
     
     $SSH $username@$address "cd $APP_SIMPLE; nohup \
-      $JAVA $JVMARGS $SSL_OPTIONS \
-      -DgigapaxosConfig=gigapaxos.properties \
+      $JAVA $REMOTE_JVMARGS \
+      -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server "&
   fi
@@ -440,15 +448,15 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
               # remote clear
               echo "Clearing state on remote server $server"
               print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
-                $JAVA $JVMARGS $SSL_OPTIONS \
-                -DgigapaxosConfig=gigapaxos.properties \
+                $JAVA $REMOTE_JVMARGS \
+                -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
-                $APP_ARGS $server \""
+                clear $server \""
               $SSH $username@$address "cd $APP_SIMPLE; nohup \
-                $JAVA $JVMARGS $SSL_OPTIONS \
-                -DgigapaxosConfig=gigapaxos.properties \
+                $JAVA $REMOTE_JVMARGS \
+                -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
-                $APP_ARGS $server "&
+                clear $server "&
     
               fi
             done;;
