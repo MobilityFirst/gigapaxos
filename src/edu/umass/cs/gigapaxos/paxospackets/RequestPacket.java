@@ -27,6 +27,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
+import edu.umass.cs.gigapaxos.paxosutil.PendingDigests;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.Byteable;
@@ -183,7 +184,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	// non-final fields below
 
 	// the client address in string form
-	private InetSocketAddress clientAddress = null;
+	private InetSocketAddress clientAddress = NULL_SOCKADDR;//null;
 
 	// the client address in string form
 	private InetSocketAddress listenAddress = null;
@@ -289,7 +290,19 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 	// the common-case constructor
 	public RequestPacket(long reqID, String value, boolean stop) {
-		this(reqID, value, stop, null);
+		this(reqID, value, stop, (RequestPacket)null);
+	}
+
+	public RequestPacket(long reqID, String value, boolean stop,
+			InetSocketAddress csa) {
+		this(reqID, value, stop, (RequestPacket) null);
+		this.clientAddress = csa!=null ? csa : NULL_SOCKADDR;
+	}
+	
+	public RequestPacket(String value, boolean stop,
+			InetSocketAddress csa) {
+		this(value, stop);
+		this.clientAddress = csa!=null ? csa : NULL_SOCKADDR;
 	}
 
 	// called by inheritors
@@ -314,7 +327,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 		// non-final fields
 		this.entryReplica = req.entryReplica;
-		this.clientAddress = req.clientAddress;
+		this.clientAddress = req.clientAddress!=null ? req.clientAddress : NULL_SOCKADDR;
 		this.listenAddress = req.listenAddress;
 		this.shouldReturnRequestValue = req.shouldReturnRequestValue;
 		this.responseValue = req.responseValue;
@@ -1440,6 +1453,38 @@ public class RequestPacket extends PaxosPacket implements Request,
 		this.byteifiedSelf = bytes;
 	}
 
+	/** We use this address instead of a null client socket address or listen address
+	 * so that a null address doesn't get overwritten by a bad legitimate address
+	 * when a request is forwarded across servers. Port 9 is a privileged port 
+	 * and is used for the Discard protocol.
+	 */
+	public static final InetSocketAddress NULL_SOCKADDR = new InetSocketAddress(
+			InetAddress.getLoopbackAddress(), 9);
+
+	// FIXME: request values match (needed?)
+	private static boolean enforceRequestValueMatch = false;
+	
+	@Override
+	public boolean equals(Object obj) {
+		RequestPacket req = null;
+		return req instanceof RequestPacket
+				&& ((req = (RequestPacket) obj) != null)
+				// request IDs match
+				&& this.requestID == req.requestID
+				
+				&& (!enforceRequestValueMatch || this.requestValue != null
+						&& this.requestValue.equals(req.requestValue)
+				// or digests match
+				|| (this.digestEquals(req, PendingDigests.getMessageDigest()))
+								
+						// paxosIDs match
+						&& this.getPaxosID().equals(req.getPaxosID()))
+						// client addresses match
+						&& this.clientAddress.equals(req.clientAddress)
+
+		;
+	}
+	
 	public static void doubleCheckFields() {
 		checkFields(RequestPacket.class, Fields.values());
 		checkMyFields();

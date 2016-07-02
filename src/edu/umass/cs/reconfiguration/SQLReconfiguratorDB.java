@@ -1749,11 +1749,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	private static String getMyDBName(Object myID) {
-		return DATABASE + myID;
+		return DATABASE + sanitizeID(myID);
 	}
 
 	private String getMyDBName() {
-		return getMyDBName(this.myID);
+		return getMyDBName(this.getMyIDSanitized());
 	}
 
 	private boolean connectDB() {
@@ -1762,7 +1762,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		long interAttemptDelay = 2000; // ms
 		Properties props = new Properties(); // connection properties
 		// providing a user name and PASSWORD is optional in embedded derby
-		props.put("user", SQL.getUser() + (isEmbeddedDB() ? this.myID : ""));
+		props.put("user", SQL.getUser() + (isEmbeddedDB() ? this.getMyIDSanitized() : ""));
 		props.put("password", SQL.getPassword());
 		String dbCreation = SQL.getProtocolOrURL(SQL_TYPE)
 				+ (isEmbeddedDB() ? this.logDirectory
@@ -1884,20 +1884,27 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		closed = c;
 	}
 
+	private static String sanitizeID(Object id) {
+		return id.toString().replace(".", "_");
+	}
+	private String getMyIDSanitized() {
+		return sanitizeID(this.myID);
+	}
+	
 	private String getRCRecordTable() {
-		return RECONFIGURATION_RECORD_TABLE + this.myID;
+		return RECONFIGURATION_RECORD_TABLE + this.getMyIDSanitized();
 	}
 
 	private String getPendingTable() {
-		return PENDING_TABLE + this.myID;
+		return PENDING_TABLE + this.getMyIDSanitized();
 	}
 
 	private String getDemandTable() {
-		return DEMAND_PROFILE_TABLE + this.myID;
+		return DEMAND_PROFILE_TABLE + this.getMyIDSanitized();
 	}
 
 	private String getNodeConfigTable() {
-		return NODE_CONFIG_TABLE + this.myID;
+		return NODE_CONFIG_TABLE + this.getMyIDSanitized();
 	}
 
 	private String[] getAllTableNames() {

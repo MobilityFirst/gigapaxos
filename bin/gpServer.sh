@@ -29,7 +29,7 @@ HEAD=`dirname $0`
 FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
 DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
 # developers can use quick build 
-DEV_MODE=0
+DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
 # Use binaries before jar if available. Convenient to use with
 # automatic building in IDEs.

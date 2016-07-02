@@ -1529,7 +1529,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							this.paxosManager
 									.getStringNodesFromIntArray(this.groupMembers),
 							inorderDecision.slot, this.paxosState.getBallot(),
-							this.getApp().checkpoint(pid), this.paxosState
+							this.paxosState
 									.getGCSlot());
 
 				/* If stop request, copy epoch final state and kill self. If
@@ -1539,7 +1539,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						&& this.paxosManager.getPaxosLogger()
 								.copyEpochFinalCheckpointState(getPaxosID(),
 										getVersion())
-						&& logStop(inorderDecision.getEntryTime()))
+						&& (logStop(inorderDecision.getEntryTime())))
 					// this.paxosManager.kill(this, true);
 					break;
 			}
@@ -1568,14 +1568,17 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * 
 	 * Invariant: A paxos instance can not checkpoint if a higher paxos instance
 	 * has been (or is being) created. */
-	private static void consistentCheckpoint(PaxosInstanceStateMachine pism,
+	private static String consistentCheckpoint(PaxosInstanceStateMachine pism,
 			boolean isStop, String paxosID, int version, Set<String> members,
-			int slot, Ballot ballot, String state, int gcSlot) {
+			int slot, Ballot ballot, int gcSlot) {
+		log.log(Level.FINE, "{0} checkpointing at slot {1}; isStop={2}",
+				new Object[] { pism, slot, isStop });
 		synchronized (pism.getPaxosManager()) {
-			if (pism.canCheckpoint())
-				AbstractPaxosLogger.checkpoint(pism.getPaxosManager()
+			return pism.canCheckpoint() ?
+				 AbstractPaxosLogger.checkpoint(pism.getPaxosManager()
 						.getPaxosLogger(), isStop, paxosID, version, members,
-						slot, ballot, state, gcSlot);
+						slot, ballot, pism.getApp().checkpoint(paxosID), gcSlot)
+						: null;
 		}
 	}
 
@@ -1717,7 +1720,6 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					this.getPaxosID(), this.version,
 					this.paxosManager.getStringNodesFromIntArray(groupMembers),
 					statePacket.slotNumber, statePacket.ballot,
-					statePacket.state,
 					// this.getApp().checkpoint(getPaxosID()),
 					this.paxosState.getGCSlot());
 			/* A transferred checkpoint is almost definitely not a final
@@ -1756,8 +1758,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							this.getVersion(),
 							this.paxosManager
 									.getStringNodesFromIntArray(this.groupMembers),
-							cpSlot, this.paxosState.getBallot(), this.getApp()
-									.checkpoint(pid), this.paxosState
+							cpSlot, this.paxosState.getBallot(), this.paxosState
 									.getGCSlot());
 					checkpointed = true;
 					log.log(Level.INFO,
@@ -1785,15 +1786,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	protected synchronized boolean forceCheckpoint() {
 		String pid = this.getPaxosID();
 		int cpSlot = this.paxosState.getSlot() - 1;
-		String state = null;
+		String state = 
 		consistentCheckpoint(
 				this,
 				true,
 				pid,
 				this.getVersion(),
 				this.paxosManager.getStringNodesFromIntArray(this.groupMembers),
-				cpSlot, this.paxosState.getBallot(), state = this.getApp()
-						.checkpoint(pid), this.paxosState.getGCSlot());
+				cpSlot, this.paxosState.getBallot(), this.paxosState.getGCSlot());
 		// need to acquire these without locking
 		int gcSlot = this.paxosState.getGCSlot();
 		int maxCommittedSlot = this.paxosState.getMaxCommittedSlot();

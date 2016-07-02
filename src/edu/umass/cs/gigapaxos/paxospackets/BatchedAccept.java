@@ -30,7 +30,7 @@ public class BatchedAccept extends PaxosPacket {
 
 	private final TreeMap<Integer, Long> slotRequestIDs = new TreeMap<Integer, Long>();
 
-	private final TreeMap<Integer, Integer> slotBatchSizes = new TreeMap<Integer, Integer>();
+//	private final TreeMap<Integer, Integer> slotBatchSizes = new TreeMap<Integer, Integer>();
 
 	private final Set<Integer> group;
 
@@ -46,7 +46,7 @@ public class BatchedAccept extends PaxosPacket {
 		this.ballot = accept.ballot;
 		this.slotDigests.put(accept.slot, (accept.getDigest(null)));
 		this.slotRequestIDs.put(accept.slot, accept.requestID);
-		this.slotBatchSizes.put(accept.slot, accept.batchSize());
+//		this.slotBatchSizes.put(accept.slot, accept.batchSize());
 		this.group = group;
 		this.medianCheckpointedSlot = accept.getMedianCheckpointedSlot();
 	}
@@ -88,10 +88,10 @@ public class BatchedAccept extends PaxosPacket {
 					.getJSONArray(i).getLong(1));
 		
 		// slotBatchSizes
-		jsonArray = json.getJSONArray(PaxosPacket.Keys.S_BS.toString());
-		for (int i = 0; i < jsonArray.length(); i++)
-			this.slotBatchSizes.put(jsonArray.getJSONArray(i).getInt(0), jsonArray
-					.getJSONArray(i).getInt(1));
+//		jsonArray = json.getJSONArray(PaxosPacket.Keys.S_BS.toString());
+//		for (int i = 0; i < jsonArray.length(); i++)
+//			this.slotBatchSizes.put(jsonArray.getJSONArray(i).getInt(0), jsonArray
+//					.getJSONArray(i).getInt(1));
 
 	}
 
@@ -126,15 +126,15 @@ public class BatchedAccept extends PaxosPacket {
 		}
 		json.put(PaxosPacket.Keys.S_QIDS.toString(), jsonArray);
 
-		// slotBatchSizes
-		jsonArray = new JSONArray();
-		for (Integer s : this.slotBatchSizes.keySet()) {
-			JSONArray jarray = new JSONArray();
-			jarray.put(s);
-			jarray.put(this.slotBatchSizes.get(s));
-			jsonArray.put(jarray);
-		}
-		json.put(PaxosPacket.Keys.S_BS.toString(), jsonArray);
+//		// slotBatchSizes
+//		jsonArray = new JSONArray();
+//		for (Integer s : this.slotBatchSizes.keySet()) {
+//			JSONArray jarray = new JSONArray();
+//			jarray.put(s);
+//			jarray.put(this.slotBatchSizes.get(s));
+//			jsonArray.put(jarray);
+//		}
+//		json.put(PaxosPacket.Keys.S_BS.toString(), jsonArray);
 
 		return json;
 	}
@@ -171,15 +171,15 @@ public class BatchedAccept extends PaxosPacket {
 		}
 		json.put(PaxosPacket.Keys.S_QIDS.toString(), jsonArray);
 
-		// slotBatchSizes
-		jsonArray = new net.minidev.json.JSONArray();
-		for (Integer s : this.slotBatchSizes.keySet()) {
-			net.minidev.json.JSONArray jarray = new net.minidev.json.JSONArray();
-			jarray.add(s);
-			jarray.add(this.slotBatchSizes.get(s));
-			jsonArray.add(jarray);
-		}
-		json.put(PaxosPacket.Keys.S_BS.toString(), jsonArray);
+//		// slotBatchSizes
+//		jsonArray = new net.minidev.json.JSONArray();
+//		for (Integer s : this.slotBatchSizes.keySet()) {
+//			net.minidev.json.JSONArray jarray = new net.minidev.json.JSONArray();
+//			jarray.add(s);
+//			jarray.add(this.slotBatchSizes.get(s));
+//			jsonArray.add(jarray);
+//		}
+//		json.put(PaxosPacket.Keys.S_BS.toString(), jsonArray);
 
 		return json;
 	}
@@ -204,7 +204,7 @@ public class BatchedAccept extends PaxosPacket {
 			this.medianCheckpointedSlot = bAccept.getMedianCheckpointedSlot();
 		this.slotDigests.putAll(bAccept.slotDigests);
 		this.slotRequestIDs.putAll(bAccept.slotRequestIDs);
-		this.slotBatchSizes.putAll(bAccept.slotBatchSizes);
+//		this.slotBatchSizes.putAll(bAccept.slotBatchSizes);
 		return true;
 	}
 
@@ -234,7 +234,7 @@ public class BatchedAccept extends PaxosPacket {
 			this.medianCheckpointedSlot = accept.getMedianCheckpointedSlot();
 		this.slotDigests.put(accept.slot, accept.getDigest(null));
 		this.slotRequestIDs.put(accept.slot, accept.requestID);
-		this.slotBatchSizes.put(accept.slot, accept.batchSize());
+//		this.slotBatchSizes.put(accept.slot, accept.batchSize());
 	}
 	
 	protected String getSummaryString() {
@@ -270,12 +270,12 @@ public class BatchedAccept extends PaxosPacket {
 		return this.slotDigests.size();
 	}
 
-	/**
-	 * @param slot
-	 * @return Batch size for slot
-	 */
-	public int batchSize(int slot) {
-		return this.slotBatchSizes.containsKey(slot) ? this.slotBatchSizes
-				.get(slot) : 0;
-	}
+//	/**
+//	 * @param slot
+//	 * @return Batch size for slot
+//	 */
+//	public int batchSize(int slot) {
+//		return this.slotBatchSizes.containsKey(slot) ? this.slotBatchSizes
+//				.get(slot) : 0;
+//	}
 }

@@ -193,11 +193,11 @@ public abstract class AbstractPaxosLogger {
 
 	/*
 	 */
-	protected static final void checkpoint(AbstractPaxosLogger logger,
+	protected static final String checkpoint(AbstractPaxosLogger logger,
 			boolean sync, String paxosID, int version, Set<String> members,
 			int slot, Ballot ballot, String state, int gcSlot) {
 		if (logger.isAboutToClose())
-			return;
+			return null;
 
 		if (BATCH_CHECKPOINTS && !sync) {
 			// enqueueAndWait is just inelegant when we can sync checkpoint
@@ -214,6 +214,7 @@ public abstract class AbstractPaxosLogger {
 		} else
 			logger.putCheckpointState(paxosID, version, members, slot, ballot,
 					state, gcSlot);
+		return state;
 	}
 
 	/* Will replay logged messages from checkpoint onwards. Static because

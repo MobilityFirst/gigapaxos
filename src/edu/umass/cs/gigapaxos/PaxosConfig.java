@@ -876,6 +876,15 @@ public class PaxosConfig {
 		 * Testing option. Implies no coordinator fault-tolerance.
 		 */
 		DISABLE_GET_LOGGED_MESSAGES(false, true),
+		
+		/**
+		 * If true, identical requests, i.e., requests with the same requestID, 
+		 * paxosID, and sending client's socket address, will get a recently
+		 * cached response if any instead of re-coordinating the request. This
+		 * is useful to reduce the likelihood of double-execution, but does not
+		 * eliminate it completely.
+		 */
+		ENABLE_RESPONSE_CACHING(true),
 
 		/*********** End of unsafe testing options *****************/
 

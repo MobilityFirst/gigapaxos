@@ -29,7 +29,16 @@ public class PendingDigests {
 	final Map<Long, RequestAndCallback> requests;
 	final PendingDigestCallback callback;
 
-	private final MessageDigest[] mds;
+	private static final MessageDigest[] mds = new MessageDigest[Config.getGlobalInt(PC.NUM_MESSAGE_DIGESTS)];
+    static {
+        for (int i = 0; i < mds.length; i++)
+            try {
+                mds[i] = MessageDigest.getInstance("MD5");
+            } catch (NoSuchAlgorithmException e) {
+                Util.suicide("Unable to initialize MessageDigest; exiting");
+            }
+    }
+
 
 	private static final long ACCEPT_TIMEOUT = Config.getGlobalLong(PC.ACCEPT_TIMEOUT);
 	
@@ -49,7 +58,7 @@ public class PendingDigests {
 	 */
 	public PendingDigests(Map<Long, RequestAndCallback> rcs, int numMDs, PendingDigestCallback callback) {
 		this.requests = rcs;
-		this.mds = new MessageDigest[numMDs];
+		//this.mds = new MessageDigest[numMDs];
 		this.callback = callback;
 		this.accepts = (ACCEPT_TIMEOUT == Integer.MAX_VALUE ? new ConcurrentHashMap<Long, AcceptPacket>()
 				: new GCConcurrentHashMap<Long, AcceptPacket>(
@@ -63,7 +72,7 @@ public class PendingDigests {
 						}, ACCEPT_TIMEOUT));
 		try {
 			for (int i = 0; i < mds.length; i++)
-				this.mds[i] = MessageDigest.getInstance("MD5");
+				mds[i] = MessageDigest.getInstance("MD5");
 		} catch (NoSuchAlgorithmException e) {
 			Util.suicide("Unable to initialize MessageDigest; exiting");
 		}
@@ -83,7 +92,7 @@ public class PendingDigests {
 
 		if (rc != null && rc.request.getPaxosID().equals(accept.getPaxosID())) {
 			if (rc.request.digestEquals(accept,
-					this.mds[(int) (Math.random() * this.mds.length)])) {
+					mds[(int) (Math.random() * mds.length)])) {
 				accept = accept.undigest(rc.request);
 				assert (accept.hasRequestValue());
 				return accept;
@@ -109,7 +118,7 @@ public class PendingDigests {
 
 		if (accept != null && accept.getPaxosID().equals(request.getPaxosID())) {
 			if (request.digestEquals(accept,
-					this.mds[(int) (Math.random() * this.mds.length)])) {
+					mds[(int) (Math.random() * mds.length)])) {
 				accept = accept.undigest(request);
 				if(remove)
 				synchronized(this.requests) {
@@ -138,8 +147,8 @@ public class PendingDigests {
 	/**
 	 * @return MessageDigest.
 	 */
-	public MessageDigest getMessageDigest() {
-		return this.mds[(int) (Math.random() * this.mds.length)];
+	public static MessageDigest getMessageDigest() {
+		return mds[(int) (Math.random() * mds.length)];
 	}
 
 	private String truncatedSummary(int size) {

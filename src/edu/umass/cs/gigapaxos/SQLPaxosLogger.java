@@ -2278,7 +2278,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						paused.addAll(batch);
 
 						log.log(Level.FINE,
-								"{0} paused batch {1}",
+								"{0} paused logIndex batch {1}",
 								new Object[] { this,
 										Util.truncatedLog(batch, 16) });
 						batch.clear();
@@ -4295,16 +4295,20 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		if (!f.exists())
 			f.mkdirs();
 	}
+	// having "." in db or table name is bad
+	private static String sanitizeID(Object id) {
+		return id.toString().replace(".", "_");
+	}
 
 	// having "." in db or table name is bad
 	private String getMyIDSanitized() {
-		return this.strID.replace(".", "_");
+		return sanitizeID(this.strID);
 	}
 
 	/* With mysql, there is a single DB for the tables of all nodes. The table
 	 * names already have the ID embedded in them to avoid conflicts. */
 	private static String getMyDBName(String strID) {
-		return isEmbeddedDB() ? DATABASE + strID/* this.myID */
+		return isEmbeddedDB() ? DATABASE + sanitizeID(strID)/* this.myID */
 		: DATABASE;
 	}
 
@@ -4694,6 +4698,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		String cmd = "delete from " + getPCTable()
 				+ " where paxos_id=? and (version=" + version + " or "
 				+ getIntegerLTConstraint("version", version) + ")";
+		Integer ghostVersion = null;
 		try {
 			conn = this.getDefaultConn();
 			pstmt = conn.prepareStatement(cmd);
@@ -4705,6 +4710,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				log.log(Level.INFO,
 						"{0} dropped epoch final state for {1}:{2}",
 						new Object[] { this, paxosID, version });
+			else
+				log.log(Level.INFO,
+					"{0} did not drop epoch final state for {1}:{2}",
+					new Object[] { this, paxosID, version });
 			{
 				/* Invariant: If delete epoch final state succeeded, then there
 				 * must either be no final epoch state immediately after or the
@@ -4722,7 +4731,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				 * synchronizedNoop on the paxos instance to allow concurrent
 				 * epoch final state creation to finish so that this method can
 				 * then delete that state. */
-				Integer ghostVersion = null;
 				assert (!deleted || ((ghostVersion = this
 						.getEpochFinalCheckpointVersion(paxosID)) == null || ghostVersion
 						- version > 0)) : ("Found ghost version "
@@ -4739,7 +4747,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			cleanup(conn);
 		}
 		;
-		return deleted;
+		// always true
+		return deleted || ghostVersion==null || ghostVersion - version > 0;
 	}
 
 	/**

@@ -386,7 +386,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				}
 
 				// send to app via its coordinator
-				boolean handled = this.handRequestToApp(request);
+				boolean handled = this.handRequestToApp(makeClientRequest(request,header.sndr));
 
 				InetSocketAddress sender = header.sndr, receiver = header.rcvr;
 				if (handled) {
@@ -739,8 +739,82 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						this.appCoordinator.getEpoch(stopEpoch.getServiceName()),
 						this.appCoordinator.getReplicaGroup(stopEpoch
 								.getServiceName()) });
-		this.appCoordinator.handleIncoming(appStop, this);
+		this.appCoordinator.handleIncoming(
+				makeClientRequest(appStop, this.nodeConfig
+						.getNodeSocketAddress(stopEpoch.getInitiator())), this);
 		return null; // need to wait until callback
+	}
+
+	/**
+	 * This interface and the
+	 * {@link ActiveReplica#makeClientRequest(Request, InetSocketAddress)}
+	 * method exist below so that we can supply the correct client address via
+	 * the {@link ClientRequest#getClientAddress()} method so that it can be
+	 * used by replica coordinators like paxos to returned cached responses for
+	 * retransmitted requests. Two requests are considered identical if they
+	 * have the same name, request ID, and client address.
+	 */
+	static interface RepliconfigurableClientRequest extends ReplicableRequest,
+			ClientRequest, ReconfigurableRequest {
+	};
+	
+	private static Request makeClientRequest(Request request,
+			InetSocketAddress csa) {
+		if (!(request instanceof ClientRequest)
+				|| !(request instanceof ReplicableRequest && ((ReplicableRequest) request)
+						.needsCoordination())
+				|| request instanceof ReconfigurationPacket)
+			return request;
+		return new RepliconfigurableClientRequest() {
+
+			@Override
+			public IntegerPacketType getRequestType() {
+				return request.getRequestType();
+			}
+
+			@Override
+			public String getServiceName() {
+				return request.getServiceName();
+			}
+
+			@Override
+			public long getRequestID() {
+				return request instanceof RequestIdentifier ? ((RequestIdentifier)request).getRequestID() 
+						: (long)(Math.random()*Long.MAX_VALUE);
+			}
+
+			@Override
+			public ClientRequest getResponse() {
+				return request instanceof ClientRequest ? ((ClientRequest) request)
+						.getResponse() : null;
+			}
+
+			@Override
+			public InetSocketAddress getClientAddress() {
+				return csa;
+			}
+			
+			@Override
+			public String toString() {
+				return request.toString();
+			}
+
+			@Override
+			public boolean needsCoordination() {
+				return ((ReplicableRequest) request).needsCoordination();
+			}
+
+			@Override
+			public int getEpochNumber() {
+				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest)request).getEpochNumber() : 
+					0;
+			}
+
+			@Override
+			public boolean isStop() {
+				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest)request).isStop() : false ;
+			}
+		};
 	}
 
 	/**

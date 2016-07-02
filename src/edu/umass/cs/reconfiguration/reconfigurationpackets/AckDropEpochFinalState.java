@@ -53,4 +53,9 @@ public class AckDropEpochFinalState<NodeIDType> extends BasicReconfigurationPack
 	public IntegerPacketType getRequestType() {
 		return this.getType();
 	}
+	
+	@Override
+	public String getSummary() {
+		return super.getSummary() + ":" + this.getSender();
+	}
 }

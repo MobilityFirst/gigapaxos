@@ -17,6 +17,7 @@ package edu.umass.cs.gigapaxos;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
+import edu.umass.cs.gigapaxos.interfaces.ClientRequestCallback;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -164,15 +165,47 @@ public class PaxosManager<NodeIDType> {
 					}
 				}, REQUEST_TIMEOUT)
 				: new ConcurrentHashMap<Long, RequestAndCallback>();
+		HashMap<RequestPacket, RequestAndCallback> conflictIDRequests = new HashMap<RequestPacket, RequestAndCallback>();
+		ConcurrentHashMap<RequestPacket, RequestResponseAndCallback> responses = USE_GC_MAP ? new GCConcurrentHashMap<RequestPacket, RequestResponseAndCallback>(
+				new GCConcurrentHashMapCallback() {
+					@Override
+					public void callbackGC(Object key, Object value) {
+					}
+				}, REQUEST_TIMEOUT)
+				: new ConcurrentHashMap<RequestPacket, RequestResponseAndCallback>();
 
 		private void enqueue(RequestAndCallback rc) {
 			assert (rc.request.getType() != PaxosPacketType.ACCEPT || rc.request
 					.hasRequestValue());
+			RequestAndCallback prev = null;
 			synchronized (this.requests) {
-				if (this.requests.putIfAbsent(rc.request.requestID, rc) == null)
+				if ((prev = this.requests.putIfAbsent(rc.request.requestID, rc)) == null)
 					totalRequestSize += rc.request.lengthEstimate();
+				else if (!rc.request.equals(prev.request)) {
+					// just skip accept packets
+					if (!(rc.request instanceof AcceptPacket))
+						// insert in overflow
+						this.conflictIDRequests.put(rc.request, rc);
+				}
 			}
 			this.lastIncremented = System.currentTimeMillis();
+		}
+
+		// called by executed callback
+		private RequestAndCallback dequeue(RequestPacket request) {
+			RequestAndCallback queued = this.requests.get(request.requestID);
+			if (queued != null && queued.request.equals(request))
+				return this.requests.remove(request.requestID);
+			else
+				return this.conflictIDRequests.remove(request);
+		}
+
+		private long generateUnusedID() {
+			Long requestID = null;
+			do {
+				requestID = (long) (Math.random() * Long.MAX_VALUE);
+			} while (this.requests.containsKey(requestID));
+			return requestID;
 		}
 	}
 
@@ -195,51 +228,75 @@ public class PaxosManager<NodeIDType> {
 	/**
 	 *
 	 */
-	public static class RequestAndCallback {
+	 public static class RequestAndCallback {
 		/**
 		 * 
 		 */
-		public final RequestPacket request;
+		 public final RequestPacket request;
 		/**
 		 * 
 		 */
-		public final ExecutedCallback callback;
+		 final ExecutedCallback callback;
 
 		RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
 			this.request = request;
 			this.callback = callback;
 		}
 	}
-	
-	private static final boolean NO_RESPONSE = Config.getGlobalBoolean(PC.NO_RESPONSE);
+
+	static class RequestResponseAndCallback extends RequestAndCallback {
+		final Request response;
+
+		RequestResponseAndCallback(RequestPacket request, Request response,
+				ExecutedCallback callback) {
+			super(request, callback);
+			this.response = response;
+		}
+
+	}
+
+	private static final boolean NO_RESPONSE = Config
+			.getGlobalBoolean(PC.NO_RESPONSE);
 
 	// default callback tries to send back response
-	private void defaultCallback(RequestPacket requestPacket, Request request) {
-		if (request == null || !(request instanceof ClientRequest))
+	private void defaultCallback(Request response, InetSocketAddress clientAddress, InetSocketAddress listenAddress) {
+		if (response == null || !(response instanceof ClientRequest))
 			return;
-		ClientRequest clientRequest = ((ClientRequest) request);
-		ClientRequest response = clientRequest.getResponse();
 		// waiting for others to remove this method
-		@SuppressWarnings("deprecation")
-		InetSocketAddress clientAddress = clientRequest.getClientAddress();
-		if (clientAddress != null && response != null && !NO_RESPONSE) {
+		if (clientAddress != null && response != null && !NO_RESPONSE
+				&& !clientAddress.equals(RequestPacket.NULL_SOCKADDR)) {
 			try {
 				this.send(clientAddress, response,
-						requestPacket.getListenAddress());
+						listenAddress);
 			} catch (JSONException | IOException e) {
 				e.printStackTrace();
 			}
 		}
 	}
 
+	// default callback tries to send back response
+	@SuppressWarnings("deprecation")
+	private void defaultCallback(RequestPacket requestPacket, Request request) {
+		if (request == null || !(request instanceof ClientRequest))
+			return;
+		this.defaultCallback(((ClientRequest) request).getResponse(),
+				((ClientRequest) request).getClientAddress(),
+				requestPacket.getListenAddress());
+	}
+
 	// called by PaxosInstanceStateMachine as execute callback
 	protected boolean executed(RequestPacket requestPacket, Request request,
 			boolean sendResponse) {
-		RequestAndCallback rc = this.outstanding.requests
-				.remove(requestPacket.requestID);
+		RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 		if (rc != null)
 			this.outstanding.totalRequestSize -= rc.request.lengthEstimate();
 		RequestInstrumenter.remove(requestPacket.requestID);
+		// cache response
+		if(ENABLE_RESPONSE_CACHING && request instanceof ClientRequest)
+			this.outstanding.responses.put(requestPacket,
+					new RequestResponseAndCallback(requestPacket,
+							((ClientRequest) request).getResponse(),
+							rc != null ? rc.callback : null));
 		// only called if executed
 		if (rc != null && rc.callback != null)
 			rc.callback.executed(request, true);
@@ -247,6 +304,24 @@ public class PaxosManager<NodeIDType> {
 			this.defaultCallback(requestPacket, request);
 		assert (requestPacket.batchSize() == 0);
 		return rc != null;
+	}
+
+	protected boolean retransmittedRequest(RequestPacket requestPacket) {
+		RequestResponseAndCallback rrc = null;
+		if (ENABLE_RESPONSE_CACHING
+				&& (rrc = this.outstanding.responses.get((requestPacket))) != null) {
+			RequestInstrumenter.remove(requestPacket.requestID);
+			RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
+			if (rc.callback != null)
+				rc.callback.executed(rrc.response, false);
+			else if (rrc.callback != null)
+				rrc.callback.executed(rrc.response, false);
+			else
+				this.defaultCallback(rrc.response,
+						requestPacket.getClientAddress(), requestPacket.getListenAddress());
+			assert (requestPacket.batchSize() == 0);
+		}
+		return rrc != null;
 	}
 
 	// non-final
@@ -938,11 +1013,15 @@ public class PaxosManager<NodeIDType> {
 	private static final boolean BATCHING_ENABLED = Config
 			.getGlobalBoolean(PC.BATCHING_ENABLED);
 
-	private void handleIncomingPacket(PaxosPacket pp) {
-		// if (pp.getType() == PaxosPacket.PaxosPacketType.REQUEST)
-		// ((RequestPacket) pp).setEntryReplicaAndReturnCount(myID);
+	private static final boolean ENABLE_RESPONSE_CACHING = Config
+			.getGlobalBoolean(PC.ENABLE_RESPONSE_CACHING);
 
-		if (pp.getType() == PaxosPacketType.BATCHED_PAXOS_PACKET)
+	private void handleIncomingPacket(PaxosPacket pp) {
+
+		if (ENABLE_RESPONSE_CACHING && pp.getType() == PaxosPacketType.REQUEST
+				&& this.retransmittedRequest(((RequestPacket) pp)))
+			return;
+		else if (pp.getType() == PaxosPacketType.BATCHED_PAXOS_PACKET)
 			for (PaxosPacket packet : ((BatchedPaxosPacket) pp)
 					.getPaxosPackets())
 				this.handleIncomingPacket(packet);
@@ -1043,7 +1122,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	private String propose(String paxosID, RequestPacket requestPacket,
-			ExecutedCallback callback) throws JSONException {
+			ExecutedCallback callback) {
 		if (this.isClosed())
 			return null;
 		boolean matched = false;
@@ -1090,16 +1169,10 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public String propose(String paxosID, String requestPacket,
 			ExecutedCallback callback) {
-		RequestPacket request = (new RequestPacket(requestPacket, false))
-				.setReturnRequestValue();
-		String retval = null;
-		try {
-			retval = propose(paxosID, request, callback);
-		} catch (JSONException je) {
-			log.severe("Could not parse proposed request string as paxospackets.RequestPacket");
-			je.printStackTrace();
-		}
-		return retval;
+		return propose(paxosID,
+				(new RequestPacket(this.outstanding.generateUnusedID(),
+						requestPacket, false)).setReturnRequestValue(),
+				callback);
 	}
 
 	/**
@@ -1113,14 +1186,7 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public String propose(String paxosID, Request request,
 			ExecutedCallback callback) {
-		if (request instanceof RequestPacket)
-			try {
-				return this.propose(paxosID, (RequestPacket) request, callback);
-			} catch (JSONException e) {
-				log.severe(this + " unable to parse request " + request);
-				e.printStackTrace();
-			}
-		return this.propose(paxosID, request.toString(), callback);
+		return this.propose(paxosID, this.getRequestPacket(request), callback);
 	}
 
 	/**
@@ -1131,14 +1197,38 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public String proposeStop(String paxosID, Request request,
 			ExecutedCallback callback) {
-		if (request instanceof RequestPacket)
-			try {
-				return this.propose(paxosID, (RequestPacket) request, callback);
-			} catch (JSONException e) {
-				log.warning(this + " unable to parse " + request);
-				e.printStackTrace();
-			}
-		return this.proposeStop(paxosID, request.toString(), callback);
+		// if (request instanceof RequestPacket)
+		// return this.propose(paxosID, (RequestPacket) request, callback);
+		return this.propose(paxosID, this.getRequestPacket(request, true),
+				callback);
+	}
+
+	@SuppressWarnings("deprecation")
+	private RequestPacket getRequestPacket(Request request, boolean stop) {
+		return request instanceof RequestPacket ?
+		// return as-is
+		(stop == ((RequestPacket) request).isStopRequest()) ? (RequestPacket) request
+				:
+				// fix stop
+				new RequestPacket(((RequestPacket) request).requestID,
+						((RequestPacket) request).requestValue, stop,
+						(RequestPacket) request)
+				:
+				// copy over ClientRequest info
+				request instanceof ClientRequest ? 
+						(new RequestPacket(
+						((ClientRequest) request).getRequestID(),
+						((ClientRequest) request).toString(), stop,
+						((ClientRequest) request).getClientAddress()))
+						.setReturnRequestValue() :
+				// default
+						new RequestPacket(this.outstanding.generateUnusedID(),
+								request.toString(), stop)
+								.setReturnRequestValue();
+	}
+
+	private RequestPacket getRequestPacket(Request request) {
+		return this.getRequestPacket(request, false);
 	}
 
 	/**
@@ -1153,15 +1243,9 @@ public class PaxosManager<NodeIDType> {
 			ExecutedCallback callback) {
 		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
 		if (pism != null && pism.getVersion() == version) {
-			RequestPacket requestPacket = request instanceof RequestPacket ? (RequestPacket) request
-					: (new RequestPacket(request.toString(), true))
-							.setReturnRequestValue();
-			requestPacket.putPaxosID(paxosID, version);
-			try {
-				return this.propose(paxosID, requestPacket, callback);
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
+			return this.propose(paxosID, (RequestPacket) (this
+					.getRequestPacket(request, true).putPaxosID(paxosID,
+					version)), callback);
 		} else
 			log.log(Level.INFO,
 					"{0} failed to propose stop request for {1}:{2}; {3}",
@@ -1191,14 +1275,10 @@ public class PaxosManager<NodeIDType> {
 			ExecutedCallback callback) {
 		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
 		if (pism != null && pism.getVersion() == version) {
-			RequestPacket request = (new RequestPacket(value, true))
-					.setReturnRequestValue();
-			request.putPaxosID(paxosID, version);
-			try {
-				return this.propose(paxosID, request, callback);
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
+			return this.propose(paxosID, (RequestPacket) ((new RequestPacket(
+					this.outstanding.generateUnusedID(), value, true))
+					.setReturnRequestValue().putPaxosID(paxosID, version)),
+					callback);
 		} else
 			log.log(Level.INFO,
 					"{0} failed to propose stop request for {1}:{2}; {3}",
@@ -1285,7 +1365,8 @@ public class PaxosManager<NodeIDType> {
 			this.kill(pism);
 		// needed for concurrent epoch final state creation to finish
 		this.synchronizedNoop(paxosID, version);
-		assert(pism==null || pism.getVersion()!=version|| pism.isStopped());
+		assert (pism == null || pism.getVersion() != version || pism
+				.isStopped());
 		return this.paxosLogger.deleteEpochFinalCheckpointState(paxosID,
 				version);
 	}
@@ -2509,7 +2590,7 @@ public class PaxosManager<NodeIDType> {
 			}
 		} else
 			log.log(Level.FINE,
-					"{0} can't find group member in {1}:{2}: {3}",
+					"{0} cant find group member in {1}:{2}: {3}",
 					new Object[] { this, pp.getPaxosID(), pp.getVersion(),
 							pp.getSummary() });
 	}
@@ -2704,7 +2785,7 @@ public class PaxosManager<NodeIDType> {
 		// can not call synchronized methods inside log statements
 		long totalCreated = this.getNumCreated();
 		long totalCurrent = this.getNumInstancesAndResetChanged();
-		
+
 		log.log(paused.size() > 0 || this.totalInstancesChanged ? Level.INFO
 				: Level.FINE,
 				"{0} deactivated {1} idle instances {2}; has {3} active instances{4}; avg_pause_delay = {5};"
@@ -2718,8 +2799,7 @@ public class PaxosManager<NodeIDType> {
 								.asList(this.pinstances.keySet().toArray())
 								: "", Util.nmu(DelayProfiler.get("pause")),
 						Util.ms(DelayProfiler.get("deactivation")),
-						totalCreated,
-						totalCurrent});
+						totalCreated, totalCurrent });
 	}
 
 	private static final int PRINT_LOG_SIZE = 16;
@@ -3197,7 +3277,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	protected MessageDigest getMessageDigest() {
-		return this.pendingDigests.getMessageDigest();
+		return PendingDigests.getMessageDigest();
 	}
 
 	private static final int DIGEST_THRESHOLD = Config
