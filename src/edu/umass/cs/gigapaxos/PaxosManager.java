@@ -17,7 +17,6 @@ package edu.umass.cs.gigapaxos;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
-import edu.umass.cs.gigapaxos.interfaces.ClientRequestCallback;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -161,7 +160,7 @@ public class PaxosManager<NodeIDType> {
 				new GCConcurrentHashMapCallback() {
 					@Override
 					public void callbackGC(Object key, Object value) {
-						PaxosManager.this.callbackRequestTimeout(((RequestAndCallback) value).request);
+						PaxosManager.this.callbackRequestTimeout(((RequestAndCallback) value).requestPacket);
 					}
 				}, REQUEST_TIMEOUT)
 				: new ConcurrentHashMap<Long, RequestAndCallback>();
@@ -175,17 +174,17 @@ public class PaxosManager<NodeIDType> {
 				: new ConcurrentHashMap<RequestPacket, RequestResponseAndCallback>();
 
 		private void enqueue(RequestAndCallback rc) {
-			assert (rc.request.getType() != PaxosPacketType.ACCEPT || rc.request
+			assert (rc.requestPacket.getType() != PaxosPacketType.ACCEPT || rc.requestPacket
 					.hasRequestValue());
 			RequestAndCallback prev = null;
 			synchronized (this.requests) {
-				if ((prev = this.requests.putIfAbsent(rc.request.requestID, rc)) == null)
-					totalRequestSize += rc.request.lengthEstimate();
-				else if (!rc.request.equals(prev.request)) {
+				if ((prev = this.requests.putIfAbsent(rc.requestPacket.requestID, rc)) == null)
+					totalRequestSize += rc.requestPacket.lengthEstimate();
+				else if (!rc.requestPacket.equals(prev.requestPacket)) {
 					// just skip accept packets
-					if (!(rc.request instanceof AcceptPacket))
+					if (!(rc.requestPacket instanceof AcceptPacket))
 						// insert in overflow
-						this.conflictIDRequests.put(rc.request, rc);
+						this.conflictIDRequests.put(rc.requestPacket, rc);
 				}
 			}
 			this.lastIncremented = System.currentTimeMillis();
@@ -194,7 +193,7 @@ public class PaxosManager<NodeIDType> {
 		// called by executed callback
 		private RequestAndCallback dequeue(RequestPacket request) {
 			RequestAndCallback queued = this.requests.get(request.requestID);
-			if (queued != null && queued.request.equals(request))
+			if (queued != null && queued.requestPacket.equals(request))
 				return this.requests.remove(request.requestID);
 			else
 				return this.conflictIDRequests.remove(request);
@@ -232,25 +231,26 @@ public class PaxosManager<NodeIDType> {
 		/**
 		 * 
 		 */
-		 public final RequestPacket request;
+		 public final RequestPacket requestPacket;
 		/**
 		 * 
 		 */
 		 final ExecutedCallback callback;
 
 		RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
-			this.request = request;
+			this.requestPacket = request;
 			this.callback = callback;
 		}
 	}
 
 	static class RequestResponseAndCallback extends RequestAndCallback {
-		final Request response;
+		/* this is actually the request whose getResponse contains the response. */
+		final Request clientRequest;
 
 		RequestResponseAndCallback(RequestPacket request, Request response,
 				ExecutedCallback callback) {
 			super(request, callback);
-			this.response = response;
+			this.clientRequest = response;
 		}
 
 	}
@@ -289,13 +289,13 @@ public class PaxosManager<NodeIDType> {
 			boolean sendResponse) {
 		RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 		if (rc != null)
-			this.outstanding.totalRequestSize -= rc.request.lengthEstimate();
+			this.outstanding.totalRequestSize -= rc.requestPacket.lengthEstimate();
 		RequestInstrumenter.remove(requestPacket.requestID);
 		// cache response
 		if(ENABLE_RESPONSE_CACHING && request instanceof ClientRequest)
 			this.outstanding.responses.put(requestPacket,
 					new RequestResponseAndCallback(requestPacket,
-							((ClientRequest) request).getResponse(),
+							((ClientRequest) request),
 							rc != null ? rc.callback : null));
 		// only called if executed
 		if (rc != null && rc.callback != null)
@@ -313,11 +313,11 @@ public class PaxosManager<NodeIDType> {
 			RequestInstrumenter.remove(requestPacket.requestID);
 			RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 			if (rc.callback != null)
-				rc.callback.executed(rrc.response, false);
+				rc.callback.executed(rrc.clientRequest, false);
 			else if (rrc.callback != null)
-				rrc.callback.executed(rrc.response, false);
+				rrc.callback.executed(rrc.clientRequest, false);
 			else
-				this.defaultCallback(rrc.response,
+				this.defaultCallback(rrc.clientRequest,
 						requestPacket.getClientAddress(), requestPacket.getListenAddress());
 			assert (requestPacket.batchSize() == 0);
 		}
@@ -438,9 +438,9 @@ public class PaxosManager<NodeIDType> {
 								HashMap<Long, String> instances = new HashMap<Long, String>();
 								for (RequestAndCallback rc : PaxosManager.this.outstanding.requests
 										.values())
-									instances.put(rc.request.requestID,
-											rc.request.getPaxosID() + ":"
-													+ rc.request.getSummary());
+									instances.put(rc.requestPacket.requestID,
+											rc.requestPacket.getPaxosID() + ":"
+													+ rc.requestPacket.getSummary());
 								log.log(Level.INFO,
 										"{0} |outstanding|={1}; {2}; |unpaused|={3}; \n|pending|={4}; {5}",
 										new Object[] {

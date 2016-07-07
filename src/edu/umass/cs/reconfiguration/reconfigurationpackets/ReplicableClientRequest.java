@@ -1,6 +1,7 @@
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
 import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -31,13 +32,16 @@ public class ReplicableClientRequest extends JSONPacket implements
 		QID, QV, COORD
 	};
 
+	// serialized fields
 	final Request request;
 	final long requestID;
-	boolean needsCoordination;
-	final byte[] requestBytes;
+	final boolean needsCoordination;
 
 	// not serialized
-	private NIOHeader nioHeader;
+	private InetSocketAddress clientAddress = null;
+
+	// not serialized and probably not needed
+	final byte[] requestBytes;
 
 	/**
 	 * @param request
@@ -195,8 +199,10 @@ public class ReplicableClientRequest extends JSONPacket implements
 	 */
 	public Request getRequest(AppRequestParser parser)
 			throws UnsupportedEncodingException, RequestParseException {
-		return parser.getRequest(new String(this.requestBytes, CHARSET));
+		return this.request != null ? this.request : parser
+				.getRequest(new String(this.requestBytes, CHARSET));
 	}
+
 	/**
 	 * @return The underlying app request.
 	 */
@@ -213,18 +219,8 @@ public class ReplicableClientRequest extends JSONPacket implements
 	 */
 	public Request getRequest(AppRequestParserBytes parser, NIOHeader header)
 			throws UnsupportedEncodingException, RequestParseException {
-		return parser.getRequest(this.requestBytes, header);
-	}
-
-	/**
-	 * @param parser
-	 * @return App request
-	 * @throws UnsupportedEncodingException
-	 * @throws RequestParseException
-	 */
-	public Request getRequest(AppRequestParserBytes parser)
-			throws UnsupportedEncodingException, RequestParseException {
-		return this.getRequest(parser, this.nioHeader);
+		return this.request != null ? this.request : parser.getRequest(
+				this.requestBytes, header);
 	}
 
 	@Override
@@ -281,9 +277,9 @@ public class ReplicableClientRequest extends JSONPacket implements
 
 	@Override
 	public byte[] toBytes() {
-		byte[] requestBytes;
+		byte[] reqBytes;
 		try {
-			requestBytes = this.request instanceof Byteable ? ((Byteable) this.request)
+			reqBytes = this.request instanceof Byteable ? ((Byteable) this.request)
 					.toBytes() : this.request.toString().getBytes(CHARSET);
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
@@ -297,7 +293,7 @@ public class ReplicableClientRequest extends JSONPacket implements
 				// needsCoordination
 				+ 1
 				// request bytes
-				+ requestBytes.length];
+				+ reqBytes.length];
 
 		return ByteBuffer.wrap(buf)
 		// type
@@ -307,7 +303,21 @@ public class ReplicableClientRequest extends JSONPacket implements
 				// needsCoordination
 				.put(this.needsCoordination ? (byte) 1 : (byte) 0)
 				// request bytes
-				.put(requestBytes).array();
+				.put(reqBytes).array();
+	}
+
+	/**
+	 * @param csa
+	 * @return {@code this}
+	 */
+	public ReplicableClientRequest setClientAddress(InetSocketAddress csa) {
+		this.clientAddress = csa;
+		return this;
+	}
+
+	@Override
+	public InetSocketAddress getClientAddress() {
+		return this.clientAddress;
 	}
 
 	/**
@@ -315,11 +325,23 @@ public class ReplicableClientRequest extends JSONPacket implements
 	 */
 	public String getRequestAsString() {
 		try {
-			return this.requestBytes != null ? new String(this.requestBytes,
-					CHARSET) : this.request.toString();
+			assert (this.request != null);
+			return this.request instanceof Byteable
+					|| this.requestBytes == null ? this.request.toString()
+					: new String(this.requestBytes, CHARSET);
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
-		return this.request != null ? this.request.toString() : null;
+		return this.request.toString();
+	}
+
+	/**
+	 * Note: This method returns the stringified form of the underlying request.
+	 * To get the stringified form of this {@link ReplicableClientRequest}, use
+	 * {@link #toJSONObject()}.{@link #toString()}.
+	 */
+	@Override
+	public String toString() {
+		return this.getRequestAsString();
 	}
 }

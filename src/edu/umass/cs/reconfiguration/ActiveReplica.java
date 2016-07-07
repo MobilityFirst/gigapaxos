@@ -798,71 +798,28 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 * used by replica coordinators like paxos to returned cached responses for
 	 * retransmitted requests. Two requests are considered identical if they
 	 * have the same name, request ID, and client address.
+	 * 
 	 */
-	static interface RepliconfigurableClientRequest extends ReplicableRequest,
+	@Deprecated
+	protected static interface RepliconfigurableClientRequest extends ReplicableRequest,
 			ClientRequest, ReconfigurableRequest {
+		public Request getRequest();
 	};
-
+	
 	private static final Request makeClientRequest(Request request,
 			InetSocketAddress csa) {
+		
+		if(request instanceof ReplicableClientRequest)
+			return ((ReplicableClientRequest)request).setClientAddress(csa);
+		
+		// else
 		if (!(request instanceof ClientRequest)
 				|| !(request instanceof ReplicableRequest && ((ReplicableRequest) request)
 						.needsCoordination())
 				|| request instanceof ReconfigurationPacket)
 			return request;
-		return new RepliconfigurableClientRequest() {
-
-			@Override
-			public IntegerPacketType getRequestType() {
-				return request.getRequestType();
-			}
-
-			@Override
-			public String getServiceName() {
-				return request.getServiceName();
-			}
-
-			@Override
-			public long getRequestID() {
-				return request instanceof RequestIdentifier ? ((RequestIdentifier) request)
-						.getRequestID()
-						: (long) (Math.random() * Long.MAX_VALUE);
-			}
-
-			@Override
-			public ClientRequest getResponse() {
-				return request instanceof ClientRequest ? ((ClientRequest) request)
-						.getResponse() : null;
-			}
-
-			@Override
-			public InetSocketAddress getClientAddress() {
-				return csa;
-			}
-
-			@Override
-			public String toString() {
-				return request instanceof ReplicableClientRequest ? ((ReplicableClientRequest) request)
-						.getRequestAsString() : request.toString();
-			}
-
-			@Override
-			public boolean needsCoordination() {
-				return ((ReplicableRequest) request).needsCoordination();
-			}
-
-			@Override
-			public int getEpochNumber() {
-				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest) request)
-						.getEpochNumber() : 0;
-			}
-
-			@Override
-			public boolean isStop() {
-				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest) request)
-						.isStop() : false;
-			}
-		};
+		
+		return ReplicableClientRequest.wrap(request).setClientAddress(csa);
 	}
 
 	/**
@@ -1090,7 +1047,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return appRequestTypes.contains(type)
 				|| type == 0
 				|| type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
-						.getInt();
+						.getInt()
+						;
 	}
 
 	private static Set<Integer> appRequestTypes = null;

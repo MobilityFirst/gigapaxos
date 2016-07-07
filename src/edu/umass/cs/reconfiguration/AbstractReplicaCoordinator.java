@@ -177,6 +177,19 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return this;
 	}
 
+	private Request unwrapIfNeeded(Request request) {
+		return request instanceof ReplicableClientRequest
+				&& !
+				// cache-optimized request types
+				(myRequestTypes != null ? myRequestTypes
+						: (myRequestTypes = this.getRequestTypes()))
+						.contains(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST) ? ((ReplicableClientRequest) request)
+				.getRequest() : request;
+
+	}
+
+	private static Set<IntegerPacketType> myRequestTypes = null;
+
 	/**
 	 * Coordinate if needed, else hand over to app.
 	 * 
@@ -188,18 +201,19 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	// only for backwards compatibility
 	protected boolean handleIncoming(Request request, ExecutedCallback callback) {
 		boolean handled = false;
+		// check if coordination on request before unwrapping
 		if (needsCoordination(request)) {
 			try {
 				if (request instanceof ReplicableRequest)
 					((ReplicableRequest) request).setNeedsCoordination(false);
-				handled = coordinateRequest(request, callback);
+				handled = coordinateRequest(unwrapIfNeeded(request), callback);
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
 			} catch (RequestParseException rpe) {
 				rpe.printStackTrace();
 			}
 		} else {
-			handled = this.execute(request, callback);
+			handled = this.execute(unwrapIfNeeded(request), callback);
 		}
 		return handled;
 	}
@@ -271,6 +285,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 					bytes, header, (AppRequestParserBytes) this.app)
 					: new ReplicableClientRequest(bytes,
 							(AppRequestParser) this.app))
+
 					: this.app instanceof AppRequestParserBytes ? ((AppRequestParserBytes) this.app)
 							.getRequest(bytes, header) : this.app
 							.getRequest(new String(bytes, NIOHeader.CHARSET));
@@ -346,8 +361,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 				&& ((ReconfigurableRequest) request).isStop()) {
 			// no longer used (by ActiveReplica)
 			this.stopCallback.executed(request, handled);
-		} 
-		else if (requestCallback != null)
+		} else if (requestCallback != null)
 			// request-specific callback
 			requestCallback.executed(request, handled);
 		else if (this.callback != null)

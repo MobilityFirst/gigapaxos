@@ -39,6 +39,7 @@ import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
 /**
@@ -113,16 +114,20 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		assert (niot instanceof JSONMessenger);
 		this.paxosManager.setOutOfOrderLimit(outOfOrderLimit);
 	}
+	
+	private static Set<IntegerPacketType> requestTypes = null;
 
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
+		if(requestTypes!=null) return requestTypes;
 		Set<IntegerPacketType> types = this.app.getRequestTypes();
 		/* Need to add this separately because paxos won't initClientMessenger
 		 * automatically with ReconfigurableNode unlike PaxosServer.
 		 */
 		if(types==null) types = new HashSet<IntegerPacketType>();
 		//types.add(PaxosPacketType.PAXOS_PACKET);
-		return types;
+		types.add(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST);
+		return requestTypes = types;
 	}
 
 	@Override

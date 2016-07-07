@@ -14,6 +14,7 @@ import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
 /**
@@ -46,10 +47,10 @@ public class NoopAppClient extends ReconfigurableAppClientAsync implements AppRe
 				for (int i = 0; i < numRequests; i++) {
 					long reqInitime = System.currentTimeMillis();
 					try {
-						NoopAppClient.this.sendRequest(new AppRequest(name,
+						NoopAppClient.this.sendRequest(ReplicableClientRequest.wrap(new AppRequest(name,
 								"request_value" + i,
 								AppRequest.PacketType.DEFAULT_APP_REQUEST,
-								false), new RequestCallback() {
+								false)), new RequestCallback() {
 
 							@Override
 							public void handleResponse(Request response) {
