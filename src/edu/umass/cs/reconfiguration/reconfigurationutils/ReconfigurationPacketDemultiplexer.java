@@ -64,10 +64,12 @@ public class ReconfigurationPacketDemultiplexer extends
 	@Override
 	public JSONObject processHeader(byte[] msg, NIOHeader header) {
 		long t=System.nanoTime();
+		int type;
 		if (msg.length >= Integer.BYTES
 				&& ReconfigurationPacket.PacketType.intToType
-						.containsKey(ByteBuffer.wrap(msg, 0, 4).getInt())
-				&& JSONPacket.couldBeJSON(msg, Integer.BYTES)) {
+						.containsKey(type = ByteBuffer.wrap(msg, 0, 4).getInt())
+				&& JSONPacket.couldBeJSON(msg, Integer.BYTES)
+				&& type != PacketType.REPLICABLE_CLIENT_REQUEST.getInt()) {
 			JSONObject json = super.processHeader(msg, Integer.BYTES, header,
 					true);
 			if (json != null) {

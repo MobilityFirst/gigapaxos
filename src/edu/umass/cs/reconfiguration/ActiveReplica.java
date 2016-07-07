@@ -323,7 +323,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	private ClientRequest makeClientResponse(Request response, long requestID) {
-		return response instanceof ClientRequest
+		return response==null || response instanceof ClientRequest
 				&& ((ClientRequest) response).getRequestID() == requestID ? (ClientRequest) response
 				: ReplicableClientRequest.wrap(response, requestID);
 	}

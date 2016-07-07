@@ -120,7 +120,7 @@ public class ReplicableClientRequest extends JSONPacket implements
 		});
 		this.requestID = bbuf.getLong();
 		this.needsCoordination = bbuf.get() == 0 ? false : true;
-		this.requestBytes = Arrays.copyOfRange(bbuf.array(), 12,
+		this.requestBytes = Arrays.copyOfRange(bbuf.array(), REQUEST_BYTES_OFFSET,
 				bbuf.array().length);
 		this.request = this.parse(this.requestBytes, header, parser);
 	}
@@ -275,6 +275,7 @@ public class ReplicableClientRequest extends JSONPacket implements
 	 */
 	public final String CHARSET = "ISO-8859-1";
 
+	private static final int REQUEST_BYTES_OFFSET = Integer.BYTES + Long.BYTES + 1;
 	@Override
 	public byte[] toBytes() {
 		byte[] reqBytes;

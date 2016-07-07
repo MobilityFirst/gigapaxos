@@ -694,24 +694,24 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	/**
 	 * This method will convert an app request to a
-	 * {@link ReplicableClientRequest} if necessary and invoke the appropriate
-	 * sendRequest method.
+	 * {@link ReplicableClientRequest} and then send the request.
 	 * 
 	 * @param request
 	 * @param callback
 	 * @return True if sent successfully.
 	 * @throws IOException
 	 */
-	public boolean sendRequest(Request request, RequestCallback callback)
+	public Long sendRequest(Request request, RequestCallback callback)
 			throws IOException {
-		if (request instanceof ClientReconfigurationPacket) {
-			return this.sendRequest((ClientReconfigurationPacket) request,
-					callback);
-		} else
-			return (request instanceof ClientRequest ? this.sendRequest(
-					(ClientRequest) request, callback) : this.sendRequest(
-					ReplicableClientRequest.wrap(request), callback)) != null;
+		// otherwise this method won't be matched to
+		assert (!(request instanceof ClientReconfigurationPacket) && !(request instanceof ClientRequest));
+		return (request instanceof ClientRequest ? this.sendRequest(
+				(ClientRequest) request, callback) : this.sendRequest(
+				ReplicableClientRequest.wrap(request), callback));
 	}
+	
+	// TODO: true hasn't been tested rigorously
+	private static final boolean ENABLE_ID_TRANSFORM = false;
 
 	/**
 	 * @param request
@@ -745,14 +745,29 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 		try {
 			RequestCallback original = callback;
-			/* The put below will overwrite an existing callback if any with the
-			 * same request ID. It is the caller's responsibility to ensure that
-			 * request IDs are unique. */
-			prev = (!hasLongTimeout(callback) ? this.callbacks
-					: this.callbacksLongTimeout).put(
-					request.getRequestID(),
-					callback = new RequestAndCallback(request, callback)
-							.setServerSentTo(server));
+			// transforms all requests to a unique ID unless retransmission
+			while ((prev = (!hasLongTimeout(callback) ? this.callbacks
+					: this.callbacksLongTimeout).putIfAbsent(request
+					.getRequestID(), callback = new RequestAndCallback(request,
+					callback).setServerSentTo(server))) != null
+					&& !((RequestAndCallback) prev).request.equals(request))
+				if (ENABLE_ID_TRANSFORM)
+					request = ReplicableClientRequest.wrap(request,
+							(long) (Math.random() * Long.MAX_VALUE));
+				else
+					throw new IOException(this
+							+ " received unequal requests with the same ID "
+							+ request.getRequestID());
+
+			/* put again to refresh insertion time for GC purposes and in case
+			 * the new callback is different from the old one.
+			 */
+			if (prev != null
+					&& ((RequestAndCallback) prev).request.equals(request))
+				this.callbacks.put(request.getRequestID(),
+						new RequestAndCallback(request, callback));
+				
+			// special case for long timeout tasks 
 			if (hasLongTimeout(original))
 				this.spawnGCClientRequest(
 						((TimeoutRequestCallback) original).getTimeout(),
