@@ -129,7 +129,11 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		// admin -> reconfigurator
 		RECONFIGURE_RC_NODE_CONFIG(239), RECONFIGURE_ACTIVE_NODE_CONFIG(240),
 
-		ECHO_REQUEST(241);
+		ECHO_REQUEST(241), 
+		
+		REPLICABLE_CLIENT_REQUEST (242)
+		
+		;
 
 		private final int number;
 
@@ -147,7 +151,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 
 	public static final ReconfigurationPacket.PacketType[] clientPacketTypes = {
 			PacketType.CREATE_SERVICE_NAME, PacketType.DELETE_SERVICE_NAME,
-			PacketType.REQUEST_ACTIVE_REPLICAS, PacketType.ACTIVE_REPLICA_ERROR, PacketType.ECHO_REQUEST };
+			PacketType.REQUEST_ACTIVE_REPLICAS, PacketType.ACTIVE_REPLICA_ERROR, PacketType.ECHO_REQUEST,
+			PacketType.REPLICABLE_CLIENT_REQUEST};
 	public static final ReconfigurationPacket.PacketType[] serverPacketTypes = {
 			PacketType.RECONFIGURE_RC_NODE_CONFIG,
 			PacketType.RECONFIGURE_ACTIVE_NODE_CONFIG };
@@ -205,6 +210,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 				ReconfigureActiveNodeConfig.class);
 		typeMap.put(ReconfigurationPacket.PacketType.ECHO_REQUEST,
 				EchoRequest.class);
+		typeMap.put(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST,
+				ReplicableClientRequest.class);
 
 		for (ReconfigurationPacket.PacketType type : ReconfigurationPacket.PacketType.intToType
 				.values()) {

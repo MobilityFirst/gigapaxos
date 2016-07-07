@@ -8,7 +8,7 @@ VERBOSE=1
 FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
 DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
 # developers can use quick build 
-DEV_MODE=0
+DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
 # Use binaries before jar if available. Convenient to use with
 # automatic building in IDEs.
@@ -91,20 +91,24 @@ JVM_APP_ARGS="$DEFAULT_JVMARGS `echo $ARGS_EXCEPT_CLASSPATH`"
 APP=`cat $GP_PROPERTIES|grep "^[ \t]*APPLICATION="|\
 sed s/"^[ \t]*APPLICATION="//g`
 
+if [[ -z $APP ]]; then
+  APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
+fi
+
 # default clients
 if [[ $APP == "edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp" && \
 -z `echo "$@"|grep edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp` ]];
 then
-  DEFAULT_CLIENT="edu.umass.cs.gigapaxos.examples.noop.NoopPaxosAppClient \
-$DEFAULT_CLIENT_ARGS"
+  DEFAULT_CLIENT="$DEFAULT_CLIENT_ARGS \
+    edu.umass.cs.gigapaxos.examples.noop.NoopPaxosAppClient"
 elif [[ $APP == \
 "edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp" && \
 -z `echo "$@"|grep edu.umass.cs.gigapaxos.examples.noop.NoopApp` ]];
 then
-  DEFAULT_CLIENT="edu.umass.cs.reconfiguration.examples.NoopAppClient \
-$DEFAULT_CLIENT_ARGS"
+  DEFAULT_CLIENT="$DEFAULT_CLIENT_ARGS \
+    edu.umass.cs.reconfiguration.examples.NoopAppClient"
 fi
 
-echo "java $SSL_OPTIONS $JVM_APP_ARGS" 
+echo "java $SSL_OPTIONS $JVM_APP_ARGS $DEFAULT_CLIENT" 
 
 java $SSL_OPTIONS $JVM_APP_ARGS $DEFAULT_CLIENT

@@ -21,6 +21,7 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.RequestBatcher;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
@@ -1461,28 +1462,40 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public static final InetSocketAddress NULL_SOCKADDR = new InetSocketAddress(
 			InetAddress.getLoopbackAddress(), 9);
 
-	// FIXME: request values match (needed?)
+	/* We don't need the request values to match. If the request IDs, paxos IDs,
+	 * and client addresses are the same, the two requests are considered equal. */
 	private static boolean enforceRequestValueMatch = false;
 	
 	@Override
 	public boolean equals(Object obj) {
 		RequestPacket req = null;
-		return req instanceof RequestPacket
+		return
+		// RequestPacket instance
+		obj instanceof RequestPacket
 				&& ((req = (RequestPacket) obj) != null)
+
 				// request IDs match
 				&& this.requestID == req.requestID
-				
+
+				// paxosIDs match
+				&& this.getPaxosID().equals(req.getPaxosID())
+
+				// client addresses match
+				&& this.clientAddress.equals(req.clientAddress)
+
+				// request values or digests match (disabled by default)
 				&& (!enforceRequestValueMatch || this.requestValue != null
 						&& this.requestValue.equals(req.requestValue)
 				// or digests match
-				|| (this.digestEquals(req, PendingDigests.getMessageDigest()))
-								
-						// paxosIDs match
-						&& this.getPaxosID().equals(req.getPaxosID()))
-						// client addresses match
-						&& this.clientAddress.equals(req.clientAddress)
+				|| (this.digestEquals(req, PendingDigests.getMessageDigest()) || logAnomaly(
+						this, req))
 
-		;
+				);
+	}
+	
+	private static boolean logAnomaly(RequestPacket req1, RequestPacket req2) {
+		PaxosManager.getLogger().log(Level.SEVERE, "Received two requests with identical ");
+		return true;
 	}
 	
 	public static void doubleCheckFields() {

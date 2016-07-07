@@ -92,7 +92,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 			@Override
 			public void executed(Request request, boolean handled) {
 				RepliconfigurableReconfiguratorDB.this.callCallback(request,
-						handled);
+						handled, null);
 			}
 
 			@Override

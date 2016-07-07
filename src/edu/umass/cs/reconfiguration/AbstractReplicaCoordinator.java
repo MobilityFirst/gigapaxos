@@ -17,6 +17,7 @@ package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,12 +25,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.GenericMessagingTask;
+import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
@@ -38,6 +41,8 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.interfaces.Repliconfigurable;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.reconfigurationutils.TrivialRepliconfigurable;
 
@@ -66,7 +71,8 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.TrivialRepliconfigurabl
  * 
  */
 public abstract class AbstractReplicaCoordinator<NodeIDType> implements
-		Repliconfigurable, ReplicaCoordinator<NodeIDType>, AppRequestParserBytes {
+		Repliconfigurable, ReplicaCoordinator<NodeIDType>,
+		AppRequestParserBytes {
 	protected final Repliconfigurable app;
 	private final ConcurrentHashMap<IntegerPacketType, Boolean> coordinationTypes = new ConcurrentHashMap<IntegerPacketType, Boolean>();
 
@@ -141,6 +147,14 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 			this.registerCoordination(type);
 	}
 
+	/**
+	 * This "default" callback will be called after every request execution. If
+	 * there is a request-specific callback also specified, this callback will
+	 * be called before the request-specific callback.
+	 * 
+	 * @param callback
+	 * @return {@code this}
+	 */
 	protected final AbstractReplicaCoordinator<NodeIDType> setCallback(
 			ReconfiguratorCallback callback) {
 		/**
@@ -185,13 +199,23 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 				rpe.printStackTrace();
 			}
 		} else {
-			handled = this.execute(request);
+			handled = this.execute(request, callback);
 		}
 		return handled;
 	}
 
+	@Override
 	public boolean execute(Request request) {
-		return this.execute(request, false);
+		return this.execute(request, null);
+	}
+
+	@Override
+	public boolean execute(Request request, boolean noReplyToClient) {
+		return this.execute(request, noReplyToClient, null);
+	}
+
+	private boolean execute(Request request, ExecutedCallback callback) {
+		return this.execute(request, false, callback);
 	}
 
 	/* This method is a wrapper for Application.handleRequest and meant to be
@@ -209,13 +233,14 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * ClientMessgenser and ClientRequest interfaces similar to that in
 	 * gigapaxos? No, because response messaging details are specific to the
 	 * coordination protocol. */
-	public boolean execute(Request request, boolean noReplyToClient) {
+	private boolean execute(Request request, boolean noReplyToClient,
+			ExecutedCallback requestCallback) {
 
 		if (this.callback != null)
 			this.callback.preExecuted(request);
 		boolean handled = ((this.app instanceof Replicable) ? ((Replicable) (this.app))
 				.execute(request, noReplyToClient) : this.app.execute(request));
-		callCallback(request, handled);
+		callCallback(request, handled, requestCallback);
 		/* We always return true because the return value here is a no-op. It
 		 * might as well be void. Returning anything but true will ensure that a
 		 * paxos coordinator will get stuck on this request forever. The app can
@@ -223,16 +248,43 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return true;
 	}
 
-	public final Request getRequest(String stringified) throws RequestParseException {
+	public final Request getRequest(String stringified)
+			throws RequestParseException {
+		if (JSONPacket.couldBeJSON(stringified)) {
+			try {
+				JSONObject json = new JSONObject(stringified);
+				if (JSONPacket.getPacketType(json) == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
+						.getInt())
+					return new ReplicableClientRequest(json, null);
+			} catch (JSONException | UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+		}
 		return this.app.getRequest(stringified);
 	}
-	
+
 	public final Request getRequest(byte[] bytes, NIOHeader header)
 			throws RequestParseException {
 		try {
-			return this.app instanceof AppRequestParserBytes ? ((AppRequestParserBytes) this.app)
-					.getRequest(bytes, header) : this.app
-					.getRequest(new String(bytes, NIOHeader.CHARSET));
+			return ByteBuffer.wrap(bytes).getInt() == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
+					.getInt() ? (this.app instanceof AppRequestParserBytes ? new ReplicableClientRequest(
+					bytes, header, (AppRequestParserBytes) this.app)
+					: new ReplicableClientRequest(bytes,
+							(AppRequestParser) this.app))
+					: this.app instanceof AppRequestParserBytes ? ((AppRequestParserBytes) this.app)
+							.getRequest(bytes, header) : this.app
+							.getRequest(new String(bytes, NIOHeader.CHARSET));
+		} catch (UnsupportedEncodingException e) {
+			throw new RequestParseException(e);
+		}
+	}
+
+	protected final Request getRequest(ReplicableClientRequest rcr,
+			NIOHeader header) throws RequestParseException {
+		try {
+			return this.app instanceof AppRequestParserBytes ? rcr.getRequest(
+					(AppRequestParserBytes) this.app, header) : rcr
+					.getRequest(this.app);
 		} catch (UnsupportedEncodingException e) {
 			throw new RequestParseException(e);
 		}
@@ -287,13 +339,18 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	/* Call back active replica for stop requests, else call default callback.
 	 * Should really be private, but sometimes we may need to trigger a callback
 	 * for an older request. */
-	protected final void callCallback(Request request, boolean handled) {
+	protected final void callCallback(Request request, boolean handled,
+			ExecutedCallback requestCallback) {
 		if (this.stopCallback != null
 				&& request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop()) {
 			// no longer used (by ActiveReplica)
 			this.stopCallback.executed(request, handled);
-		} else if (this.callback != null)
+		} 
+		else if (requestCallback != null)
+			// request-specific callback
+			requestCallback.executed(request, handled);
+		else if (this.callback != null)
 			// used by reconfigurator
 			this.callback.executed(request, handled);
 	}

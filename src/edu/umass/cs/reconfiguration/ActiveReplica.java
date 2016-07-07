@@ -36,6 +36,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
@@ -81,6 +82,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestEpochFinalStat
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StopEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.ActiveReplicaProtocolTask;
 import edu.umass.cs.reconfiguration.reconfigurationprotocoltasks.WaitEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationutils.AbstractDemandProfile;
@@ -152,7 +154,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
 		this.appCoordinator = appC.setStopCallback(
-				(ReconfiguratorCallback) this).setCallback(
+		// setting default callback is optional
+		// (ReconfiguratorCallback) this).setCallback(
 				(ReconfiguratorCallback) this);
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
@@ -172,8 +175,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		assert (this.messenger.getClientMessenger() != null);
 		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
-		//initInstrumenter();
+		// initInstrumenter();
 	}
+
+	/* This should be false because the outstanding requests queue does not
+	 * handle request ID conflicts correctly. It is also unnecessary to handle
+	 * conflicts here as replica coordinators such as paxos need to do it anyway
+	 * and we have support for request-specific callbacks that are simpler and
+	 * slightly more efficient. */
+	private static boolean ENQUEUE_REQUEST = false;
 
 	protected ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
@@ -181,18 +191,25 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this(appC, nodeConfig, messenger, false);
 	}
 
-	static class SenderAndRequest {
+	class SenderAndRequest implements ExecutedCallback {
 		final InetSocketAddress csa;
-		final ReplicableRequest request;
+		final Request request;
+		final boolean isCoordinated;
 		final InetSocketAddress mysa;
 		final long recvTime;
 
-		SenderAndRequest(ReplicableRequest request, InetSocketAddress isa,
+		SenderAndRequest(Request request, InetSocketAddress isa,
 				InetSocketAddress mysa, long recvTime) {
 			this.csa = isa;
 			this.request = request;
 			this.mysa = mysa;
 			this.recvTime = recvTime;
+			this.isCoordinated = isCoordinated(request);
+		}
+
+		@Override
+		public void executed(Request request, boolean handled) {
+			ActiveReplica.this.executedInternal(request, handled, this);
 		}
 	}
 
@@ -283,43 +300,74 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 	}
 
+	/* enqueue can be invoked only for ReplicableRequest that extends
+	 * RequestIdentifier. */
 	private SenderAndRequest enqueue(SenderAndRequest senderAndRequest) {
-		return this.outstanding.put(senderAndRequest.request.getRequestID(),
-				senderAndRequest);
+		return this.outstanding
+				.put(((RequestIdentifier) (senderAndRequest.request))
+						.getRequestID(), senderAndRequest);
 	}
 
 	private SenderAndRequest dequeue(RequestIdentifier request) {
-		SenderAndRequest senderAndRequest = null;
-		if ((senderAndRequest = this.outstanding.remove(request.getRequestID())) != null) {
-			// send demand report
-			this.updateDemandStats(senderAndRequest.request,
-					senderAndRequest.csa.getAddress());
-			instrumentApp(Instrument.replicable, senderAndRequest.recvTime);
+		return this.outstanding.remove(request.getRequestID());
+	}
 
-			// send response to originating client
-			if (request instanceof ClientRequest
-					&& ((ClientRequest) request).getResponse() != null) {
-				try {
-					log.log(Level.FINER,
-							"{0} sending response {1} back to requesting client {2}",
-							new Object[] {
-									this,
-									((ClientRequest) request).getResponse()
-											.getSummary(), senderAndRequest.csa });
-					ClientRequest response = ((ClientRequest) request)
-							.getResponse();
-					if (response != null) {
-						((JSONMessenger<?>) this.messenger)
-								.sendClient(
-										senderAndRequest.csa,
-										response instanceof Byteable ? ((Byteable) response)
-												.toBytes() : response,
-										senderAndRequest.mysa);
-						AppInstrumenter.sentResponseCoordinated(senderAndRequest.request);
-					}
-				} catch (IOException | JSONException e) {
-					e.printStackTrace();
-				}
+	private SenderAndRequest dequeueAndSendResponse(RequestIdentifier request) {
+		return this.sendResponse((Request) request,
+				this.outstanding.remove(request.getRequestID()));
+	}
+
+	private SenderAndRequest sendResponse(Request request,
+			SenderAndRequest senderAndRequest) {
+		return this.sendResponse(request, senderAndRequest, senderAndRequest!=null ? senderAndRequest.isCoordinated : true);
+	}
+
+	private ClientRequest makeClientResponse(Request response, long requestID) {
+		return response instanceof ClientRequest
+				&& ((ClientRequest) response).getRequestID() == requestID ? (ClientRequest) response
+				: ReplicableClientRequest.wrap(response, requestID);
+	}
+	
+	// used for both local and coordinated requests
+	private SenderAndRequest sendResponse(Request request,
+			SenderAndRequest senderAndRequest, boolean isCoordinated) {
+		if (senderAndRequest == null)
+			return null;
+		// else
+		// send demand report
+		this.updateDemandStats(request,
+				senderAndRequest.csa.getAddress());
+		instrumentNanoApp(isCoordinated ? Instrument.replicable
+				: Instrument.local, senderAndRequest.recvTime);
+
+		ClientRequest response = null;
+		// send response to originating client
+		if (request instanceof ClientRequest
+				&& (response = makeClientResponse(
+						((ClientRequest) request).getResponse(),
+						((ClientRequest) request).getRequestID())) != null) {
+			try {
+				log.log(Level.FINER,
+						"{0} sending response {1} back to requesting client {2} for {3} request {4}",
+						new Object[] {
+								this,
+								((ClientRequest) request).getResponse()
+										.getSummary(), senderAndRequest.csa,
+								isCoordinated ? "coordinated" : "",
+								request.getSummary() });
+				int written = ((JSONMessenger<?>) this.messenger).sendClient(
+						senderAndRequest.csa,
+						response instanceof Byteable ? ((Byteable) response)
+								.toBytes() : response, senderAndRequest.mysa);
+				if (written > 0)
+					if (isCoordinated)
+						AppInstrumenter
+								.sentResponseCoordinated(request);
+					else
+						AppInstrumenter
+								.sentResponseLocal(request);
+			} catch (IOException | JSONException e) {
+				e.printStackTrace();
 			}
 		}
 		return senderAndRequest;
@@ -339,14 +387,22 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}, 0, 5, TimeUnit.SECONDS);
 	}
 
+	private static final boolean isCoordinated(Request request) {
+		return request instanceof ReplicableRequest
+				&& ((ReplicableRequest) request).needsCoordination();
+	}
+
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 
-		long t = System.nanoTime();
+		long entryTime = System.nanoTime();
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
 		try {
 			// try handling as reconfiguration packet through protocol task
-			if (!(jsonObject instanceof JSONMessenger.JSONObjectWrapper)
+			if (
+			/* Assumed here that ReconfigurationPacket's JSON implementation
+			 * won't change, so it won't be a JSONObjectWrapper. */
+			!(jsonObject instanceof JSONMessenger.JSONObjectWrapper)
 					&& ReconfigurationPacket
 							.isReconfigurationPacket(jsonObject)
 					&& (rcPacket = this.protocolTask
@@ -359,7 +415,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
-				long recvTime = System.currentTimeMillis();
+				// long startTime = System.currentTimeMillis();
 				Request request = this.getRequest(jsonObject);
 				NIOHeader header = jsonObject instanceof JSONMessenger.JSONObjectWrapper ? NIOHeader
 						.getNIOHeader((byte[]) ((JSONMessenger.JSONObjectWrapper) jsonObject)
@@ -378,59 +434,41 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 								(request instanceof ClientRequest ? ((ClientRequest) request)
 										.getRequestID() : "") });
 
+				boolean isCoordinatedRequest = isCoordinated(request);
+
+				SenderAndRequest senderAndRequest = new SenderAndRequest(
+						request, header.sndr, header.rcvr,
+						// startTime
+						entryTime);
 				// enqueue demand stats sending callback
-				if (request instanceof ReplicableRequest
-						&& ((ReplicableRequest) request).needsCoordination()) {
-					enqueue(new SenderAndRequest((ReplicableRequest) request,
-							header.sndr, header.rcvr, recvTime));
-				}
+				if (ENQUEUE_REQUEST && isCoordinatedRequest)
+					enqueue(senderAndRequest);
+
+				// app doesn't understand ReplicableClientRequest
+				if (!isCoordinatedRequest
+						&& request instanceof ReplicableClientRequest)
+					request = this.appCoordinator.getRequest(
+							(ReplicableClientRequest) request, header);
 
 				// send to app via its coordinator
-				boolean handled = this.handRequestToApp(makeClientRequest(request,header.sndr));
+				boolean handled = this.handRequestToApp(
+						makeClientRequest(request, header.sndr),
+						ENQUEUE_REQUEST ?
+						// generic callback
+						this
+								:
+								// request-specific callback
+								senderAndRequest);
 
 				InetSocketAddress sender = header.sndr, receiver = header.rcvr;
 				if (handled) {
-					if (!(request instanceof ReplicableRequest && ((ReplicableRequest) request)
-							.needsCoordination())) {
-						// if handled locally, update demand stats
-						updateDemandStats(request, sender.getAddress());
-
-						instrumentNanoApp(Instrument.local, t);
-
-						// send response for uncoordinated request
-						ClientRequest response = null;
-						if (request instanceof ClientRequest
-								&& (response = ((ClientRequest) request)
-										.getResponse()) != null) {
-							Level level = Level.FINER;
-							log.log(level,
-									"{0} sending response {1} back to requesting client {2} for request {3}",
-									new Object[] {
-											this,
-											response,
-											receiver == null ? receiver = MessageNIOTransport
-													.getReceiverAddress(jsonObject)
-													: receiver,
-											request.getSummary(log
-													.isLoggable(level)) });
-							int written = ((JSONMessenger<?>) this.messenger).sendClient(
-									sender == null ? MessageNIOTransport
-											.getSenderAddress(jsonObject)
-											: sender,
-									response,
-									receiver == null ? MessageNIOTransport
-											.getReceiverAddress(jsonObject)
-											: receiver);
-							if(written > 0)
-								AppInstrumenter.sentResponseLocal(request);
-						}
-					}
-					// else do nothing until coordinated
+					if (!isCoordinatedRequest)
+						//this.sendResponse(request, senderAndRequest, false)
+						;
+					// else do nothing as coordinated callback will be called
 				} else {
 					// if failed, dequeue useless enqueue
-					if (request instanceof ReplicableRequest
-							&& ((ReplicableRequest) request)
-									.needsCoordination())
+					if (isCoordinatedRequest)
 						this.dequeue(((ReplicableRequest) request));
 
 					// send error message to sender
@@ -476,13 +514,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						NIOHeader.getNIOHeader(bytes));
 				instrumentNanoApp(Instrument.getRequest, t);
 				return request;
-
-				// this.appCoordinator
-				// .getRequest(MessageExtractor
-				// .decode(bytes = (byte[]) ((JSONMessenger.JSONObjectWrapper)
-				// jsonObject)
-				// .getObj(), NIOHeader.BYTES,
-				// bytes.length - NIOHeader.BYTES));
 			} catch (UnknownHostException e) {
 				e.printStackTrace();
 			}
@@ -505,11 +536,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	public void executed(Request request, boolean handled) {
 		if (this.isRecovering())
 			return;
-		// assert (request instanceof ReconfigurableRequest);
-		// assert (handled);
 
+		// stop callback is not handled here
 		if (request instanceof ReplicableRequest)
-			this.dequeue(((ReplicableRequest) request));
+			this.dequeueAndSendResponse(((ReplicableRequest) request));
 
 		/* We need to handle the callback in a separate thread, otherwise we
 		 * risk sending the ackStop before the epoch final state has been
@@ -532,6 +562,20 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		 * reconfigurator as that other active replica may still be catching up.
 		 * But the point above is that this scenario can happen even with a
 		 * single replica, which is "wrong", unless we spawn a separate thread. */
+		if (handled && request instanceof ReconfigurableRequest
+				&& ((ReconfigurableRequest) request).isStop())
+			// protocol executor also allows us to just submit a Runnable
+			this.protocolExecutor.submit(new AckStopNotifier(request));
+	}
+
+	// FIXME: overlaps with executed(.) above
+	private void executedInternal(Request request, boolean handled,
+			SenderAndRequest senderAndRequest) {
+		if (this.isRecovering())
+			return;
+
+		this.sendResponse(request, senderAndRequest);
+		
 		if (handled && request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop())
 			// protocol executor also allows us to just submit a Runnable
@@ -649,8 +693,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				e.printStackTrace();
 			}
 			// the creation above will throw an exception if it fails
-			assert (created && startEpoch.getCurEpochGroup().equals(this.appCoordinator.getReplicaGroup(
-					startEpoch.getServiceName()))) : "Unable to get replica group right after creation for startEpoch"
+			assert (created && startEpoch.getCurEpochGroup().equals(
+					this.appCoordinator.getReplicaGroup(startEpoch
+							.getServiceName()))) : "Unable to get replica group right after creation for startEpoch"
 					+ startEpoch.getSummary()
 					+ ": created="
 					+ created
@@ -757,8 +802,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	static interface RepliconfigurableClientRequest extends ReplicableRequest,
 			ClientRequest, ReconfigurableRequest {
 	};
-	
-	private static Request makeClientRequest(Request request,
+
+	private static final Request makeClientRequest(Request request,
 			InetSocketAddress csa) {
 		if (!(request instanceof ClientRequest)
 				|| !(request instanceof ReplicableRequest && ((ReplicableRequest) request)
@@ -779,8 +824,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 			@Override
 			public long getRequestID() {
-				return request instanceof RequestIdentifier ? ((RequestIdentifier)request).getRequestID() 
-						: (long)(Math.random()*Long.MAX_VALUE);
+				return request instanceof RequestIdentifier ? ((RequestIdentifier) request)
+						.getRequestID()
+						: (long) (Math.random() * Long.MAX_VALUE);
 			}
 
 			@Override
@@ -793,10 +839,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			public InetSocketAddress getClientAddress() {
 				return csa;
 			}
-			
+
 			@Override
 			public String toString() {
-				return request.toString();
+				return request instanceof ReplicableClientRequest ? ((ReplicableClientRequest) request)
+						.getRequestAsString() : request.toString();
 			}
 
 			@Override
@@ -806,13 +853,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 			@Override
 			public int getEpochNumber() {
-				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest)request).getEpochNumber() : 
-					0;
+				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest) request)
+						.getEpochNumber() : 0;
 			}
 
 			@Override
 			public boolean isStop() {
-				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest)request).isStop() : false ;
+				return request instanceof ReconfigurableRequest ? ((ReconfigurableRequest) request)
+						.isStop() : false;
 			}
 		};
 	}
@@ -949,12 +997,12 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	/* ****************** Private methods below ******************* */
 
-	private boolean handRequestToApp(Request request) {
+	private boolean handRequestToApp(Request request, ExecutedCallback callback) {
 		long t1 = System.nanoTime();
 		boolean handled = false;
 		try {
 			AppInstrumenter.rcvdRequest(request);
-			handled = this.appCoordinator.handleIncoming(request, this);
+			handled = this.appCoordinator.handleIncoming(request, callback);
 		} catch (OverloadException re) {
 			PaxosPacketDemultiplexer.throttleExcessiveLoad();
 		}
@@ -1039,7 +1087,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		if (appRequestTypes == null)
 			appRequestTypes = toIntegerSet(this.appCoordinator
 					.getRequestTypes());
-		return appRequestTypes.contains(type) || type == 0;
+		return appRequestTypes.contains(type)
+				|| type == 0
+				|| type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
+						.getInt();
 	}
 
 	private static Set<Integer> appRequestTypes = null;
@@ -1095,6 +1146,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			DelayProfiler.updateDelayNano(appName + "." + param.toString(), t);
 	}
 
+	@SuppressWarnings("unused")
 	private static final void instrumentApp(Instrument param, long t) {
 		if (instrument(param.val))
 			DelayProfiler.updateDelay(appName + "." + param.toString(), t);
@@ -1333,6 +1385,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				if (appTypes != null && !appTypes.isEmpty())
 					pd.register(this.appCoordinator.getRequestTypes(), this);
 				pd.register(PacketType.ECHO_REQUEST, this);
+				pd.register(PacketType.REPLICABLE_CLIENT_REQUEST, this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
