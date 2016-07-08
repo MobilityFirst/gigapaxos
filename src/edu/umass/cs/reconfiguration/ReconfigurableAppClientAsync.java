@@ -507,28 +507,32 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 															((RequestAndCallback) callback).serverSentTo),
 											callback);
 						} catch (IOException e) {
-							// TODO Auto-generated catch block
 							e.printStackTrace();
 							ReconfigurableAppClientAsync.this
 									.cleanupActiveReplicasInfo((RequestAndCallback) callback);
 						}
-					else
+					else {
 						ReconfigurableAppClientAsync.this
 								.cleanupActiveReplicasInfo((RequestAndCallback) callback);
-					/* auto-retransmitting can cause an infinite loop if the
-					 * name does not exist at all, so we just throw the ball
-					 * back to the app.
-					 * 
-					 * TODO: We could also retransmit once or a small number of
-					 * times here before throwing back to the app. */
-					callback.handleResponse(response);
+						callback.handleResponse(response);
+					}
 				} else if (response instanceof ClientReconfigurationPacket) {
+					log.log(Level.FINE,
+							"{0} received response {1} from reconfigurator {2}",
+							new Object[] {
+									this,
+									response.getSummary(),
+									((ClientReconfigurationPacket) response)
+											.getSender() });
 					// call create/delete app callback
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
 							.remove(getKey((ClientReconfigurationPacket) response))) != null
 							|| (callback = ReconfigurableAppClientAsync.this.callbacksCRPLongTimeout
-									.remove(getKey((ClientReconfigurationPacket) response))) != null)
+									.remove(getKey((ClientReconfigurationPacket) response))) != null) 
 						callback.handleResponse(response);
+					else 
+						log.log(Level.WARNING, "{0} found no callback for {1}",
+								new Object[] { this, response.getSummary() });
 
 					// if name deleted, clear cached actives
 					if (response instanceof DeleteServiceName
@@ -1253,8 +1257,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 						for (RequestAndCallback pendingRequest : pendingRequests)
 							// retry once with rest of the reconfigurators
 							if (response.getHashRCs() != null
-									&& response.getHashRCs().size() > 1
-									&& pendingRequest.incrHeardFromRCs() == 0) {
+									&& pendingRequest.incrHeardFromRCs() == 0
+									&& response.getHashRCs().size() > 1) {
 								response.getHashRCs().remove(
 										response.getSender());
 								try {
@@ -1268,13 +1272,14 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									e.printStackTrace();
 									// do nothing
 								}
-							} else if (pendingRequest.incrHeardFromRCs() < response
-									.getHashRCs().size() / 2) {
+							} else if (pendingRequest.heardFromRCs/*incrHeardFromRCs()*/ < response
+									.getHashRCs().size() / 2 + 1) {
 								// do nothing but wait to hear from majority
+								log.log(Level.INFO, "{0} received no actives from {1} for name {2}", 
+										new Object[]{this, response.getSender(), response.getServiceName()});
 							} else {
-								// name does not exist
-								// or send error to all pending requests except
-								// ones to be retried
+								/* name does not exist, so send error to all
+								 * pending requests except ones to be retried */
 								log.log(Level.FINE,
 										"{0} returning {1} to pending request callbacks {2}",
 										new Object[] {
@@ -1290,7 +1295,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 												+ ": No active replicas found for name \""
 												+ response.getServiceName()
 												+ "\" likely because the name doesn't exist or because this name or"
-												+ " active replicas or reconfigurators are being reconfigured."));
+												+ " active replicas or reconfigurators are being reconfigured: "
+												+ pendingRequest.request.getSummary()));
 								removals.add(pendingRequest);
 							}
 						pendingRequests.removeAll(removals);
@@ -1474,8 +1480,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				return true;
 			} else {
 				System.out
-						.print((attempts == 1 ? "Retrying connection check..."
-								: "") + attempts + " ");
+						.print((attempts == 1 ? "Retrying connectivity check to "
+								+ address + "..."
+								: "")
+								+ attempts + " ");
 				this.checkConnectivity(attemptTimeout, address);
 			}
 		return false;
@@ -1495,10 +1503,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 */
 	public void checkConnectivity() throws IOException {
 		for (InetSocketAddress address : this.reconfigurators)
-			if (this.checkConnectivity(CONNECTIVITY_CHECK_TIMEOUT, 2, address))
+			if (this.checkConnectivity(CONNECTIVITY_CHECK_TIMEOUT,
+			/* at least 2 attempts per reconfigurator and 3 if there is just a
+			 * single reconfigurator. */
+			2 + 1 / this.reconfigurators.size(), address))
 				return;
 
-		throw new IOException(CONNECTION_CHECK_ERROR);
+		throw new IOException(CONNECTION_CHECK_ERROR + " : " + this.reconfigurators);
 	}
 
 	/**

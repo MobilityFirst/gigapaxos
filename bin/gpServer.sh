@@ -1,12 +1,13 @@
 #!/bin/bash 
 
 # Usage notes printing
-if [[ -z "$@" || -z `echo "$@"|grep "[ ]*\(start\|stop\|restart\|clear\) "` ]];
+if [[ -z "$@" || -z `echo "$@"|grep \
+"[ ]*\(start\|stop\|restart\|clear\|forceclear\) "` ]];
 then
   echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
 [-D$APP_RESOURCES_KEY=APP_RESOURCES_DIR] \
 [-D$APP_ARGS_KEY=\"APP_ARGS\"] \
-stop|start|restart|clear  all|server_names"
+stop|start|restart|clear|forceclear all|server_names"
 echo "Examples:"
 echo "    `dirname $0`/`basename $0` start AR1"
 echo "    `dirname $0`/`basename $0` start AR1 AR2 RC1"
@@ -102,7 +103,7 @@ sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
 # set JVM args except classpath
 JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|\
 sed s/-$APP_ARGS_KEY.*$//g|\
-sed -E s/"[ ]*(start|stop|restart|clear) .*$"//g`"
+sed -E s/"[ ]*(start|stop|restart|clear|forceclear) .*$"//g`"
 
 # extract classpath in args
 ARG_CLASSPATH="`echo "$@"|grep " *\-\(cp\|classpath\) "|\
@@ -135,7 +136,8 @@ for arg in "$@"; do
       APP_ARGS="`echo $arg|grep "\-D$APP_ARGS_KEY="|\
         sed s/\-D$APP_ARGS_KEY=//g`"
     fi
-  elif [[ $arg == "start" || $arg == "stop" || $arg == "restart" || $arg == "clear" ]]; 
+  elif [[ $arg == "start" || $arg == "stop" || $arg == "restart" \
+    || $arg == "clear" || $arg == "forceclear" ]]; 
   then
     # server names
     args=(${@:$index})
@@ -430,10 +432,15 @@ function stop_servers {
 
 function clear_all {
 if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
-  read -p "Are you sure you want to wipe out all paxos state? " yn
+  if [[ -z `echo "$@"|grep "forceclear[ ]*all"` ]]; then
+    read -p "Are you sure you want to wipe out all paxos state? " yn
     case $yn in
-
-        [Yy]* ) 
+        [Yy]* );; 
+        [Nn]* ) exit;;
+        * ) echo "Please answer yes or no.";exit;;
+    esac
+  fi
+  # else go ahead and force clear
           stop_servers
           for server in $servers; do
             get_address_port $server
@@ -461,13 +468,10 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
                 clear $server "&
     
               fi
-            done;;
-
-        [Nn]* ) exit;;
-        * ) echo "Please answer yes or no.";;
-    esac
-elif [[ ! -z `echo "$@"|grep "clear"` ]]; then
-  echo; echo "The 'clear' option can be used only as 'clear all'"
+            done;
+elif [[ ! -z `echo "$@"|grep "clear|forceclear"` ]]; then
+  echo; echo "The 'clear' and 'forceclear' options can be \
+    used only as 'clear all' or 'forceclear all'"
 fi
 }
 
@@ -487,8 +491,10 @@ stop)
 ;;
 
 clear)
-  # stop before clearing
-  #stop_servers
+  clear_all "$@"
+;;
+
+forceclear)
   clear_all "$@"
 
 esac

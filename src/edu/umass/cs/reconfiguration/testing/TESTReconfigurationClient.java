@@ -45,6 +45,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureActiveNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConfig;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
@@ -191,7 +192,7 @@ public class TESTReconfigurationClient {
 				"Sending app request {0} for name {1}",
 				new Object[] { request.getClass().getSimpleName(),
 						request.getServiceName() });
-		getRandomClient().sendRequest(request, new RequestCallback() {
+		getRandomClient().sendRequest((this.wrapReplicableClientRequest ? ReplicableClientRequest.wrap(request) : request), new RequestCallback() {
 			@Override
 			public void handleResponse(Request response) {
 				if (outstandingQ != null)
@@ -767,6 +768,37 @@ public class TESTReconfigurationClient {
 		Assert.assertEquals(test, true);
 		success();
 	}
+	
+	private boolean wrapReplicableClientRequest = false;
+
+	/**
+	 * @throws IOException
+	 * @throws NumberFormatException
+	 * @throws InterruptedException
+	 */
+	public void test02_ReplicableClientRequest() throws IOException,
+			NumberFormatException, InterruptedException {
+		String[] names = generateRandomNames(Config
+				.getGlobalInt(TRC.TEST_NUM_APP_NAMES));
+		this.wrapReplicableClientRequest = true;
+		DelayProfiler.clear();
+		boolean test = testNotExists(names)
+				&& testCreates(names)
+				&& testExists(names)
+				&& testAppRequests(names,
+						Config.getGlobalInt(TRC.TEST_NUM_REQUESTS_PER_NAME))
+				&& testDeletes(names) && testNotExists(names);
+		this.wrapReplicableClientRequest = false;
+		log.log(Level.INFO,
+				"{0} {1}",
+				new Object[] {
+						testName.getMethodName(),
+						DelayProfiler.getStats(new HashSet<String>(Util
+								.arrayOfObjectsToStringSet(ProfilerKeys
+										.values()))) });
+		Assert.assertEquals(test, true);
+		success();
+	}
 
 	/**
 	 * Same as {@link #test01_BasicSequence()} but with batch created names.
@@ -776,7 +808,7 @@ public class TESTReconfigurationClient {
 	 * @throws NumberFormatException
 	 */
 	@Test
-	public void test02_BasicSequenceBatched() throws IOException,
+	public void test03_BasicSequenceBatched() throws IOException,
 			NumberFormatException, InterruptedException {
 		// test batched creates
 		String[] bNames = generateRandomNames(Config
@@ -798,7 +830,7 @@ public class TESTReconfigurationClient {
 	 * @throws InterruptedException
 	 */
 	@Test
-	public void test03_ReconfigurationRate() throws IOException,
+	public void test04_ReconfigurationRate() throws IOException,
 			InterruptedException {
 		DelayProfiler.clear();
 		String[] names = generateRandomNames(Math
