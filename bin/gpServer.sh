@@ -37,6 +37,9 @@ if [[ $DEV_MODE == 1 ]]; then
   if [[ -e $HEAD/../build/classes ]]; then
     DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$DEFAULT_GP_CLASSPATH
   fi
+  if [[ -e $HEAD/../build/test/classes ]]; then
+    DEFAULT_GP_CLASSPATH=$HEAD/../build/test/classes:$DEFAULT_GP_CLASSPATH
+  fi
   ENABLE_ASSERTS="-ea"
 fi
 

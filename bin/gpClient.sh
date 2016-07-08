@@ -12,7 +12,7 @@ DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
 # Use binaries before jar if available. Convenient to use with
 # automatic building in IDEs.
-  DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$DEFAULT_GP_CLASSPATH
+  DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$HEAD/../build/test/classes:$DEFAULT_GP_CLASSPATH
   ENABLE_ASSERTS="-ea"
 fi
 

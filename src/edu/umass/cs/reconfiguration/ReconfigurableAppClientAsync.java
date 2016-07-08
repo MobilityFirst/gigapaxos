@@ -531,7 +531,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									.remove(getKey((ClientReconfigurationPacket) response))) != null) 
 						callback.handleResponse(response);
 					else 
-						log.log(Level.WARNING, "{0} found no callback for {1}",
+						log.log(Level.INFO, "{0} found no callback for {1}",
 								new Object[] { this, response.getSummary() });
 
 					// if name deleted, clear cached actives
