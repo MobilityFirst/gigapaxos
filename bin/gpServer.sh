@@ -1,5 +1,8 @@
 #!/bin/bash 
 
+APP_ARGS_KEY="appArgs"
+APP_RESOURCES_KEY="appResourcePath"
+
 # Usage notes printing
 if [[ -z "$@" || -z `echo "$@"|grep \
 "[ ]*\(start\|stop\|restart\|clear\|forceclear\) "` ]];
@@ -22,23 +25,30 @@ echo "    `dirname $0`/`basename $0` -cp myjars1.jar:myjars2.jar \
 -D$APP_ARGS_KEY=\"-opt1=val1 -flag2 \
 -str3=\\""\"quoted arg example\\""\" -n 50\" \
  start all" 
+exit
 fi
 
-HEAD=`dirname $0` 
+BINFILE=`readlink $0`
+if [[ -z $BINFILE ]]; then
+  BINFILE=$0
+fi
+BINDIR=`dirname $BINFILE` 
+HEAD=`cd $BINDIR/..; pwd` 
 
 # use jars and classes from default location if available
-FILESET=`ls $HEAD/../jars/*.jar $HEAD/../jars/*.class 2>/dev/null`
+FILESET=`ls $HEAD/jars/*.jar $HEAD/jars/*.class 2>/dev/null`
 DEFAULT_GP_CLASSPATH=`echo $FILESET|sed -E s/"[ ]+"/:/g`
+
 # developers can use quick build 
 DEV_MODE=1
 if [[ $DEV_MODE == 1 ]]; then
 # Use binaries before jar if available. Convenient to use with
 # automatic building in IDEs.
-  if [[ -e $HEAD/../build/classes ]]; then
-    DEFAULT_GP_CLASSPATH=$HEAD/../build/classes:$DEFAULT_GP_CLASSPATH
+  if [[ -e $HEAD/build/classes ]]; then
+    DEFAULT_GP_CLASSPATH=$HEAD/build/classes:$DEFAULT_GP_CLASSPATH
   fi
-  if [[ -e $HEAD/../build/test/classes ]]; then
-    DEFAULT_GP_CLASSPATH=$HEAD/../build/test/classes:$DEFAULT_GP_CLASSPATH
+  if [[ -e $HEAD/build/test/classes ]]; then
+    DEFAULT_GP_CLASSPATH=$HEAD/build/test/classes:$DEFAULT_GP_CLASSPATH
   fi
   ENABLE_ASSERTS="-ea"
 fi
@@ -49,29 +59,38 @@ fi
 # unnecessary jars to avoid needless copying in remote installs.
 export CLASSPATH=$DEFAULT_GP_CLASSPATH
 
+# should not be changed
 CONF=conf
+CONFDIR=$HEAD/$CONF
 
-# look for file in conf if it does not exist
+# look for file in conf if default does not exist
 function set_default_conf {
   default=$1
-  if [[ ! -e $default && -e $CONF/$default ]]; then
-    echo $CONF/$default
+  if [[ ! -e $default && (-e $CONFDIR/$default \
+    || -L $CONFDIR/$default) ]]; then
+    echo $CONFDIR/$default
   else
     echo $default
   fi 
 }
 
 # default java.util.logging.config.file
-DEFAULT_LOG_PROPERTIES=logging.properties
+DEFAULT_LOG_PROPERTIES=$CONFDIR/logging.properties
 LOG_PROPERTIES=$(set_default_conf $DEFAULT_LOG_PROPERTIES)
 
 # default log4j properties (used by c3p0)
-DEFAULT_LOG4J_PROPERTIES=log4j.properties
+DEFAULT_LOG4J_PROPERTIES=$CONFDIR/log4j.properties
 LOG4J_PROPERTIES=$(set_default_conf $DEFAULT_LOG4J_PROPERTIES)
 
 # default gigapaxos properties
-DEFAULT_GP_PROPERTIES=gigapaxos.properties
+DEFAULT_GP_PROPERTIES=$CONFDIR/gigapaxos.properties
 GP_PROPERTIES=$(set_default_conf $DEFAULT_GP_PROPERTIES)
+
+DEFAULT_KEYSTORE=$CONFDIR/keyStore.jks
+KEYSTORE=$(set_default_conf $DEFAULT_KEYSTORE)
+
+DEFAULT_TRUSTSTORE=$CONFDIR/trustStore.jks
+TRUSTSTORE=$(set_default_conf $DEFAULT_TRUSTSTORE)
 
 # 0 to disable
 VERBOSE=2
@@ -80,31 +99,18 @@ JAVA=java
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
-APP_ARGS_KEY="appArgs"
-APP_RESOURCES_KEY="appResourcePath"
 
 DEFAULT_APP_RESOURCES=app_resources
 
 DEFAULT_KEYSTORE_PASSWORD="qwerty"
 DEFAULT_TRUSTSTORE_PASSWORD="qwerty"
-DEFAULT_KEYSTORE=keyStore.jks
-DEFAULT_TRUSTSTORE=trustStore.jks
-keyStore=$(set_default_conf $DEFAULT_KEYSTORE)
-trustStore=$(set_default_conf $DEFAULT_TRUSTSTORE)
-
-DEFAULT_SSL_OPTIONS="\
--Djavax.net.ssl.keyStorePassword=$DEFAULT_KEYSTORE_PASSWORD \
--Djavax.net.ssl.keyStore=$DEFAULT_KEYSTORE \
--Djavax.net.ssl.trustStorePassword=$DEFAULT_TRUSTSTORE_PASSWORD \
--Djavax.net.ssl.trustStore=$DEFAULT_TRUSTSTORE"
-
 
 # remove classpath from args
 ARGS_EXCEPT_CLASSPATH=`echo "$@"|\
 sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
 
-# set JVM args except classpath
-JVMARGS="$JVMARGS `echo $ARGS_EXCEPT_CLASSPATH|\
+# set JVM args except classpath, app args, options
+SUPPLIED_JVMARGS="`echo $ARGS_EXCEPT_CLASSPATH|\
 sed s/-$APP_ARGS_KEY.*$//g|\
 sed -E s/"[ ]*(start|stop|restart|clear|forceclear) .*$"//g`"
 
@@ -117,6 +123,7 @@ sed s/" .*$"//g`"
 if [[ ! -z $ARG_CLASSPATH ]]; then
   CLASSPATH=$ARG_CLASSPATH:$DEFAULT_GP_CLASSPATH
 fi
+
 
 # separate out gigapaxos.properties and appArgs
 declare -a args
@@ -159,22 +166,12 @@ APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
   fi
 APP_SIMPLE=`echo $APP|sed s/".*\."//g`
 
-# Can add more JVM args here. JVM args specified on the command-line
-# will override defaults specified here.
-DEFAULT_JVMARGS="$ENABLE_ASSERTS -cp $CLASSPATH \
--Djava.util.logging.config.file=$LOG_PROPERTIES \
--Dlog4j.configuration=log4j.properties \
-$DEFAULT_SSL_OPTIONS \
--DgigapaxosConfig=$GP_PROPERTIES"
+function get_simple_name {
+  name=$1
+  echo $CONF/`echo $name|sed s/".*\/"//g`
+}
 
-DEFAULT_REMOTE_JVMARGS="$ENABLE_ASSERTS \
--Djava.util.logging.config.file=$DEFAULT_LOG_PROPERTIES \
--Dlog4j.configuration=$DEFAULT_LOG4J_PROPERTIES \
-$DEFAULT_SSL_OPTIONS \
--DgigapaxosConfig=$DEFAULT_GP_PROPERTIES"
 
-REMOTE_JVMARGS="$JVMARGS $DEFAULT_REMOTE_JVMARGS"
-JVMARGS="$DEFAULT_JVMARGS $JVMARGS"
 
 # set servers to start here
 if [[ ${args[1]} == "all" ]]; then
@@ -244,13 +241,13 @@ function print {
 function get_file_list {
   cmdline_args=$@
   jar_files="`echo $CLASSPATH|sed s/":"/" "/g`"
-  get_value "javax.net.ssl.keyStore" "$cmdline_args" "$keyStore"
-  keyStore=$value
+  get_value "javax.net.ssl.keyStore" "$cmdline_args" "$KEYSTORE"
+  KEYSTORE=$value
   get_value "javax.net.ssl.keyStorePassword" "$cmdline_args" \
     "$DEFAULT_KEYSTORE_PASSWORD"
   keyStorePassword=$value
-  get_value "javax.net.ssl.trustStore" "$cmdline_args" "$trustStore"
-  trustStore=$value
+  get_value "javax.net.ssl.trustStore" "$cmdline_args" "$TRUSTSTORE"
+  TRUSTSTORE=$value
   get_value "javax.net.ssl.trustStorePassword" "$cmdline_args" \
     "$DEFAULT_TRUSTSTORE_PASSWORD"
   trustStorePassword=$value
@@ -259,7 +256,7 @@ function get_file_list {
   get_value "java.util.logging.config.file" "$cmdline_args" $LOG4J_PROPERTIES
   LOG4J_PROPERTIES=$value
 
-  conf_transferrables="$GP_PROPERTIES $keyStore $trustStore $LOG_PROPERTIES\
+  conf_transferrables="$GP_PROPERTIES $KEYSTORE $TRUSTSTORE $LOG_PROPERTIES\
      $LOG4J_PROPERTIES $APP_RESOURCES"
   print 3 "transferrables="$jar_files $conf_transferrables
 }
@@ -300,18 +297,19 @@ function append_to_ln_cmd {
   
   if [[ -e $1 ]]; then
     if [[ -z $LINK_CMD ]]; then
-      LINK_CMD="ln -fs ~/$APP_SIMPLE/conf/$simple \
-        $APP_SIMPLE/$default "
+      LINK_CMD="ln -fs ~/$APP_SIMPLE/$CONF/$simple \
+        $APP_SIMPLE/$(get_simple_name $default) "
     else
-      LINK_CMD="$LINK_CMD; ln -fs ~/$APP_SIMPLE/conf/$simple \
-        $APP_SIMPLE/$default "
+      LINK_CMD="$LINK_CMD; ln -fs ~/$APP_SIMPLE/$CONF/$simple \
+        $APP_SIMPLE/$(get_simple_name default) "
     fi
   fi
 }
-
+# This sym link stuff is now only for ease of seeing which
+# configuration files are currently being used.
 append_to_ln_cmd $GP_PROPERTIES $DEFAULT_GP_PROPERTIES
-append_to_ln_cmd $keyStore $DEFAULT_KEYSTORE
-append_to_ln_cmd $trustStore $DEFAULT_TRUSTSTORE
+append_to_ln_cmd $KEYSTORE $DEFAULT_KEYSTORE
+append_to_ln_cmd $TRUSTSTORE $DEFAULT_TRUSTSTORE
 append_to_ln_cmd $LOG_PROPERTIES $DEFAULT_LOG_PROPERTIES
 append_to_ln_cmd $LOG4J_PROPERTIES $DEFAULT_LOG4J_PROPERTIES
 append_to_ln_cmd $APP_RESOURCES $DEFAULT_APP_RESOURCES
@@ -320,17 +318,38 @@ function rsync_symlink {
   address=$1
   print 1 "Transferring conf files to $address:$APP_SIMPLE"
   print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH; $LINK_CMD && rsync\" \
-    $conf_transferrables $username@$address:$APP_SIMPLE/conf/"
+    $conf_transferrables $username@$address:$APP_SIMPLE/$CONF/"
   $RSYNC --rsync-path="$RSYNC_PATH; $LINK_CMD && rsync" \
-    $conf_transferrables $username@$address:$APP_SIMPLE/conf/
+    $conf_transferrables $username@$address:$APP_SIMPLE/$CONF/
 }
 
-SSL_OPTIONS="-Djavax.net.ssl.keyStorePassword=$keyStorePassword \
--Djavax.net.ssl.keyStore=$keyStore \
--Djavax.net.ssl.trustStorePassword=$trustStorePassword \
--Djavax.net.ssl.trustStore=$trustStore"
+LOCAL_SSL_KEYFILES="-Djavax.net.ssl.keyStore=$KEYSTORE \
+-Djavax.net.ssl.trustStore=$TRUSTSTORE"
 
-LOG_FILE=gigapaxos.log
+REMOTE_SSL_KEYFILES="-Djavax.net.ssl.keyStore=$(get_simple_name $KEYSTORE) \
+-Djavax.net.ssl.trustStore=$(get_simple_name $TRUSTSTORE)"
+
+COMMON_JVMARGS="$ENABLE_ASSERTS \
+-Djavax.net.ssl.keyStorePassword=$keyStorePassword \
+-Djavax.net.ssl.trustStorePassword=$trustStorePassword"
+
+# Can add more JVM args here. JVM args specified on the command-line
+# will override defaults specified here.
+DEFAULT_JVMARGS="-cp $CLASSPATH $COMMON_JVMARGS \
+$LOCAL_SSL_KEYFILES \
+-Djava.util.logging.config.file=$LOG_PROPERTIES \
+-Dlog4j.configuration=$LOG4J_PROPERTIES \
+-DgigapaxosConfig=$GP_PROPERTIES"
+
+JVMARGS="$DEFAULT_JVMARGS $SUPPLIED_JVMARGS"
+
+DEFAULT_REMOTE_JVMARGS="$COMMON_JVMARGS \
+$REMOTE_SSL_KEYFILES \
+-Djava.util.logging.config.file=$(get_simple_name $LOG_PROPERTIES) \
+-Dlog4j.configuration=$(get_simple_name $LOG4J_PROPERTIES) \
+-DgigapaxosConfig=$(get_simple_name $DEFAULT_GP_PROPERTIES)"
+
+REMOTE_JVMARGS="$SUPPLIED_JVMARGS $DEFAULT_REMOTE_JVMARGS"
 
 # gets address and port of server from gigapaxos properties file
 function get_address_port {
@@ -355,10 +374,10 @@ function start_server {
   get_address_port $server
   if [[ $ifconfig_found != "" && `ifconfig|grep $address` != "" ]]; then
     if [[ $VERBOSE == 2 ]]; then
-      echo "$JAVA $JVMARGS $SSL_OPTIONS \
+      echo "$JAVA $JVMARGS \
         edu.umass.cs.reconfiguration.ReconfigurableNode $server&"
     fi
-    $JAVA $JVMARGS $SSL_OPTIONS \
+    $JAVA $JVMARGS \
       edu.umass.cs.reconfiguration.ReconfigurableNode $server&
   else
     # first rsync files to remote server
@@ -449,10 +468,10 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
             get_address_port $server
             if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]];
             then
-              print 3 "$JAVA $JVMARGS $SSL_OPTIONS \
+              print 3 "$JAVA $JVMARGS  \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
                 clear $server"
-              $JAVA $JVMARGS $SSL_OPTIONS \
+              $JAVA $JVMARGS \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
                 clear $server
       
