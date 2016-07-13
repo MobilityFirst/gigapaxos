@@ -17,6 +17,7 @@ package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.util.logging.Level;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -65,6 +66,7 @@ public class ReconfigurationPacketDemultiplexer extends
 	public JSONObject processHeader(byte[] msg, NIOHeader header) {
 		long t=System.nanoTime();
 		int type;
+		log.log(Level.FINEST, "{0} processHeader received message with header {1}", new Object[]{this, header});
 		if (msg.length >= Integer.BYTES
 				&& ReconfigurationPacket.PacketType.intToType
 						.containsKey(type = ByteBuffer.wrap(msg, 0, 4).getInt())
@@ -78,6 +80,12 @@ public class ReconfigurationPacketDemultiplexer extends
 				return json;
 			}
 		} 
+		else if (JSONPacket.couldBeJSON(msg)) {
+			JSONObject json = super.processHeader(msg, header,
+					true);
+			if(json != null)
+				return json;
+		}
 		// else prefix msg with addresses
 		byte[] stamped = new byte[NIOHeader.BYTES + msg.length];
 		ByteBuffer bbuf = ByteBuffer.wrap(stamped);
@@ -103,7 +111,7 @@ public class ReconfigurationPacketDemultiplexer extends
 			}
 		} else
 			try {
-				assert(ReconfigurationPacket.isReconfigurationPacket(json));
+//				assert(ReconfigurationPacket.isReconfigurationPacket(json)) : json;
 				return JSONPacket.getPacketType(json);
 			} catch (JSONException e) {
 				e.printStackTrace();

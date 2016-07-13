@@ -395,6 +395,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	@Override
 	public boolean handleMessage(JSONObject jsonObject) {
 
+		log.log(Level.FINER, "{0} handleMessage received {1}", new Object[]{this, jsonObject});
+		
 		long entryTime = System.nanoTime();
 		BasicReconfigurationPacket<NodeIDType> rcPacket = null;
 		try {
@@ -415,6 +417,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}
 			// else check if app request
 			else if (isAppRequest(jsonObject)) {
+				log.log(Level.FINER, "{0} handleMessage received appRequest {1}", new Object[]{this, jsonObject});
 				// long startTime = System.currentTimeMillis();
 				Request request = this.getRequest(jsonObject);
 				NIOHeader header = jsonObject instanceof JSONMessenger.JSONObjectWrapper ? NIOHeader
@@ -1044,7 +1047,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				: JSONPacket.getPacketType(jsonObject);
 		if (appRequestTypes == null)
 			appRequestTypes = toIntegerSet(this.appCoordinator
-					.getRequestTypes());
+					.getAppRequestTypes());
 		return appRequestTypes.contains(type)
 				|| type == 0
 				|| type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
@@ -1342,7 +1345,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
 				}
 				if (appTypes != null && !appTypes.isEmpty())
-					pd.register(this.appCoordinator.getRequestTypes(), this);
+					pd.register(appTypes
+							//this.appCoordinator.getRequestTypes()
+							, this);
 				pd.register(PacketType.ECHO_REQUEST, this);
 				pd.register(PacketType.REPLICABLE_CLIENT_REQUEST, this);
 			}

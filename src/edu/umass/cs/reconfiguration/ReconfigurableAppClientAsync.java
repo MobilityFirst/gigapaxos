@@ -448,6 +448,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		@Override
 		public boolean handleMessage(Object strMsg) {
 			Request response = null;
+			log.log(Level.FINER, "{0} handleMessage received {1}", new Object[]{this, strMsg});
 			// else try parsing as ClientReconfigurationPacket
 			if ((response = this.parseAsReconfigurationPacket(strMsg)) == null)
 				// try parsing as app request
@@ -646,16 +647,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 										(AppRequestParser) ReconfigurableAppClientAsync.this);
 					}
 				}
-				// byte-parseable app packet
-				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
-					// AppInstrumenter.recvdAppPacket();
-					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
-							.getRequest(bytes, header);
-				}
 				// default (slow path) stringified app packet
-				else {
-					message = MessageExtractor.decode(bytes);
-					if (JSONPacket.couldBeJSON(message)) {
+				else if(JSONPacket.couldBeJSON(bytes) && (
+					message = MessageExtractor.decode(bytes))!=null) 
+				{
 						JSONObject json = new JSONObject(message);
 						MessageExtractor.stampAddressIntoJSONObject(
 								header.sndr, header.rcvr, json);
@@ -671,7 +666,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							 * the JSON'ization below. */
 							json.put(Keys.INCOMING_STRING.toString(), message);
 						return json;// inserted;
-					}
+				}
+				// byte-parseable app packet
+				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
+					// AppInstrumenter.recvdAppPacket();
+					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
+							.getRequest(bytes, header);
 				}
 			} catch (Exception je) {
 				// do nothing

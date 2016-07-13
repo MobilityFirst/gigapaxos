@@ -27,6 +27,7 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
@@ -776,6 +777,7 @@ public class TESTReconfigurationClient {
 	 * @throws NumberFormatException
 	 * @throws InterruptedException
 	 */
+	@Test
 	public void test02_ReplicableClientRequest() throws IOException,
 			NumberFormatException, InterruptedException {
 		String[] names = generateRandomNames(Config

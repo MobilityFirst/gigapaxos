@@ -55,6 +55,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	private static int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
 
 	private final int myThreadPoolSize;
+	
+	private static boolean emulateDelays = false;
 
 	/**
 	 * @param threadPoolSize
@@ -175,7 +177,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				log.log(Level.FINEST, "{0} invoking {1}.handleMessage({2})",
 						new Object[] { this, tasker.pd, message });
 				// task should still be non-blocking
-				executor.schedule(tasker, 0, TimeUnit.MILLISECONDS);
+				executor.schedule(tasker, emulateDelays ? JSONDelayEmulator.getEmulatedDelay(): 0, TimeUnit.MILLISECONDS);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
 					ree.printStackTrace();
@@ -186,7 +188,14 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		 * garbage collection or heap optimization issues. */
 		return true;
 	}
-
+	
+	/**
+	 * Turns on delay emulation. There is no way to disable, so use with care.
+	 */
+	public static final void emulateDelays() {
+		emulateDelays = true;
+	}
+	
 	protected boolean loopback(Object obj) {
 		if (!this.matchesType(obj))
 			return false;

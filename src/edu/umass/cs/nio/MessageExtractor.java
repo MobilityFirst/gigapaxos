@@ -197,7 +197,8 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 			incoming.get(msg);
 			String message = new String(msg,
 					MessageNIOTransport.NIO_CHARSET_ENCODING);
-			if ((delay = JSONDelayEmulator.getEmulatedDelay(message)) >= 0)
+			// always true because of max(0,delay)
+			if ((delay = Math.max(0, JSONDelayEmulator.getEmulatedDelay(message))) >= 0)
 				// run in a separate thread after scheduled delay
 				executor.schedule(
 						new MessageWorker(socket, msg, packetDemuxes), delay,

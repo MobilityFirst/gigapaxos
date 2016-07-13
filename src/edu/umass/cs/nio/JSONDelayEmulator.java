@@ -145,7 +145,7 @@ public class JSONDelayEmulator {
 	private static long getDelay(Object id) {
 		long delay = 0;
 		if (JSONDelayEmulator.EMULATE_RECEIVER_DELAYS) {
-			if (JSONDelayEmulator.USE_CONFIG_FILE_INFO) {
+			if (JSONDelayEmulator.USE_CONFIG_FILE_INFO && id != null) {
 				/*
 				 * FIXME: Not sure if we can really support generic types
 				 * cleanly in this class as it is mostly static.
@@ -168,4 +168,22 @@ public class JSONDelayEmulator {
 		}
 		return delay;
 	}
+	
+	protected static long getEmulatedDelay() {
+		return (long) ((1.0 + VARIATION * Math.random()) * JSONDelayEmulator.DEFAULT_DELAY);
+	}
+	
+	/**
+	 * @param d
+	 */
+	public static void setBaseDelay(long d) {
+		DEFAULT_DELAY = d;
+	}
+	/**
+	 * @param v
+	 */
+	public static void setVariation(double v) {
+		VARIATION = v;
+	}
+
 }

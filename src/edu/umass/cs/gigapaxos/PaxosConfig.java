@@ -119,7 +119,7 @@ public class PaxosConfig {
 						|| Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR)
 								.trim().equals("."));
 		if (Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR).trim().equals("."))
-			PaxosManager.getLogger().severe(
+			PaxosManager.getLogger().warning(
 					PC.GIGAPAXOS_DATA_DIR + " must be an absolute path;"
 							+ " specifying \".\" is deprecated and discouraged.");
 		return true;
@@ -832,6 +832,11 @@ public class PaxosConfig {
 		 * 
 		 */
 		DB_PASSWORD("password"),
+		
+		/**
+		 * Turns on delay emulation.
+		 */
+		EMULATE_DELAYS (false),
 
 		/**
 		 * FIXME: The options below only exist for testing stringification

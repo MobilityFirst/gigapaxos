@@ -26,8 +26,10 @@ import java.util.Set;
 
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
+import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.Messenger;
@@ -137,6 +139,9 @@ public class PaxosServer {
 					"At least one node ID must be specified as a command-line argument for starting "
 							+ PaxosServer.class.getSimpleName());
 		Config.register(args);
+		if (Config.getGlobalBoolean(PC.EMULATE_DELAYS))
+			AbstractPacketDemultiplexer.emulateDelays();
+
 		
 		PaxosConfig.load();
 		PaxosConfig.setConsoleHandler();

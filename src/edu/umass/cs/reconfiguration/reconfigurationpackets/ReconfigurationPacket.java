@@ -24,6 +24,7 @@ import java.util.Map;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.Byteable;
@@ -32,6 +33,7 @@ import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.json.ProtocolPacket;
 import edu.umass.cs.reconfiguration.Reconfigurator;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.IntegerPacketTypeMap;
 
@@ -452,6 +454,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 	}
 
 	private static final String CHARSET = "ISO-8859-1";
+
+	private static final boolean BYTEIFICATION = Config.getGlobalBoolean(PC.BYTEIFICATION);
 	
 	@Override
 	public byte[] toBytes() {
@@ -462,6 +466,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 			e.printStackTrace();
 			return null;
 		}
+		if(!BYTEIFICATION) return body;
+		// else
 		byte[] bytes = new byte[body.length+4];
 		ByteBuffer bbuf = ByteBuffer.wrap(bytes);
 		bbuf.putInt(this.getType().getInt());

@@ -256,6 +256,12 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		((InterfaceMessageExtractor) this.worker).stop();
 		JSONDelayEmulator.stop();
 	}
+	
+	private MessageType putEmulatedDelays(NodeIDType id, MessageType msg) {
+		if (JSONDelayEmulator.isDelayEmulated() && msg instanceof JSONObject)
+			JSONDelayEmulator.putEmulatedDelay(id, (JSONObject) msg);	
+		return msg;
+	}
 
 	/**
 	 * Send a JSON packet to a node id.
@@ -268,9 +274,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 */
 	@Override
 	public int sendToID(NodeIDType id, MessageType msg) throws IOException {
-		if (JSONDelayEmulator.isDelayEmulated() && msg instanceof JSONObject)
-			JSONDelayEmulator.putEmulatedDelay(id, (JSONObject) msg);
-		return sendToIDInternal(id, msg);
+		return sendToIDInternal(id, putEmulatedDelays(id, msg));
 	}
 
 	/**
@@ -285,6 +289,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	@Override
 	public int sendToAddress(InetSocketAddress isa, MessageType msg)
 			throws IOException {
+		msg = putEmulatedDelays(null, msg);
 		if (msg instanceof byte[])
 			return this.sendUnderlying(isa, (byte[]) msg);
 		else if (msg instanceof Byteable)

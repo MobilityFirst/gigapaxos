@@ -31,6 +31,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
+import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.MessageNIOTransport;
@@ -322,6 +323,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		Config.register(args);
 		PaxosConfig.sanityCheck();
 		ReconfigurationConfig.setConsoleHandler();
+		if (Config.getGlobalBoolean(PC.EMULATE_DELAYS))
+			AbstractPacketDemultiplexer.emulateDelays();
 
 		if (args.length == 0)
 			throw new RuntimeException(
