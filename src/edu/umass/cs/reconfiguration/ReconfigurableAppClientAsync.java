@@ -150,8 +150,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap
 					.remove(((RequestAndCallback) value).request
 							.getServiceName());
-			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
-					key+"", ((RequestAndCallback)value ).request.getSummary()});
+			log.log(Level.INFO, "{0} timing out {1}:{2}",
+					new Object[] { this, key + "",
+							((RequestAndCallback) value).request.getSummary() });
 		}
 	};
 
@@ -233,7 +234,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	Timer timer = null;
 
-	private static final Logger log = Logger.getLogger(ReconfigurableAppClientAsync.class.getName()); //Reconfigurator.getLogger();
+	private static final Logger log = Logger
+			.getLogger(ReconfigurableAppClientAsync.class.getName()); // Reconfigurator.getLogger();
 
 	private static final int MAX_OUTSTANDING_APP_REQUESTS = 4096;
 
@@ -448,7 +450,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		@Override
 		public boolean handleMessage(Object strMsg) {
 			Request response = null;
-			log.log(Level.FINER, "{0} handleMessage received {1}", new Object[]{this, strMsg});
+			log.log(Level.FINER, "{0} handleMessage received {1}",
+					new Object[] { this, strMsg });
 			// else try parsing as ClientReconfigurationPacket
 			if ((response = this.parseAsReconfigurationPacket(strMsg)) == null)
 				// try parsing as app request
@@ -532,12 +535,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
 							.remove(getKey((ClientReconfigurationPacket) response))) != null
 							|| (callback = ReconfigurableAppClientAsync.this.callbacksCRPLongTimeout
-									.remove(getKey((ClientReconfigurationPacket) response))) != null) 
+									.remove(getKey((ClientReconfigurationPacket) response))) != null)
 						callback.handleResponse(response);
-					else 
-						// we usually don't expect to find a callback for ClientReconfigurationPacket
-						log.log(Level.FINEST, "{0} found no callback for {1}",
-								new Object[] { this, response.getSummary(log.isLoggable(Level.FINEST)) });
+					else
+						// we usually don't expect to find a callback for
+						// ClientReconfigurationPacket
+						log.log(Level.FINEST,
+								"{0} found no callback for {1}",
+								new Object[] {
+										this,
+										response.getSummary(log
+												.isLoggable(Level.FINEST)) });
 
 					// if name deleted, clear cached actives
 					if (response instanceof DeleteServiceName
@@ -611,6 +619,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			String message = null;
 			try {
 				Integer type = null;
+				JSONObject json = null;
 				// reconfiguration packet
 				if (bytes.length >= Integer.BYTES
 						&& ReconfigurationPacket.PacketType.intToType
@@ -623,7 +632,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 								bytes.length - 4);
 						long t = System.nanoTime();
 						if (JSONPacket.couldBeJSON(message)) {
-							JSONObject json = new JSONObject(message);
+							json = new JSONObject(message);
 							MessageExtractor.stampAddressIntoJSONObject(
 									header.sndr, header.rcvr, json);
 							if (ReconfigurationConfig.instrument(100))
@@ -647,25 +656,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 										(AppRequestParser) ReconfigurableAppClientAsync.this);
 					}
 				}
-				// default (slow path) stringified app packet
-				else if(JSONPacket.couldBeJSON(bytes) && (
-					message = MessageExtractor.decode(bytes))!=null) 
-				{
-						JSONObject json = new JSONObject(message);
-						MessageExtractor.stampAddressIntoJSONObject(
-								header.sndr, header.rcvr, json);
-						if (!ReconfigurationPacket
-								.isReconfigurationPacket(json))
-							/* FIXME: This is inefficient and inelegant, but it
-							 * is unclear what else to do to avoid at least one
-							 * unnecessary JSON<->string back and forth with the
-							 * String based API for apps that need the sender
-							 * address information embedded in JSON. The
-							 * alternative is to not provide the sender-address
-							 * feature to async clients; if so, we don't need
-							 * the JSON'ization below. */
-							json.put(Keys.INCOMING_STRING.toString(), message);
-						return json;// inserted;
+				// old JSON option for reconfiguration packets
+				else if (!BYTEIFICATION && JSONPacket.couldBeJSON(bytes)
+						&& (message = MessageExtractor.decode(bytes)) != null
+						&& (json = new JSONObject(message)) != null
+						&& ReconfigurationPacket.isReconfigurationPacket(json)) {
+					return MessageExtractor.stampAddressIntoJSONObject(
+							header.sndr, header.rcvr, json);
 				}
 				// byte-parseable app packet
 				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
@@ -673,6 +670,24 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
 							.getRequest(bytes, header);
 				}
+				// default (slow path) stringified app packet
+				else if (JSONPacket.couldBeJSON(bytes)
+						&& (message = MessageExtractor.decode(bytes)) != null) {
+					json = new JSONObject(message);
+					MessageExtractor.stampAddressIntoJSONObject(header.sndr,
+							header.rcvr, json);
+					if (!ReconfigurationPacket.isReconfigurationPacket(json))
+						/* FIXME: This is inefficient and inelegant, but it is
+						 * unclear what else to do to avoid at least one
+						 * unnecessary JSON<->string back and forth with the
+						 * String based API for apps that need the sender
+						 * address information embedded in JSON. The alternative
+						 * is to not provide the sender-address feature to async
+						 * clients; if so, we don't need the JSON'ization below. */
+						json.put(Keys.INCOMING_STRING.toString(), message);
+					return json;// inserted;
+				}
+
 			} catch (Exception je) {
 				// do nothing
 				je.printStackTrace();
@@ -689,6 +704,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			return ReconfigurableAppClientAsync.this.toString();
 		}
 	}
+
+	private static final boolean BYTEIFICATION = Config
+			.getGlobalBoolean(PC.BYTEIFICATION);
 
 	private void cleanupActiveReplicasInfo(RequestAndCallback callback) {
 		ReconfigurableAppClientAsync.this.activeReplicas
@@ -717,7 +735,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				(ClientRequest) request, callback) : this.sendRequest(
 				ReplicableClientRequest.wrap(request), callback));
 	}
-	
+
 	// TODO: true hasn't been tested rigorously
 	private static final boolean ENABLE_ID_TRANSFORM = false;
 
@@ -768,14 +786,13 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 							+ request.getRequestID());
 
 			/* put again to refresh insertion time for GC purposes and in case
-			 * the new callback is different from the old one.
-			 */
+			 * the new callback is different from the old one. */
 			if (prev != null
 					&& ((RequestAndCallback) prev).request.equals(request))
 				this.callbacks.put(request.getRequestID(),
 						new RequestAndCallback(request, callback));
-				
-			// special case for long timeout tasks 
+
+			// special case for long timeout tasks
 			if (hasLongTimeout(original))
 				this.spawnGCClientRequest(
 						((TimeoutRequestCallback) original).getTimeout(),
@@ -788,7 +805,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					"{0} {1} request {2} to server {3}",
 					new Object[] {
 							this,
-							!sendFailed ? "sent" : "failed to send", 
+							!sendFailed ? "sent" : "failed to send",
 							ReconfigurationConfig.getSummary(request,
 									log.isLoggable(level)), server });
 			if (!sendFailed && !(request instanceof EchoRequest))
@@ -1282,11 +1299,15 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									e.printStackTrace();
 									// do nothing
 								}
-							} else if (pendingRequest.heardFromRCs/*incrHeardFromRCs()*/ < response
+							} else if (pendingRequest.heardFromRCs/* incrHeardFromRCs(
+																 * ) */< response
 									.getHashRCs().size() / 2 + 1) {
 								// do nothing but wait to hear from majority
-								log.log(Level.INFO, "{0} received no actives from {1} for name {2}", 
-										new Object[]{this, response.getSender(), response.getServiceName()});
+								log.log(Level.INFO,
+										"{0} received no actives from {1} for name {2}",
+										new Object[] { this,
+												response.getSender(),
+												response.getServiceName() });
 							} else {
 								/* name does not exist, so send error to all
 								 * pending requests except ones to be retried */
@@ -1304,10 +1325,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 												response).setResponseMessage(ClientReconfigurationPacket.ResponseCodes.ACTIVE_REPLICA_EXCEPTION
 												+ ": No active replicas found for name \""
 												+ response.getServiceName()
-												+ "\" at replica " + response.getSender()
+												+ "\" at replica "
+												+ response.getSender()
 												+ " likely because the name doesn't exist or because this name or"
 												+ " active replicas or reconfigurators are being reconfigured: "
-												+ pendingRequest.request.getSummary()));
+												+ pendingRequest.request
+														.getSummary()));
 								removals.add(pendingRequest);
 							}
 						pendingRequests.removeAll(removals);
@@ -1520,7 +1543,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			2 + 1 / this.reconfigurators.size(), address))
 				return;
 
-		throw new IOException(CONNECTION_CHECK_ERROR + " : " + this.reconfigurators);
+		throw new IOException(CONNECTION_CHECK_ERROR + " : "
+				+ this.reconfigurators);
 	}
 
 	/**

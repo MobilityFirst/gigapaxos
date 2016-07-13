@@ -22,6 +22,7 @@ import java.util.logging.Level;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.Application;
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -30,6 +31,7 @@ import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
 
@@ -61,29 +63,29 @@ public class ReconfigurationPacketDemultiplexer extends
 		throw new RuntimeException(
 				"This method should never be called unless we have \"forgotten\" to register or handle some packet types.");
 	}
+	
+	private static final boolean BYTEIFICATION = Config.getGlobalBoolean(PC.BYTEIFICATION);
 
 	@Override
 	public JSONObject processHeader(byte[] msg, NIOHeader header) {
 		long t=System.nanoTime();
 		int type;
+		JSONObject json = null;
 		log.log(Level.FINEST, "{0} processHeader received message with header {1}", new Object[]{this, header});
 		if (msg.length >= Integer.BYTES
 				&& ReconfigurationPacket.PacketType.intToType
 						.containsKey(type = ByteBuffer.wrap(msg, 0, 4).getInt())
 				&& JSONPacket.couldBeJSON(msg, Integer.BYTES)
 				&& type != PacketType.REPLICABLE_CLIENT_REQUEST.getInt()) {
-			JSONObject json = super.processHeader(msg, Integer.BYTES, header,
-					true);
+			json = super.processHeader(msg, Integer.BYTES, header, true);
 			if (json != null) {
 				if (Util.oneIn(50))
 					DelayProfiler.updateDelayNano("processHeader", t);
 				return json;
 			}
 		} 
-		else if (JSONPacket.couldBeJSON(msg)) {
-			JSONObject json = super.processHeader(msg, header,
-					true);
-			if(json != null)
+		else if (!BYTEIFICATION && JSONPacket.couldBeJSON(msg)
+				&& (json = super.processHeader(msg, header, true)) != null) {
 				return json;
 		}
 		// else prefix msg with addresses
