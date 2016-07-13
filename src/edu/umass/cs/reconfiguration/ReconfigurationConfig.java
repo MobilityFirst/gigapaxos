@@ -296,7 +296,7 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		SEND_CLOSEST_TO_RECONFIGURATORS(true),
-		
+
 		/**
 		 * A flag to stop even all reporting.
 		 */
@@ -521,7 +521,7 @@ public class ReconfigurationConfig {
 	 */
 	public static Map<String, InetSocketAddress> getReconfigurators() {
 		Map<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
-		//Config config = Config.getConfig(PC.class);
+		// Config config = Config.getConfig(PC.class);
 		Properties config = PaxosConfig.getAsProperties();
 
 		Set<String> keys = config.stringPropertyNames();
@@ -642,23 +642,23 @@ public class ReconfigurationConfig {
 		/**
 		 * 
 		 */
-		START_ALL, 
-		
+		START_ALL,
+
 		/**
 		 * 
 		 */
 		start,
-		
+
 		/**
 		 * 
 		 */
 		all,
-		
+
 		/**
 		 * 
 		 */
 		clear,
-		
+
 		/**
 		 * 
 		 */
@@ -693,7 +693,7 @@ public class ReconfigurationConfig {
 			setConsoleHandler(Level.INFO);
 	}
 
-	private static CreateServiceName[] testMakeCreateNameRequest(String name,
+	protected static CreateServiceName[] testMakeCreateNameRequest(String name,
 			String state, int numRequests, int batchSize) {
 		Util.assertAssertionsEnabled();
 		Map<String, String> nameStates = new HashMap<String, String>();
@@ -710,13 +710,6 @@ public class ReconfigurationConfig {
 						.getReplicatedServers(name0 == null ? name0 = curName
 								: name0)));
 		return creates;
-	}
-
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		testMakeCreateNameRequest("name", "some_state", 1000, 100);
 	}
 
 	/**
@@ -749,4 +742,89 @@ public class ReconfigurationConfig {
 		return request.getSummary();
 	}
 
+	/* Methods to use gpServer.sh */
+	private static enum DefaultProps {
+		GIGAPAXOS_CONFIG("gigapaxosConfig"),
+
+		KEYSTORE("javax.net.ssl.keyStore"),
+
+		KEYSTORE_PASSWORD("javax.net.ssl.keyStorePassword"),
+
+		TRUSTSTORE("javax.net.ssl.trustStore"),
+
+		TRUSTSTORE_PASSWORD("javax.net.ssl.trustStorePassword"),
+
+		LOGGING_PROPERTIES("java.util.logging.config.file"),
+
+		;
+
+		final String key;
+
+		DefaultProps(String key) {
+			this.key = key;
+		}
+
+		static String getProperties() {
+			String s = "", val = null;
+			for (DefaultProps prop : DefaultProps.values())
+				s += ((val = System.getProperty(prop.key)) != null ? " -D"
+						+ prop.key + "=" + val : "");
+			return s;
+		}
+	}
+
+	/**
+	 * @param gpServerScriptFile
+	 *            Absolute or relative path of gpServer.sh
+	 * @param gigapaxosPropertiesFile
+	 *            Absolute or relative path of gigapaxos properties file
+	 * @param otherSystemProperties
+	 *            "-Dprop1=val1 -Dprop2=val2 ..."
+	 * @param command
+	 *            "start|stop|clear|forceclear all|server_names"
+	 * @return True if there are no script errors, but it doesn't necessarily
+	 *         mean that all the servers started up fine.
+	 */
+	public static final boolean gpServer(String gpServerScriptFile,
+			String gigapaxosPropertiesFile, String otherSystemProperties,
+			String command) {
+		String fullCommand = getFullCommand(gpServerScriptFile,
+				gigapaxosPropertiesFile, otherSystemProperties, command);
+		try {
+			int exit = Runtime.getRuntime().exec(fullCommand).waitFor();
+			return exit == 0;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	private static String getFullCommand(String gpServerScriptFile,
+			String gigapaxosPropertiesFile, String otherSystemProperties,
+			String command) {
+		return gpServerScriptFile
+				+ (gigapaxosPropertiesFile != null ? " -DgigapaxosConfig="
+						+ gigapaxosPropertiesFile
+						: (System
+								.getProperty(DefaultProps.GIGAPAXOS_CONFIG.key)) != null ? " -DgigapaxosConfig="
+								+ System.getProperty(DefaultProps.GIGAPAXOS_CONFIG.key)
+								: "") + " " + DefaultProps.getProperties()
+				+ " "
+				+ (otherSystemProperties != null ? otherSystemProperties : "")
+				+ " " + command;
+	}
+
+	private static String homePath(String path) {
+		return System.getProperty("user.home") + "/" + path;
+	}
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		System.out.println(getFullCommand(
+				homePath("gigapaxos/bin/gpServer.sh"),
+				homePath("gigapaxos/conf/gigapaxos.properties"), null,
+				"start all"));
+	}
 }

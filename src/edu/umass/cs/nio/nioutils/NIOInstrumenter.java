@@ -20,11 +20,14 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.nio.JSONMessenger;
+import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -35,6 +38,7 @@ import edu.umass.cs.utils.Util;
  */
 
 public class NIOInstrumenter {
+	private static Logger log=NIOTransport.getLogger();
 	private static int totalSent = 0; // Sent by NIOTransport
 	private static int totalRcvd = 0; // Received by NIOTransport
 
@@ -57,12 +61,21 @@ public class NIOInstrumenter {
 		if (enabled)
 			timer.scheduleAtFixedRate(new TimerTask() {
 				public void run() {
-					if (System.currentTimeMillis() - lastUpdated < PERIOD)
-						System.out.println(NIOInstrumenter.getJSONStats());
+					if (System.currentTimeMillis() - lastUpdated < PERIOD) {
+						String stats = NIOInstrumenter.getJSONStats();
+						System.out.println(stats);
+						if(log!=null) log.log(Level.WARNING, "{0}", new Object[]{stats});
+					}
 				}
 			}, 0, PERIOD);
 	}
 
+	/**
+	 * @param l
+	 */
+	public static void setLogger(Logger l) {
+		log = l;
+	}
 	/**
 	 * 
 	 */

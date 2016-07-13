@@ -30,34 +30,34 @@ export CLASSPATH=$DEFAULT_GP_CLASSPATH
 CONF=conf
 CONFDIR=$HEAD/$CONF
 
-# look for file in conf if it does not exist
+# look for file in conf if default does not exist
 function set_default_conf {
   default=$1
-  if [[ ! -e $default && (-e $CONFDIR/$default \
-    || -L $CONFDIR/$default) ]]; then
-    echo $CONF/$default
-  else
-    echo $default
+  if [[ -e $CONFDIR/$default ]]; then
+    echo $CONFDIR/$default
+  elif [[ -L $CONFDIR/$default && \
+    -e `readlink $CONFDIR/$default` ]]; then
+    echo `readlink $CONFDIR/$default`
   fi
 }
 
 # default java.util.logging.config.file
-DEFAULT_LOG_PROPERTIES=$CONFDIR/logging.properties
+DEFAULT_LOG_PROPERTIES=logging.properties
 LOG_PROPERTIES=$(set_default_conf $DEFAULT_LOG_PROPERTIES)
 
 # default log4j properties (used by c3p0)
-DEFAULT_LOG4J_PROPERTIES=$CONFDIR/log4j.properties
+DEFAULT_LOG4J_PROPERTIES=log4j.properties
 LOG4J_PROPERTIES=$(set_default_conf $DEFAULT_LOG4J_PROPERTIES)
 
 # default gigapaxos properties
-DEFAULT_GP_PROPERTIES=$CONFDIR/gigapaxos.properties
+DEFAULT_GP_PROPERTIES=gigapaxos.properties
 GP_PROPERTIES=$(set_default_conf $DEFAULT_GP_PROPERTIES)
 
-#DEFAULT_KEYSTORE=$CONFDIR/keyStore.jks
-KEYSTORE=$(set_default_conf $CONFDIR/keyStore.jks)
+#DEFAULT_KEYSTORE=keyStore.jks
+KEYSTORE=$(set_default_conf keyStore.jks)
 
-#DEFAULT_TRUSTSTORE=$CONFDIR/trustStore.jks
-TRUSTSTORE=$(set_default_conf $CONFDIR/trustStore.jks)
+#DEFAULT_TRUSTSTORE=trustStore.jks
+TRUSTSTORE=$(set_default_conf trustStore.jks)
 
 ACTIVE="active"
 RECONFIGURATOR="reconfigurator"
@@ -93,6 +93,13 @@ for arg in $ARGS_EXCEPT_CLASSPATH; do
     index=`expr $index + 1`
   fi
 done
+
+# gigapaxos properties file must exist at this point
+if [[ -z $GP_PROPERTIES || ! -e $GP_PROPERTIES ]]; then
+  (>&2 echo "Error: Unable to find file \
+$DEFAULT_GP_PROPERTIES")
+  exit 1
+fi
 
 DEFAULT_JVMARGS="$ENABLE_ASSERTS -cp $CLASSPATH \
 -Djava.util.logging.config.file=$LOG_PROPERTIES \

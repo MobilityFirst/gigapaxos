@@ -151,7 +151,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					.remove(((RequestAndCallback) value).request
 							.getServiceName());
 			log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] { this,
-					key, value });
+					key+"", ((RequestAndCallback)value ).request.getSummary()});
 		}
 	};
 
@@ -233,7 +233,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 
 	Timer timer = null;
 
-	private static final Logger log = Reconfigurator.getLogger();
+	private static final Logger log = Logger.getLogger(ReconfigurableAppClientAsync.class.getName()); //Reconfigurator.getLogger();
 
 	private static final int MAX_OUTSTANDING_APP_REQUESTS = 4096;
 
@@ -497,6 +497,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									.incrActiveReplicaErrors() < activesInfo.actives
 									.size())
 						try {
+							log.log(Level.INFO,
+									"{0} received {1}; retrying with a different replica",
+									new Object[] { this, response.getSummary() });
 							// retry with a random other active replica
 							ReconfigurableAppClientAsync.this
 									.sendRequest(
@@ -531,8 +534,9 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									.remove(getKey((ClientReconfigurationPacket) response))) != null) 
 						callback.handleResponse(response);
 					else 
-						log.log(Level.FINE, "{0} found no callback for {1}",
-								new Object[] { this, response.getSummary(log.isLoggable(Level.FINE)) });
+						// we usually don't expect to find a callback for ClientReconfigurationPacket
+						log.log(Level.FINEST, "{0} found no callback for {1}",
+								new Object[] { this, response.getSummary(log.isLoggable(Level.FINEST)) });
 
 					// if name deleted, clear cached actives
 					if (response instanceof DeleteServiceName
@@ -781,9 +785,10 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			Level level = request instanceof EchoRequest ? Level.FINE
 					: Level.FINE;
 			log.log(level,
-					"{0} sent request {1} to server {2}",
+					"{0} {1} request {2} to server {3}",
 					new Object[] {
 							this,
+							!sendFailed ? "sent" : "failed to send", 
 							ReconfigurationConfig.getSummary(request,
 									log.isLoggable(level)), server });
 			if (!sendFailed && !(request instanceof EchoRequest))
@@ -1073,7 +1078,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 		ActivesInfo activesInfo = null;
 		if ((activesInfo = this.activeReplicas.get(name)) != null
 				&& (lastQueriedTime = activesInfo.createTime) != null
-				&& (System.currentTimeMillis() - lastQueriedTime < MIN_REQUEST_ACTIVES_INTERVAL)) {
+				// shorter timeout until we have some actives
+				&& ((activesInfo.actives == null && System.currentTimeMillis()
+						- lastQueriedTime < CRP_GC_TIMEOUT / 2)
+				// longer timeout once we have some actives
+				|| (activesInfo.actives != null && System.currentTimeMillis()
+						- lastQueriedTime < MIN_REQUEST_ACTIVES_INTERVAL))) {
 
 			return true;
 		}
@@ -1294,7 +1304,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 												response).setResponseMessage(ClientReconfigurationPacket.ResponseCodes.ACTIVE_REPLICA_EXCEPTION
 												+ ": No active replicas found for name \""
 												+ response.getServiceName()
-												+ "\" likely because the name doesn't exist or because this name or"
+												+ "\" at replica " + response.getSender()
+												+ " likely because the name doesn't exist or because this name or"
 												+ " active replicas or reconfigurators are being reconfigured: "
 												+ pendingRequest.request.getSummary()));
 								removals.add(pendingRequest);

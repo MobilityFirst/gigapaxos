@@ -695,7 +695,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			// the creation above will throw an exception if it fails
 			assert (created && startEpoch.getCurEpochGroup().equals(
 					this.appCoordinator.getReplicaGroup(startEpoch
-							.getServiceName()))) : "Unable to get replica group right after creation for startEpoch"
+							.getServiceName()))) : this + 
+							" unable to get replica group right after creation for startEpoch "
 					+ startEpoch.getSummary()
 					+ ": created="
 					+ created

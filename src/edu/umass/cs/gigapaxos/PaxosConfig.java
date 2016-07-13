@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 
+import org.junit.Assert;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 
@@ -105,6 +107,22 @@ public class PaxosConfig {
 		if (config == null)
 			config = Config.getConfig(PC.class);
 		return config;
+	}
+	
+	/** 
+	 * @return True if all parameters are sane.
+	 */
+	public static boolean sanityCheck() {
+		Assert.assertTrue(PC.GIGAPAXOS_DATA_DIR + " must be an absolute path",
+				Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR).startsWith("/")
+				// only for backwards compatibility
+						|| Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR)
+								.trim().equals("."));
+		if (Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR).trim().equals("."))
+			PaxosManager.getLogger().severe(
+					PC.GIGAPAXOS_DATA_DIR + " must be an absolute path;"
+							+ " specifying \".\" is deprecated and discouraged.");
+		return true;
 	}
 
 	/**

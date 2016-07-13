@@ -130,6 +130,20 @@ public abstract class JSONPacket {
 	public static final boolean couldBeJSON(String str) {
 		return str.startsWith("{") || str.startsWith("[");
 	}
+	/**
+	 * @param str
+	 * @return True if str starts with "{"
+	 */
+	public static final boolean couldBeJSONObject(String str) {
+		return str.startsWith("{");
+	}
+	/**
+	 * @param str
+	 * @return True if str starts with "["
+	 */
+	public static final boolean couldBeJSONArray(String str) {
+		return str.startsWith("[");
+	}
 
 	/**
 	 * @param bytes

@@ -702,6 +702,11 @@ public class PaxosManager<NodeIDType> {
 
 		if (this.isClosed())
 			return null;
+		
+		if (!gms.contains(this.getNodeID()))
+			throw new PaxosInstanceCreationException(this.getNodeID()
+					+ " can not create a paxos instance for group " + gms
+					+ " to which it does not belong");
 
 		boolean tryHotRestore = (hasRecovered() && hri == null);
 		PaxosInstanceStateMachine pism = this.getInstance(paxosID,

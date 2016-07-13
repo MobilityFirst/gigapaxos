@@ -1187,11 +1187,16 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	// utility method used to determine how to offset ports in responses
-	private boolean receivedOnSSLPort(ClientReconfigurationPacket request) {
-		return request.getMyReceiver() != null
-				&& request.getMyReceiver().getPort() == ReconfigurationConfig
-						.getClientFacingSSLPort(this.consistentNodeConfig
-								.getNodePort(getMyID()));
+	private Boolean receivedOnSSLPort(ClientReconfigurationPacket request) {
+		if(request.getMyReceiver() == null) return false;
+		// server-to-server => return null
+		else if(request
+				.getMyReceiver().getPort() == this.consistentNodeConfig
+				.getNodePort(getMyID())) return null;
+		else return request.getMyReceiver()
+				.getPort() == ReconfigurationConfig
+				.getClientFacingSSLPort(this.consistentNodeConfig
+						.getNodePort(getMyID()));
 	}
 
 	private void spawnSecondaryReconfiguratorTask(
@@ -1282,8 +1287,9 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	private static Set<InetSocketAddress> modifyPortsForSSL(
-			Set<InetSocketAddress> replicas, boolean ssl) {
-		if ((ssl && ReconfigurationConfig.getClientPortSSLOffset() == 0)
+			Set<InetSocketAddress> replicas, Boolean ssl) {
+		if(ssl==null) return replicas;
+		else if ((ssl && ReconfigurationConfig.getClientPortSSLOffset() == 0)
 				|| (!ssl && ReconfigurationConfig.getClientPortOffset() == 0))
 			return replicas;
 		Set<InetSocketAddress> modified = new HashSet<InetSocketAddress>();
@@ -1855,7 +1861,6 @@ public class Reconfigurator<NodeIDType> implements
 	private boolean sendClientReconfigurationPacket(
 			ClientReconfigurationPacket response) {
 		try {
-
 			InetSocketAddress querier = this.getQuerier(response);
 			if (querier.equals(response.getCreator())) {
 				// only response can go back to client

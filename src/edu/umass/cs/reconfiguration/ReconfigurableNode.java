@@ -35,6 +35,7 @@ import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
@@ -318,8 +319,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @throws IOException
 	 */
 	public static void main(String[] args) throws IOException {
-		// Util.assertAssertionsEnabled();
 		Config.register(args);
+		PaxosConfig.sanityCheck();
 		ReconfigurationConfig.setConsoleHandler();
 
 		if (args.length == 0)

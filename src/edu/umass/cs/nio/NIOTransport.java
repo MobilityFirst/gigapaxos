@@ -266,7 +266,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		me.start();
 		this.meThreadId = me.getId();
 
-		instanceCount++;
+		synchronized(NIOTransport.class) {
+			instanceCount++;
+		}
 		log.log(Level.FINE, "{0} created new instance {1}: {2}", new Object[] {
 				NIOTransport.class.getSimpleName(), instanceCount, this, });
 
@@ -1505,7 +1507,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 						"Node {0} has no connection to {1} either because "
 								+ "one has not been established or "
 								+ "was previously closed by remote end.",
-						new Object[] { this.myID, isa });
+						new Object[] { this, isa });
 				this.initiateConnection(isa);
 			}
 		}
@@ -1726,6 +1728,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 									| SelectionKey.OP_READ), true);
 			// duplex connection => we may have to read replies
 			key.attach(new AlternatingByteBuffer());
+			log.log(Level.FINE, "{0} {1} channel {2}",
+					new Object[] { this, connected ? "connected" : "failed to connect", key.channel() });
 			if (connected)
 				this.updateAlive((SocketChannel) key.channel());
 		} catch (IOException e) {
