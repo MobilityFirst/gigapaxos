@@ -270,6 +270,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								.equals(ReconfigurationConfig.CommandArgs.all) && (args[args.length - 2]
 						.equals(ReconfigurationConfig.CommandArgs.start) || args[args.length - 2]
 						.equals(ReconfigurationConfig.CommandArgs.clear)))) {
+			// first reconfigurators, then actives
 			nodeIDs.addAll(ReconfigurationConfig.getReconfiguratorIDs());
 			nodeIDs.addAll(PaxosConfig.getActives().keySet());
 		} else

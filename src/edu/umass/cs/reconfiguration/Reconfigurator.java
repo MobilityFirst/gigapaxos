@@ -33,6 +33,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
@@ -569,12 +570,12 @@ public class Reconfigurator<NodeIDType> implements
 							ClientReconfigurationPacket.ResponseCodes.DUPLICATE_ERROR)
 					.setResponseMessage(
 							"Can not (re-)create an already "
-									+ (record.isDeletePending() ? "deleted name until "
+									+ (record.isDeletePending() ? "deleted name " + create.getServiceName() + " until "
 											+ ReconfigurationConfig
 													.getMaxFinalStateAge()
 											/ 1000
 											+ " seconds have elapsed after the most recent deletion."
-											: "existing name.")));
+											: "existing name " + create.getServiceName() + ".")));
 		return null;
 	}
 
@@ -1237,6 +1238,9 @@ public class Reconfigurator<NodeIDType> implements
 			ReconfigurationPacket.PacketType.DELETE_SERVICE_NAME,
 			ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS, };
 
+	private ReconfigurationPacket.PacketType[] clientRequestTypesNoCreateDelete = {
+			ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS, };
+
 	// put anything needing periodic instrumentation here
 	private void instrument(Level level) {
 		log.log(level,
@@ -1357,51 +1361,6 @@ public class Reconfigurator<NodeIDType> implements
 		return sockAddrs;
 	}
 
-	/* We may need to use a separate messenger for end clients if we use two-way
-	 * authentication between servers.
-	 * 
-	 * TODO: unused, remove */
-	@SuppressWarnings("unused")
-	@Deprecated
-	private AddressMessenger<JSONObject> initClientMessenger() {
-		AbstractPacketDemultiplexer<JSONObject> pd = null;
-		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
-		try {
-			int myPort = (this.consistentNodeConfig.getNodePort(getMyID()));
-			if (ReconfigurationConfig.getClientFacingPort(myPort) != myPort) {
-				log.log(Level.INFO,
-						"{0} creating client messenger at {1}:{2}",
-						new Object[] {
-								this,
-								this.consistentNodeConfig
-										.getBindAddress(getMyID()),
-								ReconfigurationConfig
-										.getClientFacingPort(myPort) });
-				MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
-				InetSocketAddress isa = new InetSocketAddress(
-						this.consistentNodeConfig.getBindAddress(getMyID()),
-						ReconfigurationConfig.getClientFacingPort(myPort));
-				cMsgr = new JSONMessenger<InetSocketAddress>(
-						niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
-								isa.getAddress(),
-								isa.getPort(),
-								(pd = new ReconfigurationPacketDemultiplexer()),
-								ReconfigurationConfig.getClientSSLMode()));
-				if (!niot.getListeningSocketAddress().equals(isa))
-					throw new IOException(
-							"Unable to listen on specified socket address at "
-									+ isa);
-				pd.register(clientRequestTypes, this);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			log.severe(this + ": " + e.getMessage());
-			System.exit(1);
-		}
-		return cMsgr != null ? cMsgr
-				: (AddressMessenger<JSONObject>) this.messenger;
-	}
-
 	/**
 	 * Initiates clear or SSL client messenger based on {@code ssl}.
 	 * 
@@ -1468,7 +1427,12 @@ public class Reconfigurator<NodeIDType> implements
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
 				}
 				assert (pd != null);
-				pd.register(clientRequestTypes, this);
+				pd.register(Config.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE) ? clientRequestTypes :
+					clientRequestTypesNoCreateDelete, this);
+				if (!Config.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE)
+						&& ReconfigurationConfig.getServerSSLMode() != SSL_MODES.MUTUAL_AUTH)
+					Util.suicide("Can not prevent clients from creating and deleting names "
+							+ "(ALLOW_CLIENT_TO_CREATE_DELETE=false) unless SERVER_SSL_MODE=MUTUAL_AUTH");
 			}
 		} catch (IOException e) {
 			e.printStackTrace();

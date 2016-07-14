@@ -301,6 +301,13 @@ public class ReconfigurationConfig {
 		 * A flag to stop even all reporting.
 		 */
 		DISABLE_RECONFIGURATION(false),
+		
+		/**
+		 * True means clients can create or delete names. False means
+		 * only active replicas can create or delete names provided
+		 * MUTUAL_AUTH is used between servers.
+		 */
+		ALLOW_CLIENT_TO_CREATE_DELETE (true),
 
 		;
 

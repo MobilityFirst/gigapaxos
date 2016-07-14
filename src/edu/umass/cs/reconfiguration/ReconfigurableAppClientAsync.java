@@ -501,17 +501,18 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									.incrActiveReplicaErrors() < activesInfo.actives
 									.size())
 						try {
+							InetSocketAddress randomOther = (InetSocketAddress) Util
+									.getRandomOtherThan(
+											activesInfo.actives,
+											((RequestAndCallback) callback).serverSentTo);
 							log.log(Level.INFO,
-									"{0} received {1}; retrying with a different replica",
-									new Object[] { this, response.getSummary() });
+									"{0} received {1}; retrying with  replica {2}",
+									new Object[] { this, response.getSummary(), randomOther });
 							// retry with a random other active replica
 							ReconfigurableAppClientAsync.this
 									.sendRequest(
 											((RequestAndCallback) callback).request,
-											(InetSocketAddress) Util
-													.getRandomOtherThan(
-															activesInfo.actives,
-															((RequestAndCallback) callback).serverSentTo),
+											randomOther,
 											callback);
 						} catch (IOException e) {
 							e.printStackTrace();
@@ -1288,6 +1289,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 									&& response.getHashRCs().size() > 1) {
 								response.getHashRCs().remove(
 										response.getSender());
+								log.log(Level.FINE,
+										"{0} received no actives from {1} for name {2}; trying other reconfigurators {3}",
+										new Object[] { this,
+												response.getSender(),
+												response.getServiceName(), response.getHashRCs() });
 								try {
 									for (InetSocketAddress reconfigurator : response
 											.getHashRCs())
