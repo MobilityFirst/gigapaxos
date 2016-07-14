@@ -108,7 +108,7 @@ public class LargeCheckpointer {
 	 */
 	public LargeCheckpointer(String dir, String myID) {
 		this.checkpointDir = (dir = (dir == null ? Config
-				.getGlobalString(PC.GIGAPAXOS_DATA_DIR) + PC.PAXOS_LOGS_DIR.getDefaultValue() : dir))
+				.getGlobalString(PC.GIGAPAXOS_DATA_DIR) + "/" + PC.PAXOS_LOGS_DIR.getDefaultValue() : dir))
 				+ (dir.endsWith("/") ? "" : "/");
 		this.myID = myID;
 		initCheckpointServer();
