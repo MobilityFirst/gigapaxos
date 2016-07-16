@@ -101,7 +101,7 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 
 	@Override
 	public boolean execute(Request request, boolean doNotReplyToClient) {
-		assert (request instanceof AppRequest || request instanceof MetaRequestPacket);
+		assert (request instanceof AppRequest || request instanceof MetaRequestPacket) : request.getSummary();
 		switch ((AppRequest.PacketType) (request.getRequestType())) {
 		case DEFAULT_APP_REQUEST:
 			return processRequest((AppRequest) request, doNotReplyToClient);

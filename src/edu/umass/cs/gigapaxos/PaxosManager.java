@@ -263,8 +263,7 @@ public class PaxosManager<NodeIDType> {
 		if (response == null || !(response instanceof ClientRequest))
 			return;
 		// waiting for others to remove this method
-		if (clientAddress != null && response != null && !NO_RESPONSE
-				&& !clientAddress.equals(RequestPacket.NULL_SOCKADDR)) {
+		if (clientAddress != null && response != null && !NO_RESPONSE) {
 			try {
 				this.send(clientAddress, response,
 						listenAddress);
@@ -312,7 +311,7 @@ public class PaxosManager<NodeIDType> {
 				&& (rrc = this.outstanding.responses.get((requestPacket))) != null) {
 			RequestInstrumenter.remove(requestPacket.requestID);
 			RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
-			if (rc.callback != null)
+			if (rc!=null && rc.callback != null)
 				rc.callback.executed(rrc.clientRequest, false);
 			else if (rrc.callback != null)
 				rrc.callback.executed(rrc.clientRequest, false);
@@ -1210,7 +1209,7 @@ public class PaxosManager<NodeIDType> {
 
 	@SuppressWarnings("deprecation")
 	private RequestPacket getRequestPacket(Request request, boolean stop) {
-		return request instanceof RequestPacket ?
+		return request instanceof RequestPacket && request.getRequestType().getInt()==PaxosPacket.PaxosPacketType.REQUEST.getInt() ?
 		// return as-is
 		(stop == ((RequestPacket) request).isStopRequest()) ? (RequestPacket) request
 				:

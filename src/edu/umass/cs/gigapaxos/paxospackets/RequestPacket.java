@@ -185,7 +185,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	// non-final fields below
 
 	// the client address in string form
-	private InetSocketAddress clientAddress = NULL_SOCKADDR;//null;
+	private InetSocketAddress clientAddress = null;
 
 	// the client address in string form
 	private InetSocketAddress listenAddress = null;
@@ -297,13 +297,13 @@ public class RequestPacket extends PaxosPacket implements Request,
 	public RequestPacket(long reqID, String value, boolean stop,
 			InetSocketAddress csa) {
 		this(reqID, value, stop, (RequestPacket) null);
-		this.clientAddress = csa!=null ? csa : NULL_SOCKADDR;
+		this.clientAddress = csa;
 	}
 	
 	public RequestPacket(String value, boolean stop,
 			InetSocketAddress csa) {
 		this(value, stop);
-		this.clientAddress = csa!=null ? csa : NULL_SOCKADDR;
+		this.clientAddress = csa;
 	}
 
 	// called by inheritors
@@ -328,7 +328,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 		// non-final fields
 		this.entryReplica = req.entryReplica;
-		this.clientAddress = req.clientAddress!=null ? req.clientAddress : NULL_SOCKADDR;
+		this.clientAddress = req.clientAddress;
 		this.listenAddress = req.listenAddress;
 		this.shouldReturnRequestValue = req.shouldReturnRequestValue;
 		this.responseValue = req.responseValue;
@@ -1458,8 +1458,10 @@ public class RequestPacket extends PaxosPacket implements Request,
 	 * so that a null address doesn't get overwritten by a bad legitimate address
 	 * when a request is forwarded across servers. Port 9 is a privileged port 
 	 * and is used for the Discard protocol.
+	 * 
+	 * We don't use this anymore.
 	 */
-	public static final InetSocketAddress NULL_SOCKADDR = new InetSocketAddress(
+	protected static final InetSocketAddress NULL_SOCKADDR = new InetSocketAddress(
 			InetAddress.getLoopbackAddress(), 9);
 
 	/* We don't need the request values to match. If the request IDs, paxos IDs,
@@ -1481,7 +1483,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 				&& this.getPaxosID().equals(req.getPaxosID())
 
 				// client addresses match
-				&& this.clientAddress.equals(req.clientAddress)
+				&& (this.clientAddress==req.clientAddress || this.clientAddress!=null && this.clientAddress.equals(req.clientAddress))
 
 				// request values or digests match (disabled by default)
 				&& (!enforceRequestValueMatch || this.requestValue != null

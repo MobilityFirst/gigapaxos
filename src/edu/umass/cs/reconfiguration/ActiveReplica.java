@@ -815,6 +815,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		
 		if(request instanceof ReplicableClientRequest)
 			return ((ReplicableClientRequest)request).setClientAddress(csa);
+		else if(request instanceof RequestPacket)
+			return request;
 		
 		// else
 		if (!(request instanceof ClientRequest)

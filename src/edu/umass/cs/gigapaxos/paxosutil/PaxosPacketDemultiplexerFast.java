@@ -252,14 +252,18 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				assert (bytes.length > offset + 12) : bytes.length + " <= "
 						+ expectedPos;
 				bbuf = ByteBuffer.wrap(bytes, offset, 12);
-				boolean noCA = bytes[offset + 4] == 0 && bytes[offset + 5] == 0;
+				boolean noCA = bytes[offset + 4] == 0 && (bytes[offset + 5] == 0); 
 				boolean noLA = bytes[offset + 6 + 4] == 0
 						&& bytes[offset + 6 + 5] == 0;
 				try {
 					if (noCA)
 						bbuf.put(caddress).putShort(cport);
+					else
+						bbuf.position(bbuf.position() + 6);
 					if (noLA)
 						bbuf.put(laddress).putShort(lport);
+					else
+						bbuf.position(bbuf.position() + 6);
 
 				} catch (Exception e) {
 					assert (false) : bytes.length + " ? " + 16 + 4
