@@ -29,6 +29,7 @@ import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
@@ -125,8 +126,9 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		 * automatically with ReconfigurableNode unlike PaxosServer.
 		 */
 		if(types==null) types = new HashSet<IntegerPacketType>();
-		//types.add(PaxosPacketType.PAXOS_PACKET);
+		//types.add(PaxosPacketType.PAXOS_PACKET); // not needed
 		types.add(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST);
+		//types.add(PaxosPacket.PaxosPacketType.NO_TYPE);
 		return requestTypes = types;
 	}
 

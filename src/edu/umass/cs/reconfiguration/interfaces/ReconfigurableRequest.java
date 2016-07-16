@@ -17,6 +17,9 @@ package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
+import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 
 /**
  * @author V. Arun
@@ -26,6 +29,11 @@ import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
  *         uses any coordination protocol other than paxos.
  */
 public interface ReconfigurableRequest extends Request {
+	/**
+	 * Used internally.
+	 */
+	public static final IntegerPacketType STOP = ReconfigurationPacket.PacketType.NO_TYPE;
+	
 	/**
 	 * @return The epoch number.
 	 */

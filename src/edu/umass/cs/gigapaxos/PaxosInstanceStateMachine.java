@@ -1633,7 +1633,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					 * method. */
 					Request request =
 					// don't convert to and from string unnecessarily
-					!requestPacket.shouldReturnRequestValue() ? requestPacket
+					!requestPacket.shouldReturnRequestValue() 
+					|| requestPacket.requestValue.equals(Request.NO_OP) ? requestPacket
 					// ask app to translate string to InterfaceRequest
 							: getInterfaceRequest(app,
 									requestPacket.getRequestValue());
@@ -1655,7 +1656,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 										RTTEstimator.print() });
 					}
 
-					// TESTPaxosApp tracks noops, so it needs to be feed them
+					// TESTPaxosApp tracks noops, so it needs to be fed them
 					executed = (requestPacket.requestValue
 							.equals(Request.NO_OP) && !(app instanceof TESTPaxosApp))
 							|| app.execute(request,

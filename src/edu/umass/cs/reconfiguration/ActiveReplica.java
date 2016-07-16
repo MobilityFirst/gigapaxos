@@ -319,7 +319,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private SenderAndRequest sendResponse(Request request,
 			SenderAndRequest senderAndRequest) {
-		return this.sendResponse(request, senderAndRequest, senderAndRequest!=null ? senderAndRequest.isCoordinated : true);
+		return this.sendResponseAndDemandStats(request, senderAndRequest, senderAndRequest!=null ? senderAndRequest.isCoordinated : true);
 	}
 
 	private ClientRequest makeClientResponse(Request response, long requestID) {
@@ -329,7 +329,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 	
 	// used for both local and coordinated requests
-	private SenderAndRequest sendResponse(Request request,
+	private SenderAndRequest sendResponseAndDemandStats(Request request,
 			SenderAndRequest senderAndRequest, boolean isCoordinated) {
 		if (senderAndRequest == null)
 			return null;
@@ -465,8 +465,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 				InetSocketAddress sender = header.sndr, receiver = header.rcvr;
 				if (handled) {
-					if (!isCoordinatedRequest)
-						//this.sendResponse(request, senderAndRequest, false)
+					if (ENQUEUE_REQUEST && !isCoordinatedRequest)
+						this.sendResponseAndDemandStats(request, senderAndRequest, false)
 						;
 					// else do nothing as coordinated callback will be called
 				} else {
@@ -1031,7 +1031,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	private Set<IntegerPacketType> getAppPacketTypes() {
-		return this.appCoordinator.getRequestTypes();
+		return addDefaultTypes(this.appCoordinator.getRequestTypes());
 	}
 
 	private boolean isAppRequest(JSONObject jsonObject) throws JSONException {
@@ -1048,13 +1048,16 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				// else parse as regular json
 				: JSONPacket.getPacketType(jsonObject);
 		if (appRequestTypes == null)
-			appRequestTypes = toIntegerSet(this.appCoordinator
-					.getAppRequestTypes());
-		return appRequestTypes.contains(type)
-				|| type == 0
-				|| type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
-						.getInt()
+			appRequestTypes = toIntegerSet(this
+					.getAppPacketTypes());
+		return type == 0 
+				|| appRequestTypes.contains(type)
+				//|| type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST.getInt()
 						;
+	}
+	
+	private Set<IntegerPacketType> addDefaultTypes(Set<IntegerPacketType> types) {
+		return types;
 	}
 
 	private static Set<Integer> appRequestTypes = null;
@@ -1220,64 +1223,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				: appStop;
 	}
 
-	/* We may need to use a separate messenger for end clients if we use two-way
-	 * authentication between servers.
-	 * 
-	 * TODO: unused, remove */
-	@SuppressWarnings({ "unchecked", "unused" })
-	@Deprecated
-	private AddressMessenger<JSONObject> initClientMessenger() {
-		AbstractPacketDemultiplexer<JSONObject> pd = null;
-		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
-		Set<IntegerPacketType> appTypes = null;
-		if ((appTypes = this.appCoordinator.getAppRequestTypes()) == null
-				|| appTypes.isEmpty())
-			return null;
-		try {
-			int myPort = (this.nodeConfig.getNodePort(getMyID()));
-			if (getClientFacingPort(myPort) != myPort) {
-				log.log(Level.INFO,
-						"{0} creating client messenger at {1}:{2}",
-						new Object[] { this,
-								this.nodeConfig.getBindAddress(getMyID()),
-								getClientFacingPort(myPort) });
-
-				if (this.messenger.getClientMessenger() == null
-						|| this.messenger.getClientMessenger() != this.messenger) {
-					MessageNIOTransport<InetSocketAddress, JSONObject> niot = null;
-					InetSocketAddress isa = new InetSocketAddress(
-							this.nodeConfig.getBindAddress(getMyID()),
-							getClientFacingPort(myPort));
-					cMsgr = new JSONMessenger<InetSocketAddress>(
-							niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
-									isa.getAddress(),
-									isa.getPort(),
-									/* Client facing demultiplexer is single
-									 * threaded to keep clients from
-									 * overwhelming the system with request
-									 * load. */
-									(pd = new ReconfigurationPacketDemultiplexer()),
-									ReconfigurationConfig.getClientSSLMode()));
-					if (!niot.getListeningSocketAddress().equals(isa))
-						throw new IOException(
-								"Unable to listen on specified client facing socket address "
-										+ isa);
-				} else if (this.messenger.getClientMessenger() instanceof Messenger)
-					((Messenger<NodeIDType, ?>) this.messenger
-							.getClientMessenger())
-							.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
-									0));
-				pd.register(this.appCoordinator.getAppRequestTypes(), this);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			log.severe(this + ":" + e.getMessage());
-			System.exit(1);
-		}
-		return cMsgr != null ? cMsgr
-				: (AddressMessenger<JSONObject>) this.messenger;
-	}
-
 	@SuppressWarnings("unchecked")
 	private AddressMessenger<?> initClientMessenger(boolean ssl) {
 		AbstractPacketDemultiplexer<JSONObject> pd = null;
@@ -1348,7 +1293,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				}
 				if (appTypes != null && !appTypes.isEmpty())
 					pd.register(appTypes
-							//this.appCoordinator.getRequestTypes()
 							, this);
 				pd.register(PacketType.ECHO_REQUEST, this);
 				pd.register(PacketType.REPLICABLE_CLIENT_REQUEST, this);

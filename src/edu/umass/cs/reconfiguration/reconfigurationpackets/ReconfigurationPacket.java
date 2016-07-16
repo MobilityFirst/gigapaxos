@@ -131,9 +131,12 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		// admin -> reconfigurator
 		RECONFIGURE_RC_NODE_CONFIG(239), RECONFIGURE_ACTIVE_NODE_CONFIG(240),
 
+		// client <-> active
 		ECHO_REQUEST(241), 
 		
-		REPLICABLE_CLIENT_REQUEST (242)
+		REPLICABLE_CLIENT_REQUEST (242),
+		
+		NO_TYPE (999),
 		
 		;
 
@@ -217,7 +220,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 
 		for (ReconfigurationPacket.PacketType type : ReconfigurationPacket.PacketType.intToType
 				.values()) {
-			assert (getPacketTypeClassName(type) != null) : type;
+			// we don't expect to receive NO_TYPE over the network
+			assert (getPacketTypeClassName(type) != null || type==PacketType.NO_TYPE) : type;
 		}
 	}
 

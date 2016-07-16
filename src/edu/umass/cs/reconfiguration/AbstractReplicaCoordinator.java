@@ -30,6 +30,7 @@ import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.nio.JSONPacket;
@@ -41,6 +42,7 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.interfaces.Repliconfigurable;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.DefaultAppRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
@@ -252,8 +254,9 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 		if (this.callback != null)
 			this.callback.preExecuted(request);
-		boolean handled = ((this.app instanceof Replicable) ? ((Replicable) (this.app))
-				.execute(request, noReplyToClient) : this.app.execute(request));
+		boolean handled = request.getRequestType()==ReconfigurationPacket.PacketType.NO_TYPE ||
+				(((this.app instanceof Replicable) ? ((Replicable) (this.app))
+				.execute(request, noReplyToClient) : this.app.execute(request)));
 		callCallback(request, handled, requestCallback);
 		/* We always return true because the return value here is a no-op. It
 		 * might as well be void. Returning anything but true will ensure that a
@@ -267,11 +270,16 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		if (JSONPacket.couldBeJSON(stringified)) {
 			try {
 				JSONObject json = new JSONObject(stringified);
-				if (JSONPacket.getPacketType(json) == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
+				Integer type =  JSONPacket.getPacketType(json);
+				if(type == null ||  type == ReconfigurationPacket.PacketType.NO_TYPE
+						.getInt()) 
+					// used by default stop
+					return new DefaultAppRequest(json); 
+				else if (type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
 						.getInt())
 					return new ReplicableClientRequest(json, null);
 			} catch (JSONException | UnsupportedEncodingException e) {
-				e.printStackTrace();
+				throw new RequestParseException(e);
 			}
 		}
 		return this.app.getRequest(stringified);

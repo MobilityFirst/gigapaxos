@@ -21,6 +21,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
@@ -34,14 +35,14 @@ import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
  */
 public class DefaultAppRequest implements
 		ReplicableRequest, ReconfigurableRequest {
-	protected enum Keys {STOP, SERVICE_NAME, EPOCH_NUMBER, REQUEST_VALUE};
+	protected enum Keys {STOP, SERVICE_NAME, EPOCH_NUMBER, REQUEST_VALUE, REQUEST_ID};
 	
 	private final boolean stop;
 	private final String serviceName;
 	private final int epochNumber;
 	private final String requestValue;
 	private boolean isCoord = true;
-	private final long requestID = (long)(Math.random()*Long.MAX_VALUE);
+	private final long requestID;
 	
 	/**
 	 * @param serviceName
@@ -53,6 +54,7 @@ public class DefaultAppRequest implements
 		this.serviceName = serviceName;
 		this.epochNumber = epochNumber;
 		this.requestValue = Request.NO_OP;
+		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 	/**
 	 * @param json
@@ -63,11 +65,13 @@ public class DefaultAppRequest implements
 		this.serviceName = json.getString(Keys.SERVICE_NAME.toString());
 		this.epochNumber = json.getInt(Keys.EPOCH_NUMBER.toString());
 		this.requestValue = json.getString(Keys.REQUEST_VALUE.toString());
+		this.requestID = json.getLong(Keys.REQUEST_ID.toString());
 	}
 
 	@Override
 	public IntegerPacketType getRequestType() {
-		return null; // FIXME: Not sure what to do here
+		return ReconfigurationPacket.PacketType.NO_TYPE;
+				//null; // FIXME: Not sure what to do here
 	}
 
 	@Override
@@ -78,7 +82,8 @@ public class DefaultAppRequest implements
 	@Override
 	public String toString() {
 		try {
-			return this.toJSONObject().toString();
+			return //this.requestValue!=null && this.requestValue.equals(Request.NO_OP) ? Request.NO_OP :
+				this.toJSONObject().toString();
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
@@ -95,6 +100,7 @@ public class DefaultAppRequest implements
 		json.put(Keys.SERVICE_NAME.toString(), this.serviceName); 
 		json.put(Keys.EPOCH_NUMBER.toString(), this.epochNumber);
 		json.put(Keys.REQUEST_VALUE.toString(), this.requestValue);
+		json.put(Keys.REQUEST_ID.toString(), this.requestID);
 		return json;
 	}
 	
