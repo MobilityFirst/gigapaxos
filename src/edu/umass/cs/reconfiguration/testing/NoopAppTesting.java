@@ -28,10 +28,12 @@ import java.util.Set;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
@@ -44,6 +46,7 @@ import edu.umass.cs.reconfiguration.examples.AppRequest.PacketType;
 import edu.umass.cs.reconfiguration.examples.AppRequest.ResponseCodes;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -101,7 +104,9 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 
 	@Override
 	public boolean execute(Request request, boolean doNotReplyToClient) {
-		assert (request instanceof AppRequest || request instanceof MetaRequestPacket) : request.getSummary();
+		assert (request instanceof AppRequest || request instanceof RequestPacket) : request.getSummary();
+		IntegerPacketType type = request.getRequestType();
+		if(type instanceof AppRequest.PacketType)
 		switch ((AppRequest.PacketType) (request.getRequestType())) {
 		case DEFAULT_APP_REQUEST:
 			return processRequest((AppRequest) request, doNotReplyToClient);
@@ -112,6 +117,8 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 		default:
 			break;
 		}
+		else if(type == PaxosPacket.PaxosPacketType.PAXOS_PACKET)
+			((RequestPacket)request).setResponse(RequestPacket.ResponseCodes.ACK.toString());
 		return false;
 	}
 
@@ -188,6 +195,7 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 		}
 	}
 
+	private static final boolean BYTEIFICATION = Config.getGlobalBoolean(PC.BYTEIFICATION);
 	/**
 	 * We use this method also at the client, so it is static.
 	 * 
@@ -198,10 +206,9 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 	 */
 	public static Request staticGetRequest(String stringified)
 			throws RequestParseException, JSONException {
-		if (stringified.equals(Request.NO_OP)) {
+		if (stringified.equals(Request.NO_OP)) 
 			return getNoopRequest();
-		}
-
+		
 		JSONObject json = new JSONObject(stringified);
 		if (JSONPacket.getPacketType(json) == AppRequest.PacketType.META_REQUEST_PACKET
 				.getInt())
@@ -225,8 +232,7 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 	public static Request staticGetRequest(byte[] bytes, NIOHeader header)
 			throws RequestParseException {
 		try {
-			int type = ByteBuffer.wrap(bytes).getInt();
-			if (type == AppRequest.PacketType.META_REQUEST_PACKET.getInt()) {
+			if (BYTEIFICATION && ByteBuffer.wrap(bytes).getInt() == AppRequest.PacketType.META_REQUEST_PACKET.getInt()) {
 				return MetaRequestPacket.getMetaRequestPacket(bytes);
 			}
 			return staticGetRequest(new String(bytes, NIOHeader.CHARSET));

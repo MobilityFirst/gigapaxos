@@ -76,14 +76,6 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 						.getNodePort(myID)), niot);
 	}
 
-	protected void createDefaultGroup(String name, Set<String> strNodes,
-			Stringifiable<NodeIDType> unstringer) {
-		Set<NodeIDType> nodes = new HashSet<NodeIDType>();
-		for (String strNode : strNodes)
-			nodes.add(unstringer.valueOf(strNode));
-		this.paxosManager.createPaxosInstance(name, nodes, null);
-	}
-
 	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
 			Stringifiable<NodeIDType> unstringer) {
 		this.paxosManager.createPaxosInstance(name, nodes, null);

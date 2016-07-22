@@ -738,7 +738,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	}
 
 	// TODO: true hasn't been tested rigorously
-	private static final boolean ENABLE_ID_TRANSFORM = false;
+	private static final boolean ENABLE_ID_TRANSFORM = Config
+			.getGlobalBoolean(RC.ENABLE_ID_TRANSFORM);
 
 	/**
 	 * @param request

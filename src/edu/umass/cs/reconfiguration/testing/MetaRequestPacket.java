@@ -8,6 +8,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
@@ -43,6 +44,16 @@ public class MetaRequestPacket extends RequestPacket {
 		super(id, val, stop);
 		this.type = AppRequest.PacketType.META_REQUEST_PACKET.getInt();
 	}
+	
+	/**
+	 * @param bytes
+	 * @throws UnsupportedEncodingException
+	 * @throws UnknownHostException
+	 */
+	public MetaRequestPacket(byte[] bytes) throws UnsupportedEncodingException, UnknownHostException {
+		super(bytes);
+		this.type = AppRequest.PacketType.META_REQUEST_PACKET.getInt();		
+	}
 
 	private static final boolean BYTEIFICATION = Config
 			.getGlobalBoolean(PC.BYTEIFICATION);
@@ -59,7 +70,7 @@ public class MetaRequestPacket extends RequestPacket {
 			JSONException {
 		MetaRequestPacket meta = null;
 		if (BYTEIFICATION) {
-			meta = new MetaRequestPacket(new RequestPacket(bytes));
+			meta = new MetaRequestPacket(bytes);
 		} else {
 			meta = new MetaRequestPacket(new JSONObject(new String(bytes,
 					NIOHeader.CHARSET)));
@@ -89,15 +100,17 @@ public class MetaRequestPacket extends RequestPacket {
 		return AppRequest.PacketType.META_REQUEST_PACKET;
 	}
 
+	private static final boolean USE_REQUEST_PACKET = false;
 	public byte[] toBytes() {
 		if (BYTEIFICATION)
 			return ByteBuffer
 					.wrap(super.toBytes())
-					.putInt(this.type = AppRequest.PacketType.META_REQUEST_PACKET
-							.getInt()).array();
+					.putInt(USE_REQUEST_PACKET ? PaxosPacket.PaxosPacketType.PAXOS_PACKET.getInt() : 
+						(AppRequest.PacketType.META_REQUEST_PACKET
+							.getInt())).array();
 		try {
 			JSONObject json = super.toJSONObject();
-			JSONPacket.putPacketType(json,
+			if(USE_REQUEST_PACKET) JSONPacket.putPacketType(json,
 					AppRequest.PacketType.META_REQUEST_PACKET.getInt());
 			return json.toString().getBytes(NIOHeader.CHARSET);
 		} catch (UnsupportedEncodingException e) {

@@ -308,6 +308,11 @@ public class ReconfigurationConfig {
 		 * MUTUAL_AUTH is used between servers.
 		 */
 		ALLOW_CLIENT_TO_CREATE_DELETE (true),
+		
+		/**
+		 * 
+		 */
+		ENABLE_ID_TRANSFORM (false),
 
 		;
 

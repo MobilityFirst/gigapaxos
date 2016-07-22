@@ -47,6 +47,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.reconfigurationutils.TrivialRepliconfigurable;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -204,6 +205,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	protected boolean handleIncoming(Request request, ExecutedCallback callback) {
 		boolean handled = false;
 		// check if coordination on request before unwrapping
+
 		if (needsCoordination(request)) {
 			try {
 				if (request instanceof ReplicableRequest)
@@ -387,7 +389,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		/* No need for setNeedsCoordination as a request will necessarily get
 		 * converted to a proposal or accept when coordinated, so there is no
 		 * need to worry about inifinite looping. */
-		else if (request instanceof RequestPacket)
+		else if (request instanceof RequestPacket && request.getRequestType()==PaxosPacket.PaxosPacketType.REQUEST)
 			return true;
 		return false;
 	}

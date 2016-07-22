@@ -340,6 +340,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		instrumentNanoApp(isCoordinated ? Instrument.replicable
 				: Instrument.local, senderAndRequest.recvTime);
 
+		long t = System.nanoTime();
 		ClientRequest response = null;
 		// send response to originating client
 		if (request instanceof ClientRequest
@@ -370,6 +371,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				e.printStackTrace();
 			}
 		}
+		instrumentNanoApp(Instrument.reply, t);
 		return senderAndRequest;
 	}
 
@@ -961,7 +963,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	/* ****************** Private methods below ******************* */
 
 	private boolean handRequestToApp(Request request, ExecutedCallback callback) {
-		long t1 = System.nanoTime();
+		long t = System.nanoTime();
 		boolean handled = false;
 		try {
 			AppInstrumenter.rcvdRequest(request);
@@ -969,8 +971,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		} catch (OverloadException re) {
 			PaxosPacketDemultiplexer.throttleExcessiveLoad();
 		}
-		if (Util.oneIn(100))
-			DelayProfiler.updateDelayNano("appHandleIncoming@AR", t1);
+		instrumentNanoApp(Instrument.handleIncoming, t);
 		return handled;
 	}
 
@@ -1071,7 +1072,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private static enum Instrument {
 		updateDemandStats(Integer.MAX_VALUE), restringification(100), getRequest(
-				100), local(100), replicable(100), getStats(1); // time-based
+				100), local(100), replicable(100), getStats(1),
+				handleIncoming(100),
+				reply(100)
+				; 
 
 		private final int val;
 

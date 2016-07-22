@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Timer;
@@ -41,6 +42,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
@@ -298,6 +300,12 @@ public class TESTPaxosClient {
 					e.printStackTrace();
 				}
 			}
+			if (ByteBuffer.wrap(message).getInt() == PaxosPacket.PaxosPacketType.PAXOS_PACKET.getInt())
+				try {
+					return new RequestPacket(message);
+				} catch (UnsupportedEncodingException | UnknownHostException e1) {
+					e1.printStackTrace();
+				}
 
 			try {
 				return new MetaRequestPacket(
