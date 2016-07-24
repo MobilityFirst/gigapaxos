@@ -289,7 +289,7 @@ trim_file_list "$conf_transferrables"
 # the first host that continues the installation.
 SSH="ssh -x -o StrictHostKeyChecking=no"
 
-RSYNC_PATH="mkdir -p $APP_SIMPLE"
+RSYNC_PATH="mkdir -p $APP_SIMPLE $APP_SIMPLE/$CONF"
 RSYNC="rsync --force -a "
 
 username=`grep "USERNAME=" $GP_PROPERTIES|grep -v "^[ \t]*#"|\
