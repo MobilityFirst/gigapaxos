@@ -155,9 +155,12 @@ public class AggregateDemandProfiler {
 	 */
 	public synchronized AbstractDemandProfile pluckDemandProfile(String name) {
 		AbstractDemandProfile demand = this.map.get(name);
-		AbstractDemandProfile copy = demand.clone();
-		demand.reset();
-		this.map.put(name, demand);
+		// replaced clone() with un-stringification instead
+		AbstractDemandProfile copy = AbstractDemandProfile
+				.createDemandProfile(demand.getStats()); // demand.clone();
+		//demand.reset();
+		// replaced reset() with reflective call instead
+		this.map.put(name, AbstractDemandProfile.createDemandProfile(name));
 		return copy;
 	}
 

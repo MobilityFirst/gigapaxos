@@ -5,7 +5,7 @@ package edu.umass.cs.gigapaxos.interfaces;
  * @author arun
  *
  */
-public interface RequestCallback {
+public interface RequestCallback extends Callback<Request> {
 	/**
 	 * @param response
 	 */

@@ -57,13 +57,18 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		 * 
 		 */
 		NAME_STATE_ARRAY,
-		
+
 		/**
 		 * Set of names in a batch create that could not be created or could not
-		 * be confirmed as having been successfully created (but could have gotten
-		 * created after all).
+		 * be confirmed as having been successfully created (but could have
+		 * gotten created after all).
 		 */
 		FAILED_CREATES,
+
+		/**
+		 * Initial active replica group.
+		 */
+		INIT_GROUP,
 	};
 
 	/**
@@ -85,12 +90,36 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 
 	private final Set<String> failedCreates;
 
+	/* To specify a set of active replicas for the initial group. The initial
+	 * group is by default chosen randomly. */
+	private final Set<InetSocketAddress> initGroup;
+
 	/**
 	 * @param name
 	 * @param state
 	 */
 	public CreateServiceName(String name, String state) {
 		this(null, name, 0, state);
+	}
+
+	/**
+	 * A constructor that allows the caller to specify an initial group. This
+	 * method is meant primarily for internal use. End-clients should let the
+	 * reconfigurators pick the initial set of replicas randomly by default.
+	 * 
+	 * @param name
+	 * @param state
+	 * @param initGroup
+	 */
+	public CreateServiceName(String name, String state,
+			Set<InetSocketAddress> initGroup) {
+		this(null, name, 0, state, null, null, initGroup);
+	}
+
+	private CreateServiceName(InetSocketAddress initiator, String name,
+			int epochNumber, String state, Map<String, String> nameStates,
+			InetSocketAddress myReceiver) {
+		this(initiator, name, epochNumber, state, nameStates, myReceiver, null);
 	}
 
 	/**
@@ -102,12 +131,13 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 */
 	private CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state, Map<String, String> nameStates,
-			InetSocketAddress myReceiver) {
+			InetSocketAddress myReceiver, Set<InetSocketAddress> initGroup) {
 		super(initiator, ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME,
 				name, epochNumber, myReceiver);
 		this.initialState = state;
 		this.nameStates = nameStates;
 		this.failedCreates = null;
+		this.initGroup = initGroup;
 	}
 
 	private CreateServiceName(InetSocketAddress initiator, String name,
@@ -173,6 +203,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		this.initialState = nameStates.get(nameStates.keySet().iterator()
 				.next());
 		this.failedCreates = failedCreates;
+		this.initGroup = null;
 	}
 
 	/**
@@ -203,6 +234,10 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				this.failedCreates.add(jsonArray.getString(i));
 		} else
 			this.failedCreates = null;
+
+		this.initGroup = json.has(Keys.INIT_GROUP.toString()) ? Util
+				.getSocketAddresses(json.getJSONArray(Keys.INIT_GROUP
+						.toString())) : null;
 	}
 
 	/**
@@ -224,6 +259,9 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 
 		if (this.failedCreates != null && !this.failedCreates.isEmpty())
 			json.put(Keys.FAILED_CREATES.toString(), this.failedCreates);
+		if (this.initGroup != null)
+			json.put(Keys.INIT_GROUP.toString(),
+					Util.getJSONArray(this.initGroup));
 		return json;
 	}
 
@@ -357,6 +395,17 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 						+ (totalSize += batch.size()) + ")" + " = " + batch);
 			assert (totalSize == numNames);
 			System.out.println(bcreate2.getSummary());
+
+			CreateServiceName c1 = new CreateServiceName("somename",
+					"somestate", new HashSet<InetSocketAddress>(Arrays.asList(
+							new InetSocketAddress(InetAddress
+									.getLoopbackAddress(), 1234),
+							new InetSocketAddress(InetAddress
+									.getLoopbackAddress(), 1235))));
+			assert (c1.toString().equals(new CreateServiceName(c1
+					.toJSONObject()).toString())) : "\n" + c1 + " != \n"
+					+ new CreateServiceName(c1.toJSONObject());
+			System.out.println(c1);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

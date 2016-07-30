@@ -270,18 +270,20 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public final Request getRequest(String stringified)
 			throws RequestParseException {
 		if (JSONPacket.couldBeJSON(stringified)) {
+			boolean internal = false;
 			try {
 				JSONObject json = new JSONObject(stringified);
 				Integer type =  JSONPacket.getPacketType(json);
-				if(type == null ||  type == ReconfigurationPacket.PacketType.NO_TYPE
-						.getInt()) 
+				if((type == null ||  type == ReconfigurationPacket.PacketType.NO_TYPE
+						.getInt()) && (internal=true)) 
 					// used by default stop
 					return new DefaultAppRequest(json); 
-				else if (type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
-						.getInt())
+				else if ((type == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
+						.getInt()) && (internal=true))
 					return new ReplicableClientRequest(json, null);
 			} catch (JSONException | UnsupportedEncodingException e) {
-				throw new RequestParseException(e);
+				if(internal) throw new RequestParseException(e);
+				// else ignore and treat as app request
 			}
 		}
 		return this.app.getRequest(stringified);

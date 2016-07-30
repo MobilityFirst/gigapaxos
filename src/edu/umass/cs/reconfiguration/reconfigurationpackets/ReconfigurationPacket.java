@@ -134,6 +134,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		// client <-> active
 		ECHO_REQUEST(241), 
 		
+		// client <-> active
 		REPLICABLE_CLIENT_REQUEST (242),
 		
 		NO_TYPE (999),

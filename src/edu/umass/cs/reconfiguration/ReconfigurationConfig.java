@@ -42,6 +42,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPolicyTest;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
@@ -69,12 +70,6 @@ public class ReconfigurationConfig {
 
 	static {
 		load();
-	}
-
-	/**
-	 * 
-	 */
-	public static void noop() {
 	}
 
 	/**
@@ -242,12 +237,20 @@ public class ReconfigurationConfig {
 		USE_DISK_MAP_RCDB(true),
 
 		/**
-		 * 
+		 * This parameter specifies the the number of active replicas for a name
+		 * at upon creation of the name. This parameter is irrelevant if
+		 * {@link #REPLICATE_ALL} is true and is irrelevant after name creation
+		 * as the number of replicas thereafter is controlled by the
+		 * reconfiguration policy.
 		 */
 		DEFAULT_NUM_REPLICAS(3),
 
 		/**
-		 * 
+		 * True means that a name upon creation will be replicated at all
+		 * current active replicas; else it will be replicated at at most
+		 * {@link #DEFAULT_NUM_REPLICAS} randomly chosen active replicas. Note
+		 * that this parameter is irrelevant after name creation as the number
+		 * of replicas thereafter is controlled by the reconfiguration policy.
 		 */
 		REPLICATE_ALL(true),
 		/**
@@ -310,9 +313,17 @@ public class ReconfigurationConfig {
 		ALLOW_CLIENT_TO_CREATE_DELETE (true),
 		
 		/**
-		 * 
+		 * True means that request IDs will be automatically transformed by
+		 * {@link ReconfigurableAppClientAsync} if it receives two unequal 
+		 * requests with identical IDs.
 		 */
 		ENABLE_ID_TRANSFORM (false),
+		
+		/**
+		 * True means that the demand profile implementation is tested at bootstrap
+		 * time to sanity check that its implementation meets the specification.
+		 */
+		TEST_DEMAND_PROFILE (true),
 
 		;
 
@@ -402,9 +413,13 @@ public class ReconfigurationConfig {
 	 * @return DemandProfile class.
 	 */
 	public static Class<?> getDemandProfile() {
-		if (demandProfileType == null)
+		if (demandProfileType == null) {
 			demandProfileType = getClassSuppressExceptions(Config
 					.getGlobalString(RC.DEMAND_PROFILE_TYPE));
+			if (Config.getGlobalBoolean(RC.TEST_DEMAND_PROFILE))
+				ReconfigurationPolicyTest
+						.testPolicyImplementation(demandProfileType);
+		}
 		return demandProfileType;
 	}
 

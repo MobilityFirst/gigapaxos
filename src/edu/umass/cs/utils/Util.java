@@ -32,11 +32,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -429,18 +432,26 @@ public class Util {
 	/**
 	 * Transfer from src to dst without throwing exception if src.remaining() >
 	 * dst.remaining() but copying dst.remaining() bytes from src instead.
+	 * {@code transferLimit} further limits the number of bytes transferred from
+	 * src to dst.
 	 */
-	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src) {
-		if (src.remaining() < dst.remaining())
+	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src,
+			int transferLimit) {
+		if (src.remaining() < dst.remaining()
+				&& transferLimit <= src.remaining())
 			return dst.put(src);
 		int oldLimit = src.limit();
-		src.limit(src.position() + dst.remaining());
+		src.limit(src.position() + Math.min(dst.remaining(), transferLimit));
 		dst.put(src);
 		src.limit(oldLimit);
 		return dst;
 		// byte[] buf = new byte[dst.remaining()];
 		// src.get(buf);
 		// return dst.put(buf);
+	}
+
+	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src) {
+		return put(dst, src, dst.remaining());
 	}
 
 	private static final String CHARSET = "ISO-8859-1";
@@ -771,4 +782,34 @@ public class Util {
 		}
 		Files.write(Paths.get(filename), modified.getBytes());
 	}
+	
+	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(
+			Map<K, V> map) {
+		Map<K, V> result = new LinkedHashMap<>();
+		Stream<Map.Entry<K, V>> st = map.entrySet().stream();
+
+		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
+				e -> result.put(e.getKey(), e.getValue()));
+
+		return result;
+	}
+	
+	public static Set<InetSocketAddress> getSocketAddresses(JSONArray jarray)
+			throws JSONException {
+		Set<InetSocketAddress> addresses = new HashSet<InetSocketAddress>();
+		if (jarray != null)
+			for (int i = 0; i < jarray.length(); i++)
+				addresses.add(Util.getInetSocketAddressFromString(jarray
+						.getString(i)));
+		return addresses;
+	}
+	
+	public static JSONArray getJSONArray(Set<InetSocketAddress> addresses)
+			throws JSONException {
+		JSONArray jarray = new JSONArray();
+		for (InetSocketAddress isa : addresses)
+			jarray.put(isa.getAddress().getHostAddress() + ":" + isa.getPort());
+		return jarray;
+	}
+
 }

@@ -36,28 +36,30 @@ import edu.umass.cs.utils.Util;
  */
 public class DemandProfile extends AbstractDemandProfile {
 	protected enum Keys {
-		SERVICE_NAME, STATS, RATE, NUM_REQUESTS, NUM_TOTAL_REQUESTS
+		NAME, STATS, RATE, NREQS, NTOTREQS
 	};
 
 	/**
 	 * The minimum number of requests after which a demand report will be sent
 	 * to reconfigurators.
 	 */
-	protected static int MIN_REQUESTS_BEORE_DEMAND_REPORT = 1;
+	protected static int minRequestsBeforeDemandReport = 1;
 	/**
 	 * The minimum amount of time (ms) that must elapse since the previous
 	 * reconfiguration before the next reconfiguration can happen.
 	 */
-	protected static long MIN_RECONFIGURATION_INTERVAL = 000;
+	protected static long minReconfigurationInterval = 000;
 	/**
 	 * The minimum number of requests between two successive reconfigurations.
 	 */
-	protected static long MIN_REQUESTS_BEFORE_RECONFIGURATION = MIN_REQUESTS_BEORE_DEMAND_REPORT;
+	protected static long minRequestsBeforeReconfiguration = minRequestsBeforeDemandReport;
 
 	protected double interArrivalTime = 0.0;
 	protected long lastRequestTime = 0;
 	protected int numRequests = 0;
 	protected int numTotalRequests = 0;
+
+	// Needed only at reconfigurators, so we don't need to serialize this.
 	protected DemandProfile lastReconfiguredProfile = null;
 
 	/**
@@ -86,17 +88,17 @@ public class DemandProfile extends AbstractDemandProfile {
 	}
 
 	/**
-	 * All {@link AbstractDemandProfile} instances must be contructible from a
+	 * All {@link AbstractDemandProfile} instances must be constructible from a
 	 * JSONObject.
 	 * 
 	 * @param json
 	 * @throws JSONException
 	 */
 	public DemandProfile(JSONObject json) throws JSONException {
-		super(json.getString(Keys.SERVICE_NAME.toString()));
+		super(json.getString(Keys.NAME.toString()));
 		this.interArrivalTime = 1.0 / json.getDouble(Keys.RATE.toString());
-		this.numRequests = json.getInt(Keys.NUM_REQUESTS.toString());
-		this.numTotalRequests = json.getInt(Keys.NUM_TOTAL_REQUESTS.toString());
+		this.numRequests = json.getInt(Keys.NREQS.toString());
+		this.numTotalRequests = json.getInt(Keys.NTOTREQS.toString());
 	}
 
 	/**
@@ -129,11 +131,11 @@ public class DemandProfile extends AbstractDemandProfile {
 		this.numTotalRequests++;
 		long iaTime = 0;
 		if (lastRequestTime > 0) {
-			iaTime = System.currentTimeMillis() - this.lastRequestTime;
+			iaTime = System.nanoTime() - this.lastRequestTime;
 			this.interArrivalTime = Util
 					.movingAverage(iaTime, interArrivalTime);
 		} else
-			lastRequestTime = System.currentTimeMillis(); // initialization
+			lastRequestTime = System.nanoTime(); // initialization
 	}
 
 	/**
@@ -141,7 +143,7 @@ public class DemandProfile extends AbstractDemandProfile {
 	 */
 	public double getRequestRate() {
 		return this.interArrivalTime > 0 ? 1.0 / this.interArrivalTime
-				: 1.0 / (this.interArrivalTime + 1000);
+				: 1.0 / (1000*1000*1000);
 	}
 
 	/**
@@ -159,12 +161,14 @@ public class DemandProfile extends AbstractDemandProfile {
 		return this.numTotalRequests;
 	}
 
-	private static final boolean DISABLE_RECONFIGURATION=Config.getGlobalBoolean(RC.DISABLE_RECONFIGURATION);
-	
+	private static final boolean DISABLE_RECONFIGURATION = Config
+			.getGlobalBoolean(RC.DISABLE_RECONFIGURATION);
+
 	@Override
 	public boolean shouldReport() {
-		if(DISABLE_RECONFIGURATION) return false;
-		if (getNumRequests() >= MIN_REQUESTS_BEORE_DEMAND_REPORT)
+		if (DISABLE_RECONFIGURATION)
+			return false;
+		if (getNumRequests() >= minRequestsBeforeDemandReport)
 			return true;
 		return false;
 	}
@@ -173,26 +177,14 @@ public class DemandProfile extends AbstractDemandProfile {
 	public JSONObject getStats() {
 		JSONObject json = new JSONObject();
 		try {
-			json.put(Keys.SERVICE_NAME.toString(), this.name);
+			json.put(Keys.NAME.toString(), this.name);
 			json.put(Keys.RATE.toString(), getRequestRate());
-			json.put(Keys.NUM_REQUESTS.toString(), getNumRequests());
-			json.put(Keys.NUM_TOTAL_REQUESTS.toString(), getNumTotalRequests());
+			json.put(Keys.NREQS.toString(), getNumRequests());
+			json.put(Keys.NTOTREQS.toString(), getNumTotalRequests());
 		} catch (JSONException je) {
 			je.printStackTrace();
 		}
 		return json;
-	}
-
-	@Override
-	public void reset() {
-		this.interArrivalTime = 0.0;
-		this.lastRequestTime = 0;
-		this.numRequests = 0;
-	}
-
-	@Override
-	public DemandProfile clone() {
-		return new DemandProfile(this);
 	}
 
 	@Override
@@ -202,8 +194,7 @@ public class DemandProfile extends AbstractDemandProfile {
 				update.lastRequestTime);
 		this.interArrivalTime = Util.movingAverage(update.interArrivalTime,
 				this.interArrivalTime, update.getNumRequests());
-		this.numRequests += update.numRequests; // this number is not meaningful
-												// at RC
+		this.numRequests += update.numRequests;
 		this.numTotalRequests += update.numTotalRequests;
 	}
 
@@ -211,11 +202,11 @@ public class DemandProfile extends AbstractDemandProfile {
 	public ArrayList<InetAddress> shouldReconfigure(
 			ArrayList<InetAddress> curActives, InterfaceGetActiveIPs nodeConfig) {
 		if (this.lastReconfiguredProfile != null) {
-			if (System.currentTimeMillis()
-					- this.lastReconfiguredProfile.lastRequestTime < MIN_RECONFIGURATION_INTERVAL)
+			if (System.nanoTime()
+					- this.lastReconfiguredProfile.lastRequestTime < minReconfigurationInterval)
 				return null;
 			if (this.numTotalRequests
-					- this.lastReconfiguredProfile.numTotalRequests < MIN_REQUESTS_BEFORE_RECONFIGURATION)
+					- this.lastReconfiguredProfile.numTotalRequests < minRequestsBeforeReconfiguration)
 				return null;
 		}
 		/**
@@ -229,6 +220,14 @@ public class DemandProfile extends AbstractDemandProfile {
 
 	@Override
 	public void justReconfigured() {
-		this.lastReconfiguredProfile = this.clone();
+		// deep copy
+		this.lastReconfiguredProfile = new DemandProfile(this); // this.clone();
+	}
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		ReconfigurationPolicyTest.testPolicyImplementation(DemandProfile.class);
 	}
 }

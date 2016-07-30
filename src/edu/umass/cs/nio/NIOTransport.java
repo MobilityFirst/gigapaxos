@@ -493,10 +493,13 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				+ new String(b) + "]");
 	}
 
-	private static int PREAMBLE = 723432553;
-	// not really needed; could be true or false
+	private static final int 
+	// 1010...1011 (repeating 10 pattern terminated by 11)
+	PREAMBLE = // -1431655765;
+			723432553; // legacy preamble
+	// A preamble is not really needed, so this could be true or false.
 	private static boolean USE_PREAMBLE = true;
-	protected static int HEADER_SIZE = USE_PREAMBLE ? 8 : 4;
+	private static int HEADER_SIZE = USE_PREAMBLE ? 2*Integer.BYTES : Integer.BYTES;
 
 	private static final long SELECT_TIMEOUT = 2000;
 
@@ -744,6 +747,32 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		void clear() {
 			this.headerBuf.clear();
 			this.bodyBuf = null;
+		}
+		
+		void readHeader(ByteBuffer incoming) {
+			/* if USE_PREAMBLE, first read the first integer fully
+			 * and check if sender is even using a preamble. If it
+			 * is, proceed as usual to then read the size. If not,
+			 * the first integer must be the size, so we shove a
+			 * preamble ourselves here so that later checks pass.
+			 */
+			if (USE_PREAMBLE && headerBuf.position() < Integer.BYTES) {
+				Util.put(this.headerBuf, incoming, Integer.BYTES
+						- this.headerBuf.position());
+				if (this.headerBuf.position() == Integer.BYTES) {
+					this.headerBuf.position(0);
+					int firstInt = this.headerBuf.getInt();
+					assert (this.headerBuf.position() == Integer.BYTES);
+					// if first four bytes are preamble
+					if (firstInt != PREAMBLE) {
+						// first four bytes must be length
+						assert (!outOfRange(firstInt));
+						((ByteBuffer) this.headerBuf.clear()).putInt(PREAMBLE)
+								.putInt(firstInt);
+					}
+				}
+			} else
+				Util.put(this.headerBuf, incoming);
 		}
 	}
 

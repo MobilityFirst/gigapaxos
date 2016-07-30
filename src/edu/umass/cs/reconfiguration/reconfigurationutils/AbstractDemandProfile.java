@@ -25,21 +25,44 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.Reconfigurator;
 
 /**
  * @author V. Arun
  * 
- *         An implementation of this abstract class must also have a constructor
- *         that takes a single JSONObject as an argument. Otherwise, the static
- *         method {@link #createDemandProfile(JSONObject)} that reflectively
- *         creates an instance of this class from a JSONObject will fail.
+ *         An implementation, X, of this abstract class must satisfy the
+ *         following requirements in addition to those enforced by the abstract
+ *         methods explicitly listed herein:
+ * 
+ *         (1) X must have a constructor that takes a single JSONObject as an
+ *         argument. Otherwise, the static method
+ *         {@link #createDemandProfile(JSONObject)} that reflectively creates an
+ *         instance of this class from a JSONObject will fail.
+ * 
+ *         (2) X must have a constructor that takes a single String as an
+ *         argument. Otherwise, the static method
+ *         {@link #createDemandProfile(String)} that reflectively creates an
+ *         instance of this class from a JSONObject will fail.
+ * 
+ *         (3) For any instance x of X, x.equals(new X(x.getStats()) must return
+ *         true.
+ * 
+ *         (4) It is slightly more efficient (but not necessary) for X to
+ *         override the methods {@link #createDemandProfile(String)} and
+ *         {@link #createDemandProfile(JSONObject)} method to create an instance
+ *         of X rather than having the default implementation do so via
+ *         reflection.
  * 
  *         Refer to reconfiguration.reconfigurationutils.DemandProfile for an
- *         example implementation.
+ *         example implementation. 
+ *         
+ *         Use {@link ReconfigurationPolicyTest#testPolicyImplementation(Class)}
+ *         to test an implementation of this class.
  */
 
+@SuppressWarnings("javadoc")
 public abstract class AbstractDemandProfile {
-	private static final Class<?> C = ReconfigurationConfig.getDemandProfile();
+	static final Class<?> C = ReconfigurationConfig.getDemandProfile();
 
 	protected static enum Keys {
 		SERVICE_NAME
@@ -56,14 +79,6 @@ public abstract class AbstractDemandProfile {
 	}
 
 	/*********************** Start of abstract methods ***************/
-	/**
-	 * Creates a deep copy of this object. So, it must be the case that the
-	 * return value != this, but the return value.equals(this). You may also
-	 * need to override equals(.) and hashCode() methods accordingly. If an
-	 * implementation of this class consists of non-primitive types, e.g., a
-	 * {@link Map}, then a new Map has to be created inside the clone() method.
-	 */
-	public abstract AbstractDemandProfile clone();
 
 	/**
 	 * Incorporate this new request information, i.e., {@code request} was
@@ -99,10 +114,6 @@ public abstract class AbstractDemandProfile {
 	 */
 	public abstract JSONObject getStats();
 
-	/**
-	 * Clear all info, i.e., forget all previous stats.
-	 */
-	public abstract void reset();
 
 	/**
 	 * Combine the new information in {@code update} into {@code this}. This
@@ -147,11 +158,33 @@ public abstract class AbstractDemandProfile {
 	public final String getName() {
 		return this.name;
 	}
+	
+	/**
+	 * Creates a deep copy of this object. So, it must be the case that the
+	 * return value != this, but the return value.equals(this). You may also
+	 * need to override equals(.) and hashCode() methods accordingly. If an
+	 * implementation of this class consists of non-primitive types, e.g., a
+	 * {@link Map}, then a new Map has to be created inside the clone() method.
+	 * 
+	 */
+	@Deprecated
+	public AbstractDemandProfile clone() {
+		return this;
+	}
+	/**
+	 * Clear all info, i.e., forget all previous stats.
+	 */
+	@Deprecated
+	public void reset() {
+	}
 
 	protected static AbstractDemandProfile createDemandProfile(String name) {
+		return createDemandProfile(C, name);
+	}
+	protected static AbstractDemandProfile createDemandProfile(Class<?> clazz, String name) {
 		try {
-			assert (C != null);
-			return (AbstractDemandProfile) C.getConstructor(String.class)
+			assert (clazz != null);
+			return (AbstractDemandProfile) clazz.getConstructor(String.class)
 					.newInstance(name);
 		} catch (InstantiationException | IllegalAccessException
 				| IllegalArgumentException | InvocationTargetException
@@ -166,12 +199,16 @@ public abstract class AbstractDemandProfile {
 	 * @return Reflection-based constructor to create demand profile.
 	 */
 	public static AbstractDemandProfile createDemandProfile(JSONObject json) {
+		return createDemandProfile(C, json);
+	}
+	static AbstractDemandProfile createDemandProfile(Class<?> clazz, JSONObject json) {
 		try {
-			return (AbstractDemandProfile) C.getConstructor(JSONObject.class)
+			return (AbstractDemandProfile) clazz.getConstructor(JSONObject.class)
 					.newInstance(json);
 		} catch (InstantiationException | IllegalAccessException
 				| IllegalArgumentException | InvocationTargetException
 				| NoSuchMethodException | SecurityException e) {
+			Reconfigurator.getLogger().severe(e.getClass().getSimpleName() + " while creating " + clazz + " with JSONObject " + json);
 			e.printStackTrace();
 		}
 		return null;

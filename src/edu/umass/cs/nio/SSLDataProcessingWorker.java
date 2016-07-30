@@ -364,6 +364,7 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 		assert (abbuf != null);
 		if (abbuf.headerBuf.remaining() > 0) {
 			Util.put(abbuf.headerBuf, incoming);
+//			abbuf.readHeader(incoming);
 			if (abbuf.headerBuf.remaining() == 0) {
 				abbuf.bodyBuf = ByteBuffer.allocate(NIOTransport
 						.getPayloadLength((ByteBuffer) abbuf.headerBuf.flip()));

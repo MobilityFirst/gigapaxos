@@ -44,6 +44,7 @@ import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.StringifiableDefault;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.GigaPaxosClient;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
@@ -71,7 +72,8 @@ import edu.umass.cs.utils.Util;
  * @author arun
  *
  */
-public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
+public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
+		AppRequestParser {
 	static {
 		ReconfigurationConfig.load();
 	}
@@ -80,7 +82,11 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 	 * improved responsiveness to replica failures). */
 	private static final long MIN_REQUEST_ACTIVES_INTERVAL = 60000;
 
-	private static final long DEFAULT_GC_TIMEOUT = 8000;
+	/**
+	 * The default timeout for {@link ClientRequest} as well as
+	 * {@link ClientReconfigurationPacket} requests.
+	 */
+	public static final long DEFAULT_GC_TIMEOUT = 8000;
 	private static final long DEFAULT_GC_LONG_TIMEOUT = 5 * 60 * 1000;
 	/**
 	 * Application clients should assume that their sent requests may after all
@@ -172,6 +178,31 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 					key, value });
 		}
 	};
+
+	private static class BlockingRequestCallback implements RequestCallback {
+		Request response = null;
+
+		@Override
+		public void handleResponse(Request response) {
+			this.response = response;
+			synchronized (this) {
+				this.notify();
+			}
+		}
+
+		Request getResponse() {
+			synchronized (this) {
+				while (this.response == null)
+					try {
+						this.wait();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+						// continue waiting
+					}
+			}
+			return this.response;
+		}
+	}
 
 	// all app client request callbacks
 	private final GCConcurrentHashMap<Long, RequestCallback> callbacks = new GCConcurrentHashMap<Long, RequestCallback>(
@@ -507,13 +538,12 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 											((RequestAndCallback) callback).serverSentTo);
 							log.log(Level.INFO,
 									"{0} received {1}; retrying with  replica {2}",
-									new Object[] { this, response.getSummary(), randomOther });
+									new Object[] { this, response.getSummary(),
+											randomOther });
 							// retry with a random other active replica
-							ReconfigurableAppClientAsync.this
-									.sendRequest(
-											((RequestAndCallback) callback).request,
-											randomOther,
-											callback);
+							ReconfigurableAppClientAsync.this.sendRequest(
+									((RequestAndCallback) callback).request,
+									randomOther, callback);
 						} catch (IOException e) {
 							e.printStackTrace();
 							ReconfigurableAppClientAsync.this
@@ -720,6 +750,17 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			.getGlobalBoolean(PC.READ_YOUR_WRITES);
 
 	/**
+	 * @param request
+	 * @return The response obtained by executing this request.
+	 * @throws IOException
+	 */
+	public Request sendRequest(Request request) throws IOException {
+		BlockingRequestCallback callback;
+		this.sendRequest(request, callback = new BlockingRequestCallback());
+		return callback.getResponse(); // blocking
+	}
+
+	/**
 	 * This method will convert an app request to a
 	 * {@link ReplicableClientRequest} and then send the request.
 	 * 
@@ -900,7 +941,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 				callback);
 	}
 
-	private boolean sendRequest(ClientReconfigurationPacket request)
+	private boolean sendRequesNullCallback(ClientReconfigurationPacket request)
 			throws IOException {
 		return this.sendRequest(request, (RequestCallback) null);
 	}
@@ -1172,7 +1213,7 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 			Reconfigurator.getLogger().log(Level.FINE,
 					"{0} requesting active replicas for {1}",
 					new Object[] { this, name });
-			this.sendRequest(new RequestActiveReplicas(name));
+			this.sendRequesNullCallback(new RequestActiveReplicas(name));
 			// this.lastQueriedActives.put(name, System.currentTimeMillis());
 			this.activeReplicas.put(name,
 					new ActivesInfo(null, System.currentTimeMillis()));
@@ -1294,7 +1335,8 @@ public abstract class ReconfigurableAppClientAsync implements AppRequestParser {
 										"{0} received no actives from {1} for name {2}; trying other reconfigurators {3}",
 										new Object[] { this,
 												response.getSender(),
-												response.getServiceName(), response.getHashRCs() });
+												response.getServiceName(),
+												response.getHashRCs() });
 								try {
 									for (InetSocketAddress reconfigurator : response
 											.getHashRCs())

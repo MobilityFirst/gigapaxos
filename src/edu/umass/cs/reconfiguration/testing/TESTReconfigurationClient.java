@@ -49,6 +49,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConf
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ProximateBalance;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
@@ -1052,6 +1053,7 @@ public class TESTReconfigurationClient {
 		TESTReconfigurationConfig.load();
 		Config.getConfig(ReconfigurationConfig.RC.class).put(
 				ReconfigurationConfig.RC.RECONFIGURE_IN_PLACE, true);
+		//ReconfigurationConfig.setDemandProfile(ProximateBalance.class);
 
 		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
 		for (Failure failure : result.getFailures()) {

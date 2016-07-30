@@ -149,6 +149,7 @@ destfile="${build.jar.dir}/nio-${nio.build.major.number}.${nio.build.minor.numbe
     <pathelement location="${lib.dir}/mchange-commons-java-0.2.9.jar"/>
     <pathelement location="${lib.dir}/mapdb-2.0.0-20151103.120435-149.jar"/>
     <pathelement location="${lib.dir}/zookeeper-3.3.6.jar"/>
+    <pathelement location="${lib.dir}/msgpack-core-0.8.8-SNAPSHOT.jar"/>
     <pathelement location="${lib.dir}/jedis-2.8.1.jar"/>
     <!--    <pathelement location="${conf.dir}"/>-->
   </path>
