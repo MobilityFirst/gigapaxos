@@ -416,9 +416,6 @@ public class ReconfigurationConfig {
 		if (demandProfileType == null) {
 			demandProfileType = getClassSuppressExceptions(Config
 					.getGlobalString(RC.DEMAND_PROFILE_TYPE));
-			if (Config.getGlobalBoolean(RC.TEST_DEMAND_PROFILE))
-				ReconfigurationPolicyTest
-						.testPolicyImplementation(demandProfileType);
 		}
 		return demandProfileType;
 	}

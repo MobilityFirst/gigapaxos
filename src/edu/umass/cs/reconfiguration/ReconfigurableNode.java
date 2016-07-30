@@ -42,6 +42,7 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPolicyTest;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
@@ -322,11 +323,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 */
 	public static void main(String[] args) throws IOException {
 		Config.register(args);
-		PaxosConfig.sanityCheck();
 		ReconfigurationConfig.setConsoleHandler();
-		if (Config.getGlobalBoolean(PC.EMULATE_DELAYS))
-			AbstractPacketDemultiplexer.emulateDelays();
 
+		PaxosConfig.sanityCheck();
 		if (args.length == 0)
 			throw new RuntimeException(
 					"At least one node ID must be specified as a command-line argument for starting "
@@ -335,6 +334,11 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				PaxosConfig.getActives(),
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
+		ReconfigurationPolicyTest.testPolicyImplementation(ReconfigurationConfig.getDemandProfile());
+
+		if (Config.getGlobalBoolean(PC.EMULATE_DELAYS))
+			AbstractPacketDemultiplexer.emulateDelays();
+
 		Set<String> servers = getAllNodes(args);
 
 		if (clear) {
