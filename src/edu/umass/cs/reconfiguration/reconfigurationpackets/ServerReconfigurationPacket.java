@@ -1,20 +1,18 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  * 
  * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
 import java.net.InetSocketAddress;
@@ -31,6 +29,7 @@ import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorRequest;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -39,7 +38,7 @@ import edu.umass.cs.utils.Util;
  * @param <NodeIDType>
  */
 public abstract class ServerReconfigurationPacket<NodeIDType> extends
-		BasicReconfigurationPacket<NodeIDType> {
+		BasicReconfigurationPacket<NodeIDType> implements ReconfiguratorRequest {
 
 	private static enum Keys {
 		NEWLY_ADDED_NODES, NODE_ID, SOCKET_ADDRESS, DELETED_NODES, FAILED, RESPONSE_MESSAGE
@@ -61,20 +60,18 @@ public abstract class ServerReconfigurationPacket<NodeIDType> extends
 
 	private boolean failed = false;
 	private String responseMessage = null;
-	private InetSocketAddress myReceiver=null;
+	private InetSocketAddress myReceiver = null;
 
-	
 	/**
 	 * @param initiator
-	 * @param type 
+	 * @param type
 	 * @param nodeID
 	 * @param sockAddr
 	 */
-	public ServerReconfigurationPacket(NodeIDType initiator, ReconfigurationPacket.PacketType type, NodeIDType nodeID,
+	public ServerReconfigurationPacket(NodeIDType initiator,
+			ReconfigurationPacket.PacketType type, NodeIDType nodeID,
 			InetSocketAddress sockAddr) {
-		super(initiator,
-				type,
-				type.toString(), 0);
+		super(initiator, type, type.toString(), 0);
 		(this.newlyAddedNodes = new HashMap<NodeIDType, InetSocketAddress>())
 				.put(nodeID, sockAddr);
 		this.deletedNodes = null;
@@ -83,16 +80,15 @@ public abstract class ServerReconfigurationPacket<NodeIDType> extends
 
 	/**
 	 * @param initiator
-	 * @param type 
+	 * @param type
 	 * @param newlyAddedNodes
 	 * @param deletedNodes
 	 */
-	public ServerReconfigurationPacket(NodeIDType initiator, ReconfigurationPacket.PacketType type,
+	public ServerReconfigurationPacket(NodeIDType initiator,
+			ReconfigurationPacket.PacketType type,
 			Map<NodeIDType, InetSocketAddress> newlyAddedNodes,
 			Set<NodeIDType> deletedNodes) {
-		super(initiator,
-				type,
-				type.toString(), 0);
+		super(initiator, type, type.toString(), 0);
 		this.newlyAddedNodes = newlyAddedNodes;
 		this.deletedNodes = deletedNodes;
 		this.creator = null;
@@ -217,60 +213,71 @@ public abstract class ServerReconfigurationPacket<NodeIDType> extends
 		return new JSONArray(stringSet);
 	}
 
-	/**
-	 * @return {@code this}
-	 */
+	/* (non-Javadoc)
+	 * 
+	 * @see
+	 * edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationRequest
+	 * #setFailed() */
+	@Override
 	public ServerReconfigurationPacket<NodeIDType> setFailed() {
 		this.failed = true;
 		return this;
 	}
 
-	/**
-	 * @return True if failed.
-	 */
+	/* (non-Javadoc)
+	 * 
+	 * @see
+	 * edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationRequest
+	 * #isFailed() */
+	@Override
 	public boolean isFailed() {
 		return this.failed;
 	}
 
-	/**
-	 * @param msg
-	 * @return {@code this}
-	 */
+	/* (non-Javadoc)
+	 * 
+	 * @see
+	 * edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationRequest
+	 * #setResponseMessage(java.lang.String) */
+	@Override
 	public ServerReconfigurationPacket<NodeIDType> setResponseMessage(String msg) {
 		this.responseMessage = msg;
 		return this;
 	}
 
-	/**
-	 * @return The success or failure message.
-	 */
+	/* (non-Javadoc)
+	 * 
+	 * @see
+	 * edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationRequest
+	 * #getResponseMessage() */
+	@Override
 	public String getResponseMessage() {
 		return this.responseMessage;
 	}
 
 	public String getSummary() {
 		return getServiceName() + ":" + getEpochNumber() + "[adds="
-				+ this.newlyAddedNodes + "; deletes=" + this.deletedNodes+"]";
+				+ this.newlyAddedNodes + "; deletes=" + this.deletedNodes + "]";
 	}
-	
+
 	/**
-	 * @return Socket address on which this request was received. 
+	 * @return Socket address on which this request was received.
 	 */
 	public InetSocketAddress getMyReceiver() {
 		return this.myReceiver;
 	}
-	
+
 	/**
 	 * @return True if deletedNodes has elements.
 	 */
 	public boolean hasDeletedNodes() {
-		return this.deletedNodes!=null && !this.deletedNodes.isEmpty();
+		return this.deletedNodes != null && !this.deletedNodes.isEmpty();
 	}
 
 	/**
 	 * @return True if newlyAddedNodes has elements.
 	 */
 	public boolean hasAddedNodes() {
-		return this.newlyAddedNodes!=null && !this.newlyAddedNodes.isEmpty();
+		return this.newlyAddedNodes != null && !this.newlyAddedNodes.isEmpty();
 	}
 }

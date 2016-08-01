@@ -173,7 +173,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	@Override
 	public boolean createReplicaGroup(String groupName, int epoch,
 			String state, Set<NodeIDType> nodes) {
-		assert (state != null);
+//		assert (state != null);
 		// will block for a default timeout if a lower unstopped epoch exits
 		boolean created = this.paxosManager.createPaxosInstanceForcibly(
 				groupName, epoch, nodes, this, state, 0);

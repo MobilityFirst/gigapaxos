@@ -3,6 +3,7 @@ package edu.umass.cs.reconfiguration.interfaces;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
+import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -15,8 +16,9 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientReque
  * 
  *         This interface should be implemented by any gigapaxos client
  *         implementation.
+ * @param <V> 
  */
-public interface GigaPaxosClient {
+public interface GigaPaxosClient<V> {
 	/**
 	 * A blocking method to retrieve the result of executing {@code request}.
 	 * 
@@ -32,10 +34,10 @@ public interface GigaPaxosClient {
 	 * 
 	 * @param request
 	 * @param callback
-	 * @return Refer {@link #sendRequest(ClientRequest, RequestCallback)}.
+	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public Long sendRequest(Request request, RequestCallback callback)
+	public Long sendRequest(Request request, Callback<Request, V> callback)
 			throws IOException;
 
 	/**
@@ -45,7 +47,7 @@ public interface GigaPaxosClient {
 	 *         null otherwise.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, RequestCallback callback)
+	public Long sendRequest(ClientRequest request, Callback<Request, V> callback)
 			throws IOException;
 
 	/**
@@ -56,11 +58,12 @@ public interface GigaPaxosClient {
 	 * @param request
 	 * @param callback
 	 * @param redirector
-	 * @return Refer {@link #sendRequest(ClientRequest, RequestCallback)}.
+	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, RequestCallback callback,
-			NearestServerSelector redirector) throws IOException;
+	public Long sendRequest(ClientRequest request,
+			Callback<Request,V> callback, NearestServerSelector redirector)
+			throws IOException;
 
 	/**
 	 * Sends {@code request} to the specified {@code server}.
@@ -68,9 +71,9 @@ public interface GigaPaxosClient {
 	 * @param request
 	 * @param server
 	 * @param callback
-	 * @return Refer {@link #sendRequest(ClientRequest, RequestCallback)}.
+	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
 	public Long sendRequest(ClientRequest request, InetSocketAddress server,
-			RequestCallback callback) throws IOException;
+			Callback<Request,V> callback) throws IOException;
 }

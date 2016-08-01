@@ -304,7 +304,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @return Socket address of the sender recorded in this JSON message at
 	 *         receipt time.
 	 */
-	public static InetSocketAddress getSenderAddress(JSONObject json) {
+	public static final InetSocketAddress getSenderAddress(JSONObject json) {
 		if (json instanceof JSONMessenger.JSONObjectWrapper)
 			try {
 				return getSenderAddress((byte[]) ((JSONMessenger.JSONObjectWrapper) json).obj);
@@ -328,7 +328,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @param json
 	 * @return Sender address as String without intermediate conversion to InetSocketAddress.
 	 */
-	public static String getSenderAddressAsString(JSONObject json) {
+	public static final String getSenderAddressAsString(JSONObject json) {
 		if (json instanceof JSONMessenger.JSONObjectWrapper)
 			try {
 				return getSenderAddress((byte[]) ((JSONMessenger.JSONObjectWrapper) json).obj).toString();
@@ -352,7 +352,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @return Sender InetSocketAddress from bytes
 	 * @throws UnknownHostException
 	 */
-	public static InetSocketAddress getSenderAddress(byte[] bytes)
+	public static final InetSocketAddress getSenderAddress(byte[] bytes)
 			throws UnknownHostException {
 		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, NIOHeader.BYTES);
 		byte[] addressBytes = new byte[4];
@@ -368,7 +368,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @return Sender InetSocketAddress from bytes
 	 * @throws UnknownHostException
 	 */
-	public static InetSocketAddress getReceiverAddress(byte[] bytes)
+	public static final InetSocketAddress getReceiverAddress(byte[] bytes)
 			throws UnknownHostException {
 		ByteBuffer bbuf = ByteBuffer.wrap(bytes, 6, NIOHeader.BYTES);
 		byte[] addressBytes = new byte[4];
@@ -383,7 +383,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @param json
 	 * @return Parsed socket address
 	 */
-	public static InetSocketAddress getSenderAddressJSONSmart(
+	public static final InetSocketAddress getSenderAddressJSONSmart(
 			net.minidev.json.JSONObject json) {
 		InetSocketAddress isa = json
 				.containsKey(MessageNIOTransport.SNDR_ADDRESS_FIELD) ? Util
@@ -399,7 +399,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 *         possibly multiple listening sockets this message was received, so
 	 *         we insert it into the packet at receipt time.
 	 */
-	public static InetSocketAddress getReceiverAddress(JSONObject json) {
+	public static final InetSocketAddress getReceiverAddress(JSONObject json) {
 		if (json instanceof JSONMessenger.JSONObjectWrapper)
 			try {
 				return getReceiverAddress((byte[]) ((JSONMessenger.JSONObjectWrapper) json).obj);
@@ -423,7 +423,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	 * @param json
 	 * @return Same as {@link #getReceiverAddress(JSONObject)}
 	 */
-	public static InetSocketAddress getReceiverAddressJSONSmart(
+	public static final InetSocketAddress getReceiverAddressJSONSmart(
 			net.minidev.json.JSONObject json) {
 		InetSocketAddress isa = json
 				.containsKey(MessageNIOTransport.RCVR_ADDRESS_FIELD) ? Util

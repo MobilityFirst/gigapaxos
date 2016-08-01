@@ -169,7 +169,7 @@ public class ReconfigurableClient {
 		}
 
 		@Override
-		public boolean handleMessage(JSONObject json) {
+		public boolean handleMessage(JSONObject json, edu.umass.cs.nio.nioutils.NIOHeader header) {
 			log.log(Level.INFO, "Client received {0}", new Object[] { json });
 			try {
 				ReconfigurationPacket.PacketType rcType = ReconfigurationPacket

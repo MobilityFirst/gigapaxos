@@ -62,6 +62,22 @@ public abstract class ProtocolPacket<NodeIDType, EventType> implements
 	public ProtocolPacket(JSONObject json, Stringifiable<NodeIDType> unstringer)
 			throws JSONException {
 		this.type = getPacketType(json);
+		try {
+		assert(unstringer!=null);
+		assert(!json.has(Keys.SENDER.toString()) || (json.get(Keys.SENDER.toString())!=null &&
+				unstringer.valueOf(json.getString(Keys.SENDER.toString()))!=null));
+		} catch(Error e) {
+			e.printStackTrace();
+		}
+		if(json.has(Keys.SENDER.toString())) {
+			assert(
+				((json.get(Keys.SENDER.toString()).toString())) != null);
+			assert(
+					unstringer.valueOf
+					((json.get(Keys.SENDER.toString()).toString())) != null) : json;
+			
+		}
+		
 		this.sender = (json.has(Keys.SENDER.toString()) ? unstringer
 				.valueOf((json.get(Keys.SENDER.toString())).toString()) : null);
 		this.initiator = (json.has(Keys.INITIATOR.toString()) ? unstringer

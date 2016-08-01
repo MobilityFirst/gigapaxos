@@ -211,14 +211,14 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * Batching can make log messages really big, so we need a maximum size here
 	 * to ensure that we don't try to batch more than we can chew.
 	 */
-	private static int maxLogMessageSize = MAX_LOG_MESSAGE_SIZE;
+	private static final int maxLogMessageSize = MAX_LOG_MESSAGE_SIZE;
 
 	private static boolean getLogMessageBlobOption() {
 		return (maxLogMessageSize > SQL.getVarcharSize(SQL_TYPE))
 				|| Config.getGlobalBoolean(PC.BATCHING_ENABLED);
 	}
 
-	private static int maxCheckpointSize = MAX_CHECKPOINT_SIZE;
+	private static final int maxCheckpointSize = MAX_CHECKPOINT_SIZE;
 
 	private static boolean getCheckpointBlobOption() {
 		return (maxCheckpointSize > SQL.getVarcharSize(SQL_TYPE));
@@ -240,11 +240,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private boolean closed = true;
 
 	// disables message logging overriding ENABLE_JOURNALING
-	protected static boolean isLoggingEnabled() {
+	protected static final boolean isLoggingEnabled() {
 		return !DISABLE_LOGGING;
 	}
 
-	protected static boolean isJournalingEnabled() {
+	protected static final boolean isJournalingEnabled() {
 		return ENABLE_JOURNALING;
 	}
 
@@ -330,7 +330,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	/**
 	 * @param strID
 	 */
-	public static void dropState(String strID) {
+	public static final void dropState(String strID) {
 		if (!isEmbeddedDB())
 			new SQLPaxosLogger(strID).dropState().close();
 		else {
@@ -728,7 +728,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			return logdir + SUBDIR + myID;
 		}
 
-		public static String getLogfilePrefix(String logdir, Object myID) {
+		public static final String getLogfilePrefix(String logdir, Object myID) {
 			return logdir + PREFIX + myID + POSTPREFIX;
 		}
 
@@ -1340,7 +1340,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * @return Compressed form.
 	 * @throws IOException
 	 */
-	public static byte[] deflate(byte[] data) throws IOException {
+	public static final byte[] deflate(byte[] data) throws IOException {
 		if (!DB_COMPRESSION)
 			return data;
 		byte[] compressed = null;
@@ -1362,7 +1362,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * @return Uncompressed form.
 	 * @throws IOException
 	 */
-	public static byte[] inflate(byte[] buf) throws IOException {
+	public static final byte[] inflate(byte[] buf) throws IOException {
 		if (!DB_COMPRESSION)
 			return buf;
 		Inflater inflator = new Inflater();
@@ -1750,7 +1750,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		}
 	}
 
-	private static int CHECKPOINT_LOG_THRESHOLD = 100000;
+	private static final int CHECKPOINT_LOG_THRESHOLD = 100000;
 	private static int totalCheckpoints = 0;
 
 	private synchronized static void incrTotalCheckpoints() {
@@ -2411,7 +2411,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		return exists;
 	}
 
-	protected static String clobToString(Clob clob) throws SQLException,
+	protected static final String clobToString(Clob clob) throws SQLException,
 			IOException {
 		if (clob == null)
 			return null;
@@ -4261,7 +4261,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * @return True if database exists.
 	 */
 	// @Deprecated
-	public static boolean existsDB(SQL.SQLType sqlType, String logDir,
+	public static final boolean existsDB(SQL.SQLType sqlType, String logDir,
 			String database) {
 		try {
 			Class.forName(SQL.getDriver(SQL_TYPE)).newInstance();
@@ -5198,7 +5198,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	/**
 	 * For testing SQLPaxosLogger.
 	 */
-	public static class SQLPaxosLoggerTester {
+	public static final class SQLPaxosLoggerTester {
 		/**
 		 * An old, somewhat outdated test to test DB performance wrt
 		 * checkpointing and logging messages.

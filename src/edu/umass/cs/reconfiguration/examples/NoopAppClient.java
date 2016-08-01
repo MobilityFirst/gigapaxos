@@ -21,7 +21,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
  * @author arun
  *
  */
-public class NoopAppClient extends ReconfigurableAppClientAsync implements AppRequestParserBytes{
+public class NoopAppClient extends ReconfigurableAppClientAsync<Request> implements AppRequestParserBytes{
 
 	private int numResponses = 0;
 

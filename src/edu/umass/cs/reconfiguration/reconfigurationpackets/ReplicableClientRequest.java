@@ -120,8 +120,8 @@ public class ReplicableClientRequest extends JSONPacket implements
 		});
 		this.requestID = bbuf.getLong();
 		this.needsCoordination = bbuf.get() == 0 ? false : true;
-		this.requestBytes = Arrays.copyOfRange(bbuf.array(), REQUEST_BYTES_OFFSET,
-				bbuf.array().length);
+		this.requestBytes = Arrays.copyOfRange(bbuf.array(),
+				REQUEST_BYTES_OFFSET, bbuf.array().length);
 		this.request = this.parse(this.requestBytes, header, parser);
 	}
 
@@ -275,7 +275,9 @@ public class ReplicableClientRequest extends JSONPacket implements
 	 */
 	public final String CHARSET = "ISO-8859-1";
 
-	private static final int REQUEST_BYTES_OFFSET = Integer.BYTES + Long.BYTES + 1;
+	private static final int REQUEST_BYTES_OFFSET = Integer.BYTES + Long.BYTES
+			+ 1;
+
 	@Override
 	public byte[] toBytes() {
 		byte[] reqBytes;
@@ -344,5 +346,16 @@ public class ReplicableClientRequest extends JSONPacket implements
 	@Override
 	public String toString() {
 		return this.getRequestAsString();
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof ClientRequest))
+			return false;
+		return this.requestID == ((ClientRequest)o).getRequestID()
+				&& (this.needsCoordination == (o instanceof ReplicableRequest && ((ReplicableRequest)o).needsCoordination()))
+				&& (this.request.equals(o) || (o instanceof ReplicableClientRequest &&
+						(this.request.equals(((ReplicableClientRequest)o).request) || Arrays.equals(
+						this.requestBytes, ((ReplicableClientRequest)o).requestBytes))));
 	}
 }

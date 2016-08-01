@@ -49,7 +49,6 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConf
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ProximateBalance;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
@@ -73,7 +72,7 @@ public class TESTReconfigurationClient {
 
 	private static Set<TESTReconfigurationClient> allInstances = new HashSet<TESTReconfigurationClient>();
 
-	class RCClient extends ReconfigurableAppClientAsync {
+	class RCClient extends ReconfigurableAppClientAsync<Request> {
 
 		public RCClient(Set<InetSocketAddress> reconfigurators)
 				throws IOException {
@@ -165,7 +164,8 @@ public class TESTReconfigurationClient {
 			throws NumberFormatException, IOException {
 		return this.testAppRequest(
 				new AppRequest(name,
-						Long.valueOf(name.replaceAll("[a-z]*", "")),
+						//Long.valueOf(name.replaceAll("[a-z]*", "")),
+						(long)(Math.random()*Long.MAX_VALUE),
 						"request_value",
 						AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
 				outstandingQ, timeout);
@@ -275,7 +275,13 @@ public class TESTReconfigurationClient {
 			throws NumberFormatException, IOException {
 		for (Request request : requests.values())
 			if (request instanceof AppRequest) {
+				try {
 				testAppRequest((AppRequest) request, requests, null);
+				} catch(IOException ioe) {
+					System.out.println(this+"--------------------"+request);
+					ioe.printStackTrace();
+					throw ioe;
+				}
 				r.record();
 			}
 	}
@@ -537,7 +543,7 @@ public class TESTReconfigurationClient {
 		boolean[] success = new boolean[1];
 		long t = System.currentTimeMillis();
 
-		this.getRandomClient().sendServerReconfigurationRequest(
+		this.getRandomClient().sendRequest(
 				new ReconfigureRCNodeConfig<String>(null, newlyAddedRCs,
 						deletedNodes), new RequestCallback() {
 					@Override
@@ -570,7 +576,7 @@ public class TESTReconfigurationClient {
 		boolean[] success = new boolean[1];
 		long t = System.currentTimeMillis();
 
-		this.getRandomClient().sendServerReconfigurationRequest(
+		this.getRandomClient().sendRequest(
 				new ReconfigureActiveNodeConfig<String>(null,
 						newlyAddedActives, deletes), new RequestCallback() {
 					@Override

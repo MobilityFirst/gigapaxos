@@ -192,7 +192,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/************ End of non-final paxos state ***********************************************/
 
 	// static, so does not count towards space.
-	private static Logger log = (PaxosManager.getLogger());
+	private static final Logger log = (PaxosManager.getLogger());
 
 	PaxosInstanceStateMachine(String groupId, int version, int id,
 			Set<Integer> gms, Replicable app, String initialState,
@@ -373,7 +373,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	private static final int RETRY_LIMIT = Config
 			.getGlobalInt(PC.HANDLE_REQUEST_RETRY_LIMIT);
 
-	private static boolean waitRetry(long timeout) {
+	private static final boolean waitRetry(long timeout) {
 		try {
 			Thread.sleep(timeout);
 		} catch (InterruptedException e) {
@@ -1282,7 +1282,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		return false;
 	}
 
-	private static boolean BATCHED_COMMITS = Config
+	private static final boolean BATCHED_COMMITS = Config
 			.getGlobalBoolean(PC.BATCHED_COMMITS);
 
 	/* Phase3 Event: Received notification about a committed proposal.
@@ -1568,7 +1568,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * 
 	 * Invariant: A paxos instance can not checkpoint if a higher paxos instance
 	 * has been (or is being) created. */
-	private static String consistentCheckpoint(PaxosInstanceStateMachine pism,
+	private static final String consistentCheckpoint(PaxosInstanceStateMachine pism,
 			boolean isStop, String paxosID, int version, Set<String> members,
 			int slot, Ballot ballot, String state, int gcSlot) {
 		log.log(Level.FINE, "{0} checkpointing at slot {1}; isStop={2}",
@@ -1612,7 +1612,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * protected only so that PaxosManager can call this directly to test
 	 * emulateUnreplicated mode.
 	 */
-	protected static boolean execute(PaxosInstanceStateMachine pism,
+	protected static final boolean execute(PaxosInstanceStateMachine pism,
 			PaxosManager<?> paxosManager, Replicable app,
 			RequestPacket decision, boolean recoveryMode) {
 
@@ -1900,7 +1900,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						decision.getPaxosID()) == 0 || decision.isStopRequest());
 	}
 
-	private static Request getInterfaceRequest(Replicable app, String value) {
+	private static final Request getInterfaceRequest(Replicable app, String value) {
 		try {
 			return app.getRequest(value);
 		} catch (RequestParseException e) {
@@ -2084,7 +2084,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		return roundRobinCoordinator(getPaxosID(), this.groupMembers, ballotnum);
 	}
 
-	protected static int roundRobinCoordinator(String paxosID, int[] members,
+	protected static final int roundRobinCoordinator(String paxosID, int[] members,
 			int ballotnum) {
 		// to load balance coordinatorship across groups
 		int randomOffset = paxosID.hashCode();
@@ -2421,7 +2421,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						this.getPaxosID()));
 	}
 
-	private static int lastCheckpointSlot(int slot, int checkpointInterval) {
+	private static final int lastCheckpointSlot(int slot, int checkpointInterval) {
 		int lcp = slot - slot % checkpointInterval;
 		if (lcp < 0 && ((lcp -= checkpointInterval) > 0)) // wraparound-arithmetic
 			lcp = lastCheckpointSlot(Integer.MAX_VALUE, checkpointInterval);
@@ -2480,23 +2480,23 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				null);
 	}
 
-	private static int CREATION_LOG_THRESHOLD = 100000;
+	private static final int CREATION_LOG_THRESHOLD = 100000;
 	private static int creationCount = 0;
 
-	private static void incrInstanceCount() {
+	private static final void incrInstanceCount() {
 		creationCount++;
 	}
 
-	protected static void decrInstanceCount() {
+	protected static final void decrInstanceCount() {
 		creationCount--;
 	}
 
 	// only an approximate count for instrumentation purposes
-	private static int getInstanceCount() {
+	private static final int getInstanceCount() {
 		return creationCount;
 	}
 
-	private static boolean notManyInstances() {
+	private static final boolean notManyInstances() {
 		return getInstanceCount() < CREATION_LOG_THRESHOLD;
 	}
 
@@ -2519,9 +2519,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		return this;
 	}
 
-	private static double CPI_NOISE = Config.getGlobalDouble(PC.CPI_NOISE);
+	private static final double CPI_NOISE = Config.getGlobalDouble(PC.CPI_NOISE);
 
-	private static int getCPI(int cpi, String paxosID) {
+	private static final int getCPI(int cpi, String paxosID) {
 		return (int) (cpi * (1 - CPI_NOISE) + (Math.abs(paxosID.hashCode()) % cpi)
 				* 2 * CPI_NOISE);
 	}

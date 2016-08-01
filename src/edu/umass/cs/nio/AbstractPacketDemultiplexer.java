@@ -55,7 +55,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	private static int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
 
 	private final int myThreadPoolSize;
-	
+
 	private static boolean emulateDelays = false;
 
 	/**
@@ -64,20 +64,22 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	 *            parallelism in NIO packet processing. Setting it to 0 means no
 	 *            parallelism, i.e., each received packet will be fully
 	 *            processed by NIO before it does anything else. So if the
-	 *            {@link #handleMessage(Object)} implementation blocks, NIO may
-	 *            deadlock.
+	 *            {@link #handleMessage(Object,NIOHeader)} implementation
+	 *            blocks, NIO may deadlock.
 	 * 
 	 *            Setting the threadPoolSize higher allows
-	 *            {@link #handleMessage(Object)} to include a limited number of
-	 *            blocking operations, but NIO can still deadlock if the number
-	 *            of pending {@link #handleMessage(Object)} invocations at a
-	 *            node exceeds the thread pool size in this class. Thus, it is
-	 *            best for {@link #handleMessage(Object)} methods to only
+	 *            {@link #handleMessage(Object,NIOHeader)} to include a limited
+	 *            number of blocking operations, but NIO can still deadlock if
+	 *            the number of pending {@link #handleMessage(Object,NIOHeader)}
+	 *            invocations at a node exceeds the thread pool size in this
+	 *            class. Thus, it is best for
+	 *            {@link #handleMessage(Object,NIOHeader)} methods to only
 	 *            perform operations that return quickly; if longer packet
-	 *            processing is needed, {@link #handleMessage(Object)} must
-	 *            accordingly spawn its own helper threads. It is a bad idea,
-	 *            for example, for {@link #handleMessage(Object)} to itself send
-	 *            a request over the network and wait until it gets back a
+	 *            processing is needed, {@link #handleMessage(Object,NIOHeader)}
+	 *            must accordingly spawn its own helper threads. It is a bad
+	 *            idea, for example, for
+	 *            {@link #handleMessage(Object,NIOHeader)} to itself send a
+	 *            request over the network and wait until it gets back a
 	 *            response.
 	 */
 	public static synchronized void setThreadPoolSize(int threadPoolSize) {
@@ -161,10 +163,11 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		if (type == null || !this.demuxMap.containsKey(type)) {
 			/* It is natural for some demultiplexers to not handle some packet
 			 * types, so it is not a "bad" thing that requires a warning log. */
-			log.log(Level.FINER, "{0} ignoring unknown packet type: {1}: {2}", new Object[]{this, type, message});
+			log.log(Level.FINER, "{0} ignoring unknown packet type: {1}: {2}",
+					new Object[] { this, type, message });
 			return false;
 		}
-		Tasker tasker = new Tasker(message, this.demuxMap.get(type));
+		Tasker tasker = new Tasker(message, this.demuxMap.get(type), header);
 		if (this.myThreadPoolSize == 0 || isOrderPreserving(message)) {
 			log.log(Level.FINER,
 					"{0} handling message type {1} in selector thread; this can cause "
@@ -177,7 +180,9 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				log.log(Level.FINEST, "{0} invoking {1}.handleMessage({2})",
 						new Object[] { this, tasker.pd, message });
 				// task should still be non-blocking
-				executor.schedule(tasker, emulateDelays ? JSONDelayEmulator.getEmulatedDelay(): 0, TimeUnit.MILLISECONDS);
+				executor.schedule(tasker,
+						emulateDelays ? JSONDelayEmulator.getEmulatedDelay()
+								: 0, TimeUnit.MILLISECONDS);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
 					ree.printStackTrace();
@@ -188,14 +193,14 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		 * garbage collection or heap optimization issues. */
 		return true;
 	}
-	
+
 	/**
 	 * Turns on delay emulation. There is no way to disable, so use with care.
 	 */
 	public static final void emulateDelays() {
 		emulateDelays = true;
 	}
-	
+
 	protected boolean loopback(Object obj) {
 		if (!this.matchesType(obj))
 			return false;
@@ -204,7 +209,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		MessageType message = (MessageType) obj;
 		Integer type = getPacketType(message);
 		if (type == null || !this.demuxMap.containsKey(type))
-			this.demuxMap.get(type).handleMessage(message);
+			this.demuxMap.get(type).handleMessage(message, null);
 		return true;
 	}
 
@@ -319,15 +324,18 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 
 		private final MessageType json;
 		private final PacketDemultiplexer<MessageType> pd;
+		private final edu.umass.cs.nio.nioutils.NIOHeader header;
 
-		Tasker(MessageType json, PacketDemultiplexer<MessageType> pd) {
+		Tasker(MessageType json, PacketDemultiplexer<MessageType> pd,
+				edu.umass.cs.nio.nioutils.NIOHeader header) {
 			this.json = json;
 			this.pd = pd;
+			this.header = header;
 		}
 
 		public void run() {
 			try {
-				pd.handleMessage(this.json);
+				pd.handleMessage(this.json, header);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
 					ree.printStackTrace();

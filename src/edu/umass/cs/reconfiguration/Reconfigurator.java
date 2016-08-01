@@ -18,6 +18,7 @@ package edu.umass.cs.reconfiguration;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,16 +26,22 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import javax.net.ssl.SSLException;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.async.RequestCallbackFuture;
+import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.GenericMessagingTask;
@@ -51,9 +58,13 @@ import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ProtocolTaskCreationException;
+import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync.CRPRequestCallback;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.http.HttpReconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorFunctions;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
@@ -84,6 +95,8 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.RCStates;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.GCConcurrentHashMap;
+import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 import edu.umass.cs.utils.MyLogger;
 import edu.umass.cs.utils.Util;
 
@@ -116,7 +129,8 @@ import edu.umass.cs.utils.Util;
  * 
  */
 public class Reconfigurator<NodeIDType> implements
-		PacketDemultiplexer<JSONObject>, ReconfiguratorCallback {
+		PacketDemultiplexer<Request>, ReconfiguratorCallback,
+		ReconfiguratorFunctions {
 
 	private final SSLMessenger<NodeIDType, JSONObject> messenger;
 	private final ProtocolExecutor<NodeIDType, ReconfigurationPacket.PacketType, String> protocolExecutor;
@@ -201,6 +215,34 @@ public class Reconfigurator<NodeIDType> implements
 				"{0} finished recovery with NodeConfig = {1}",
 				new Object[] { this,
 						this.consistentNodeConfig.getReconfigurators() });
+
+		// we don't keep a handle to http servers here.
+		this.protocolExecutor.submit(new Runnable() {
+			@Override
+			public void run() {
+				initHTTPServer(false);
+			}
+		});
+	}
+
+	private void initHTTPServer(boolean ssl) {
+		if (!Config.getGlobalBoolean(RC.ENABLE_HTTP))
+			return;
+		InetSocketAddress me = this.messenger.getListeningSocketAddress();
+		try {
+			/* We don't really need to hold a pointer to the HTTP server except
+			 * maybe for instrumentation purposes. */
+			new HttpReconfigurator(this, new InetSocketAddress(me.getAddress(),
+					ReconfigurationConfig.getHTTPPort(me.getPort())), ssl);
+
+			// FIXME: start HTTPS server here as well
+
+		} catch (CertificateException | InterruptedException | SSLException e) {
+			if (!(e instanceof InterruptedException)) // close
+				e.printStackTrace();
+			// throw new IOException(e);
+			// eat up exceptions until HTTP server is stable
+		}
 	}
 
 	/**
@@ -213,33 +255,34 @@ public class Reconfigurator<NodeIDType> implements
 				this.messenger);
 	}
 
+	private static final Level debug = Level.FINE;
+
 	@Override
-	public boolean handleMessage(JSONObject jsonObject) {
+	public boolean handleMessage(Request incoming,
+			edu.umass.cs.nio.nioutils.NIOHeader header) {
 		try {
-			ReconfigurationPacket.PacketType rcType = ReconfigurationPacket
-					.getReconfigurationPacketType(jsonObject);
-			log.log(Level.FINE, "{0} received {1} {2}", new Object[] { this,
-					rcType, jsonObject });
-			/* This assertion is true only if TLS with mutual authentication is
-			 * enabled. If so, only authentic servers will be able to send
-			 * messages to a reconfigurator and they will never send any message
-			 * other than the subset of ReconfigurationPacket types meant to be
-			 * processed by reconfigurators. */
-			assert (rcType != null || ReconfigurationConfig.isTLSEnabled()) : jsonObject;
+			// otherwise demultiplexer wouldn't come here
+			assert (incoming instanceof BasicReconfigurationPacket) : incoming
+					.getSummary();
+			@SuppressWarnings("unchecked")
+			ReconfigurationPacket.PacketType rcType = ((BasicReconfigurationPacket<NodeIDType>) incoming)
+					.getReconfigurationPacketType();
+			log.log(debug, "{0} received {1} {2}", new Object[] { this, rcType,
+					incoming.getSummary(log.isLoggable(debug)) });
 
 			// try handling as reconfiguration packet through protocol task
 			@SuppressWarnings("unchecked")
 			// checked by assert above
-			BasicReconfigurationPacket<NodeIDType> rcPacket = (BasicReconfigurationPacket<NodeIDType>) ReconfigurationPacket
-					.getReconfigurationPacket(jsonObject, this.getUnstringer());
+			BasicReconfigurationPacket<NodeIDType> rcPacket = (BasicReconfigurationPacket<NodeIDType>) incoming;
 			// all packets are handled through executor, nice and simple
 			if (!this.protocolExecutor.handleEvent(rcPacket))
 				// do nothing
-				log.log(Level.FINE, MyLogger.FORMAT[2], new Object[] { this,
-						"unable to handle packet", jsonObject });
-		} catch (JSONException | ProtocolTaskCreationException e) {
+				log.log(debug, MyLogger.FORMAT[2],
+						new Object[] { this, "unable to handle packet",
+								incoming.getSummary(log.isLoggable(debug)) });
+		} catch (ProtocolTaskCreationException e) {
 			log.severe(this + " incurred exception " + e.getMessage()
-					+ " while trying to handle message " + jsonObject);
+					+ " while trying to handle message " + incoming);
 			e.printStackTrace();
 		}
 		return false; // neither reconfiguration packet nor app request
@@ -265,6 +308,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.protocolExecutor.stop();
 		this.messenger.stop();
 		this.DB.close();
+		HttpReconfigurator.closeAll();
 		log.log(Level.INFO, "{0} closing with nodeConfig = {1}", new Object[] {
 				this, this.consistentNodeConfig });
 	}
@@ -361,12 +405,8 @@ public class Reconfigurator<NodeIDType> implements
 		private ConcurrentHashMap<String, String> headnameToOverallHeadname = new ConcurrentHashMap<String, String>();
 	}
 
-	// private ConcurrentHashMap<String, BatchCreateJobs> pendingBatchCreates =
-	// new ConcurrentHashMap<String, BatchCreateJobs>();
-	// private ConcurrentHashMap<String, String> pendingBatchCreateParents = new
-	// ConcurrentHashMap<String, String>();
-
-	private void failLongPendingBatchCreate(String name, long timeout) {
+	private void failLongPendingBatchCreate(String name, long timeout,
+			RequestCallback callback) {
 		for (Iterator<String> strIter = this.pendingBatchCreations.consistentBatchCreateJobs
 				.keySet().iterator(); strIter.hasNext();) {
 			String headName = strIter.next();
@@ -381,8 +421,9 @@ public class Reconfigurator<NodeIDType> implements
 						nameStates.remove(part.nameStates.keySet());
 					}
 				}
-				this.sendClientReconfigurationPacket(new CreateServiceName(
-						nameStates, failedCreates, jobs.parts.iterator().next())
+				// this.sendClientReconfigurationPacket
+				callback.handleResponse(new CreateServiceName(nameStates,
+						failedCreates, jobs.parts.iterator().next())
 						.setFailed()
 						.setResponseMessage(
 								"Batch create failed to create the names listed in the field "
@@ -448,6 +489,19 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleCreateServiceName(
 			CreateServiceName create,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		return this.handleCreateServiceName(create, ptasks, defaultCallback);
+	}
+
+	/**
+	 * @param create
+	 * @param ptasks
+	 * @param callback
+	 * @return Messaging task, typically null. No protocol tasks spawned.
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleCreateServiceName(
+			CreateServiceName create,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
+			RequestCallback callback) {
 		log.log(!this.pendingBatchCreations.headnameToOverallHeadname
 				.containsKey(create.getServiceName()) ? Level.INFO : Level.INFO,
 				"{0} received {1} from client {2} {3}",
@@ -484,7 +538,7 @@ public class Reconfigurator<NodeIDType> implements
 			for (CreateServiceName part : jobs.parts) {
 				this.pendingBatchCreations.headnameToOverallHeadname.put(
 						part.getServiceName(), create.getServiceName());
-				this.handleCreateServiceName(part, ptasks);
+				this.handleCreateServiceName(part, ptasks, callback); // recursive
 			}
 
 			// fail if it doesn't complete within timeout
@@ -492,7 +546,8 @@ public class Reconfigurator<NodeIDType> implements
 				@Override
 				public void run() {
 					Reconfigurator.this.failLongPendingBatchCreate(
-							create.getServiceName(), BATCH_CREATE_TIMEOUT);
+							create.getServiceName(), BATCH_CREATE_TIMEOUT,
+							callback);
 				}
 			}, BATCH_CREATE_TIMEOUT, TimeUnit.MILLISECONDS);
 			return null;
@@ -509,7 +564,8 @@ public class Reconfigurator<NodeIDType> implements
 					.getServiceName());
 			if (original != null)
 				// all done, send success response to client
-				this.sendClientReconfigurationPacket(original.getHeadOnly()
+				// this.sendClientReconfigurationPacket
+				callback.handleResponse(original.getHeadOnly()
 						.setResponseMessage(
 								"Successfully batch-created " + original.size()
 										+ " names with head name "
@@ -520,13 +576,17 @@ public class Reconfigurator<NodeIDType> implements
 
 		// quick reject for bad batched create
 		if (!this.isLegitimateCreateRequest(create))
-			this.sendClientReconfigurationPacket(create
+			// this.sendClientReconfigurationPacket
+			callback.handleResponse(create
 					.setFailed()
 					.setResponseMessage(
 							"The names in this create request do not all map to the same reconfigurator group"));
 
-		if (this.processRedirection(create))
+		if (this.processRedirection(create)) {
+			if (callback != this.defaultCallback)
+				this.callbacksCRP.put(getCRPKey(create), callback);
 			return null;
+		}
 		// else I am responsible for handling this (possibly forwarded) request
 
 		/* Commit initial "reconfiguration" intent. If the record can be created
@@ -556,26 +616,34 @@ public class Reconfigurator<NodeIDType> implements
 		 * for unbatched create requests. For batched creates, we optimistically
 		 * assume that none of the batched names already exist and let the
 		 * create fail later if that is not the case. */
-		if ((record = this.DB.getReconfigurationRecord(create.getServiceName())) == null)
+		if ((record = this.DB.getReconfigurationRecord(create.getServiceName())) == null) {
+			if (callback != this.defaultCallback)
+				this.callbacksCRP.put(getCRPKey(create), callback);
 			this.initiateReconfiguration(create.getServiceName(), record,
 					this.consistentNodeConfig.getReplicatedActives(create
 							.getServiceName()), create.getCreator(), create
 							.getMyReceiver(), create.getForwader(), create
 							.getInitialState(), create.getNameStates(), null);
+		}
 
 		// record already exists, so return error message
 		else
-			this.sendClientReconfigurationPacket(create
+			// this.sendClientReconfigurationPacket
+			callback.handleResponse(create
 					.setFailed(
 							ClientReconfigurationPacket.ResponseCodes.DUPLICATE_ERROR)
 					.setResponseMessage(
 							"Can not (re-)create an already "
-									+ (record.isDeletePending() ? "deleted name " + create.getServiceName() + " until "
+									+ (record.isDeletePending() ? "deleted name "
+											+ create.getServiceName()
+											+ " until "
 											+ ReconfigurationConfig
 													.getMaxFinalStateAge()
 											/ 1000
 											+ " seconds have elapsed after the most recent deletion."
-											: "existing name " + create.getServiceName() + ".")));
+											: "existing name "
+													+ create.getServiceName()
+													+ ".")));
 		return null;
 	}
 
@@ -657,11 +725,27 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleDeleteServiceName(
 			DeleteServiceName delete,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		return this.handleDeleteServiceName(delete, ptasks, defaultCallback);
+	}
+
+	/**
+	 * @param delete
+	 * @param ptasks
+	 * @param callback
+	 * @return Messaging task, typically null. No protocol tasks spawned.
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleDeleteServiceName(
+			DeleteServiceName delete,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
+			RequestCallback callback) {
 		log.log(Level.INFO, "{0} received {1} from creator {2}", new Object[] {
 				this, delete.getSummary(), delete.getCreator() });
 
-		if (this.processRedirection(delete))
+		if (this.processRedirection(delete)) {
+			if (callback != defaultCallback)
+				this.callbacksCRP.put(getCRPKey(delete), callback);
 			return null;
+		}
 		log.log(Level.FINE,
 				"{0} processing delete request {1} from creator {2} {3}",
 				new Object[] {
@@ -682,19 +766,21 @@ public class Reconfigurator<NodeIDType> implements
 								delete.getCreator(), delete.getMyReceiver(),
 								delete.getForwader(), null, null, null),
 								RequestTypes.RECONFIGURATION_INTENT), record)) {
+			if (callback != defaultCallback)
+				this.callbacksCRP.put(getCRPKey(delete), callback);
 			this.DB.handleIncoming(rcRecReq, null);
 			return null;
 		}
 		// WAIT_DELETE state also means success
 		else if (this.isWaitingDelete(delete)) {
-			// this.sendDeleteConfirmationToClient(rcRecReq);
-			this.sendClientReconfigurationPacket(delete
-					.setResponseMessage(delete.getServiceName()
-							+ " already pending deletion"));
+			// this.sendClientReconfigurationPacket
+			callback.handleResponse(delete.setResponseMessage(delete
+					.getServiceName() + " already pending deletion"));
 			return null;
 		}
 		// else failure
-		this.sendClientReconfigurationPacket(delete
+		// this.sendClientReconfigurationPacket
+		callback.handleResponse(delete
 				.setFailed(
 						ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
 				.setResponseMessage(
@@ -718,6 +804,53 @@ public class Reconfigurator<NodeIDType> implements
 	private static final String BROADCAST_NAME = Config
 			.getGlobalString(RC.BROADCAST_NAME);
 
+	private static final long CRP_GC_TIMEOUT = 8000;
+
+	/**
+	 * Client reconfiguration packet callbacks. We need callbacks primarily to
+	 * support other front-end APIs like HTTP and create/delete-like
+	 * asynchronous requests that return only after coordination.
+	 */
+	private final GCConcurrentHashMap<String, RequestCallback> callbacksCRP = new GCConcurrentHashMap<String, RequestCallback>(
+			new GCConcurrentHashMapCallback() {
+				@Override
+				public void callbackGC(Object key, Object value) {
+					assert (value instanceof RequestCallback);
+					log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] {
+							this, key, value });
+				}
+			}, CRP_GC_TIMEOUT);
+
+	/**
+	 * Default response is to simply invoke
+	 * {@link #sendClientReconfigurationPacket(ClientReconfigurationPacket)}.
+	 */
+	private final RequestCallback defaultCallback = new RequestCallback() {
+
+		@Override
+		public void handleResponse(Request response) {
+			if (response != null
+					&& response instanceof ClientReconfigurationPacket)
+				Reconfigurator.this
+						.sendClientReconfigurationPacket((ClientReconfigurationPacket) response);
+			else
+				assert (false);
+		}
+	};
+
+	/**
+	 * @return Default callback for auto-invoked methods. Meant only for
+	 *         internal use.
+	 */
+	public RequestCallback getDefaultCallback() {
+		return this.defaultCallback;
+	}
+
+	private static final String getCRPKey(ClientReconfigurationPacket crp) {
+		return crp.getRequestType() + ":" + crp.getServiceName() + ":"
+				+ crp.getCreator();
+	}
+
 	/**
 	 * This method simply looks up and returns the current set of active
 	 * replicas. Maintaining this state consistently is the primary and only
@@ -731,6 +864,21 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleRequestActiveReplicas(
 			RequestActiveReplicas request,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		return this.handleRequestActiveReplicas(request, ptasks,
+				defaultCallback);
+	}
+
+	/**
+	 * @param request
+	 * @param ptasks
+	 * @param callback
+	 * @return Messaging task returning the set of active replicas to the
+	 *         requestor. No protocol tasks spawned.
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleRequestActiveReplicas(
+			RequestActiveReplicas request,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
+			RequestCallback callback) {
 
 		log.log(Level.INFO,
 				"{0} received {1} {2} from client {3} {4}",
@@ -742,21 +890,31 @@ public class Reconfigurator<NodeIDType> implements
 						request.isForwarded() ? "from reconfigurator "
 								+ request.getSender() : "" });
 		if (request.getServiceName().equals(ANYCAST_NAME)) {
-			this.sendClientReconfigurationPacket(request
-					.setActives(modifyPortsForSSL(
-							this.consistentNodeConfig.getRandomActiveReplica(),
-							receivedOnSSLPort(request))));
+			// this.sendClientReconfigurationPacket
+			callback.handleResponse(request.setActives(modifyPortsForSSL(
+					this.consistentNodeConfig.getRandomActiveReplica(),
+					receivedOnSSLPort(request))));
 			return null;
 		} else if (request.getServiceName().equals(BROADCAST_NAME)) {
-			this.sendClientReconfigurationPacket(request
-					.setActives(modifyPortsForSSL(this.consistentNodeConfig
-							.getActiveReplicaSocketAddresses(),
-							receivedOnSSLPort(request))));
+			// this.sendClientReconfigurationPacket
+			callback.handleResponse(request.setActives(modifyPortsForSSL(
+					this.consistentNodeConfig.getActiveReplicaSocketAddresses(),
+					receivedOnSSLPort(request))));
 			return null;
 		}
 
-		if (this.processRedirection(request))
+		if (this.processRedirection(request)) {
+			/**
+			 * Asynchronous step here, but we enqueue only if the callback is
+			 * non-default because the default callback action of sending
+			 * responses back to the client will be done anyway if no explicit
+			 * callback is found. This way, we avoid unnecessary
+			 * enqueue/dequeue/GC operations in the common case.
+			 */
+			if (callback != this.defaultCallback)
+				this.callbacksCRP.put(getCRPKey(request), callback);
 			return null;
+		}
 
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(request.getServiceName());
@@ -770,7 +928,8 @@ public class Reconfigurator<NodeIDType> implements
 					+ request.getServiceName();
 			request.setResponseMessage(responseMessage
 					+ " probably because the name has not yet been created or is pending deletion");
-			this.sendClientReconfigurationPacket(request
+			// this.sendClientReconfigurationPacket
+			callback.handleResponse(request
 					.setFailed(
 							ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
 					.makeResponse()
@@ -797,7 +956,8 @@ public class Reconfigurator<NodeIDType> implements
 		// to support different client facing ports
 		request.setActives(modifyPortsForSSL(activeIPs,
 				receivedOnSSLPort(request)));
-		this.sendClientReconfigurationPacket(request.makeResponse());
+		// this.sendClientReconfigurationPacket
+		callback.handleResponse(request.makeResponse());
 		/* We message using sendActiveReplicasToClient above as opposed to
 		 * returning a messaging task below because protocolExecutor's messenger
 		 * may not be usable for client facing requests. */
@@ -1189,15 +1349,16 @@ public class Reconfigurator<NodeIDType> implements
 
 	// utility method used to determine how to offset ports in responses
 	private Boolean receivedOnSSLPort(ClientReconfigurationPacket request) {
-		if(request.getMyReceiver() == null) return false;
+		if (request.getMyReceiver() == null)
+			return false;
 		// server-to-server => return null
-		else if(request
-				.getMyReceiver().getPort() == this.consistentNodeConfig
-				.getNodePort(getMyID())) return null;
-		else return request.getMyReceiver()
-				.getPort() == ReconfigurationConfig
-				.getClientFacingSSLPort(this.consistentNodeConfig
-						.getNodePort(getMyID()));
+		else if (request.getMyReceiver().getPort() == this.consistentNodeConfig
+				.getNodePort(getMyID()))
+			return null;
+		else
+			return request.getMyReceiver().getPort() == ReconfigurationConfig
+					.getClientFacingSSLPort(this.consistentNodeConfig
+							.getNodePort(getMyID()));
 	}
 
 	private void spawnSecondaryReconfiguratorTask(
@@ -1238,8 +1399,7 @@ public class Reconfigurator<NodeIDType> implements
 			ReconfigurationPacket.PacketType.DELETE_SERVICE_NAME,
 			ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS, };
 
-	private ReconfigurationPacket.PacketType[] clientRequestTypesNoCreateDelete = {
-			ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS, };
+	private ReconfigurationPacket.PacketType[] clientRequestTypesNoCreateDelete = { ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS, };
 
 	// put anything needing periodic instrumentation here
 	private void instrument(Level level) {
@@ -1271,6 +1431,15 @@ public class Reconfigurator<NodeIDType> implements
 		return cMsgr;
 	}
 
+	/**
+	 * Returns true if this request's handling is complete, i.e., it has either
+	 * been forwarded to another server or it was a response to a request
+	 * forwarded earlier and the response has now been forwarded to the
+	 * end-client.
+	 * 
+	 * @param clientRCPacket
+	 * @return
+	 */
 	private boolean processRedirection(
 			ClientReconfigurationPacket clientRCPacket) {
 		/* Received response from responsible reconfigurator to which I
@@ -1282,17 +1451,25 @@ public class Reconfigurator<NodeIDType> implements
 					"{0} relaying RESPONSE for forwarded request {1} to {2}",
 					new Object[] { this, clientRCPacket.getSummary(),
 							clientRCPacket.getCreator() });
-			// just relay response to the client
-			return this.sendClientReconfigurationPacket(clientRCPacket);
+			// invoke callback if any
+			RequestCallback callback;
+			// this.sendClientReconfigurationPacket
+			if ((callback = this.callbacksCRP.remove(getCRPKey(clientRCPacket))) != null)
+				callback.handleResponse(clientRCPacket);
+			else
+				// just relay response to the client
+				this.sendClientReconfigurationPacket(clientRCPacket);
+			return true;
 		}
 		// forward if I am not responsible
 		else
 			return (this.redirectableRequest(clientRCPacket));
 	}
 
-	private static Set<InetSocketAddress> modifyPortsForSSL(
+	private static final Set<InetSocketAddress> modifyPortsForSSL(
 			Set<InetSocketAddress> replicas, Boolean ssl) {
-		if(ssl==null) return replicas;
+		if (ssl == null)
+			return replicas;
 		else if ((ssl && ReconfigurationConfig.getClientPortSSLOffset() == 0)
 				|| (!ssl && ReconfigurationConfig.getClientPortOffset() == 0))
 			return replicas;
@@ -1317,7 +1494,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param port
 	 * @return The client facing ssl port.
 	 */
-	public static int getClientFacingSSLPort(int port) {
+	public static final int getClientFacingSSLPort(int port) {
 		return ActiveReplica.getClientFacingSSLPort(port);
 	}
 
@@ -1325,7 +1502,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param port
 	 * @return The client facing clear port.
 	 */
-	public static int getClientFacingClearPort(int port) {
+	public static final int getClientFacingClearPort(int port) {
 		return ActiveReplica.getClientFacingClearPort(port);
 	}
 
@@ -1369,7 +1546,7 @@ public class Reconfigurator<NodeIDType> implements
 	 */
 	@SuppressWarnings("unchecked")
 	private AddressMessenger<JSONObject> initClientMessenger(boolean ssl) {
-		AbstractPacketDemultiplexer<JSONObject> pd = null;
+		AbstractPacketDemultiplexer<Request> pd = null;
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
 		try {
 			int myPort = (this.consistentNodeConfig.getNodePort(getMyID()));
@@ -1399,7 +1576,8 @@ public class Reconfigurator<NodeIDType> implements
 							niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 									isa.getAddress(),
 									isa.getPort(),
-									(pd = new ReconfigurationPacketDemultiplexer()),
+									(pd = new ReconfigurationPacketDemultiplexer(
+											this.getUnstringer(), this.DB)),
 									ssl ? ReconfigurationConfig
 											.getClientSSLMode()
 											: SSL_MODES.CLEAR));
@@ -1416,7 +1594,8 @@ public class Reconfigurator<NodeIDType> implements
 					if (this.messenger.getClientMessenger() instanceof Messenger)
 						((Messenger<NodeIDType, ?>) this.messenger
 								.getClientMessenger())
-								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
+										this.getUnstringer(), this.DB));
 				} else {
 					log.log(Level.INFO,
 							"{0} adding self as demultiplexer to existing {1} client messenger",
@@ -1424,11 +1603,13 @@ public class Reconfigurator<NodeIDType> implements
 					if (this.messenger.getSSLClientMessenger() instanceof Messenger)
 						((Messenger<NodeIDType, ?>) this.messenger
 								.getSSLClientMessenger())
-								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer());
+								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
+										this.getUnstringer(), this.DB));
 				}
 				assert (pd != null);
-				pd.register(Config.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE) ? clientRequestTypes :
-					clientRequestTypesNoCreateDelete, this);
+				pd.register(
+						Config.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE) ? clientRequestTypes
+								: clientRequestTypesNoCreateDelete, this);
 				if (!Config.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE)
 						&& ReconfigurationConfig.getServerSSLMode() != SSL_MODES.MUTUAL_AUTH)
 					Util.suicide("Can not prevent clients from creating and deleting names "
@@ -1582,7 +1763,7 @@ public class Reconfigurator<NodeIDType> implements
 		return this.messenger.getMyID();
 	}
 
-	private Stringifiable<NodeIDType> getUnstringer() {
+	Stringifiable<NodeIDType> getUnstringer() {
 		return this.consistentNodeConfig;
 	}
 
@@ -1617,14 +1798,14 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param myID
 	 * @return The task key.
 	 */
-	public static String getTaskKey(Class<?> C,
+	public static final String getTaskKey(Class<?> C,
 			BasicReconfigurationPacket<?> rcPacket, String myID) {
 		return getTaskKey(C, myID, rcPacket.getServiceName(),
 				rcPacket.getEpochNumber());
 	}
 
-	private static String getTaskKey(Class<?> C, String myID, String name,
-			int epoch) {
+	private static final String getTaskKey(Class<?> C, String myID,
+			String name, int epoch) {
 		return C.getSimpleName() + myID + ":" + name + ":" + epoch;
 	}
 
@@ -1643,7 +1824,7 @@ public class Reconfigurator<NodeIDType> implements
 		return getTaskKeyPrev(C, rcPacket, myID, 1);
 	}
 
-	private static String getTaskKeyPrev(Class<?> C,
+	private static final String getTaskKeyPrev(Class<?> C,
 			BasicReconfigurationPacket<?> rcPacket, String myID, int prev) {
 		return getTaskKey(C, myID, rcPacket.getServiceName(),
 				rcPacket.getEpochNumber() - prev);
@@ -1908,8 +2089,14 @@ public class Reconfigurator<NodeIDType> implements
 					rcRecReq.getEpochNumber(), null,
 					rcRecReq.startEpoch.getMyReceiver())).setForwader(
 					rcRecReq.startEpoch.getForwarder()).makeResponse();
+
+			RequestCallback callback = this.callbacksCRP
+					.remove(getCRPKey(response));
+			if (callback != null)
+				callback.handleResponse(response);
+
 			// need to use different messengers for client and forwarder
-			if (querier.equals(rcRecReq.startEpoch.creator)) {
+			else if (querier.equals(rcRecReq.startEpoch.creator)) {
 				log.log(Level.INFO,
 						"{0} sending creation confirmation {1} back to client",
 						new Object[] { this, response.getSummary(), querier });
@@ -2484,7 +2671,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * Default true now for an improved merge/split implementation. Doing merges
 	 * in the old way potentially violates RSM safety.
 	 */
-	protected static boolean isAggregatedMergeSplit() {
+	protected static final boolean isAggregatedMergeSplit() {
 		return true;
 	}
 
@@ -3042,6 +3229,59 @@ public class Reconfigurator<NodeIDType> implements
 		boolean closed = this.DB.app.closeReadActiveRecords();
 		// this.setNoOutstanding();
 		return initiated && closed;
+	}
+
+	@Override
+	public ReconfiguratorRequest sendRequest(ReconfiguratorRequest request) {
+		RequestCallbackFuture<ReconfiguratorRequest> callbackFuture;
+		BasicReconfigurationPacket<?> packet = request instanceof ClientReconfigurationPacket ? (ClientReconfigurationPacket) request
+				: request instanceof ServerReconfigurationPacket ? (ServerReconfigurationPacket<?>) request
+						: null;
+		if (packet == null)
+			throw new RuntimeException("The "
+					+ ReconfiguratorRequest.class.getSimpleName()
+					+ " argument must either be a "
+					+ ServerReconfigurationPacket.class.getSimpleName()
+					+ " or a "
+					+ ClientReconfigurationPacket.class.getSimpleName());
+
+		this.protocolTask
+				.handleEvent(
+						packet,
+						null,
+						callbackFuture = new RequestCallbackFuture<ReconfiguratorRequest>(
+								packet, null));
+		try {
+			return (ReconfiguratorRequest) callbackFuture.get();
+		} catch (InterruptedException | ExecutionException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	@Override
+	public RequestCallbackFuture<ReconfiguratorRequest> sendRequest(
+			ReconfiguratorRequest request,
+			Callback<Request, ReconfiguratorRequest> callback) {
+		RequestCallbackFuture<ReconfiguratorRequest> callbackFuture;
+		BasicReconfigurationPacket<?> packet = request instanceof ClientReconfigurationPacket ? (ClientReconfigurationPacket) request
+				: request instanceof ServerReconfigurationPacket ? (ServerReconfigurationPacket<?>) request
+						: null;
+		if (packet == null)
+			throw new RuntimeException("The "
+					+ ReconfiguratorRequest.class.getSimpleName()
+					+ " argument must either be a "
+					+ ServerReconfigurationPacket.class.getSimpleName()
+					+ " or a "
+					+ ClientReconfigurationPacket.class.getSimpleName());
+		this.protocolTask
+				.handleEvent(
+						packet,
+						null,
+						callbackFuture = new RequestCallbackFuture<ReconfiguratorRequest>(
+								packet, callback));
+		return callbackFuture;
+
 	}
 
 	/**

@@ -30,6 +30,7 @@ import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
+import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -160,7 +161,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 		AbstractPaxosLogger.fileLock(id);
 
-		AbstractJSONPacketDemultiplexer pd;
+		ReconfigurationPacketDemultiplexer pd;
 
 		String err = null;
 		if (!nodeConfig.getActiveReplicas().contains(id)
@@ -183,8 +184,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		// else we have something to start
 		messenger = (new JSONMessenger<NodeIDType>(
 				(niot = new MessageNIOTransport<NodeIDType, JSONObject>(
-						ReconfigurableNode.this.myID, nodeConfig,
-						(pd = new ReconfigurationPacketDemultiplexer()
+						ReconfigurableNode.this.myID,
+						nodeConfig,
+						(pd = new ReconfigurationPacketDemultiplexer(nodeConfig)
 								.setThreadName(ReconfigurableNode.this.myID
 										.toString())), true,
 						ReconfigurationConfig.getServerSSLMode()))));
@@ -227,7 +229,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	// because ReconfigurableNode is abstract for backwards compatibility
 	/**
 	 */
-	public static class DefaultReconfigurableNode extends
+	public static final class DefaultReconfigurableNode extends
 			ReconfigurableNode<String> {
 
 		/**
@@ -260,7 +262,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	private static boolean clear = false;
 
 	// get all nodes to be started via main
-	private static Set<String> getAllNodes(String[] args) {
+	private static final Set<String> getAllNodes(String[] args) {
 		Set<String> nodeIDs = new HashSet<String>();
 		// search for START_ALL; only for backwards compatibility
 		if (args[args.length - 1]
@@ -297,7 +299,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	}
 
 	// only for backwards compatibility
-	private static String getAppArgs(String[] args) {
+	private static final String getAppArgs(String[] args) {
 		String argsAsString = "";
 		for (String arg : args)
 			argsAsString += " " + arg;
@@ -334,7 +336,6 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				PaxosConfig.getActives(),
 				ReconfigurationConfig.getReconfigurators());
 		PaxosConfig.sanityCheck(nodeConfig);
-		ReconfigurationPolicyTest.testPolicyImplementation(ReconfigurationConfig.getDemandProfile());
 
 		if (Config.getGlobalBoolean(PC.EMULATE_DELAYS))
 			AbstractPacketDemultiplexer.emulateDelays();
@@ -358,6 +359,10 @@ public abstract class ReconfigurableNode<NodeIDType> {
 				}
 			return;
 		}
+
+		ReconfigurationPolicyTest
+				.testPolicyImplementation(ReconfigurationConfig
+						.getDemandProfile());
 
 		String sysPropAppArgsAsString = System
 				.getProperty(ReconfigurationConfig.CommandArgs.appArgs

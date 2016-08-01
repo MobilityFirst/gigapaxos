@@ -28,6 +28,7 @@ import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.StringifiableDefault;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorRequest;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -43,9 +44,10 @@ import edu.umass.cs.utils.Util;
  *         response.
  */
 public abstract class ClientReconfigurationPacket extends
-		BasicReconfigurationPacket<InetSocketAddress> {
+		BasicReconfigurationPacket<InetSocketAddress> implements ReconfiguratorRequest {
 
-	private static enum Keys {
+	@SuppressWarnings("javadoc")
+	public static enum Keys {
 		INITIAL_STATE, RECONFIGURATORS, RESPONSE_MESSAGE, FAILED,
 
 		RECURSIVE_REDIRECT, CREATOR, FORWARDER, FORWARDEE, MY_RECEIVER,
@@ -73,14 +75,22 @@ public abstract class ClientReconfigurationPacket extends
 		 * exist.
 		 * 
 		 */
-		NONEXISTENT_NAME_ERROR
+		NONEXISTENT_NAME_ERROR,
+
+		/**
+		 * Only needed for clients using other protocols (like HTTP) or
+		 * languages. With the default Java client, malformed requests won't
+		 * happen, and if they do because of a buggy implementation, such
+		 * requests will be silently dropped.
+		 */
+		MALFORMED_REQUEST,
 	}
 
 	/**
 	 * Unstringer needed to handle client InetSocketAddresses as opposed to
 	 * NodeIDType.
 	 */
-	protected static final Stringifiable<InetSocketAddress> unstringer = new StringifiableDefault<InetSocketAddress>(
+	public static final Stringifiable<InetSocketAddress> unstringer = new StringifiableDefault<InetSocketAddress>(
 			new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
 
 	// whether this request failed
@@ -201,7 +211,9 @@ public abstract class ClientReconfigurationPacket extends
 
 		this.isRequest = json.getBoolean(Keys.IS_QUERY.toString());
 
-		this.createTime = json.getLong(Keys.CREATE_TIME.toString());
+		this.createTime = json.has(Keys.CREATE_TIME.toString()) ? json
+				.getLong(Keys.CREATE_TIME.toString()) : System
+				.currentTimeMillis();
 
 		this.responseCode = json.has(Keys.RESPONSE_CODE.toString()) ? ResponseCodes
 				.valueOf(json.getString(Keys.RESPONSE_CODE.toString())) : null;
@@ -401,16 +413,6 @@ public abstract class ClientReconfigurationPacket extends
 	 */
 	public boolean isForwardable() {
 		return this.isRecursiveRedirectEnabled() && this.getForwader() == null;
-	}
-
-	/**
-	 * @param myReceiver
-	 * @return {@code this} with modified myReceiver
-	 */
-	public ClientReconfigurationPacket setMyReceiver(
-			InetSocketAddress myReceiver) {
-		this.myReceiver = myReceiver;
-		return this;
 	}
 
 	/**

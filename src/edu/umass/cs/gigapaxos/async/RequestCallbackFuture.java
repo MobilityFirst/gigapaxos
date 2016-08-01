@@ -5,6 +5,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
@@ -14,22 +15,27 @@ import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
  * @param <V>
  *
  */
-public class BlockingRequestCallback<V> implements RequestCallback,
+public class RequestCallbackFuture<V> implements RequestCallback,
 		RequestFuture<V> {
 	private final Request request;
-	Request response;
+	private final  Callback<Request,V>  callback;
+	private Request response;
 
 	/**
 	 * @param request
 	 *            The request until whose execution this callback will block.
+	 * @param callback 
 	 */
-	public BlockingRequestCallback(Request request) {
+	public RequestCallbackFuture(Request request, Callback<Request,V> callback) {
 		this.request = request;
+		this.callback = callback;
 	}
 
 	@Override
 	public void handleResponse(
 			edu.umass.cs.gigapaxos.interfaces.Request response) {
+		if (this.callback != null)
+			this.callback.processResponse(response);
 		synchronized (this) {
 			this.response = response;
 			this.notify();
@@ -37,6 +43,8 @@ public class BlockingRequestCallback<V> implements RequestCallback,
 	}
 
 	/**
+	 * All get/wait roads lead here.
+	 * 
 	 * @return Response corresponding to the execution of the request supplied
 	 *         in this callback's constructor.
 	 */
@@ -59,6 +67,7 @@ public class BlockingRequestCallback<V> implements RequestCallback,
 		return (V) this.response;
 	}
 
+	// same as get() but private
 	private V waitResponse() {
 		return (V) this.waitResponse(null, TimeUnit.MILLISECONDS);
 	}

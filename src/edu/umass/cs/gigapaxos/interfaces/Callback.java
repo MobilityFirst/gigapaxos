@@ -2,12 +2,15 @@ package edu.umass.cs.gigapaxos.interfaces;
 
 /**
  * @author arun
+ * 
+ * @param <R>
+ * @param <V>
  *
- * @param <T>
  */
-public interface Callback<T> {
+public interface Callback<R, V> {
 	/**
 	 * @param response
+	 * @return Value returned by processing {@code response}.
 	 */
-	public void handleResponse(T response);
+	public V processResponse(R response);
 }

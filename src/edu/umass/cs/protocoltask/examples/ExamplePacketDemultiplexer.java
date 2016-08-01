@@ -24,6 +24,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
 import edu.umass.cs.nio.JSONPacket;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 
 /**
@@ -42,7 +43,7 @@ public class ExamplePacketDemultiplexer extends AbstractJSONPacketDemultiplexer 
 	}
 
 	@Override
-	public boolean handleMessage(JSONObject json) {
+	public boolean handleMessage(JSONObject json, NIOHeader header) {
 		try {
 			if (DEBUG)
 				log.finest("PD " + this.node.getMyID() + " received " + json);

@@ -273,13 +273,21 @@ public class PaxosManager<NodeIDType> {
 		}
 	}
 
-	// default callback tries to send back response
-	@SuppressWarnings("deprecation")
+	// default callback tries to send back response to the sending client
 	private void defaultCallback(RequestPacket requestPacket, Request request) {
 		if (request == null || !(request instanceof ClientRequest))
 			return;
 		this.defaultCallback(((ClientRequest) request).getResponse(),
-				((ClientRequest) request).getClientAddress(),
+				/* We might as well use requestPacket's clientAddress here
+				 * because in the case when requestPacket directly came
+				 * over the wire, it will have the right client address
+				 * and in the case it was constructed from request, 
+				 * either a callback was provided in which case the
+				 * default callback is irrelevant or we already copied
+				 * over the client address while constructing requestPacket
+				 * from request.
+				 */
+				(requestPacket).getClientAddress(),
 				requestPacket.getListenAddress());
 	}
 
@@ -338,7 +346,7 @@ public class PaxosManager<NodeIDType> {
 	 * demultiplexing incoming packets to a number of paxos instances at this
 	 * node. */
 
-	private static Logger log = Logger.getLogger(PaxosManager.class.getName());
+	private static final Logger log = Logger.getLogger(PaxosManager.class.getName());
 
 	/**
 	 * @param id
@@ -814,7 +822,7 @@ public class PaxosManager<NodeIDType> {
 					.getNodeAddress(node));
 	}
 
-	private static int MAX_OUTSTANDING_REQUESTS = Config
+	private static final int MAX_OUTSTANDING_REQUESTS = Config
 			.getGlobalInt(PC.MAX_OUTSTANDING_REQUESTS);
 	private final boolean DISABLE_CC = Config.getGlobalBoolean(PC.DISABLE_CC);
 	private final boolean ORDER_PRESERVING_REQUESTS = Config
@@ -836,7 +844,7 @@ public class PaxosManager<NodeIDType> {
 			this.clientFacing = clientFacing;
 		}
 
-		public boolean handleMessage(JSONObject jsonMsg) {
+		public boolean handleMessage(JSONObject jsonMsg, edu.umass.cs.nio.nioutils.NIOHeader header) {
 			try {
 				PaxosManager.log.log(Level.FINEST,
 						"{0} packet json demultiplexer received {1}",
@@ -912,7 +920,7 @@ public class PaxosManager<NodeIDType> {
 			this(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS), false);
 		}
 
-		public boolean handleMessage(Object msg) {
+		public boolean handleMessage(Object msg, edu.umass.cs.nio.nioutils.NIOHeader header) {
 			// long t = System.nanoTime();
 			assert (msg != null);
 			if (msg instanceof net.minidev.json.JSONObject)
@@ -1584,19 +1592,19 @@ public class PaxosManager<NodeIDType> {
 		this.paxosLogger.removeAll();
 	}
 
-	private static synchronized void open() {
+	private static final synchronized void open() {
 		{
 			closed = false;
 		}
 	}
 
-	private static synchronized void closeAll() {
+	private static final synchronized void closeAll() {
 		{
 			closed = true;
 		}
 	}
 
-	private static synchronized boolean allClosed() {
+	private static final synchronized boolean allClosed() {
 		{
 			return closed;
 		}
@@ -1609,7 +1617,7 @@ public class PaxosManager<NodeIDType> {
 	/**
 	 * Gracefully closes PaxosManager.
 	 */
-	public void close() {
+	public final void close() {
 		/* The static method closeAll sets the closed flag so as to prevent any
 		 * further new packet processing across all instances of PaxosManager. */
 		closeAll();
@@ -1641,7 +1649,7 @@ public class PaxosManager<NodeIDType> {
 	/**
 	 * @return Idle period after which paxos instances are paused.
 	 */
-	protected static long getDeactivationPeriod() {
+	protected static final long getDeactivationPeriod() {
 		return Config.getGlobalInt(PC.DEACTIVATION_PERIOD);
 	}
 
@@ -2034,10 +2042,15 @@ public class PaxosManager<NodeIDType> {
 
 	protected void send(InetSocketAddress sockAddr, Request request,
 			InetSocketAddress listenSockAddr) throws JSONException, IOException {
+		try {
 		this.messenger.sendClient(
 				sockAddr,
 				request instanceof RequestPacket ? (((RequestPacket) request)
 						.toBytes()) : request, listenSockAddr);
+		} catch(AssertionError e) {
+			System.out.println(this + " incurred assertion error for request " + request);
+			throw e;
+		}
 	}
 
 	/* A clean kill completely removes all trace of the paxos instance (unlike
@@ -2418,7 +2431,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	/****************** Start of methods to gracefully finish processing **************/
-	private static synchronized void setProcessing(boolean b) {
+	private static final synchronized void setProcessing(boolean b) {
 		if (b)
 			processing++;
 		else
@@ -2427,11 +2440,11 @@ public class PaxosManager<NodeIDType> {
 			PaxosManager.class.notify();
 	}
 
-	private static synchronized boolean getProcessing() {
+	private static final synchronized boolean getProcessing() {
 		return processing > 0;
 	}
 
-	protected static synchronized void waitToFinishAll() {
+	protected static final synchronized void waitToFinishAll() {
 		try {
 			while (getProcessing()) {
 				PaxosManager.class.wait();
@@ -2980,10 +2993,8 @@ public class PaxosManager<NodeIDType> {
 	/**
 	 * @return Logger used by PaxosManager.
 	 */
-	public static Logger getLogger() {
+	public static final Logger getLogger() {
 		return log
-		// Logger.getLogger(PaxosManager.class.getName().replace("PaxosManager",
-		// ""))
 		;
 	}
 
@@ -3003,7 +3014,7 @@ public class PaxosManager<NodeIDType> {
 	 * 
 	 * @param clean
 	 */
-	public static void startWithCleanDB(boolean clean) {
+	public static final void startWithCleanDB(boolean clean) {
 		cleanDB = clean;
 	}
 

@@ -437,17 +437,14 @@ public class Util {
 	 */
 	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src,
 			int transferLimit) {
-		if (src.remaining() < dst.remaining()
-				&& transferLimit <= src.remaining())
+		if (src.remaining() <= dst.remaining()
+				&& transferLimit >= dst.remaining())
 			return dst.put(src);
 		int oldLimit = src.limit();
 		src.limit(src.position() + Math.min(dst.remaining(), transferLimit));
 		dst.put(src);
 		src.limit(oldLimit);
 		return dst;
-		// byte[] buf = new byte[dst.remaining()];
-		// src.get(buf);
-		// return dst.put(buf);
 	}
 
 	public static ByteBuffer put(ByteBuffer dst, ByteBuffer src) {

@@ -30,7 +30,7 @@ import edu.umass.cs.nio.AbstractJSONPacketDemultiplexer;
  */
 public class PacketDemultiplexerDefault extends AbstractJSONPacketDemultiplexer {
 	@Override
-	public final boolean handleMessage(JSONObject jsonObject) {
+	public final boolean handleMessage(JSONObject jsonObject, NIOHeader header) {
 		//NIOInstrumenter.incrPktsRcvd();
 		return false; // must remain false;
 	}

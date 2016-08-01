@@ -150,7 +150,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return handled;
 	}
 
-	protected static Object autoInvokeMethod(Object target,
+	protected static final Object autoInvokeMethod(Object target,
 			BasicReconfigurationPacket<?> rcPacket, boolean recovery,
 			Stringifiable<?> unstringer) {
 		try {
@@ -476,7 +476,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return rcPacket;
 	}
 
-	protected static Request getNoopRequest(String stringified) {
+	protected static final Request getNoopRequest(String stringified) {
 		if (stringified.equals(Request.NO_OP)) {
 			return new Request() {
 				@Override

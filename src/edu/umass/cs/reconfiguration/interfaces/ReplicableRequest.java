@@ -17,6 +17,7 @@ package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
+import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 
 /**

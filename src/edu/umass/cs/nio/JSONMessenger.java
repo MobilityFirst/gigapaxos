@@ -37,6 +37,7 @@ import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Stringer;
 import edu.umass.cs.utils.Util;
@@ -56,7 +57,7 @@ public class JSONMessenger<NodeIDType> implements
 	/**
 	 * The JSON key for the time when the message was sent. Used only for
 	 * instrumentation purposes by
-	 * {@link AbstractJSONPacketDemultiplexer#handleMessage(JSONObject)
+	 * {@link AbstractJSONPacketDemultiplexer#handleMessage(JSONObject,NIOHeader)
 	 * AbstractPacketDemultiplexer.handleMessage}
 	 */
 	public static final String SENT_TIME = "SENT_TIME";

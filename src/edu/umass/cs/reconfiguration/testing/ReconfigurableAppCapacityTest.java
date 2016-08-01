@@ -73,7 +73,7 @@ public class ReconfigurableAppCapacityTest extends DefaultTest {
 		setupClientsAndGuids();
 	}
 
-	static class RCClient extends ReconfigurableAppClientAsync implements
+	static class RCClient extends ReconfigurableAppClientAsync<Request> implements
 			AppRequestParserBytes {
 
 		public RCClient() throws IOException {

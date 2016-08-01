@@ -57,7 +57,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		PAXOS, DYNAMO
 	};
 
-	private static ReplicaCoordinator RC_REPLICA_COORDINATOR = ReplicaCoordinator.PAXOS;
+	private static final ReplicaCoordinator RC_REPLICA_COORDINATOR = ReplicaCoordinator.PAXOS;
 
 	protected final AbstractReconfiguratorDB<NodeIDType> app;
 	protected final ConsistentReconfigurableNodeConfig<NodeIDType> consistentNodeConfig;
@@ -544,7 +544,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	 * change, as doing so essentially means that those RC nodes will be treated
 	 * as failed.
 	 */
-	private static int RECONFIGURATOR_GC_WAIT_EPOCHS = 2;
+	private static final int RECONFIGURATOR_GC_WAIT_EPOCHS = 2;
 
 	protected void garbageCollectOldFileSystemBasedCheckpoints() {
 		for (Iterator<NodeIDType> iter = this.pendingReconfiguratorDeletions

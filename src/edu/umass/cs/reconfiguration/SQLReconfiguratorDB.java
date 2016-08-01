@@ -221,7 +221,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * @param myID
 	 * @param nc
 	 */
-	public static void dropState(String myID,
+	public static final void dropState(String myID,
 			ConsistentReconfigurableNodeConfig<String> nc) {
 		if (!isEmbeddedDB())
 			// no need to connect if embedded
@@ -1451,7 +1451,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return true;
 	}
 
-	private static String getCheckpointDir(String logdir, Object myID) {
+	private static final String getCheckpointDir(String logdir, Object myID) {
 		return logdir + "/" + CHECKPOINT_TRANSFER_DIR + "/" + myID + "/";
 	}
 
@@ -1480,7 +1480,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	 * filename or the OS file creation time. Here, we just supply the latest
 	 * checkpoint filename explicitly as we know it when this method is called
 	 * anyway. */
-	private static boolean deleteOldCheckpoints(final String cpDir,
+	private static final boolean deleteOldCheckpoints(final String cpDir,
 			final String rcGroupName, int keep, Object lockMe) {
 		File dir = new File(cpDir);
 		assert (dir.exists());
@@ -1500,7 +1500,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private static final long MAX_FINAL_STATE_AGE = Config
 			.getGlobalLong(PC.MAX_FINAL_STATE_AGE);
 
-	private static boolean deleteFile(File f, Object lockMe) {
+	private static final boolean deleteFile(File f, Object lockMe) {
 		long age = 0;
 		if ((age = System.currentTimeMillis() - Filename.getLTS(f)) > MAX_FINAL_STATE_AGE) {
 			log.info(SQLReconfiguratorDB.class.getSimpleName()
@@ -1515,7 +1515,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return true;
 	}
 
-	private static Set<Filename> getAllButLatest(File[] files, int keep) {
+	private static final Set<Filename> getAllButLatest(File[] files, int keep) {
 		TreeSet<Filename> allFiles = new TreeSet<Filename>();
 		TreeSet<Filename> oldFiles = new TreeSet<Filename>();
 		for (File file : files)
@@ -1529,7 +1529,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return oldFiles;
 	}
 
-	private static class Filename implements Comparable<Filename> {
+	private static final class Filename implements Comparable<Filename> {
 		final File file;
 
 		Filename(File f) {
@@ -1549,7 +1549,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				return 1;
 		}
 
-		private static long getLTS(File file) {
+		private static final long getLTS(File file) {
 			String[] tokens = file.toString().split("\\.");
 			assert (tokens[tokens.length - 1].matches("[0-9a-fA-F]*$")) : file;
 			try {
@@ -1744,11 +1744,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return createTable(stmt, cmd, table);
 	}
 
-	private static boolean isEmbeddedDB() {
+	private static final boolean isEmbeddedDB() {
 		return SQL_TYPE.equals(SQL.SQLType.EMBEDDED_DERBY);
 	}
 
-	private static String getMyDBName(Object myID) {
+	private static final String getMyDBName(Object myID) {
 		return DATABASE + sanitizeID(myID);
 	}
 
@@ -1813,7 +1813,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ this.logDirectory + getMyDBName());
 	}
 
-	private static DataSource setupDataSourceC3P0(String connectURI,
+	private static final DataSource setupDataSourceC3P0(String connectURI,
 			Properties props) throws SQLException {
 
 		ComboPooledDataSource cpds = new ComboPooledDataSource();
@@ -1831,7 +1831,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return cpds;
 	}
 
-	private static void addDerbyPersistentReconfiguratorDB(
+	private static final void addDerbyPersistentReconfiguratorDB(
 			SQLReconfiguratorDB<?> rcDB) {
 		synchronized (SQLReconfiguratorDB.instances) {
 			if (!SQLReconfiguratorDB.instances.contains(rcDB))
@@ -1839,7 +1839,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		}
 	}
 
-	private static boolean allClosed() {
+	private static final boolean allClosed() {
 		synchronized (SQLReconfiguratorDB.instances) {
 			for (SQLReconfiguratorDB<?> rcDB : instances) {
 				if (!rcDB.isClosed())
@@ -1884,7 +1884,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		closed = c;
 	}
 
-	private static String sanitizeID(Object id) {
+	private static final String sanitizeID(Object id) {
 		return id.toString().replace(".", "_");
 	}
 	private String getMyIDSanitized() {
@@ -1992,7 +1992,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return this.getPreparedStatement(conn, table, name, column, "");
 	}
 
-	private static void testRCRecordReadAfterWrite(String name,
+	private static final void testRCRecordReadAfterWrite(String name,
 			SQLReconfiguratorDB<Integer> rcDB) {
 		int groupSize = (int) Math.random() * 10;
 		Set<Integer> newActives = new HashSet<Integer>();
@@ -2007,7 +2007,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				+ " != " + retrievedRecord;
 	}
 
-	private static Request getRandomInterfaceRequest(final String name) {
+	private static final Request getRandomInterfaceRequest(final String name) {
 		return new Request() {
 
 			@Override
@@ -2022,13 +2022,13 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		};
 	}
 
-	private static InetAddress getRandomIPAddress() throws UnknownHostException {
+	private static final InetAddress getRandomIPAddress() throws UnknownHostException {
 		return InetAddress.getByName((int) Math.random() * 256 + "."
 				+ (int) Math.random() * 256 + "." + (int) Math.random() * 256
 				+ "." + (int) Math.random() * 256);
 	}
 
-	private static void testDemandProfileUpdate(String name,
+	private static final void testDemandProfileUpdate(String name,
 			SQLReconfiguratorDB<Integer> rcDB) {
 		AbstractDemandProfile demandProfile = new DemandProfile(name);
 		int numRequests = 20;
@@ -2047,7 +2047,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		rcDB.updateDemandStats(demandReport);
 	}
 
-	private static JSONObject combineStats(JSONObject historic,
+	private static final JSONObject combineStats(JSONObject historic,
 			JSONObject update) {
 		AbstractDemandProfile historicProfile = AbstractDemandProfile
 				.createDemandProfile(historic);

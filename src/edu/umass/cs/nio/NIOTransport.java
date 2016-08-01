@@ -240,10 +240,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	/**
 	 * @return java.util.logging.Logger used by NIOTransport.
 	 */
-	public static Logger getLogger() {
+	public static final Logger getLogger() {
 		return log;
-		// Logger.getLogger(NIOTransport.class.getName().replace(
-		// "NIOTransport", ""));
 	}
 
 	// private constructor must remain private
@@ -477,7 +475,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		return (USE_PREAMBLE ? buf.putInt(PREAMBLE) : buf).putInt(length);
 	}
 
-	protected static int getPayloadLength(ByteBuffer buf) throws IOException {
+	protected static final int getPayloadLength(ByteBuffer buf) throws IOException {
 		assert (buf.capacity() == HEADER_SIZE);
 		int preamble = -1;
 		if (!USE_PREAMBLE || (preamble = buf.getInt()) == PREAMBLE) {
@@ -735,7 +733,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	public static final int MAX_PAYLOAD_SIZE = 4 * 1024 * 1024;
 
 	// used also by SSLDataProcessingWorker
-	protected static class AlternatingByteBuffer {
+	protected static final class AlternatingByteBuffer {
 		final ByteBuffer headerBuf;
 		ByteBuffer bodyBuf = null;
 
@@ -889,14 +887,14 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	/**
 	 * @param b
 	 */
-	public static void setCompression(boolean b) {
+	public static final void setCompression(boolean b) {
 		enableCompression = b;
 	}
 
 	/**
 	 * @return True if compression enabled.
 	 */
-	public static boolean getCompression() {
+	public static final boolean getCompression() {
 		return enableCompression && compressionThreshold < MAX_PAYLOAD_SIZE;
 	}
 
@@ -906,7 +904,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	/**
 	 * @param t
 	 */
-	public static void setCompressionThreshold(int t) {
+	public static final void setCompressionThreshold(int t) {
 		// FIXME: compression is disabled
 		// compressionThreshold = t;
 	}
@@ -914,7 +912,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	/**
 	 * @return Compression threshold
 	 */
-	public static int getCompressionThreshold() {
+	public static final int getCompressionThreshold() {
 		return compressionThreshold;
 	}
 
@@ -1388,7 +1386,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		}
 	}
 
-	protected static void cleanup(SelectionKey key) {
+	protected static final void cleanup(SelectionKey key) {
 		cleanup(key, key.channel());
 	}
 
@@ -1729,7 +1727,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		}
 	}
 
-	protected static boolean outOfRange(int length) {
+	protected static final boolean outOfRange(int length) {
 		return length < 0 || length > MAX_PAYLOAD_SIZE;
 	}
 

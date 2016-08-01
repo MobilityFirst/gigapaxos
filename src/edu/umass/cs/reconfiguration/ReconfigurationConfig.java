@@ -323,7 +323,22 @@ public class ReconfigurationConfig {
 		 * True means that the demand profile implementation is tested at bootstrap
 		 * time to sanity check that its implementation meets the specification.
 		 */
-		TEST_DEMAND_PROFILE (true),
+		TEST_DEMAND_PROFILE (true), 
+		
+		/**
+		 * HTTP server port offset relative to reconfigurator port.
+		 */
+		HTTP_PORT_OFFSET(300), 
+		
+		/**
+		 * HTTP server port offset relative to reconfigurator port.
+		 */
+		HTTP_PORT_SSL_OFFSET(400),
+		
+		/**
+		 * Enable the HTTP server for reconfigurators.
+		 */
+		ENABLE_HTTP (false),
 
 		;
 
@@ -363,6 +378,12 @@ public class ReconfigurationConfig {
 
 	private static int clientPortSSLOffset = Config
 			.getGlobalInt(RC.CLIENT_PORT_SSL_OFFSET);
+
+	private static int httpPortClearOffset = Config
+			.getGlobalInt(RC.HTTP_PORT_OFFSET);
+
+	private static int httpPortSSLOffset = Config
+			.getGlobalInt(RC.HTTP_PORT_SSL_OFFSET);
 
 	private static boolean aggressiveDeletions = Config
 			.getGlobalBoolean(RC.AGGRESSIVE_DELETIONS);
@@ -499,14 +520,30 @@ public class ReconfigurationConfig {
 	 * @param port
 	 * @return Translates port to corresponding client facing port.
 	 */
+	public static int getHTTPPort(int port) {
+		return port + getHTTPPortClearOffset();
+	}
+	/**
+	 * @param port
+	 * @return Translates port to corresponding client facing port.
+	 */
+	public static int getHTTPSPort(int port) {
+		return port + getHTTPPortSSLOffset();
+	}
+
+	/**
+	 * @param port
+	 * @return Translates port to corresponding client facing port.
+	 */
 	public static int getClientFacingSSLPort(int port) {
 		return port + getClientPortSSLOffset();
 	}
 
 	/**
-	 * @return The client port offset, i.e., the port number that is to be added
-	 *         to the standard port in order to get the client-facing port. A
-	 *         nonzero offset is needed to support transport layer security
+	 * @return The client port SSL offset, i.e., the port number that is to be added
+	 *         to the standard port in order to get the client-facing SSL port. A
+	 *         nonzero offset is needed to separate client-client communication from 
+	 *         server-server communication and to support transport layer security
 	 *         between servers.
 	 */
 	public static int getClientPortSSLOffset() {
@@ -514,14 +551,38 @@ public class ReconfigurationConfig {
 	}
 
 	/**
-	 * @return The client port offset, i.e., the port number that is to be added
+	 * @return The client port  offset, i.e., the port number that is to be added
 	 *         to the standard port in order to get the client-facing port. A
-	 *         nonzero offset is needed to support transport layer security
+	 *         nonzero offset is needed to separate client-client communication from 
+	 *         server-server communication and to support transport layer security
 	 *         between servers.
 	 */
 	public static int getClientPortClearOffset() {
 		return clientPortClearOffset;
 	}
+
+	/**
+	 * @return The client port HTTTPS offset, i.e., the port number that is to be added
+	 *         to the standard port in order to get the client-facing HTTPS port. A
+	 *         nonzero offset is needed to separate client-client communication from 
+	 *         server-server communication and to support transport layer security
+	 *         between servers.
+	 */
+	public static int getHTTPPortSSLOffset() {
+		return httpPortSSLOffset;
+	}
+	
+	/**
+	 * @return The client port HTTTP offset, i.e., the port number that is to be added
+	 *         to the standard port in order to get the client-facing HTTP port. A
+	 *         nonzero offset is needed to separate client-client communication from 
+	 *         server-server communication and to support transport layer security
+	 *         between servers.
+	 */
+	public static int getHTTPPortClearOffset() {
+		return httpPortClearOffset;
+	}
+
 
 	/**
 	 * @return True is aggressive recreations allowed.

@@ -103,9 +103,9 @@ public class DelayProfiler {
 		}
 		synchronized (stdDevs) {
 			// update deviation
-			double dev = stdDevs.get(field);
-			dev = Util.movingAverage(endTime - time - delay, dev);
-			stdDevs.put(field, dev);
+			Double dev = stdDevs.get(field);
+			dev = (dev!=null ? Util.movingAverage(endTime - time - delay, dev) : 0.0);
+			stdDevs.put(field, dev!=null ? dev : 0.0);
 		}
 	}
 

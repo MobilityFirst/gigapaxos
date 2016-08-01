@@ -78,7 +78,7 @@ public class PaxosClientAsync {
 		}
 
 		@Override
-		public boolean handleMessage(RequestPacket message) {
+		public boolean handleMessage(RequestPacket message, edu.umass.cs.nio.nioutils.NIOHeader header) {
 			ClientRequest response = message.getResponse();
 			if (response != null)
 				if (callbacks.containsKey(response.getRequestID()))

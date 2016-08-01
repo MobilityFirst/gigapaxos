@@ -17,6 +17,8 @@
  */
 package edu.umass.cs.nio.interfaces;
 
+import edu.umass.cs.nio.nioutils.NIOHeader;
+
 /**
  * @author V. Arun
  * @param <MessageType> 
@@ -24,10 +26,18 @@ package edu.umass.cs.nio.interfaces;
 public interface PacketDemultiplexer<MessageType> {
 	/**
 	 * @param message
+	 * @param header 
 	 * @return The return value should return true if the handler handled the
 	 *         message and doesn't want any other BasicPacketDemultiplexer to
 	 *         handle the message.
 	 */
 
-	public boolean handleMessage(MessageType message);
+	default boolean handleMessage(MessageType message, NIOHeader header) {
+		return handleMessage(message);
+	}
+	
+	// FIXME: only for backwards compatibility 
+	default boolean handleMessage(MessageType message) {
+		return false;
+	}
 }

@@ -217,7 +217,7 @@ public class TESTPaxosClient {
 			Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
 		}
 
-		public boolean handleMessage(Object msg) {
+		public boolean handleMessage(Object msg, edu.umass.cs.nio.nioutils.NIOHeader header) {
 			assert (msg instanceof RequestPacket);
 			return this.handleMessage((RequestPacket) msg);
 		}

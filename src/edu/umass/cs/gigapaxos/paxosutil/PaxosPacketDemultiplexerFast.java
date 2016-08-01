@@ -192,7 +192,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				"PaxosPacketDemultiplexer recieved unrecognized paxos packet type");
 	}
 
-	public abstract boolean handleMessage(Object message);
+	public abstract boolean handleMessage(Object message, edu.umass.cs.nio.nioutils.NIOHeader header);
 
 	@Override
 	protected Integer getPacketType(Object message) {
@@ -200,10 +200,10 @@ public abstract class PaxosPacketDemultiplexerFast extends
 			return (Integer) ((net.minidev.json.JSONObject) message)
 					.get(JSONPacket.PACKET_TYPE.toString());
 
-		if(message instanceof byte[]) return ByteBuffer.wrap((byte[])message, 0, 4).getInt();
-		
-		assert (message instanceof PaxosPacket) : message;
-		return PaxosPacketType.PAXOS_PACKET.getInt();
+		assert (message instanceof PaxosPacket || message instanceof byte[]) : message;
+
+		return (message instanceof byte[]) ? ByteBuffer.wrap((byte[]) message,
+				0, 4).getInt() : PaxosPacketType.PAXOS_PACKET.getInt();
 	}
 
 	// currently only RequestPacket is byteable
@@ -242,7 +242,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				short cport = (short) header.sndr.getPort();
 				byte[] laddress = header.rcvr.getAddress().getAddress();
 				short lport = (short) header.rcvr.getPort();
-				ByteBuffer bbuf = ByteBuffer.wrap(bytes, 0, 16);
+				ByteBuffer bbuf = ByteBuffer.wrap(bytes);
 				for (int i = 0; i < 3; i++)
 					bbuf.getInt();
 				int paxosIDLength = bbuf.get();
@@ -251,7 +251,10 @@ public abstract class PaxosPacketDemultiplexerFast extends
 				int expectedPos = offset + 4 + 2 + 4 + 2;
 				assert (bytes.length > offset + 12) : bytes.length + " <= "
 						+ expectedPos;
-				bbuf = ByteBuffer.wrap(bytes, offset, 12);
+				
+				//bbuf = ByteBuffer.wrap(bytes, offset, 12);
+				bbuf.position(offset).limit(offset +12);
+				
 				boolean noCA = bytes[offset + 4] == 0 && (bytes[offset + 5] == 0); 
 				boolean noLA = bytes[offset + 6 + 4] == 0
 						&& bytes[offset + 6 + 5] == 0;

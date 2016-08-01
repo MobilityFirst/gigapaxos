@@ -67,6 +67,18 @@ public abstract class AbstractJSONPacketDemultiplexer extends
 	}
 	protected JSONObject processHeader(byte[] message, int offset, NIOHeader header,
 			boolean cacheStringified) {
+		return processHeaderStatic(message, offset, header, cacheStringified);
+	}
+	
+	/**
+	 * @param message
+	 * @param offset
+	 * @param header
+	 * @param cacheStringified
+	 * @return JSONObject with sender address stamped.
+	 */
+	public static final JSONObject processHeaderStatic(byte[] message, int offset, NIOHeader header,
+			boolean cacheStringified) {
 		try {
 			if (JSONPacket.couldBeJSON(message, offset)) // quick reject if not
 				return MessageExtractor.stampAddressIntoJSONObject(header.sndr,

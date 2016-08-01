@@ -141,7 +141,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @param msg
 	 * @return
 	 */
-	protected static JSONObject parseJSON(String msg, boolean cacheStringified) {
+	protected static final JSONObject parseJSON(String msg, boolean cacheStringified) {
 		JSONObject jsonData = null;
 		try {
 			if (msg.length() > 0 && JSONPacket.couldBeJSON(msg))
@@ -156,7 +156,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 		return jsonData;
 	}
 
-	protected static JSONObject parseJSON(String msg) {
+	protected static final JSONObject parseJSON(String msg) {
 		return parseJSON(msg);
 	}
 
@@ -164,7 +164,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @param msg
 	 * @return Parsed JSON.
 	 */
-	public static net.minidev.json.JSONObject parseJSONSmart(String msg) {
+	public static final net.minidev.json.JSONObject parseJSONSmart(String msg) {
 		net.minidev.json.JSONObject jsonData = null;
 		try {
 			if (msg.length() > 0)
@@ -178,7 +178,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 
 	/* *************** Start of private methods **************************** */
 
-	protected static void fatalExit(UnsupportedEncodingException e) {
+	protected static final void fatalExit(UnsupportedEncodingException e) {
 		e.printStackTrace();
 		System.err.println("NIO failed because the charset encoding "
 				+ JSONNIOTransport.NIO_CHARSET_ENCODING
@@ -217,7 +217,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @return String decoded from bytes.
 	 * @throws UnsupportedEncodingException
 	 */
-	public static String decode(byte[] bytes)
+	public static final String decode(byte[] bytes)
 			throws UnsupportedEncodingException {
 		return new String(bytes, MessageNIOTransport.NIO_CHARSET_ENCODING);
 	}
@@ -229,7 +229,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @return String decoded from bytes.
 	 * @throws UnsupportedEncodingException
 	 */
-	public static String decode(byte[] bytes, int offset, int length)
+	public static final String decode(byte[] bytes, int offset, int length)
 			throws UnsupportedEncodingException {
 		return new String(bytes, offset, length,
 				MessageNIOTransport.NIO_CHARSET_ENCODING);
@@ -345,7 +345,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 */
 	@SuppressWarnings("deprecation")
 	// for backwards compatibility
-	public static JSONObject stampAddressIntoJSONObject(
+	public static final JSONObject stampAddressIntoJSONObject(
 			InetSocketAddress sndrAddress, InetSocketAddress rcvrAddress,
 			JSONObject json) {
 		// only put the IP field in if it doesn't exist already
@@ -383,7 +383,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 	 * @param json
 	 * @return Parsed JSON object.
 	 */
-	public static net.minidev.json.JSONObject stampAddressIntoJSONObject(
+	public static final net.minidev.json.JSONObject stampAddressIntoJSONObject(
 			InetSocketAddress sndrAddress, InetSocketAddress rcvrAddress,
 			net.minidev.json.JSONObject json) {
 		// only put the IP field in if it doesn't exist already
@@ -403,13 +403,5 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 			e.printStackTrace();
 		}
 		return json;
-	}
-
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		Util.assertAssertionsEnabled();
-		assert (false) : "This class' test is not relevant anymore.";
 	}
 }

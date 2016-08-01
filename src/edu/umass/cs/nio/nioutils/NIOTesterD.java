@@ -67,7 +67,7 @@ public class NIOTesterD {
 			}
 
 			@Override
-			public boolean handleMessage(String message) {
+			public boolean handleMessage(String message, edu.umass.cs.nio.nioutils.NIOHeader header) {
 				boolean sendReply = false;
 				synchronized (this) {
 					count += message.length();
@@ -129,7 +129,7 @@ public class NIOTesterD {
 			}
 
 			@Override
-			public boolean handleMessage(String message) {
+			public boolean handleMessage(String message, edu.umass.cs.nio.nioutils.NIOHeader header) {
 				synchronized (this) {
 					count += message.length();
 					msgCount++;

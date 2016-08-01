@@ -26,6 +26,7 @@ import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
+import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -70,10 +71,11 @@ import edu.umass.cs.utils.Util;
 
 /**
  * @author arun
+ * @param <V>
  *
  */
-public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
-		AppRequestParser {
+public abstract class ReconfigurableAppClientAsync<V> implements
+		GigaPaxosClient<V>, AppRequestParser {
 	static {
 		ReconfigurationConfig.load();
 	}
@@ -146,9 +148,10 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * 
 	 */
 	final GCConcurrentHashMapCallback appGCCallback = new GCConcurrentHashMapCallback() {
+		@SuppressWarnings("unchecked")
 		@Override
 		public void callbackGC(Object key, Object value) {
-			assert (value instanceof RequestAndCallback);
+			assert (value instanceof ReconfigurableAppClientAsync.RequestAndCallback);
 			ReconfigurableAppClientAsync.this.e2eRedirector.learnSample(
 					((RequestAndCallback) value).serverSentTo,
 					System.currentTimeMillis()
@@ -165,7 +168,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	final GCConcurrentHashMapCallback crpGCCallback = new GCConcurrentHashMapCallback() {
 		@Override
 		public void callbackGC(Object key, Object value) {
-			assert (value instanceof CRPRequestCallback);
+			assert (value instanceof ReconfigurableAppClientAsync.CRPRequestCallback);
+			@SuppressWarnings("unchecked")
 			CRPRequestCallback callback = (CRPRequestCallback) value;
 			// clear creation memory if a timeout happens
 			ReconfigurableAppClientAsync.this.mostRecentlyCreatedMap
@@ -179,15 +183,16 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 		}
 	};
 
-	private static class BlockingRequestCallback implements RequestCallback {
+	private final class BlockingRequestCallback implements Callback<Request, V> {
 		Request response = null;
 
 		@Override
-		public void handleResponse(Request response) {
+		public V processResponse(Request response) {
 			this.response = response;
 			synchronized (this) {
 				this.notify();
 			}
+			return null;
 		}
 
 		Request getResponse() {
@@ -205,9 +210,9 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	}
 
 	// all app client request callbacks
-	private final GCConcurrentHashMap<Long, RequestCallback> callbacks = new GCConcurrentHashMap<Long, RequestCallback>(
+	private final GCConcurrentHashMap<Long, Callback<Request, V>> callbacks = new GCConcurrentHashMap<Long, Callback<Request, V>>(
 			appGCCallback, APP_REQUEST_TIMEOUT);
-	private final GCConcurrentHashMap<Long, RequestCallback> callbacksLongTimeout = new GCConcurrentHashMap<Long, RequestCallback>(
+	private final GCConcurrentHashMap<Long, Callback<Request, V>> callbacksLongTimeout = new GCConcurrentHashMap<Long, Callback<Request, V>>(
 			defaultGCCallback, APP_REQUEST_LONG_TIMEOUT);
 
 	// client reconfiguration packet callbacks
@@ -368,10 +373,12 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 		INCOMING_STRING
 	};
 
-	private static Stringifiable<?> unstringer = new StringifiableDefault<String>(
+	private static final Stringifiable<?> unstringer = new StringifiableDefault<String>(
 			"");
 
-	class ClientPacketDemultiplexer extends AbstractPacketDemultiplexer<Object> {
+	/* ***************** Start of ClientPacketDemultiplexer **************** */
+	class ClientPacketDemultiplexer extends
+			AbstractPacketDemultiplexer<Request> {
 
 		private Logger log = ReconfigurableAppClientAsync.log;
 
@@ -382,7 +389,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 			this.register(types);
 		}
 
-		private BasicReconfigurationPacket<?> parseAsReconfigurationPacket(
+		// TODO: unused, remove
+		final BasicReconfigurationPacket<?> parseAsReconfigurationPacket(
 				Object strMsg) {
 			if (strMsg instanceof BasicReconfigurationPacket<?>)
 				return (BasicReconfigurationPacket<?>) strMsg;
@@ -410,7 +418,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 			return rcPacket;
 		}
 
-		private Request parseAsAppRequest(Object msg) {
+		// TODO: unused, remove
+		final Request parseAsAppRequest(Object msg) {
 			if (msg instanceof Request)
 				return (Request) msg;
 			Request request = null;
@@ -443,6 +452,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 				InetSocketAddress mostRecentReplica = callback.serverSentTo;
 
 				assert (!ReconfigurableAppClientAsync.this.jsonPackets || mostRecentReplica != null);
+				assert (request.getServiceName() != null) : callback.request;
+				assert (mostRecentReplica != null) : callback.request;
 				ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap.put(
 						request.getServiceName(), mostRecentReplica);
 				log.log(Level.FINE,
@@ -465,6 +476,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 
 		private static final boolean USE_FORWARDEE_INFO = true;
 
+		private Level debug = Level.FINER;
+
 		/**
 		 * The main demultiplexing method for responses. It invokes the app
 		 * request callback upon getting app responses or internally processes
@@ -474,27 +487,19 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 		 * make it unlikely but not impossible for errors because of laggard
 		 * replicas.
 		 * 
-		 * @param strMsg
+		 * @param request
+		 * @param header
 		 * @return True if handled.
 		 */
 
 		@Override
-		public boolean handleMessage(Object strMsg) {
-			Request response = null;
-			log.log(Level.FINER, "{0} handleMessage received {1}",
-					new Object[] { this, strMsg });
-			// else try parsing as ClientReconfigurationPacket
-			if ((response = this.parseAsReconfigurationPacket(strMsg)) == null)
-				// try parsing as app request
-				response = parseAsAppRequest(strMsg);
-
-			if (response == null)
-				log.log(Level.WARNING,
-						"{0} dropping an undecodeable response {1}",
-						new Object[] { ReconfigurableAppClientAsync.this,
-								strMsg });
-
-			RequestCallback callback = null;
+		public boolean handleMessage(Request request, NIOHeader header) {
+			assert (request != null); // otherwise would never come here
+			log.log(debug, "{0} handleMessage received {1}", new Object[] {
+					this, request.getSummary(log.isLoggable(debug)) });
+			Request response = request;
+			Callback<Request, V> callback = null;
+			RequestCallback callbackCRP = null;
 			if (response != null) {
 				// execute registered callback
 				if ((response instanceof ClientRequest)
@@ -508,7 +513,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 						AppInstrumenter
 								.recvdResponse(((RequestAndCallback) callback).request);
 
-					callback.handleResponse(response instanceof ReplicableClientRequest ? ((ReplicableClientRequest) response)
+					callback.processResponse(response instanceof ReplicableClientRequest ? ((ReplicableClientRequest) response)
 							.getRequest() : (ClientRequest) response);
 
 					updateBestReplica((RequestAndCallback) callback);
@@ -523,7 +528,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 						&& (callback = callbacks
 								.remove(((ActiveReplicaError) response)
 										.getRequestID())) != null
-						&& callback instanceof RequestAndCallback) {
+						&& callback instanceof ReconfigurableAppClientAsync.RequestAndCallback) {
 					ActivesInfo activesInfo = ReconfigurableAppClientAsync.this.activeReplicas
 							.get(response.getServiceName());
 					if (activesInfo != null
@@ -552,7 +557,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 					else {
 						ReconfigurableAppClientAsync.this
 								.cleanupActiveReplicasInfo((RequestAndCallback) callback);
-						callback.handleResponse(response);
+						callback.processResponse(response);
 					}
 				} else if (response instanceof ClientReconfigurationPacket) {
 					log.log(Level.FINE,
@@ -563,11 +568,11 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 									((ClientReconfigurationPacket) response)
 											.getSender() });
 					// call create/delete app callback
-					if ((callback = ReconfigurableAppClientAsync.this.callbacksCRP
+					if ((callbackCRP = ReconfigurableAppClientAsync.this.callbacksCRP
 							.remove(getKey((ClientReconfigurationPacket) response))) != null
-							|| (callback = ReconfigurableAppClientAsync.this.callbacksCRPLongTimeout
+							|| (callbackCRP = ReconfigurableAppClientAsync.this.callbacksCRPLongTimeout
 									.remove(getKey((ClientReconfigurationPacket) response))) != null)
-						callback.handleResponse(response);
+						callbackCRP.processResponse(response);
 					else
 						// we usually don't expect to find a callback for
 						// ClientReconfigurationPacket
@@ -604,14 +609,14 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 																.getForwardee());
 					}
 				} else if (response instanceof ServerReconfigurationPacket<?>) {
-					if ((callback = ReconfigurableAppClientAsync.this.callbacksSRP
+					if ((callbackCRP = ReconfigurableAppClientAsync.this.callbacksSRP
 							.remove(getKey((ServerReconfigurationPacket<?>) response))) != null) {
-						callback.handleResponse(response);
+						callbackCRP.processResponse(response);
 					}
 				} else if (response instanceof EchoRequest) {
 					if ((callback = ReconfigurableAppClientAsync.this.callbacks
 							.remove((EchoRequest) response)) != null) {
-						callback.handleResponse(response);
+						callback.processResponse(response);
 					}
 				}
 			}
@@ -632,98 +637,96 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 		 * @return
 		 */
 		@Override
-		protected Integer getPacketType(Object strMsg) {
+		protected Integer getPacketType(Request strMsg) {
 			if (SHORT_CUT_TYPE_CHECK)
 				return ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME
 						.getInt();
-			Request request = strMsg instanceof String ? this
-					.parseAsAppRequest((String) strMsg) : null;
-			if (request == null)
-				request = this.parseAsReconfigurationPacket(strMsg);
-			return request != null ? request.getRequestType().getInt() : null;
+			return strMsg.getRequestType().getInt();
 		}
 
 		@Override
-		protected Object processHeader(byte[] bytes, NIOHeader header) {
+		protected Request processHeader(byte[] bytes, NIOHeader header) {
 			log.log(Level.FINEST, "{0} received message from {1}",
 					new Object[] { this, header.sndr });
 			String message = null;
 			try {
 				Integer type = null;
 				JSONObject json = null;
+
 				// reconfiguration packet
-				if (bytes.length >= Integer.BYTES
+				if (BYTEIFICATION
+						&& bytes.length >= Integer.BYTES
 						&& ReconfigurationPacket.PacketType.intToType
 								.containsKey(type = ByteBuffer
 										.wrap(bytes, 0, 4).getInt())) {
 					// typical reconfiguration protocol packet
 					if (type != ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
-							.getInt()) {
-						message = MessageExtractor.decode(bytes, 4,
-								bytes.length - 4);
-						long t = System.nanoTime();
-						if (JSONPacket.couldBeJSON(message)) {
-							json = new JSONObject(message);
-							MessageExtractor.stampAddressIntoJSONObject(
-									header.sndr, header.rcvr, json);
-							if (ReconfigurationConfig.instrument(100))
-								DelayProfiler.updateDelayNano(
-										"headerInsertion", t);
-							if (!ReconfigurationPacket
-									.isReconfigurationPacket(json))
-								json.put(Keys.INCOMING_STRING.toString(),
-										message);
-							return json;// inserted;
-						}
-					}
-					// special case for wrapped app packet
-					else {
-						return ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes ? new ReplicableClientRequest(
-								bytes,
-								header,
-								(AppRequestParserBytes) ReconfigurableAppClientAsync.this)
-								: new ReplicableClientRequest(
-										bytes,
-										(AppRequestParser) ReconfigurableAppClientAsync.this);
-					}
+							.getInt())
+						if (JSONPacket.couldBeJSON(message = MessageExtractor
+								.decode(bytes, 4, bytes.length - 4)))
+							return ReconfigurationPacket
+									.getReconfigurationPacketSuppressExceptions(
+											MessageExtractor
+													.stampAddressIntoJSONObject(
+															header.sndr,
+															header.rcvr,
+															new JSONObject(
+																	message)),
+											unstringer);
+						// special case for wrapped app packet
+						else
+							// type == REPLICABLE_CLIENT_REQUEST
+							return ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes ?
+							// from bytes
+							new ReplicableClientRequest(
+									bytes,
+									header,
+									(AppRequestParserBytes) ReconfigurableAppClientAsync.this)
+									// from string
+									: new ReplicableClientRequest(
+											bytes,
+											(AppRequestParser) ReconfigurableAppClientAsync.this);
+
 				}
+
 				// old JSON option for reconfiguration packets
 				else if (!BYTEIFICATION && JSONPacket.couldBeJSON(bytes)
 						&& (message = MessageExtractor.decode(bytes)) != null
 						&& (json = new JSONObject(message)) != null
-						&& ReconfigurationPacket.isReconfigurationPacket(json)) {
-					return MessageExtractor.stampAddressIntoJSONObject(
-							header.sndr, header.rcvr, json);
-				}
+						&& ReconfigurationPacket.isReconfigurationPacket(json))
+					return ReconfigurationPacket
+							.getReconfigurationPacketSuppressExceptions(
+									MessageExtractor
+											.stampAddressIntoJSONObject(
+													header.sndr, header.rcvr,
+													json), unstringer);
+
 				// byte-parseable app packet
-				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
+				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes)
 					// AppInstrumenter.recvdAppPacket();
 					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
 							.getRequest(bytes, header);
-				}
-				// default (slow path) stringified app packet
-				else if (JSONPacket.couldBeJSON(bytes)
-						&& (message = MessageExtractor.decode(bytes)) != null) {
-					json = new JSONObject(message);
-					MessageExtractor.stampAddressIntoJSONObject(header.sndr,
-							header.rcvr, json);
-					if (!ReconfigurationPacket.isReconfigurationPacket(json))
-						/* FIXME: This is inefficient and inelegant, but it is
-						 * unclear what else to do to avoid at least one
-						 * unnecessary JSON<->string back and forth with the
-						 * String based API for apps that need the sender
-						 * address information embedded in JSON. The alternative
-						 * is to not provide the sender-address feature to async
-						 * clients; if so, we don't need the JSON'ization below. */
-						json.put(Keys.INCOMING_STRING.toString(), message);
-					return json;// inserted;
-				}
 
+				// JSON-stampable app packet
+				else if (JSONPacket.couldBeJSON(bytes)
+						&& ReconfigurableAppClientAsync.this.jsonPackets
+						&& (message = MessageExtractor.decode(bytes)) != null)
+					return getRequestFromJSON(MessageExtractor
+							.stampAddressIntoJSONObject(header.sndr,
+									header.rcvr, new JSONObject(message)));
+
+				// default stringified request
+				else
+					return getRequest(new String(bytes,
+							MessageNIOTransport.NIO_CHARSET_ENCODING));
 			} catch (Exception je) {
-				// do nothing
+				/* Do nothing but log. It is possible to receive rogue or
+				 * otherwise undecodeable response packets; if so, we just
+				 * return null. */
 				je.printStackTrace();
+				log.log(Level.INFO, this + ":" + je.getMessage(), je);
 			}
-			return message;
+			return null;
 		}
 
 		@Override
@@ -735,6 +738,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 			return ReconfigurableAppClientAsync.this.toString();
 		}
 	}
+
+	/* ***************** End of ClientPacketDemultiplexer **************** */
 
 	private static final boolean BYTEIFICATION = Config
 			.getGlobalBoolean(PC.BYTEIFICATION);
@@ -769,7 +774,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @return True if sent successfully.
 	 * @throws IOException
 	 */
-	public Long sendRequest(Request request, RequestCallback callback)
+	public Long sendRequest(Request request, Callback<Request, V> callback)
 			throws IOException {
 		// otherwise this method won't be matched to
 		assert (!(request instanceof ClientReconfigurationPacket) && !(request instanceof ClientRequest));
@@ -790,10 +795,10 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @throws IOException
 	 */
 	public Long sendRequest(ClientRequest request, InetSocketAddress server,
-			RequestCallback callback) throws IOException {
+			Callback<Request, V> callback) throws IOException {
 		boolean sendFailed = false;
 		assert (request.getServiceName() != null);
-		RequestCallback prev = null;
+		Callback<Request, V> prev = null;
 
 		// use replica recently written to if any
 		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
@@ -813,7 +818,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 					this.numOutstandingAppRequests(), request);
 
 		try {
-			RequestCallback original = callback;
+			Callback<Request, V> original = callback;
 			// transforms all requests to a unique ID unless retransmission
 			while ((prev = (!hasLongTimeout(callback) ? this.callbacks
 					: this.callbacksLongTimeout).putIfAbsent(request
@@ -826,7 +831,12 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 				else
 					throw new IOException(this
 							+ " received unequal requests with the same ID "
-							+ request.getRequestID());
+							+ request.getRequestID() + ":\n"
+							+ request.getClass() + ":" + request.getSummary()
+							+ "\n  !=\n"
+							+ ((RequestAndCallback) prev).request.getClass()
+							+ ":"
+							+ ((RequestAndCallback) prev).request.getSummary());
 
 			/* put again to refresh insertion time for GC purposes and in case
 			 * the new callback is different from the old one. */
@@ -904,9 +914,8 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @param callback
 	 * @throws IOException
 	 */
-	public void sendServerReconfigurationRequest(
-			ServerReconfigurationPacket<?> rcPacket, RequestCallback callback)
-			throws IOException {
+	public void sendRequest(ServerReconfigurationPacket<?> rcPacket,
+			RequestCallback callback) throws IOException {
 		if (this.numOutStandingCRPs() > MAX_OUTSTANDING_CRP_REQUESTS)
 			throw new IOException("Too many outstanding requests");
 
@@ -947,6 +956,11 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	}
 
 	private boolean hasLongTimeout(RequestCallback callback) {
+		return callback instanceof TimeoutRequestCallback
+				&& ((TimeoutRequestCallback) callback).getTimeout() > CRP_GC_TIMEOUT;
+	}
+
+	private boolean hasLongTimeout(Callback<Request, V> callback) {
 		return callback instanceof TimeoutRequestCallback
 				&& ((TimeoutRequestCallback) callback).getTimeout() > CRP_GC_TIMEOUT;
 	}
@@ -1015,7 +1029,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 				: null;
 	}
 
-	private String getKey(ClientReconfigurationPacket crp) {
+	private static final String getKey(ClientReconfigurationPacket crp) {
 		return crp.getRequestType() + ":" + crp.getServiceName();
 	}
 
@@ -1046,29 +1060,29 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 		}
 	}
 
-	class RequestAndCallback implements RequestCallback {
+	class RequestAndCallback implements Callback<Request, V> {
 		long sentTime = System.currentTimeMillis();
 		final ClientRequest request;
-		final RequestCallback callback;
+		final Callback<Request, V> callback;
 		final NearestServerSelector redirector;
 		InetSocketAddress serverSentTo;
 		int heardFromRCs = 0; // for request actives
 		int activeReplicaErrors = 0; // for app requests
 
-		RequestAndCallback(ClientRequest request, RequestCallback callback) {
+		RequestAndCallback(ClientRequest request, Callback<Request, V> callback) {
 			this(request, callback, null);
 		}
 
-		RequestAndCallback(ClientRequest request, RequestCallback callback,
-				NearestServerSelector redirector) {
+		RequestAndCallback(ClientRequest request,
+				Callback<Request, V> callback, NearestServerSelector redirector) {
 			this.request = request;
 			this.callback = callback;
 			this.redirector = redirector;
 		}
 
 		@Override
-		public void handleResponse(Request response) {
-			this.callback.handleResponse(response);
+		public V processResponse(Request response) {
+			return this.callback.processResponse(response);
 		}
 
 		public String toString() {
@@ -1076,7 +1090,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 					+ (System.currentTimeMillis() - this.sentTime) + "ms back";
 		}
 
-		RequestCallback setServerSentTo(InetSocketAddress isa) {
+		Callback<Request, V> setServerSentTo(InetSocketAddress isa) {
 			this.sentTime = System.currentTimeMillis();
 			this.serverSentTo = isa;
 			return this;
@@ -1102,7 +1116,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, RequestCallback callback)
+	public Long sendRequest(ClientRequest request, Callback<Request, V> callback)
 			throws IOException {
 		return this.sendRequest(request, callback, this.e2eRedirector);
 	}
@@ -1117,7 +1131,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @throws IOException
 	 */
 	public Long sendRequestAnycast(ClientRequest request,
-			RequestCallback callback) throws IOException {
+			Callback<Request, V> callback) throws IOException {
 		Set<InetSocketAddress> actives = null;
 		ActivesInfo activesInfo = null;
 		synchronized (this.activeReplicas) {
@@ -1161,8 +1175,9 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, RequestCallback callback,
-			NearestServerSelector redirector) throws IOException {
+	public Long sendRequest(ClientRequest request,
+			Callback<Request, V> callback, NearestServerSelector redirector)
+			throws IOException {
 
 		Set<InetSocketAddress> actives = null;
 		ActivesInfo activesInfo = null;
@@ -1367,7 +1382,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 												ClientReconfigurationPacket.ResponseCodes.ACTIVE_REPLICA_EXCEPTION,
 												pendingRequests });
 								pendingRequest.callback
-										.handleResponse(new ActiveReplicaError(
+										.processResponse(new ActiveReplicaError(
 												response.getServiceName(),
 												pendingRequest.request
 														.getRequestID(),
@@ -1437,10 +1452,11 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 			for (InetSocketAddress address : servers) {
 				try {
 					this.sendRequest(new EchoRequest((InetSocketAddress) null,
-							this.closest), address, new RequestCallback() {
+							this.closest), address, new Callback<Request, V>() {
 						@Override
-						public void handleResponse(Request response) {
+						public V processResponse(Request response) {
 							// do nothing
+							return null;
 						}
 					});
 				} catch (IOException e) {
@@ -1471,9 +1487,9 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 		for (InetSocketAddress address : actives) {
 			try {
 				this.sendRequest(new EchoRequest((InetSocketAddress) null),
-						address, new RequestCallback() {
+						address, new Callback<Request, V>() {
 							@Override
-							public void handleResponse(Request response) {
+							public V processResponse(Request response) {
 								log.log(Level.INFO,
 										"{0} received response {1} for echo request",
 										new Object[] {
@@ -1481,6 +1497,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 												response.getSummary() });
 								assert (response instanceof EchoRequest);
 								updateClosest((EchoRequest) response);
+								return null;
 							}
 						});
 			} catch (IOException e) {
@@ -1618,7 +1635,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 						.getPort() : "");
 	}
 
-	static class AsyncClient extends ReconfigurableAppClientAsync {
+	static class AsyncClient extends ReconfigurableAppClientAsync<Request> {
 
 		AsyncClient() throws IOException {
 		}
@@ -1657,7 +1674,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 * @return {@code this}.
 	 */
 	@SuppressWarnings("javadoc")
-	public ReconfigurableAppClientAsync enableJSONPackets() {
+	public ReconfigurableAppClientAsync<V> enableJSONPackets() {
 		this.jsonPackets = true;
 		return this;
 	}
@@ -1677,7 +1694,7 @@ public abstract class ReconfigurableAppClientAsync implements GigaPaxosClient,
 	 */
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
-		ReconfigurableAppClientAsync client = new AsyncClient();
+		ReconfigurableAppClientAsync<Request> client = new AsyncClient();
 		client.close();
 	}
 }
