@@ -18,6 +18,7 @@ package edu.umass.cs.reconfiguration;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -460,5 +461,13 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		if (this.messenger == null)
 			return;
 		this.messenger.send(mtask);
+	}
+
+	/**
+	 * @return Refer {@link AppRequestParser#getMutualAuthRequestTypes()}
+	 */
+	protected Set<IntegerPacketType> getMutualAuthAppRequestTypes() {
+		Set<IntegerPacketType> types = this.app.getMutualAuthRequestTypes();
+		return types != null ? types : new HashSet<IntegerPacketType>();
 	}
 }

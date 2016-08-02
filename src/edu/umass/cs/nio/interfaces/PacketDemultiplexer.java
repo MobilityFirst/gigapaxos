@@ -32,12 +32,5 @@ public interface PacketDemultiplexer<MessageType> {
 	 *         handle the message.
 	 */
 
-	default boolean handleMessage(MessageType message, NIOHeader header) {
-		return handleMessage(message);
-	}
-	
-	// FIXME: only for backwards compatibility 
-	default boolean handleMessage(MessageType message) {
-		return false;
-	}
+	boolean handleMessage(MessageType message, NIOHeader header);
 }

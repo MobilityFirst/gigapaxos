@@ -561,15 +561,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 */
 	public Set<IntegerPacketType> getPacketTypes() {
 		Set<IntegerPacketType> types = this.getAppCoordinatorRequestTypes();
-
-		if (types == null)
-			types = new HashSet<IntegerPacketType>();
-
+		assert (types != null);
 		types.remove(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
-
-		for (IntegerPacketType type : this.getActiveReplicaPacketTypes())
-			types.add(type);
-
+		types.addAll(this.getActiveReplicaPacketTypes());
+		types.addAll(this.appCoordinator.getMutualAuthAppRequestTypes());
 		return types;
 	}
 
@@ -962,11 +957,16 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private Set<IntegerPacketType> getAppRequestTypes() {
 		return cachedTypes != null ? cachedTypes
-				: (cachedTypes = this.appCoordinator.getAppRequestTypes());
+				: ((cachedTypes = this.appCoordinator.getAppRequestTypes()) != null ? cachedTypes
+						: new HashSet<IntegerPacketType>());
 	}
 
+	private Set<IntegerPacketType> cachedAppCoordTypes = null;
+
 	private Set<IntegerPacketType> getAppCoordinatorRequestTypes() {
-		return this.appCoordinator.getRequestTypes();
+		return cachedAppCoordTypes != null ? cachedAppCoordTypes
+				: ((cachedAppCoordTypes = this.appCoordinator.getRequestTypes()) != null ? cachedAppCoordTypes
+						: new HashSet<IntegerPacketType>());
 	}
 
 	private boolean assertAppRequest(Request request) throws JSONException {
@@ -1166,11 +1166,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private AddressMessenger<?> initClientMessenger(boolean ssl) {
 		AbstractPacketDemultiplexer<Request> pd = null;
 		Messenger<InetSocketAddress, JSONObject> cMsgr = null;
-		Set<IntegerPacketType> appTypes = null;
-		if ((appTypes = this.getAppRequestTypes()) == null
-				|| appTypes.isEmpty())
-			// return null
-			;
 		try {
 			int myPort = (this.nodeConfig.getNodePort(getMyID()));
 			if ((ssl ? getClientFacingSSLPort(myPort)
@@ -1234,8 +1229,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
 										this.nodeConfig, this.appCoordinator));
 				}
-				if (appTypes != null && !appTypes.isEmpty())
-					pd.register(appTypes, this);
+
+				Set<IntegerPacketType> appTypes = this.getAppRequestTypes();
+				appTypes.removeAll(this.appCoordinator
+						.getMutualAuthAppRequestTypes());
+				pd.register(appTypes, this);
+				
+				/* These two requests are not app requests but are expected to be received on
+				 * client-facing ports, so we need to register them here.
+				 */
 				pd.register(PacketType.ECHO_REQUEST, this);
 				pd.register(PacketType.REPLICABLE_CLIENT_REQUEST, this);
 			}

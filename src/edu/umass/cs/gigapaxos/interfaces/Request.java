@@ -15,6 +15,9 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.interfaces;
 
+import java.io.UnsupportedEncodingException;
+
+import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 
 /**
@@ -68,4 +71,19 @@ public interface Request {
 		return null;
 	}
 
+	/**
+	 * The implementation of this method is tied to and must be the inverse of
+	 * {@link AppRequestParser#getRequest(byte[], edu.umass.cs.nio.nioutils.NIOHeader)}
+	 * , i.e., invoking getRequest(request.toBytes(), header).equals(request).
+	 * 
+	 * @return byte[] serialized form of this request
+	 */
+	default byte[] toBytes() {
+		try {
+			return this.toString().getBytes(
+					MessageNIOTransport.NIO_CHARSET_ENCODING);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
+	}
 }

@@ -10,10 +10,18 @@ package edu.umass.cs.nio.interfaces;
  */
 public interface Byteable {
 	/**
-	 * @return byte[] serialized form of this object with the first four bytes
-	 *         containing the integer packet type of this packet in network byte
-	 *         order; ensure that ByteBuffer.wrap(bytes,0,4).getInt() returns
-	 *         the expected type on the bytes being returned.
+	 * The recommendation that the first four bytes contain the integer packet
+	 * type is for bring able to write efficient demultiplexers that will not
+	 * attempt to decode an incoming packet unless the type matches one of the
+	 * types they expect to receive. Not following this requirement will
+	 * will not break applications but can result in wasted decoding
+	 * attempts if the inital bytes happen to accidentally match the header
+	 * patterns used by other demultiplexers.
+	 * 
+	 * @return byte[] serialized form of this object. It is recommended that the
+	 *         first four bytes contain the integer packet type of this packet
+	 *         in network byte order, i.e., ByteBuffer.wrap(bytes,0,4).getInt()
+	 *         should return the expected type on the bytes being returned.
 	 */
 	public byte[] toBytes();
 }

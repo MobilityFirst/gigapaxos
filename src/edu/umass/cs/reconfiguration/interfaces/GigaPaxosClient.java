@@ -3,6 +3,7 @@ package edu.umass.cs.reconfiguration.interfaces;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
+import edu.umass.cs.gigapaxos.async.RequestCallbackFuture;
 import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
@@ -37,7 +38,7 @@ public interface GigaPaxosClient<V> {
 	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public Long sendRequest(Request request, Callback<Request, V> callback)
+	public RequestCallbackFuture<V> sendRequest(Request request, Callback<Request, V> callback)
 			throws IOException;
 
 	/**
@@ -47,7 +48,7 @@ public interface GigaPaxosClient<V> {
 	 *         null otherwise.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, Callback<Request, V> callback)
+	public RequestCallbackFuture<V> sendRequest(ClientRequest request, Callback<Request, V> callback)
 			throws IOException;
 
 	/**
@@ -61,7 +62,7 @@ public interface GigaPaxosClient<V> {
 	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request,
+	public RequestCallbackFuture<V> sendRequest(ClientRequest request,
 			Callback<Request,V> callback, NearestServerSelector redirector)
 			throws IOException;
 
@@ -74,6 +75,6 @@ public interface GigaPaxosClient<V> {
 	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public Long sendRequest(ClientRequest request, InetSocketAddress server,
+	public RequestCallbackFuture<V> sendRequest(ClientRequest request, InetSocketAddress server,
 			Callback<Request,V> callback) throws IOException;
 }
