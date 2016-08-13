@@ -15,31 +15,22 @@ import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
  * @param <V>
  *
  */
-public class RequestCallbackFuture<V> implements RequestCallback,
+public class RequestCallbackFuture<V> implements Callback<Request, V>,
+// RequestCallback,
 		RequestFuture<V> {
 	private final Request request;
-	private final  Callback<Request,V>  callback;
+	private final Callback<Request, V> callback;
 	private Request response;
+	private Exception exception;
 
 	/**
 	 * @param request
 	 *            The request until whose execution this callback will block.
-	 * @param callback 
+	 * @param callback
 	 */
-	public RequestCallbackFuture(Request request, Callback<Request,V> callback) {
+	public RequestCallbackFuture(Request request, Callback<Request, V> callback) {
 		this.request = request;
 		this.callback = callback;
-	}
-
-	@Override
-	public void handleResponse(
-			edu.umass.cs.gigapaxos.interfaces.Request response) {
-		if (this.callback != null)
-			this.callback.processResponse(response);
-		synchronized (this) {
-			this.response = response;
-			this.notify();
-		}
 	}
 
 	/**
@@ -47,10 +38,12 @@ public class RequestCallbackFuture<V> implements RequestCallback,
 	 * 
 	 * @return Response corresponding to the execution of the request supplied
 	 *         in this callback's constructor.
+	 * @throws Exception 
 	 */
 	@SuppressWarnings("unchecked")
 	// class cast exception otherwise is fine
-	private V waitResponse(Long timeout, TimeUnit unit) {
+	private V waitResponse(Long timeout, TimeUnit unit) throws ExecutionException {
+		if(this.exception!=null) throw new ExecutionException(this.exception);
 		synchronized (this) {
 			while (this.response == null)
 				try {
@@ -68,13 +61,17 @@ public class RequestCallbackFuture<V> implements RequestCallback,
 	}
 
 	// same as get() but private
-	private V waitResponse() {
+	private V waitResponse() throws ExecutionException {
 		return (V) this.waitResponse(null, TimeUnit.MILLISECONDS);
 	}
 
 	@Override
 	public boolean isDone() {
-		return this.waitResponse() != null;
+		try {
+			return this.waitResponse() != null;
+		} catch(ExecutionException e) {
+			return true;
+		}
 	}
 
 	@Override
@@ -83,8 +80,7 @@ public class RequestCallbackFuture<V> implements RequestCallback,
 	}
 
 	@Override
-	public V get(long timeout, TimeUnit unit) throws InterruptedException,
-			ExecutionException, TimeoutException {
+	public V get(long timeout, TimeUnit unit) throws ExecutionException {
 		return this.waitResponse(timeout, unit);
 	}
 
@@ -93,5 +89,21 @@ public class RequestCallbackFuture<V> implements RequestCallback,
 	 */
 	public Request getRequest() {
 		return this.request;
+	}
+
+	@Override
+	public V processResponse(Request response) {
+		V retval = null;
+		if (this.callback != null)
+			try {
+				retval = this.callback.processResponse(response);
+			} catch (Exception e) {
+				this.exception = e;
+			}
+		synchronized (this) {
+			this.response = response;
+			this.notify();
+		}
+		return retval;
 	}
 }

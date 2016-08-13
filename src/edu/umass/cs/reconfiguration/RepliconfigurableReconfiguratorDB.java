@@ -81,7 +81,9 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 		this.app = app;
 		this.consistentNodeConfig = consistentNodeConfig;
 		// only request that needs coordination;
-		this.registerCoordination(ReconfigurationPacket.PacketType.RC_RECORD_REQUEST);
+		this.registerCoordination(ReconfigurationPacket.PacketType.RC_RECORD_REQUEST,
+				// we now allow RequestActiveReplicas to be coordinated
+				ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS);
 		// default groups need only be created for paxos, not dynamo
 		if (RC_REPLICA_COORDINATOR.equals(ReplicaCoordinator.PAXOS)
 				&& !startCleanSlate)
@@ -227,6 +229,17 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 						this.consistentNodeConfig.getActiveReplicas())
 						.toString(), this.consistentNodeConfig
 						.getReconfigurators());
+		
+		// default app group
+		this.createReplicaGroup(
+				ReconfigurationConfig.application.getSimpleName() + "0",
+				0,
+				this.getInitialRCGroupRecord(
+						this.getRCGroupName(ReconfigurationConfig.application
+								.getSimpleName() + "0"),
+						this.consistentNodeConfig.getActiveReplicas())
+						.toString(), this.consistentNodeConfig
+						.getReconfigurators());		
 
 		return false; // not used
 	}

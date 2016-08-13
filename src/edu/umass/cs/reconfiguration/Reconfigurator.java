@@ -915,7 +915,12 @@ public class Reconfigurator<NodeIDType> implements
 				this.callbacksCRP.put(getCRPKey(request), callback);
 			return null;
 		}
+		
+		if (request.needsCoordination()
+				&& this.DB.handleIncoming(request, this))
+			return null;
 
+		// else at an appropriate replica
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(request.getServiceName());
 		if (record == null || record.getActiveReplicas() == null
@@ -1146,9 +1151,19 @@ public class Reconfigurator<NodeIDType> implements
 				e.printStackTrace();
 		}
 		if (rcPacket == null
-				|| !rcPacket.getType().equals(
-						ReconfigurationPacket.PacketType.RC_RECORD_REQUEST))
+				|| (!rcPacket.getType().equals(
+						ReconfigurationPacket.PacketType.RC_RECORD_REQUEST)
+						&& !rcPacket.getType().equals(
+								ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS)))
 			return;
+		
+		if (request instanceof RequestActiveReplicas) {
+			this.handleRequestActiveReplicas(
+					((RequestActiveReplicas) request).unsetNeedsCoordination(),
+					null);
+			return;
+		}
+		
 		@SuppressWarnings("unchecked")
 		// checked right above
 		RCRecordRequest<NodeIDType> rcRecReq = (RCRecordRequest<NodeIDType>) rcPacket;
@@ -1247,7 +1262,6 @@ public class Reconfigurator<NodeIDType> implements
 				 * handles in the DB will remain forever or at least until a
 				 * node with this name is re-added to the system. */
 				;
-
 		}
 	}
 
@@ -2666,13 +2680,16 @@ public class Reconfigurator<NodeIDType> implements
 			this.commitWorker.enqueueForExecution(rcRecReq);
 		}
 	}
+	
+	private static final boolean IS_AGGREGATED_MERGE_SPLIT = true;
 
 	/**
 	 * Default true now for an improved merge/split implementation. Doing merges
-	 * in the old way potentially violates RSM safety.
+	 * in the old way potentially violates RSM safety. True effectively disables
+	 * the use of {@link RCRecordRequest.RequestTypes#RECONFIGURATION_MERGE}.
 	 */
 	protected static final boolean isAggregatedMergeSplit() {
-		return true;
+		return IS_AGGREGATED_MERGE_SPLIT;
 	}
 
 	/**

@@ -28,6 +28,8 @@ import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 
+import org.json.JSONObject;
+
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
@@ -39,6 +41,7 @@ import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationutils.AbstractDemandProfile;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile;
@@ -338,7 +341,23 @@ public class ReconfigurationConfig {
 		/**
 		 * Enable the HTTP server for reconfigurators.
 		 */
-		ENABLE_HTTP (false),
+		ENABLE_HTTP (true),
+		
+		/**
+		 * If true, transactions are enabled; else disabled.
+		 */
+		ENABLE_TRANSACTIONS (false),
+		
+		/**
+		 * The name of the class used to wrap the application's default
+		 * coordinator.
+		 */
+		COORDINATOR_WRAPPER("edu.umass.cs.txn.DistTransactor"),
+		
+		/**
+		 * 
+		 */
+		TX_GROUP_NAME("_TXGROUP_"),
 
 		;
 
@@ -901,6 +920,29 @@ public class ReconfigurationConfig {
 
 	private static String homePath(String path) {
 		return System.getProperty("user.home") + "/" + path;
+	}
+	
+	protected static AbstractReplicaCoordinator<?> wrapCoordinator(
+			AbstractReplicaCoordinator<?> coordinator) {
+		Class<?> clazz = null;
+		try {
+			clazz = Class.forName(Config
+					.getGlobalString(RC.COORDINATOR_WRAPPER));
+		} catch (ClassNotFoundException e) {
+			// eat up exception, normal case
+		}
+		if (clazz == null)
+			return coordinator;
+		// reflectively instantiate
+		try {
+			return (AbstractReplicaCoordinator<?>) clazz.getConstructor(
+					AbstractReplicaCoordinator.class).newInstance(coordinator);
+		} catch (InstantiationException | IllegalAccessException
+				| IllegalArgumentException | InvocationTargetException
+				| NoSuchMethodException | SecurityException e) {
+			e.printStackTrace();
+		}
+		return coordinator;
 	}
 
 	/**

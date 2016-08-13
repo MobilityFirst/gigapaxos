@@ -9,6 +9,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
+import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 
@@ -30,7 +31,7 @@ public interface GigaPaxosClient<V> {
 	public Request sendRequest(Request request) throws IOException;
 
 	/**
-	 * This method will automatically convert {@code request} to @
+	 * This method will automatically convert {@code request} to 
 	 * {@link ClientRequest} via {@link ReplicableClientRequest} if necessary.
 	 * 
 	 * @param request
@@ -38,7 +39,7 @@ public interface GigaPaxosClient<V> {
 	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(Request request, Callback<Request, V> callback)
+	public RequestFuture<V> sendRequest(Request request, Callback<Request, V> callback)
 			throws IOException;
 
 	/**
@@ -48,7 +49,7 @@ public interface GigaPaxosClient<V> {
 	 *         null otherwise.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(ClientRequest request, Callback<Request, V> callback)
+	public RequestFuture<V> sendRequest(ClientRequest request, Callback<Request, V> callback)
 			throws IOException;
 
 	/**
@@ -62,7 +63,7 @@ public interface GigaPaxosClient<V> {
 	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(ClientRequest request,
+	public RequestFuture<V> sendRequest(ClientRequest request,
 			Callback<Request,V> callback, NearestServerSelector redirector)
 			throws IOException;
 
@@ -75,6 +76,6 @@ public interface GigaPaxosClient<V> {
 	 * @return Refer {@link #sendRequest(ClientRequest, Callback)}.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(ClientRequest request, InetSocketAddress server,
+	public RequestFuture<V> sendRequest(ClientRequest request, InetSocketAddress server,
 			Callback<Request,V> callback) throws IOException;
 }

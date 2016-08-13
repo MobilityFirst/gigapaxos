@@ -279,6 +279,7 @@ public class WaitAckStopEpoch<NodeIDType>
 			return this.prepareDeleteIntent();
 		} else if (this.startEpoch.isMerge()) {
 			if (!this.isAggregatedMergeSplit()) {
+				@SuppressWarnings("deprecation")
 				RCRecordRequest<NodeIDType> merge = new RCRecordRequest<NodeIDType>(
 						this.DB.getMyID(), new StartEpoch<NodeIDType>(
 								this.startEpoch, this.finalState),

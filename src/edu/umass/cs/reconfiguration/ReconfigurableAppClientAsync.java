@@ -32,6 +32,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
+import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
 import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
 import edu.umass.cs.gigapaxos.interfaces.TimeoutRequestCallback;
 import edu.umass.cs.gigapaxos.paxosutil.E2ELatencyAwareRedirector;
@@ -186,6 +187,11 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	private final class BlockingRequestCallback implements Callback<Request, V> {
 		Request response = null;
+		final Long timeout;
+		
+		BlockingRequestCallback(long timeout) {
+			this.timeout = timeout;
+		}
 
 		@Override
 		public V processResponse(Request response) {
@@ -200,7 +206,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			synchronized (this) {
 				while (this.response == null)
 					try {
-						this.wait();
+						this.wait(this.timeout);
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 						// continue waiting
@@ -761,7 +767,19 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 */
 	public Request sendRequest(Request request) throws IOException {
 		BlockingRequestCallback callback;
-		this.sendRequest(request, callback = new BlockingRequestCallback());
+		this.sendRequest(request, callback = new BlockingRequestCallback(0));
+		return callback.getResponse(); // blocking
+	}
+	
+	/**
+	 * @param request
+	 * @param timeout 
+	 * @return The response obtained by executing this request.
+	 * @throws IOException
+	 */
+	public Request sendRequest(Request request, long timeout) throws IOException {
+		BlockingRequestCallback callback;
+		this.sendRequest(request, callback = new BlockingRequestCallback(timeout));
 		return callback.getResponse(); // blocking
 	}
 
@@ -774,10 +792,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 * @return True if sent successfully.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(Request request, Callback<Request, V> callback)
+	public RequestFuture<V> sendRequest(Request request, Callback<Request, V> callback)
 			throws IOException {
-		// otherwise this method won't be matched to
-		assert (!(request instanceof ClientReconfigurationPacket) && !(request instanceof ClientRequest));
 		return (request instanceof ClientRequest ? this.sendRequest(
 				(ClientRequest) request, callback) : this.sendRequest(
 				ReplicableClientRequest.wrap(request), callback));
@@ -790,15 +806,47 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	/**
 	 * @param request
 	 * @param server
+	 * @return The response obtained by executing {@code request}.
+	 * @throws IOException
+	 */
+	public Request sendRequest(ClientRequest request, InetSocketAddress server) throws IOException {
+		BlockingRequestCallback callback;
+		this.sendRequestAnycast(request, callback = new BlockingRequestCallback(0));
+		return callback.getResponse(); // blocking
+		
+	}
+	/**
+	 * @param request
+	 * @param server
+	 * @param timeout 
+	 * @return The response obtained by executing {@code request}.
+	 * @throws IOException
+	 */
+	public Request sendRequest(ClientRequest request, InetSocketAddress server, long timeout) throws IOException {
+		BlockingRequestCallback callback;
+		this.sendRequestAnycast(request, callback = new BlockingRequestCallback(timeout));
+		return callback.getResponse(); // blocking
+		
+	}
+	/**
+	 * @param request
+	 * @param server
 	 * @param callback
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(ClientRequest request, InetSocketAddress server,
+	public RequestFuture<V> sendRequest(ClientRequest request, InetSocketAddress server,
 			Callback<Request, V> callback) throws IOException {
 		boolean sendFailed = false;
 		assert (request.getServiceName() != null);
 		Callback<Request, V> prev = null;
+
+		// send mutual auth requests to main active replica port instead
+		if (this.getMutualAuthTypes().contains(request.getRequestType()))
+			server = new InetSocketAddress(server.getAddress(),
+					this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
+							.getClientPortClearOffset()
+							: -ReconfigurationConfig.getClientPortSSLOffset());
 
 		// use replica recently written to if any
 		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
@@ -817,7 +865,6 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			AppInstrumenter.outstandingAppRequest(
 					this.numOutstandingAppRequests(), request);
 
-		@SuppressWarnings("unchecked")
 		RequestCallbackFuture<V> future = callback instanceof RequestCallbackFuture ? (RequestCallbackFuture<V>) callback
 				: new RequestCallbackFuture<V>(request, callback);
 		try {
@@ -1063,7 +1110,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		}
 	}
 
-	class RequestAndCallback implements Callback<Request, V> {
+	class RequestAndCallback extends RequestCallbackFuture<V> implements Callback<Request, V> {
 		long sentTime = System.currentTimeMillis();
 		final ClientRequest request;
 		final Callback<Request, V> callback;
@@ -1078,6 +1125,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		RequestAndCallback(ClientRequest request,
 				Callback<Request, V> callback, NearestServerSelector redirector) {
+			super(request, callback);
 			this.request = request;
 			this.callback = callback;
 			this.redirector = redirector;
@@ -1099,7 +1147,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			return this;
 		}
 
-		public boolean isExpired() {
+		 boolean isExpired() {
 			return System.currentTimeMillis() - this.sentTime > APP_REQUEST_TIMEOUT;
 		}
 
@@ -1119,7 +1167,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(ClientRequest request, Callback<Request, V> callback)
+	public RequestFuture<V> sendRequest(ClientRequest request, Callback<Request, V> callback)
 			throws IOException {
 		return this.sendRequest(request, callback, this.e2eRedirector);
 	}
@@ -1129,11 +1177,36 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	/**
 	 * @param request
+	 * @return The response obtained by executing {@code request}.
+	 * @throws IOException
+	 */
+	public Request sendRequestAnycast(ClientRequest request) throws IOException {	
+	BlockingRequestCallback callback;
+	this.sendRequestAnycast(request, callback = new BlockingRequestCallback(0));
+	return callback.getResponse(); // blocking
+	}
+
+	/**
+	 * @param request
+	 * @param timeout
+	 * @return The response obtained by executing {@code request}.
+	 * @throws IOException
+	 */
+	public Request sendRequestAnycast(ClientRequest request, long timeout)
+			throws IOException {
+		BlockingRequestCallback callback;
+		this.sendRequestAnycast(request,
+				callback = new BlockingRequestCallback(timeout));
+		return callback.getResponse(); // blocking
+	}
+
+	/**
+	 * @param request
 	 * @param callback
 	 * @return Request ID of sent or enqueued request
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequestAnycast(ClientRequest request,
+	public RequestFuture<V> sendRequestAnycast(ClientRequest request,
 			Callback<Request, V> callback) throws IOException {
 		Set<InetSocketAddress> actives = null;
 		ActivesInfo activesInfo = null;
@@ -1144,18 +1217,11 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				return this.sendRequest(request, actives.iterator().next(),
 						callback);
 			// else
-			RequestCallbackFuture<V> future = new RequestCallbackFuture<V>(request, callback);
-			this.enqueueAndQueryForActives(new RequestAndCallback(request,
+			RequestAndCallback future;
+			this.enqueueAndQueryForActives(future = new RequestAndCallback(request,
 					callback), true, true);
 			return future; //request.getRequestID();
 		}
-	}
-	
-	@SuppressWarnings({ "unchecked", "unused" })
-	private RequestCallbackFuture<V> makeFuture(Request request,
-			Callback<Request, V> callback) {
-		return callback instanceof RequestCallbackFuture ? (RequestCallbackFuture<V>) callback
-				: new RequestCallbackFuture<V>(request, callback);
 	}
 
 	private boolean queriedActivesRecently(String name) {
@@ -1186,7 +1252,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 * @return Request ID.
 	 * @throws IOException
 	 */
-	public RequestCallbackFuture<V> sendRequest(ClientRequest request,
+	public RequestFuture<V> sendRequest(ClientRequest request,
 			Callback<Request, V> callback, NearestServerSelector redirector)
 			throws IOException {
 
@@ -1204,11 +1270,11 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 								: (InetSocketAddress) (Util
 										.selectRandom(actives)), callback);
 
-			RequestCallbackFuture<V> future = new RequestCallbackFuture<V>(request, callback);
+			RequestAndCallback future;
 			// else enqueue them
-			this.enqueueAndQueryForActives(new RequestAndCallback(request,
+			this.enqueueAndQueryForActives(future = new RequestAndCallback(request,
 					callback, redirector), false, false);
-			return future;//request.getRequestID();
+			return (RequestFuture<V>)future;//request.getRequestID();
 		}
 	}
 
@@ -1697,6 +1763,14 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	private int numOutstandingAppRequests() {
 		return this.callbacks.size() + this.callbacksLongTimeout.size();
+	}
+	
+	private static Set<IntegerPacketType> cachedMutualAuthTypes = null;
+
+	private Set<IntegerPacketType> getMutualAuthTypes() {
+		return cachedMutualAuthTypes != null ? cachedMutualAuthTypes
+				: (cachedMutualAuthTypes = getMutualAuthRequestTypes()) != null ? cachedMutualAuthTypes
+						: new HashSet<IntegerPacketType>();
 	}
 
 	/**

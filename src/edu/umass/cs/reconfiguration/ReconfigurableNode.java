@@ -114,11 +114,20 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								+ " responses back to clients or rely on alternate means for messaging.");
 			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(
 					app, myID, nodeConfig, messenger);
+			
 			Reconfigurator.getLogger().info(
 					"Creating default group with "
 							+ nodeConfig.getActiveReplicas());
 			prc.createDefaultGroupNodes(app.getClass().getSimpleName() + "0",
-					nodeConfig.getActiveReplicas(), nodeConfig);
+			/* FIXME: (1) This nodeConfig may have gotten changed since
+			 * bootstrap at this point; if so, newly added active replicas will
+			 * create this group with a membership that will be inconsistent
+			 * with those of the original set of actives; (2) This group will
+			 * not get correctly reconfigured upon adding an active
+			 * replica as reconfigurators don't reconfigure app records upon
+			 * the addition of an active replica. */
+					nodeConfig.getActiveReplicas(), 
+					nodeConfig);
 			return prc;
 		} else {
 			AbstractReplicaCoordinator<NodeIDType> appCoordinator = this

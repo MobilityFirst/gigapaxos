@@ -30,6 +30,8 @@ import org.json.JSONObject;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.StringifiableDefault;
+import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -41,7 +43,7 @@ import edu.umass.cs.nio.nioutils.StringifiableDefault;
  *         actives is null, it is implicitly interpreted as a request, else as a
  *         response.
  */
-public class RequestActiveReplicas extends ClientReconfigurationPacket {
+public class RequestActiveReplicas extends ClientReconfigurationPacket implements ReplicableRequest {
 
 	/**
 	 *
@@ -52,6 +54,11 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 		 */
 		ACTIVE_REPLICAS,
 		
+		/**
+		 * 
+		 */
+		QID,
+		
 	};
 
 	/**
@@ -61,6 +68,9 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 			new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
 
 	private Set<InetSocketAddress> actives = null;
+
+	// need this if we need to coordinate this request
+	private final long requestID;
 
 	/**
 	 * @param name
@@ -79,6 +89,7 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 				ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS, name,
 				epochNumber);
 		this.actives = null;
+		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 
 	/**
@@ -101,6 +112,7 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 				this.actives.add(RequestActiveReplicas.unstringer
 						.valueOf(jsonArray.get(i).toString()));
 		}
+		this.requestID = json.getLong(Keys.QID.toString());
 	}
 
 	/**
@@ -116,6 +128,7 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 		if (this.actives != null)
 			json.put(Keys.ACTIVE_REPLICAS.toString(), new JSONArray(
 					this.actives));
+		json.put(Keys.QID.toString(), this.requestID);
 		return json;
 	}
 
@@ -136,6 +149,7 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 	}
 
 	public static void main(String[] args) {
+		Util.assertAssertionsEnabled();
 		String[] addrs = { "128.119.240.21" };
 		int[] ports = { 3245 };
 		assert (addrs.length == ports.length);
@@ -155,8 +169,34 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket {
 			json1 = req1.toJSONObject();
 			RequestActiveReplicas req2 = new RequestActiveReplicas(json1, null);
 			System.out.println(req2);
+//			assert(req1.toString().equals(new RequestActiveReplicas(req1.toJSONObject(), null).toJSONObject().toString()));
 		} catch (UnknownHostException | JSONException e) {
 			e.printStackTrace();
 		}
 	}
+	@Override
+	public long getRequestID() {
+		return this.requestID ;
+	}
+	@Override
+	public boolean needsCoordination() {
+		return this.needsCoordination;
+	}
+	
+	private boolean needsCoordination = false;
+	/**
+	 * @return {@code this} with needsCoordination=true
+	 */
+	public RequestActiveReplicas setNeedsCoordination() {
+		this.needsCoordination = true;
+		return this;
+	}
+	/**
+	 * @return {@code this} with needsCoordination=false
+	 */
+	public RequestActiveReplicas unsetNeedsCoordination() {
+		this.needsCoordination = false;
+		return this;
+	}
+
 }

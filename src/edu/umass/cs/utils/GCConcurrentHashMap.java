@@ -54,7 +54,13 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 		this.gcTimeout = gcTimeout;
 		this.minGCInterval = this.gcTimeout;
 	}
-
+	
+	/**
+	 * @param gcTimeout
+	 */
+	public GCConcurrentHashMap(long gcTimeout) {
+		this(null,gcTimeout);
+	}
 	/**
 	 * 
 	 */
@@ -144,7 +150,7 @@ public class GCConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
 			if (time != null && (System.currentTimeMillis() - time > timeout)) {
 				iterK.remove();
 				V value = this.remove(key);
-				if (value != null)
+				if (value != null && this.callback!=null)
 					this.callback.callbackGC(key, value);
 				removed = true;
 			} else

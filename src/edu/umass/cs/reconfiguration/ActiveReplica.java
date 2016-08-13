@@ -149,13 +149,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 * in ActiveReplica. */
 	private final CallbackMap<NodeIDType> callbackMap = new CallbackMap<NodeIDType>();
 
+	@SuppressWarnings("unchecked")
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
-		this.appCoordinator = appC.setStopCallback(
-		// setting default callback is optional
-		// (ReconfiguratorCallback) this).setCallback(
-				(ReconfiguratorCallback) this);
+		this.appCoordinator = (AbstractReplicaCoordinator<NodeIDType>) ReconfigurationConfig
+				.wrapCoordinator(appC.setStopCallback(
+				// setting default callback is optional
+				// (ReconfiguratorCallback) this).setCallback(
+						(ReconfiguratorCallback) this));
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
 		this.demandProfiler = new AggregateDemandProfiler(this.nodeConfig);

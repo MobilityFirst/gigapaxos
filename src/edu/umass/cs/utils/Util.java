@@ -779,7 +779,7 @@ public class Util {
 		}
 		Files.write(Paths.get(filename), modified.getBytes());
 	}
-	
+
 	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(
 			Map<K, V> map) {
 		Map<K, V> result = new LinkedHashMap<>();
@@ -790,7 +790,7 @@ public class Util {
 
 		return result;
 	}
-	
+
 	public static Set<InetSocketAddress> getSocketAddresses(JSONArray jarray)
 			throws JSONException {
 		Set<InetSocketAddress> addresses = new HashSet<InetSocketAddress>();
@@ -800,13 +800,23 @@ public class Util {
 						.getString(i)));
 		return addresses;
 	}
-	
+
 	public static JSONArray getJSONArray(Set<InetSocketAddress> addresses)
 			throws JSONException {
 		JSONArray jarray = new JSONArray();
 		for (InetSocketAddress isa : addresses)
 			jarray.put(isa.getAddress().getHostAddress() + ":" + isa.getPort());
 		return jarray;
+	}
+
+	/**
+	 * @param entryServer
+	 * @return Returns a canonical string form that can be easily converted back
+	 *         to the original socket address.
+	 */
+	public static String toString(InetSocketAddress entryServer) {
+		return entryServer.getAddress().getHostAddress() + ":"
+				+ entryServer.getPort();
 	}
 
 }

@@ -20,11 +20,14 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import edu.umass.cs.gigapaxos.interfaces.Callback;
+import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.reconfiguration.Reconfigurator;
+import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 
@@ -35,14 +38,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket
 public class ReconfiguratorProtocolTask<NodeIDType> implements
 		ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 
-	private static final String HANDLER_METHOD_PREFIX = ReconfigurationPacket.HANDLER_METHOD_PREFIX; // could
-																										// be
-																										// any
-																										// String
-																										// as
-																										// scope
-																										// is
-																										// local
+	private static final String HANDLER_METHOD_PREFIX = ReconfigurationPacket.HANDLER_METHOD_PREFIX; 
 	private static final ReconfigurationPacket.PacketType[] localTypes = {
 			// active -> reconfigurator
 			ReconfigurationPacket.PacketType.DEMAND_REPORT,
@@ -136,7 +132,7 @@ public class ReconfiguratorProtocolTask<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleEvent(
 			ProtocolEvent<ReconfigurationPacket.PacketType, String> event,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
-			RequestCallback callback) {
+			Callback<Request,ReconfiguratorRequest> callback) {
 		ReconfigurationPacket.PacketType type = event.getType();
 		try {
 			return (GenericMessagingTask<NodeIDType, ?>[]) (this.reconfigurator

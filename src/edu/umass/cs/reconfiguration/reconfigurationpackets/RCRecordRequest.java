@@ -79,8 +79,10 @@ public class RCRecordRequest<NodeIDType> extends
 		RECONFIGURATION_PREV_DROPPED,
 
 		/**
-		 * Merges one RC group with another upon RC node deletes.
+		 * Merges one RC group with another upon RC node deletes. This type 
+		 * is now deprecated.
 		 */
+		@Deprecated
 		RECONFIGURATION_MERGE,
 
 	};

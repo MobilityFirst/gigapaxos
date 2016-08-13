@@ -386,8 +386,10 @@ public class CommitWorker<NodeIDType> implements Runnable {
 				prevNodes, curNodes, null);
 		StartEpoch<Integer> se2 = new StartEpoch<Integer>(27, "name", (int) 3,
 				curNodes, curNodes, null);
+		@SuppressWarnings("deprecation")
 		RCRecordRequest<Integer> rc1 = new RCRecordRequest<Integer>(23, se1,
 				RCRecordRequest.RequestTypes.RECONFIGURATION_MERGE);
+		@SuppressWarnings("deprecation")
 		RCRecordRequest<Integer> rc2 = new RCRecordRequest<Integer>(92, se2,
 				RCRecordRequest.RequestTypes.RECONFIGURATION_MERGE);
 

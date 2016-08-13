@@ -309,7 +309,7 @@ function append_to_ln_cmd {
         $APP_SIMPLE/$(get_simple_name $default) "
     else
       LINK_CMD="$LINK_CMD; ln -fs ~/$APP_SIMPLE/$CONF/$simple \
-        $APP_SIMPLE/$(get_simple_name default) "
+        $APP_SIMPLE/$(get_simple_name $default) "
     fi
   fi
 }

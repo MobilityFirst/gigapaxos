@@ -41,6 +41,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationP
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StopEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
@@ -819,6 +820,17 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 				stopEpoch.getSummary() });
 		// for exactly once semantics for merges
 		this.clearMerged(stopEpoch.getServiceName(), stopEpoch.getEpochNumber());
+		return true;
+	}
+	
+	/**
+	 * @param requestActives
+	 * @param recovery
+	 * @return True
+	 */
+	protected boolean handleRequestActiveReplicas(RequestActiveReplicas requestActives,
+			boolean recovery) {
+		// no-op
 		return true;
 	}
 

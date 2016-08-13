@@ -119,7 +119,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	// A replica coordinator is meaningless without an underlying app
 	protected AbstractReplicaCoordinator(Replicable app) {
-		this.app = new TrivialRepliconfigurable(app);
+		this.app = app instanceof AbstractReplicaCoordinator ? ((AbstractReplicaCoordinator<?>) app).app
+				: new TrivialRepliconfigurable(app);
 		this.messenger = null;
 	}
 
@@ -141,14 +142,9 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return this.messenger;
 	}
 
-	// Registers request types that need coordination
-	protected void registerCoordination(IntegerPacketType type) {
-		this.coordinationTypes.put(type, true);
-	}
-
-	protected void registerCoordination(IntegerPacketType[] types) {
+	protected void registerCoordination(IntegerPacketType... types) {
 		for (IntegerPacketType type : types)
-			this.registerCoordination(type);
+			this.coordinationTypes.put(type, true);
 	}
 
 	/**
@@ -237,7 +233,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return this.execute(request, false, callback);
 	}
 
-	/* This method is a wrapper for Application.handleRequest and meant to be
+	/** This method is a wrapper for Application.handleRequest and meant to be
 	 * invoked by the class that implements this AbstractReplicaCoordinator or
 	 * its helper classes.
 	 * 
@@ -251,8 +247,14 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * Should we add support for response messaging here using the
 	 * ClientMessgenser and ClientRequest interfaces similar to that in
 	 * gigapaxos? No, because response messaging details are specific to the
-	 * coordination protocol. */
-	private boolean execute(Request request, boolean noReplyToClient,
+	 * coordination protocol. 
+	 * @param request 
+	 * @param noReplyToClient 
+	 * @param requestCallback 
+	 * @return True 
+	 * 
+	 */
+	public boolean execute(Request request, boolean noReplyToClient,
 			ExecutedCallback requestCallback) {
 
 		if (this.callback != null)
