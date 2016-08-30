@@ -844,9 +844,10 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		// send mutual auth requests to main active replica port instead
 		if (this.getMutualAuthTypes().contains(request.getRequestType()))
 			server = new InetSocketAddress(server.getAddress(),
+					server.getPort() + (
 					this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
 							.getClientPortClearOffset()
-							: -ReconfigurationConfig.getClientPortSSLOffset());
+							: -ReconfigurationConfig.getClientPortSSLOffset()));
 
 		// use replica recently written to if any
 		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap

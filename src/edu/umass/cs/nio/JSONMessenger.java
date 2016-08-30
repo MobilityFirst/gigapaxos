@@ -550,9 +550,14 @@ public class JSONMessenger<NodeIDType> implements
 						.getPort()))
 			return msgr;
 
-		assert (this.getListeningSocketAddress().getPort() == (listenSockAddr
-				.getPort())) : this.getListeningSocketAddress() + " != "
-				+ listenSockAddr;
+		/* This assertion does not hold under retransmissions because a retransmitted
+		 * request's response may be going back to the original request's listening
+		 * address that may be different because the original request may have been
+		 * sent to a different server.
+		 */
+//		assert (this.getListeningSocketAddress().getPort() == (listenSockAddr
+//				.getPort())) : this.getListeningSocketAddress() + " != "
+//				+ listenSockAddr;
 
 		return this;
 	}

@@ -15,6 +15,7 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
@@ -636,6 +637,24 @@ public class ReconfigurationConfig {
 								.getProperty(key)));
 			}
 		}
+		if (map.isEmpty())
+			throw new RuntimeException(
+					"Unable to find any reconfigurators "
+							+ (!new File(
+									PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE)
+									.exists()
+									&& (System
+											.getProperty(PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY) == null || !new File(
+											System.getProperty(PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY))
+											.exists()) ? "because no gigapaxos properties file was found"
+									+ " either at the default location \""
+									+ PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE
+									+ "\" (relative to the current directory "
+									+ new File(".").getAbsolutePath().replaceFirst(".$", "")
+									+ ") or at a custom location specified as -D"
+									+ PaxosConfig.GIGAPAXOS_CONFIG_FILE_KEY
+									+ "="
+									: ""));
 		return map;
 	}
 
@@ -953,5 +972,6 @@ public class ReconfigurationConfig {
 				homePath("gigapaxos/bin/gpServer.sh"),
 				homePath("gigapaxos/conf/gigapaxos.properties"), null,
 				"start all"));
+		System.out.println(ReconfigurationConfig.getReconfiguratorAddresses());
 	}
 }

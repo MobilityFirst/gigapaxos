@@ -102,7 +102,7 @@ public class PaxosConfig {
 			config = Config.getProperties(PC.class, GIGAPAXOS_CONFIG_FILE_KEY,
 					DEFAULT_GIGAPAXOS_CONFIG_FILE);
 		} catch (IOException e) {
-			e.printStackTrace();
+			// ignore as default will still be used
 		}
 		if (config == null)
 			config = Config.getConfig(PC.class);
