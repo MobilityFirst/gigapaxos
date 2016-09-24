@@ -125,6 +125,17 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				});
 		this.myThreadPoolSize = threadPoolSize;
 	}
+	
+	/**
+	 * Sets the number of packet demultiplexing threads.
+	 * 
+	 * @param corePoolSize
+	 * @return {@code this}
+	 */
+	public AbstractPacketDemultiplexer<MessageType> setNumDemultiplexerThreads(int corePoolSize) {
+		this.executor.setCorePoolSize(corePoolSize);
+		return this;
+	}
 
 	/**
 	 * 

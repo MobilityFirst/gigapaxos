@@ -150,7 +150,6 @@ public class ConsistentHashing<NodeIDType> {
 	 */
 	public ArrayList<NodeIDType> getReplicatedServersArray(String name, int k) {
 		int hash = hash(name);
-		//if(name.equals("1103")) System.out.println("hash(1103) = " + hash);
 		SortedMap<Integer, NodeIDType> tailMap = this.servers.tailMap(hash);
 		Iterator<Integer> iterator = tailMap.keySet().iterator();
 		ArrayList<NodeIDType> replicas = new ArrayList<NodeIDType>();
@@ -178,11 +177,15 @@ public class ConsistentHashing<NodeIDType> {
 	}
 
 
+	private synchronized int hash(String name) {
+		return hashStatic(name) % 1;//(this.servers.size()>0 ? this.servers.size() : 1);
+	}
+	
 	/*
 	 * Bad idea to use hashCode here because we need this hash to be consistent
 	 * across platforms. Needs to be synchronized as md is not thread safe.
 	 */
-	private synchronized static int hash(String name) {
+	private synchronized static int hashStatic(String name) {
 		byte[] digest = md.digest(name.getBytes());
 		int hash = 0;
 		for (int i = 0; i < digest.length; i++)
@@ -190,7 +193,6 @@ public class ConsistentHashing<NodeIDType> {
 		md.reset();
 		return hash;
 	}
-
 	// only for testing
 	private Collection<NodeIDType> getServers() {
 		return this.servers.values();
@@ -228,5 +230,7 @@ public class ConsistentHashing<NodeIDType> {
 		ConsistentHashing<String> CHI1 = new ConsistentHashing<String>(IDs1);
 		System.out.println("ring ordering = " + CHI1.getServers());
 
+		for(int i=0; i<1000; i++)
+			System.out.println(hashStatic("random"+i));
 	}
 }
