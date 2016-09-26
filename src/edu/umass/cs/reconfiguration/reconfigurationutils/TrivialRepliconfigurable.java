@@ -134,4 +134,8 @@ public class TrivialRepliconfigurable implements Repliconfigurable, AppRequestPa
 	public String toString() {
 		return this.app.toString();
 	}
+	
+	public Set<IntegerPacketType> getMutualAuthRequestTypes() {
+		return this.app.getMutualAuthRequestTypes();
+	}
 }
