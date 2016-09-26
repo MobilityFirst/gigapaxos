@@ -178,7 +178,7 @@ public class ConsistentHashing<NodeIDType> {
 
 
 	private synchronized int hash(String name) {
-		return hashStatic(name) % 1;//(this.servers.size()>0 ? this.servers.size() : 1);
+		return hashStatic(name) ;//% (this.servers.size()>0 ? this.servers.size() : Integer.MAX_VALUE);
 	}
 	
 	/*
@@ -191,7 +191,7 @@ public class ConsistentHashing<NodeIDType> {
 		for (int i = 0; i < digest.length; i++)
 			hash = (hash ^ (digest[i] << (i % 4)));
 		md.reset();
-		return hash;
+		return Math.abs(hash);
 	}
 	// only for testing
 	private Collection<NodeIDType> getServers() {
