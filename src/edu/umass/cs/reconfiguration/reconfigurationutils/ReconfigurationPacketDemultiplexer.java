@@ -46,8 +46,8 @@ import edu.umass.cs.utils.Util;
  */
 public class ReconfigurationPacketDemultiplexer extends
 		AbstractPacketDemultiplexer<Request> {
-	Stringifiable<?> unstringer;
-	final AppRequestParser appRequestparser;
+	private Stringifiable<?> unstringer;
+	private AppRequestParser appRequestparser;
 
 	/**
 	 * @param unstringer
@@ -66,6 +66,15 @@ public class ReconfigurationPacketDemultiplexer extends
 	public ReconfigurationPacketDemultiplexer(Stringifiable<?> unstringer) {
 		this(unstringer, null);
 
+	}
+	
+	/**
+	 * @param parser
+	 * @return {@code this}
+	 */
+	public ReconfigurationPacketDemultiplexer setAppRequestParser(AppRequestParser parser) {
+		this.appRequestparser = parser;
+		return this;
 	}
 
 	public ReconfigurationPacketDemultiplexer setThreadName(String name) {
@@ -126,6 +135,7 @@ public class ReconfigurationPacketDemultiplexer extends
 	@Override
 	public boolean handleMessage(Request message,
 			edu.umass.cs.nio.nioutils.NIOHeader header) {
+		log.info(this + " throwing runtime exception for message " + message);
 		throw new RuntimeException("Should never be called");
 	}
 

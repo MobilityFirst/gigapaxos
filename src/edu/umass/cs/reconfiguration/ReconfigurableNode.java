@@ -211,13 +211,14 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		// else created messenger, may still fail to create client messenger
 
 		if (nodeConfig.getActiveReplicas().contains(id)) {
+			AbstractReplicaCoordinator<NodeIDType> app=null;
 			// create active
 			ActiveReplica<NodeIDType> activeReplica = new ActiveReplica<NodeIDType>(
 			// createAppCoordinator(),
-					createApp(args, nodeConfig), nodeConfig, messenger);
+					app=createApp(args, nodeConfig), nodeConfig, messenger);
 			this.activeReplicas.add(activeReplica);
 			// getPacketTypes includes app's packets
-			pd.register(activeReplica.getPacketTypes(), activeReplica);
+			pd.setAppRequestParser(app).register(activeReplica.getPacketTypes(), activeReplica);
 		} else if (nodeConfig.getReconfigurators().contains(id)) {
 			// create reconfigurator
 			Reconfigurator<NodeIDType> reconfigurator = new Reconfigurator<NodeIDType>(

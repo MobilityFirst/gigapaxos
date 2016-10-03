@@ -973,7 +973,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private boolean assertAppRequest(Request request) throws JSONException {
 		assert (request.getRequestType() == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST || this
-				.getAppRequestTypes().contains(request.getRequestType())) : request
+				.getAppRequestTypes().contains(request.getRequestType()) 
+				// mutual auth types need to be separately accounted for
+				|| this.appCoordinator.getMutualAuthAppRequestTypes().contains(request.getRequestType())
+				) : request
 				+ " not in " + cachedTypes;
 		return true;
 	}
