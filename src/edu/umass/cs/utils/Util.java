@@ -783,17 +783,20 @@ public class Util {
 		Files.write(Paths.get(filename), modified.getBytes());
 	}
 
-        // Android doesn't like Lambdas and this wasn't being used - Westy - 9/16
-//	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(
-//			Map<K, V> map) {
-//		Map<K, V> result = new LinkedHashMap<>();
-//		Stream<Map.Entry<K, V>> st = map.entrySet().stream();
-//
-//		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
-//				e -> result.put(e.getKey(), e.getValue()));
-//
-//		return result;
-//	}
+	/* Android doesn't like Lambdas and this wasn't being used - Westy - 9/16
+	 * 
+	 * Arun: It is being used. Propose an efficient non-lambda transform if you
+	 * need it. */
+	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(
+			Map<K, V> map) {
+		Map<K, V> result = new LinkedHashMap<>();
+		Stream<Map.Entry<K, V>> st = map.entrySet().stream();
+
+		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
+				e -> result.put(e.getKey(), e.getValue()));
+
+		return result;
+	}
 
 	public static Set<InetSocketAddress> getSocketAddresses(JSONArray jarray)
 			throws JSONException {
