@@ -14,8 +14,6 @@
 package edu.umass.cs.utils;
 
 import java.io.File;
-import java.io.FileFilter;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -29,17 +27,16 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -48,7 +45,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
 
-import edu.umass.cs.gigapaxos.SQLPaxosLogger;
+import java.util.function.Consumer;
 
 /**
  * @author arun
@@ -783,17 +780,29 @@ public class Util {
 		Files.write(Paths.get(filename), modified.getBytes());
 	}
 
-	/* Android doesn't like Lambdas and this wasn't being used - Westy - 9/16
-	 * 
-	 * Arun: It is being used. Propose an efficient non-lambda transform if you
-	 * need it. */
+       /**
+        * Sorts a map by value.
+        * 
+        * @param <K>
+        * @param <V>
+        * @param map
+        * @return the sorted map
+        */
 	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(
 			Map<K, V> map) {
 		Map<K, V> result = new LinkedHashMap<>();
 		Stream<Map.Entry<K, V>> st = map.entrySet().stream();
 
-		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
-				e -> result.put(e.getKey(), e.getValue()));
+                st.sorted(Map.Entry.comparingByValue())
+                        .forEachOrdered(new Consumer<Entry<K, V>>() {
+                    @Override
+                    public void accept(Entry<K, V> entry) {
+                             result.put(entry.getKey(), entry.getValue());
+                    }
+                });
+// Android doesn't like Lambdas - Westy 10/16
+//		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
+//				e -> result.put(e.getKey(), e.getValue()));
 
 		return result;
 	}
