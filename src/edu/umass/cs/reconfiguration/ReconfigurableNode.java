@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.Level;
 
 import org.json.JSONObject;
 
@@ -387,15 +388,20 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			throw new RuntimeException("No valid server names supplied");
 		System.out.print("Initializing gigapaxos server"
 				+ (numServers > 1 ? "s" : "") + " [ ");
+		String serversStr="";
 		for (String node : servers) {
-			System.out.print(node + ":" + nodeConfig.getNodeAddress(node) + ":"
-					+ nodeConfig.getNodePort(node) + " ");
+			String serverStr = node + ":" + nodeConfig.getNodeAddress(node) + ":"
+					+ nodeConfig.getNodePort(node) + " ";
+			serversStr += serverStr;
+			System.out.print(serverStr);
 			new DefaultReconfigurableNode(node,
 			// must use a different nodeConfig for each
 					new DefaultNodeConfig<String>(PaxosConfig.getActives(),
 							ReconfigurationConfig.getReconfigurators()),
 					appArgs, false);
 		}
+		Reconfigurator.getLogger().log(Level.INFO, "{0} server{1} ready",
+				new Object[] { serversStr, (numServers > 1 ? "s" : "") });
 		System.out.println("]; server" + (numServers > 1 ? "s" : "") + servers
 				+ " ready");
 	}
