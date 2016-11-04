@@ -380,10 +380,6 @@ function get_address_port {
 function start_server {
   server=$1
   get_address_port $server
-
-echo $ifconfig_found;
-ifconfig|grep $address
-
   if [[ $ifconfig_found != "" && `ifconfig|grep $address` != "" ]]; then
     if [[ $VERBOSE == 2 ]]; then
       echo "$JAVA $JVMARGS \
@@ -439,6 +435,10 @@ function stop_servers {
   for i in $servers; do
       get_address_port $i
       KILL_TARGET="ReconfigurableNode .*$i"
+
+echo $ifconfig_found;
+ifconfig|grep $address
+
       if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]]; 
       then
         pid=`ps -ef|grep "$KILL_TARGET"|grep -v grep|\
