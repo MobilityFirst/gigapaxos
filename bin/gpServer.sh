@@ -384,7 +384,7 @@ function get_address_port {
 
 echo "ifconfig_found="$ifconfig_found
 echo "ifconfig_cmd="$ifconfig_cmd
-echo "`$ifconfig_cmd|$address`"
+echo "`$ifconfig_cmd|grep $address`"
 }
 
 # start server if local, else append to non_local list
