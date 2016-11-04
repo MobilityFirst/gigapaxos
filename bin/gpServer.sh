@@ -437,11 +437,14 @@ function stop_servers {
       KILL_TARGET="ReconfigurableNode .*$i"
 
 echo $ifconfig_found;
+type ifconfig
 ifconfig|grep $address
 /bin/ifconfig|grep $address
 /sbin/ifconfig|grep $address
 
-      if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]]; 
+ifconfig=`type ifconfig`
+
+      if [[ ! -z $ifconfig_found && `$ifconfig|grep $address` != "" ]]; 
       then
         pid=`ps -ef|grep "$KILL_TARGET"|grep -v grep|\
           awk '{print $2}' 2>/dev/null`
