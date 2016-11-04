@@ -470,7 +470,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 					.getReconfigurationPacket(new JSONObject(stringified),
 							this.consistentNodeConfig);
 		} catch (JSONException e) {
-			log.severe(this + " encoutered JSONException trying to decode ["
+			log.severe(this + " encountered JSONException trying to decode ["
 					+ stringified + "]");
 			e.printStackTrace();
 		}
