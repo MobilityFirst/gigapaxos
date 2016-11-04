@@ -380,6 +380,9 @@ function get_address_port {
   else 
     ifconfig_cmd="ifconfig"
   fi
+
+echo "ifconfig_found="$ifconfig_found
+echo "ifconfig_cmd="$ifconfig_cmd
 }
 
 # start server if local, else append to non_local list
