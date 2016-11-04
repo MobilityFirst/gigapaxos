@@ -438,6 +438,8 @@ function stop_servers {
 
 echo $ifconfig_found;
 ifconfig|grep $address
+/bin/ifconfig|grep $address
+/sbin/ifconfig|grep $address
 
       if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]]; 
       then
