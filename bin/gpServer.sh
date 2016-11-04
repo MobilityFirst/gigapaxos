@@ -372,15 +372,14 @@ function get_address_port {
     non_existent="$server $non_existent"
     return
   fi
-  # check if interface is local
+  # check if interface is local. Some unixes don't have ifconfig, so
+  # we use "ip address" instead for those OSes.
   ifconfig_found=`type ifconfig 2>/dev/null`
   if [[ -z $ifconfig_found ]]; then
     ifconfig_cmd="ip address"
   else 
     ifconfig_cmd="ifconfig"
   fi
-  
-echo "ifconfig_found="$ifconfig_cmd 88888888888888888888888888888
 }
 
 # start server if local, else append to non_local list
