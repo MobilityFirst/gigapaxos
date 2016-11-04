@@ -376,7 +376,7 @@ function get_address_port {
   # we use "ip address" instead for those OSes.
   ifconfig_found=`type ifconfig 2>/dev/null`
   if [[ -z $ifconfig_found ]]; then
-    ifconfig_found="true"
+    ifconfig_found=`type ip 2>/dev/null`
     ifconfig_cmd="ip address"
   else 
     ifconfig_cmd="ifconfig"
@@ -384,6 +384,7 @@ function get_address_port {
 
 echo "ifconfig_found="$ifconfig_found
 echo "ifconfig_cmd="$ifconfig_cmd
+echo "`$ifconfig_cmd|$address`"
 }
 
 # start server if local, else append to non_local list
