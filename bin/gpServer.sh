@@ -374,16 +374,13 @@ function get_address_port {
   fi
   # check if interface is local
   ifconfig_found=`type ifconfig 2>/dev/null`
-  if [[ -z $ifconfig_found ]]; then
-    ifconfig_cmd="ip address"
-  fi
 }
 
 # start server if local, else append to non_local list
 function start_server {
   server=$1
   get_address_port $server
-  if [[ $ifconfig_found != "" && `$ifconfig_cmd|grep $address` != "" ]]; then
+  if [[ $ifconfig_found != "" && `ifconfig|grep $address` != "" ]]; then
     if [[ $VERBOSE == 2 ]]; then
       echo "$JAVA $JVMARGS \
         edu.umass.cs.reconfiguration.ReconfigurableNode $server&"
@@ -438,7 +435,7 @@ function stop_servers {
   for i in $servers; do
       get_address_port $i
       KILL_TARGET="ReconfigurableNode .*$i"
-      if [[ ! -z $ifconfig_found && `$ifconfig_cmd|grep $address` != "" ]]; 
+      if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]]; 
       then
         pid=`ps -ef|grep "$KILL_TARGET"|grep -v grep|\
           awk '{print $2}' 2>/dev/null`
@@ -477,7 +474,7 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
           stop_servers
           for server in $servers; do
             get_address_port $server
-            if [[ ! -z $ifconfig_found && `$ifconfig_cmd|grep $address` != "" ]];
+            if [[ ! -z $ifconfig_found && `ifconfig|grep $address` != "" ]];
             then
               print 3 "$JAVA $JVMARGS  \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
