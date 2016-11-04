@@ -376,6 +376,7 @@ function get_address_port {
   # we use "ip address" instead for those OSes.
   ifconfig_found=`type ifconfig 2>/dev/null`
   if [[ -z $ifconfig_found ]]; then
+    ifconfig_found="true"
     ifconfig_cmd="ip address"
   else 
     ifconfig_cmd="ifconfig"
