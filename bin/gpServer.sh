@@ -377,7 +377,7 @@ function get_address_port {
   if [[ -z $ifconfig_found ]]; then
     ifconfig_cmd="ip address"
   else 
-    ifconfig_cmd=$ifconfig_found
+    ifconfig_cmd="ifconfig"
   fi
   
 echo "ifconfig_found="$ifconfig_cmd 88888888888888888888888888888
