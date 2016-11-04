@@ -380,6 +380,10 @@ function get_address_port {
 function start_server {
   server=$1
   get_address_port $server
+
+echo $ifconfig_found;
+ifconfig|grep $address
+
   if [[ $ifconfig_found != "" && `ifconfig|grep $address` != "" ]]; then
     if [[ $VERBOSE == 2 ]]; then
       echo "$JAVA $JVMARGS \
