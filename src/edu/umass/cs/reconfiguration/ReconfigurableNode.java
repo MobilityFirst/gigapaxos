@@ -400,8 +400,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 							ReconfigurationConfig.getReconfigurators()),
 					appArgs, false);
 		}
-		Reconfigurator.getLogger().log(Level.INFO, "{0} server{1} ready",
-				new Object[] { serversStr, (numServers > 1 ? "s" : "") });
+		Reconfigurator.getLogger().log(Level.INFO, "{0} server{1} ready (total number of servers={2})",
+				new Object[] { serversStr, (numServers > 1 ? "s" : ""), PaxosConfig.getActives().size() +  
+				ReconfigurationConfig.getReconfigurators().size()});
 		System.out.println("]; server" + (numServers > 1 ? "s" : "") + servers
 				+ " ready");
 	}
