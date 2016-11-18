@@ -1,0 +1,121 @@
+
+client: issue(INIT, tx)
+------
+
+entry_server:
+------------
+  (INIT,tx) : create_name(tx, tx_group)
+
+tx_group_primary:
+----------------
+  restore(tx) : 
+                state=INIT
+                start_abort_timer(tx)
+                lock all sequentially
+
+  timeout(tx) : 
+  lock_fail(tx) : 
+  exec_op_fail(tx) : 
+                   if(state!=COMMIT) issue(ABORT, tx)
+
+  (ABORT,tx) : 
+             state=ABORT
+             abort all sequentially
+  abort_fail(tx) : // committed, complete commit sequence
+                 state=COMMIT
+                 unlock all sequentially
+  abort_timeout(tx, member) : 
+                            reissue(ABORT,tx)
+
+  exec_all(tx) : 
+               if(state!=ABORT) issue(COMMIT, tx)
+               start_commit_timer(tx)
+  (COMMIT,tx) : 
+              state=COMMIT
+              unlock all sequentially
+  commit_fail(tx) : // aborted, complete abot sequence
+                  state=ABORT
+                  abort all sequentially
+  commit_timeout(tx) :
+                 restart_commit_timer(tx)
+                 reissue (COMMIT,tx) 
+
+  unlock_fail : retry
+  unlock_all : // done
+
+tx_group_secondary:
+------------------
+  timeout(tx) : issue(ABORT, tx)
+  (ABORT,tx) : abort all sequentially
+  abort_fail(tx) : // committed, push through commit sequence
+           start_commit_timer(tx)
+           unlock all sequentially
+  commit_fail(tx) : // aborted, so do nothing
+  commit_timeout :
+                 
+  abort_timeout(tx, member) : retry
+
+participant_group_member :
+-----------------------
+  lock(tx) : lock if not locked
+  (ABORT,tx) : restore state to pre-transaction state 
+
+Liveness: A transaction terminates (commits or aborts) if a majority
+of the servers in tx_group are up. 
+
+Proof outline: If the tx_group_primary and a majority is available
+long enough, the transaction commits if (1) a majority is available in
+every participant group; (2) all constituent operations (including
+lock and unlock operations) in the transaction succeed; the
+transaction aborts if both of those conditions are not true. If
+tx_group_primary crashes but a majority is available, timeout(tx) will
+eventually get triggered at one or more secondaries and, if at least
+one secondary is available long enough, it will eventually succeed in
+aborting the transaction or retracting if it has already been
+committed. If a majority is unavaible in the tx_group, any abort or
+commit attempts will faili despite reattempts.
+
+What happens if a majority in some participant group is unavailable?
+Neither abort nor unlock will succeed in that group. If the primary or
+secondaries eventually give up after a limited number of retries to
+abort or unlock participant groups, a participant group may be in a
+locked limbo state. When nodes in the participant group recover, they
+can try to enquire about the state of the suspended transaction by
+quering for the transaction name's state.
+
+Safety: The consensus in the transaction group ensures that an abort
+or commit is final.
+
+
+-----------------------------
+
+What happens to requests that arrive at an active replica when a
+transaction is in progress? The current design doesn't allow queueing
+of requests with a callback unless the request is coordinated. We need
+requests that arrive when a transaction is in progress to also be
+queued similarly. The pending requests themselves can be stored in the
+transaction state and executed when the transaction eventually
+terminates.
+
+We need to ensure that coordinated requests are also handled first by
+the encapsulating transaction app so that they can be enqueued until
+the transaction finishes instead of being coordinated.
+
+What to do if a request gets coordinated and committed after a
+transaction has been initiated but before it has terminated? There is
+no easy way to prevent this from happening as a transaction lock
+request and a regular request may actually get batched or, even
+without batching, may get concurrently issued causing the regular
+request to get committed after the lock request but before the end of
+the transaction. One option is to silently drop such requests. Another
+is to handle such requests in a deterministic order across all
+replicas, for example, by queueing them in-order so as to be executed
+at the end of the transaction. But here lies a problem: we need to
+preserve the execute(.) invariant that a reques finishes completely
+when execute returns in part because otherwise responses won't get
+routed correctly. But if the encapsulator can also hijack the
+callbacks and store them as well, and we don't care to use
+ENQUEUE_REQUESTS, then there is no problem.
+
+-----------------------------
+
