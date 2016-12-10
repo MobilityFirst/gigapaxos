@@ -100,7 +100,13 @@ public class SessionKeys {
 	}
 
 	private static final String skEncryption = "DESede";
-	protected static final String pkPair = "RSA";
+
+	/**
+	 * Implementations on some devices require us to completely specify the
+	 * transformation in the form of "ALGORITHM/MODE/PADDING" since the mode
+	 * and padding defaults are not necessarily same across providers.
+	 */
+	protected static final String pkPair = "RSA/ECB/PKCS1Padding";
 
 	/**
 	 * A secret key certificate consists of a [secretKey, timestamp] 2-tuple
