@@ -14,8 +14,10 @@ import org.junit.runner.notification.Failure;
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.reconfiguration.ReconfigurableNode;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.SQLReconfiguratorDB;
 import edu.umass.cs.reconfiguration.ReconfigurableNode.DefaultReconfigurableNode;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
@@ -113,6 +115,23 @@ public class TESTReconfigurationMain {
 			node.close();
 		for (ReconfigurableNode<?> node : actives)
 			node.close();
+	}
+	
+	protected static void wipeoutServers() throws IOException, InterruptedException {
+		for (ReconfigurableNode<?> node : reconfigurators)
+			wipeout(node);
+		for (ReconfigurableNode<?> node : actives)
+			wipeout(node);
+	}
+	
+	private static void wipeout(ReconfigurableNode<?> node) {
+		SQLReconfiguratorDB.dropState(
+				node.toString(),
+				new ConsistentReconfigurableNodeConfig<String>(
+						new DefaultNodeConfig<String>(TESTReconfigurationConfig
+								.getLocalActives(),
+								TESTReconfigurationConfig
+										.getLocalReconfigurators())));
 	}
 
 	/**

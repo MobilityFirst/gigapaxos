@@ -269,6 +269,12 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	public String toString() {
 		return "Node" + this.myID;
 	}
+	/**
+	 * @return String ID
+	 */
+	public String getMyID() {
+		return this.myID.toString();
+	}
 
 	private static boolean clear = false;
 
