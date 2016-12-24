@@ -126,7 +126,7 @@ public class TESTReconfigurationMain {
 	
 	private static void wipeout(ReconfigurableNode<?> node) {
 		SQLReconfiguratorDB.dropState(
-				node.toString(),
+				node.getMyID(),
 				new ConsistentReconfigurableNodeConfig<String>(
 						new DefaultNodeConfig<String>(TESTReconfigurationConfig
 								.getLocalActives(),
