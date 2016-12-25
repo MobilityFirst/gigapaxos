@@ -63,9 +63,10 @@ import edu.umass.cs.utils.Util;
 /**
  * @author arun
  * 
- *         This class is designed to test all client commands including
- *         creation, deletion, request actives, and app requests to names.
+ *         This is a temporary class for testing a specific pattern of
+ *         name creation.
  */
+@Deprecated
 @FixMethodOrder(org.junit.runners.MethodSorters.NAME_ASCENDING)
 public class TESTRCDebug {
 
@@ -320,12 +321,14 @@ public class TESTRCDebug {
 		return outstanding.isEmpty();
 	}
 
+	@SuppressWarnings("unused")
 	private boolean testExists(String[] names) throws IOException {
 		boolean exists = testExists(names, true);
 		assert (exists);
 		return exists;
 	}
 
+	@SuppressWarnings("unused")
 	private boolean testNotExists(String[] names) throws IOException {
 		return testExists(names, false);
 	}
@@ -394,6 +397,7 @@ public class TESTRCDebug {
 		return success[0];
 	}
 
+	@SuppressWarnings("unused")
 	private boolean testBatchCreate(String[] names, int batchSize)
 			throws IOException {
 		Map<String, String> nameStates = new HashMap<String, String>();
@@ -542,6 +546,7 @@ public class TESTRCDebug {
 			}
 	}
 
+	@SuppressWarnings("unused")
 	private boolean testReconfigureReconfigurators(
 			Map<String, InetSocketAddress> newlyAddedRCs,
 			Set<String> deletedNodes, Long timeout) throws IOException {
@@ -575,6 +580,7 @@ public class TESTRCDebug {
 
 	}
 
+	@SuppressWarnings("unused")
 	private boolean testReconfigureActives(
 			Map<String, InetSocketAddress> newlyAddedActives,
 			Set<String> deletes, Long timeout) throws IOException {
@@ -665,7 +671,6 @@ public class TESTRCDebug {
 		prevTestName = testName;
 	}
 
-	private static final long DEFAULT_TIMEOUT = 1000;
 	protected static final long DEFAULT_RTX_TIMEOUT = 2000;
 	protected static final long DEFAULT_APP_REQUEST_TIMEOUT = 2000;
 
@@ -698,9 +703,6 @@ public class TESTRCDebug {
 	private boolean succeeded() {
 		return this.testSuccess;
 	}
-
-	private static Map<String, InetSocketAddress> justAddedRCs = new HashMap<String, InetSocketAddress>();
-	private static Map<String, InetSocketAddress> justDeletedActives = new HashMap<String, InetSocketAddress>();
 
 	/**
 	 * @throws IOException

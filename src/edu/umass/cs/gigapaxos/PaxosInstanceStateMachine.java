@@ -962,7 +962,15 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					((acceptList).toArray(new PaxosPacket[0])));
 			log.log(Level.INFO, "{0} elected coordinator; sending {1}",
 					new Object[] { this, mtask });
-		} else
+		} else if(acceptList != null && this.coordinator.isActive())
+			/* This case can happen when a node runs for coordinator and gets
+			 * elected without being prompted by a client request, which can
+			 * happen upon the receipt of any paxos packet and the presumed
+			 * coordinator has been unresponsive for a while.
+			 */
+			log.log(Level.INFO, "{0} elected coordinator; no ACCEPTs to send",
+					new Object[] { this});
+		else
 			log.log(Level.FINE, "{0} received prepare reply {1}", new Object[] {
 					this, prepareReply.getSummary(log.isLoggable(Level.INFO)) });
 
@@ -1201,21 +1209,21 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			 * undesirable for most applications. */
 			assert (committedPValue.ballot.compareTo(acceptReply.ballot) < 0) : (committedPValue
 					+ " >= " + acceptReply);
-			if (!committedPValue.isNoop() || shouldForwardNoops()) {
-				// forward only if not already a no-op
-				unicastPreempted = new MessagingTask(
-						acceptReply.ballot.coordinatorID, committedPValue
-								.makeNoop().setForwarderID(this.getMyID()));
-				committedPValue.addDebugInfo("f");
+			if (!committedPValue.isNoop()
+					// forward only if not already a no-op
+					&& (unicastPreempted = new MessagingTask(
+							acceptReply.ballot.coordinatorID, committedPValue
+									.makeNoop().setForwarderID(this.getMyID())
+									.addDebugInfo("f"))) != null)
 				log.log(Level.INFO,
 						"{0} forwarding preempted request as no-op to node {1}:{2}",
 						new Object[] { this, acceptReply.ballot.coordinatorID,
 								committedPValue.getSummary() });
-			} else
+			else
 				log.log(Level.WARNING,
 						"{0} dropping no-op preempted by coordinator {1}: {2}",
 						new Object[] { this, acceptReply.ballot.coordinatorID,
-								committedPValue.getSummary() });
+				committedPValue.getSummary() });
 		}
 
 		if (EXECUTE_UPON_ACCEPT)
@@ -1234,6 +1242,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		this.paxosManager.heardFrom(batchedAR.acceptor);
 		ArrayList<MessagingTask> preempts = new ArrayList<MessagingTask>();
 		ArrayList<MessagingTask> decisions = new ArrayList<MessagingTask>();
+		ArrayList<MessagingTask> undigestedAccepts = new ArrayList<MessagingTask>();
 
 		Integer[] acceptedSlots = batchedAR.getAcceptedSlots();
 		// DelayProfiler.updateCount("BATCHED_ACCEPT_REPLIES", 1);
@@ -1246,40 +1255,34 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			assert (mtask == null || mtask.msgs.length == 1);
 
 			if (mtask != null)
+				// preempted noop
 				if (((PValuePacket) mtask.msgs[0]).getType().equals(
-						PaxosPacket.PaxosPacketType.PREEMPTED))
+						PaxosPacket.PaxosPacketType.REQUEST))
 					preempts.add(mtask);
+			// good case
 				else if (((PValuePacket) mtask.msgs[0]).getType().equals(
 						PaxosPacket.PaxosPacketType.DECISION))
 					decisions.add(mtask);
+			// undigested accept
 				else if (((PValuePacket) mtask.msgs[0]).getType().equals(
 						PaxosPacket.PaxosPacketType.ACCEPT))
-					return mtask.toArray();
+					 undigestedAccepts.add(mtask);
 				else
 					assert (false);
 		}
 
 		// batch each of the two into single messaging task
 		PaxosPacket[] decisionMsgs = new PaxosPacket[decisions.size()];
-		PaxosPacket[] preemptsMsgs = new PaxosPacket[preempts.size()];
 		for (int i = 0; i < decisions.size(); i++)
 			decisionMsgs[i] = decisions.get(i).msgs[0];
-		for (int i = 0; i < preempts.size(); i++)
-			preemptsMsgs[i] = preempts.get(i).msgs[0];
 
 		MessagingTask decisionsMTask = new MessagingTask(this.groupMembers,
 				decisionMsgs);
-		MessagingTask preemptsMTask = new MessagingTask(this.groupMembers,
-				preemptsMsgs);
-		assert (preempts.isEmpty());
 
-		MessagingTask[] mtasks = { decisionsMTask, preemptsMTask };
-		return mtasks;
-	}
-
-	// whether to "save" a noop, i.e., an already preempted request
-	private static final boolean shouldForwardNoops() {
-		return false;
+		return MessagingTask.combine(
+				MessagingTask.combine(decisionsMTask,
+						preempts.toArray(new MessagingTask[0])),
+				undigestedAccepts.toArray(new MessagingTask[0]));
 	}
 
 	private static final boolean BATCHED_COMMITS = Config

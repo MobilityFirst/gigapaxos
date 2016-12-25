@@ -360,7 +360,7 @@ public class PaxosPacketBatcher extends ConsumerTask<MessagingTask[]> {
 				this.paxosManager.getMyID());
 		if(local == null || local.isEmptyMessaging()) ; // no-op
 
-		boolean isAccReply = allAcceptReplies(mtask), isCommit = allCoalescableDecisions(mtask),
+		boolean isAccReply = allPositiveAcceptReplies(mtask), isCommit = allCoalescableDecisions(mtask),
 				//
 				isAccept = allCoalescableAccepts(mtask), isRequest = allCoalescableRequests(mtask);
 		if (!isAccReply && !isCommit && !isAccept && !isRequest)
@@ -421,9 +421,11 @@ public class PaxosPacketBatcher extends ConsumerTask<MessagingTask[]> {
 		return true;
 	}
 
-	private static boolean allAcceptReplies(MessagingTask mtask) {
+	private static boolean allPositiveAcceptReplies(MessagingTask mtask) {
 		for (PaxosPacket ppkt : mtask.msgs)
-			if (!(ppkt instanceof AcceptReplyPacket && ((AcceptReplyPacket)ppkt).isCoalescable()))
+			if (!(ppkt instanceof AcceptReplyPacket && ((AcceptReplyPacket)ppkt).isCoalescable() 
+					// only positive accept replies are batchable
+					&& ((AcceptReplyPacket)ppkt).ballot.coordinatorID==mtask.recipients[0]))
 				return false;
 		return true;
 	}
