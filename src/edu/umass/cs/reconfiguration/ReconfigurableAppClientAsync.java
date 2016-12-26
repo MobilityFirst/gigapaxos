@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
@@ -533,7 +534,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				// ActiveReplicaError has to be dealt with separately
 				else if ((response instanceof ActiveReplicaError)
 						&& (callback = callbacks
-								.remove(((ActiveReplicaError) response)
+								.get(((ActiveReplicaError) response)
 										.getRequestID())) != null
 						&& callback instanceof ReconfigurableAppClientAsync.RequestAndCallback) {
 					ActivesInfo activesInfo = ReconfigurableAppClientAsync.this.activeReplicas
@@ -542,26 +543,27 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 							&& activesInfo.actives != null
 							&& ((RequestAndCallback) callback)
 									.incrActiveReplicaErrors() < activesInfo.actives
-									.size())
+									.size()/2 + 1)
 						try {
-							InetSocketAddress randomOther = (InetSocketAddress) Util
-									.getRandomOtherThan(
-											activesInfo.actives,
-											((RequestAndCallback) callback).serverSentTo);
+							InetSocketAddress untried = ((RequestAndCallback) callback)
+									.getUntried(activesInfo.actives);
 							log.log(Level.INFO,
-									"{0} received {1}; retrying with  replica {2}",
+									"{0} received {1}; retrying with  replica {2}; attempts={3}",
 									new Object[] { this, response.getSummary(),
-											randomOther });
+											untried, ((RequestAndCallback) callback).activeReplicaErrors });
 							// retry with a random other active replica
 							ReconfigurableAppClientAsync.this.sendRequest(
 									((RequestAndCallback) callback).request,
-									randomOther, callback);
+									untried, callback);
 						} catch (IOException e) {
 							e.printStackTrace();
 							ReconfigurableAppClientAsync.this
 									.cleanupActiveReplicasInfo((RequestAndCallback) callback);
 						}
 					else {
+						callbacks
+						.remove(((ActiveReplicaError) response)
+								.getRequestID());
 						ReconfigurableAppClientAsync.this
 								.cleanupActiveReplicasInfo((RequestAndCallback) callback);
 						callback.processResponse(response);
@@ -889,15 +891,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 							+ ":"
 							+ ((RequestAndCallback) prev).request.getSummary());
 
-			/* put again to refresh insertion time for GC purposes and in case
-			 * the new callback is different from the old one. */
-			if (prev != null
-					&& ((RequestAndCallback) prev).request.equals(request))
-				this.callbacks.put(request.getRequestID(),
-						new RequestAndCallback(request, callback));
-
 			// special case for long timeout tasks
-			if (hasLongTimeout(original))
+			if (hasLongTimeout(original) && prev==null)
 				this.spawnGCClientRequest(
 						((TimeoutRequestCallback) original).getTimeout(),
 						request);
@@ -1119,6 +1114,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		InetSocketAddress serverSentTo;
 		int heardFromRCs = 0; // for request actives
 		int activeReplicaErrors = 0; // for app requests
+		LinkedHashSet<InetSocketAddress> tried;
 
 		RequestAndCallback(ClientRequest request, Callback<Request, V> callback) {
 			this(request, callback, null);
@@ -1157,7 +1153,15 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		}
 
 		private int incrActiveReplicaErrors() {
-			return this.activeReplicaErrors++;
+			return ++this.activeReplicaErrors;
+		}
+		
+		private InetSocketAddress getUntried(Set<InetSocketAddress> actives) {
+			if(this.tried==null) this.tried = new LinkedHashSet<InetSocketAddress>();
+			this.tried.add(this.serverSentTo);
+			for(InetSocketAddress isa : actives) 
+				if(!this.tried.contains(isa)) return isa;
+			return null;
 		}
 
 	}
