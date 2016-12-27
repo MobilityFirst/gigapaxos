@@ -360,6 +360,11 @@ public class ReconfigurationConfig {
 		 */
 		TX_GROUP_NAME("_TXGROUP_"),
 
+		/**
+		 * Used to set @link {@link PaxosManager#setOutOfOrderLimit(int)}.
+		 */
+		OUT_OF_ORDER_LIMIT(100),
+
 		;
 
 		final Object defaultValue;

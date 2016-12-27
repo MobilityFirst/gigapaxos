@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -117,13 +118,17 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	/********************* End of abstract methods ***********************************************/
 
+	private static ConcurrentMap<Replicable, AbstractReplicaCoordinator<?>> appCoordMap = new ConcurrentHashMap<Replicable, AbstractReplicaCoordinator<?>>();
+
 	// A replica coordinator is meaningless without an underlying app
 	protected AbstractReplicaCoordinator(Replicable app) {
+		appCoordMap.putIfAbsent(app, this);
 		this.app = app instanceof AbstractReplicaCoordinator ? ((AbstractReplicaCoordinator<?>) app).app
 				: new TrivialRepliconfigurable(app);
 		this.messenger = null;
 	}
 
+	
 	/**
 	 * @param app
 	 * @param messenger

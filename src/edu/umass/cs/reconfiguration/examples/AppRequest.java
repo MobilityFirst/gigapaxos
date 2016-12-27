@@ -66,7 +66,17 @@ public class AppRequest extends JSONPacket implements ReconfigurableRequest,
 		/**
 		 * 
 		 */
-		META_REQUEST_PACKET (403);
+		APP_REQUEST3 (403), 
+		
+		/**
+		 * 
+		 */
+		APP_REQUEST4 (404),
+		
+		/**
+		 * 
+		 */
+		META_REQUEST_PACKET (405);
 
 		/******************************** BEGIN static ******************************************/
 		private static HashMap<Integer, PacketType> numbers = new HashMap<Integer, PacketType>();

@@ -2178,7 +2178,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (DISABLE_SYNC_DECISIONS)
 			return false;
 		int expectedSlot = this.paxosState.getSlot();
-		boolean nontrivialInitialGap = maxDecisionSlot - expectedSlot > threshold
+		boolean nontrivialInitialGap = maxDecisionSlot - expectedSlot >= threshold
 				/ NONTRIVIAL_GAP_FACTOR;
 		boolean smallGapThreshold = threshold <= INITIAL_SYNC_THRESHOLD;
 

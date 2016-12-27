@@ -73,7 +73,7 @@ public class TESTReconfigurationMain {
 							false));
 			System.out.print(Config.getGlobalString(TRC.AR_PREFIX) + i + " ");
 		}
-		System.out.println("]");
+		System.out.println("] with application [" + ReconfigurationConfig.application.getCanonicalName()+"]");
 		return createdNodes;
 	}
 

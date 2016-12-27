@@ -114,7 +114,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								+ " or not expect to send "
 								+ " responses back to clients or rely on alternate means for messaging.");
 			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(
-					app, myID, nodeConfig, messenger);
+					app, myID, nodeConfig, messenger).setOutOfOrderLimit(Config.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));;
 			
 			Reconfigurator.getLogger().info(
 					"Creating default group with "

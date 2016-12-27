@@ -98,8 +98,10 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 			return true;
 		switch ((AppRequest.PacketType) (request.getRequestType())) {
 		case DEFAULT_APP_REQUEST:
+		case APP_REQUEST3:
 			return processRequest((AppRequest) request, doNotReplyToClient);
 		default:
+			// everything else is an absolute no-op
 			break;
 		}
 		return false;
@@ -220,9 +222,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 				AppRequest.PacketType.DEFAULT_APP_REQUEST, false);
 	}
 
-	private static AppRequest.PacketType[] types = {
-			AppRequest.PacketType.DEFAULT_APP_REQUEST,
-			AppRequest.PacketType.ANOTHER_APP_REQUEST };
+	private static AppRequest.PacketType[] types = AppRequest.PacketType.values();
 
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {

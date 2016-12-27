@@ -38,6 +38,7 @@ import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
+import edu.umass.cs.reconfiguration.examples.AppRequest.PacketType;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
@@ -169,6 +170,15 @@ public class TESTReconfigurationClient {
 						"request_value",
 						AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
 				outstandingQ, timeout);
+	}
+	
+	// Similar to testAppRequest but with a non-default request type
+	private boolean testAppRequestNonDefault(String name,
+			AppRequest.PacketType type) throws NumberFormatException,
+			IOException {
+		return this.testAppRequest(new AppRequest(name,
+				(long) (Math.random() * Long.MAX_VALUE), "request_value", type,
+				false), new ConcurrentHashMap<Long, Request>(), null);
 	}
 
 	private static final String appName = ReconfigurationConfig.application.getSimpleName();
@@ -664,6 +674,28 @@ public class TESTReconfigurationClient {
 	protected static final long DEFAULT_RTX_TIMEOUT = 2000;
 	protected static final long DEFAULT_APP_REQUEST_TIMEOUT = 2000;
 
+	
+	/**
+	 * Method to test {@link PacketType#APP_REQUEST3} that is a transaction.
+	 * 
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test000_TX() throws NumberFormatException, IOException,
+			InterruptedException {
+		String[] names = generateRandomNames(1);
+		boolean test = testNotExists(names)
+				&& testCreates(names)
+				&& testExists(names)
+				&& testAppRequestNonDefault(names[0],
+						AppRequest.PacketType.APP_REQUEST3)
+				&& testDeletes(names) && testNotExists(names);
+		Assert.assertEquals(true, test);
+		success();
+	}
+
 	/**
 	 * Tests that a request to a random app name fails as expected.
 	 * 
@@ -773,7 +805,7 @@ public class TESTReconfigurationClient {
 						DelayProfiler.getStats(new HashSet<String>(Util
 								.arrayOfObjectsToStringSet(ProfilerKeys
 										.values()))) });
-		Assert.assertEquals(test, true);
+		Assert.assertEquals(true, test);
 		success();
 	}
 	

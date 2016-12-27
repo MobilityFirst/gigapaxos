@@ -76,10 +76,6 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 						.getNodePort(myID)), niot);
 	}
 
-	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
-			Stringifiable<NodeIDType> unstringer) {
-		this.paxosManager.createPaxosInstance(name, nodes, null);
-	}
 
 	/**
 	 * @param app
@@ -106,6 +102,16 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		this(app, myID, unstringer, (JSONMessenger<NodeIDType>) niot);
 		assert (niot instanceof JSONMessenger);
 		this.paxosManager.setOutOfOrderLimit(outOfOrderLimit);
+	}
+	
+	protected PaxosReplicaCoordinator<NodeIDType> setOutOfOrderLimit(int limit) {
+		this.paxosManager.setOutOfOrderLimit(limit);
+		return this;
+	}
+	
+	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
+			Stringifiable<NodeIDType> unstringer) {
+		this.paxosManager.createPaxosInstance(name, nodes, null);
 	}
 	
 	private static Set<IntegerPacketType> requestTypes = null;
