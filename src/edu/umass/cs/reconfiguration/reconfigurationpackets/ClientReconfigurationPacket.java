@@ -84,6 +84,23 @@ public abstract class ClientReconfigurationPacket extends
 		 * requests will be silently dropped.
 		 */
 		MALFORMED_REQUEST,
+		
+		// Client-side exceptions below.
+		
+		/**
+		 * 
+		 */
+		TIMEOUT_EXCEPTION,
+		
+		/**
+		 * 
+		 */
+		IO_EXCEPTION,
+		
+		/**
+		 * 
+		 */
+		GENERIC_EXCEPTION,
 	}
 
 	/**

@@ -16,7 +16,10 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -200,6 +203,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			synchronized (this) {
 				this.notify();
 			}
+			// return value is not used by anyone
 			return null;
 		}
 
@@ -224,9 +228,9 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			defaultGCCallback, APP_REQUEST_LONG_TIMEOUT);
 
 	// client reconfiguration packet callbacks
-	private final GCConcurrentHashMap<String, RequestCallback> callbacksCRP = new GCConcurrentHashMap<String, RequestCallback>(
+	private final GCConcurrentHashMap<String, Callback<Request,Request>> callbacksCRP = new GCConcurrentHashMap<String, Callback<Request,Request>>(
 			crpGCCallback, CRP_GC_TIMEOUT);
-	private final GCConcurrentHashMap<String, RequestCallback> callbacksCRPLongTimeout = new GCConcurrentHashMap<String, RequestCallback>(
+	private final GCConcurrentHashMap<String, Callback<Request,Request>> callbacksCRPLongTimeout = new GCConcurrentHashMap<String, Callback<Request,Request>>(
 			crpGCCallback, CRP_GC_TIMEOUT);
 
 	// server reconfiguration packet callbacks,
@@ -507,7 +511,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 					this, request.getSummary(log.isLoggable(debug)) });
 			Request response = request;
 			Callback<Request, V> callback = null;
-			RequestCallback callbackCRP = null;
+			Callback<Request,Request> callbackCRP = null;
 			if (response != null) {
 				// execute registered callback
 				if ((response instanceof ClientRequest)
@@ -876,7 +880,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			while ((prev = (!hasLongTimeout(callback) ? this.callbacks
 					: this.callbacksLongTimeout).putIfAbsent(request
 					.getRequestID(), callback = new RequestAndCallback(request,
-					callback).setServerSentTo(server))) != null
+							future).setServerSentTo(server))) != null
 					&& !((RequestAndCallback) prev).request.equals(request))
 				if (ENABLE_ID_TRANSFORM)
 					request = ReplicableClientRequest.wrap(request,
@@ -976,17 +980,85 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 						.getClientPortClearOffset() : -ReconfigurationConfig
 						.getClientPortSSLOffset()), rcPacket);
 	}
+	
+	private static RequestCallback defaultCRPCallback = new RequestCallback() {
+		@Override
+		public void handleResponse(Request response) {
+		}
+	};
+
+	
+	/**
+	 * @param request
+	 * @return ClientReconfigurationPacket response for {@code request}.
+	 * @throws IOException
+	 */
+	public RequestFuture<ClientReconfigurationPacket> sendRequest(
+			ClientReconfigurationPacket request) throws IOException,
+			ReconfigurationException {
+		return this.sendRequest(request,
+				defaultCRPCallback);
+	}
+
+	private static RequestFuture<ClientReconfigurationPacket> toRequestFutureCRP(
+			RequestFuture<Request> future) {
+		return new RequestFuture<ClientReconfigurationPacket>() {
+
+			@Override
+			public boolean isDone() {
+				return future.isDone();
+			}
+
+			@Override
+			public ClientReconfigurationPacket get()
+					throws InterruptedException, ExecutionException {
+				return (ClientReconfigurationPacket) future.get();
+			}
+
+			@Override
+			public ClientReconfigurationPacket get(long timeout, TimeUnit unit)
+					throws InterruptedException, ExecutionException,
+					TimeoutException {
+				return (ClientReconfigurationPacket) future.get(timeout, unit);
+			}
+		};
+	}
 
 	/**
 	 * @param request
-	 * @param callback
-	 * @return True if sent successfully.
+	 * @param timeout Timeout period in milliseconds; 0 means infinity.
+	 * @return ClientReconfigurationPacket response for {@code request}.
 	 * @throws IOException
 	 */
-	public boolean sendRequest(ClientReconfigurationPacket request,
+	public ClientReconfigurationPacket sendRequest(
+			ClientReconfigurationPacket request, long timeout)
+			throws IOException, ReconfigurationException {
+		RequestFuture<ClientReconfigurationPacket> future = this.sendRequest(request,
+				defaultCRPCallback);
+		ClientReconfigurationPacket crp;
+		try {
+			crp = future.get();
+			if (crp.isFailed())
+				throw new ReconfigurationException(crp.getResponseCode(),
+						crp.getResponseMessage());
+			return crp;
+		} catch (InterruptedException | ExecutionException e) {
+			throw new ReconfigurationException(e);
+		}
+	}
+
+	/**
+	 * This method exists for backwards compatibility and is slated for deprecation.
+	 * 
+	 * @param request
+	 * @param callback
+	 * @return Future for asynchronous task
+	 * @throws IOException
+	 */
+	public RequestFuture<ClientReconfigurationPacket> sendRequest(ClientReconfigurationPacket request,
 			RequestCallback callback) throws IOException {
 		InetSocketAddress server = null;
-		return this.sendRequest(
+		 return this.sendRequest(
 				request,
 				// to avoid lagging reconfigurators
 				(server = this.mostRecentlyCreatedMap.get(request
@@ -996,20 +1068,16 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				callback);
 	}
 
-	private boolean sendRequesNullCallback(ClientReconfigurationPacket request)
+	private void sendRequesNullCallback(ClientReconfigurationPacket request)
 			throws IOException {
-		return this.sendRequest(request, (RequestCallback) null);
+		this.sendRequest(request, (RequestCallback) null);
 	}
 
-	private boolean hasLongTimeout(RequestCallback callback) {
+	private boolean hasLongTimeout(Callback<Request,?> callback) {
 		return callback instanceof TimeoutRequestCallback
 				&& ((TimeoutRequestCallback) callback).getTimeout() > CRP_GC_TIMEOUT;
 	}
 
-	private boolean hasLongTimeout(Callback<Request, V> callback) {
-		return callback instanceof TimeoutRequestCallback
-				&& ((TimeoutRequestCallback) callback).getTimeout() > CRP_GC_TIMEOUT;
-	}
 
 	// we don't initialize a timer unless really needed at least once
 	private void initTimerIfNeeded() {
@@ -1046,12 +1114,15 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		}, timeout);
 	}
 
-	private boolean sendRequest(ClientReconfigurationPacket request,
-			InetSocketAddress reconfigurator, RequestCallback callback)
-			throws IOException {
-		if (callback != null
-				&& (callback = new CRPRequestCallback(request, callback,
-						reconfigurator)) != null)
+	private RequestFuture<ClientReconfigurationPacket> sendRequest(
+			ClientReconfigurationPacket request,
+			InetSocketAddress reconfigurator,
+			Callback<Request, Request> callback) throws IOException {
+		if (callback == null)
+			callback = defaultCRPCallback;
+		RequestCallbackFuture<Request> future = new RequestCallbackFuture<Request>(
+				request, callback);
+		if ((callback = new CRPRequestCallback(request, future, reconfigurator)) != null)
 			if (!hasLongTimeout(callback))
 				this.callbacksCRP.put(getKey(request), callback);
 			else if (this.callbacksCRPLongTimeout
@@ -1059,10 +1130,10 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				spawnGCClientReconfigurationPacket(
 						((TimeoutRequestCallback) callback).getTimeout(),
 						request);
-		return this.sendRequest(
-				request,
-				reconfigurator != null ? reconfigurator : this.e2eRedirector
-						.getNearest(reconfigurators));
+
+		this.sendRequest(request, reconfigurator != null ? reconfigurator
+				: this.e2eRedirector.getNearest(reconfigurators));
+		return toRequestFutureCRP(future);
 	}
 
 	private boolean sendRequest(ClientReconfigurationPacket request,
@@ -1087,22 +1158,22 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				+ (changeRCs.hasDeletedNodes() ? changeRCs.deletedNodes : "");
 	}
 
-	class CRPRequestCallback implements RequestCallback {
+	class CRPRequestCallback implements Callback<Request,Request> {
 		long sentTime = System.currentTimeMillis();
 		final ClientReconfigurationPacket request;
-		final RequestCallback callback;
+		final Callback<Request,Request> callback;
 		final InetSocketAddress serverSentTo;
 
 		CRPRequestCallback(ClientReconfigurationPacket request,
-				RequestCallback callback, InetSocketAddress serverSentTo) {
+				Callback<Request,Request> callback, InetSocketAddress serverSentTo) {
 			this.request = request;
 			this.callback = callback;
 			this.serverSentTo = serverSentTo;
 		}
 
 		@Override
-		public void handleResponse(Request response) {
-			this.callback.handleResponse(response);
+		public Request processResponse(Request response) {
+			return this.callback.processResponse(response);
 		}
 	}
 
@@ -1777,6 +1848,91 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				: (cachedMutualAuthTypes = getMutualAuthRequestTypes()) != null ? cachedMutualAuthTypes
 						: new HashSet<IntegerPacketType>();
 	}
+	
+
+	/**
+	 *
+	 */
+	public static class ReconfigurationException extends Exception {
+
+		final ClientReconfigurationPacket.ResponseCodes code;
+		/**
+	   *
+	   */
+		private static final long serialVersionUID = 6816831396928147083L;
+
+		/**
+		 */
+		protected ReconfigurationException() {
+			super();
+			this.code = null;
+		}
+
+		/**
+		 * @param code
+		 * @param GUID
+		 * @param message
+		 */
+		public ReconfigurationException(ResponseCodes code, String message,
+				String GUID) {
+			super(message);
+			this.code = code;
+		}
+
+		/**
+		 * @param code
+		 * @param message
+		 */
+		public ReconfigurationException(ResponseCodes code, String message) {
+			this(code, message, (String) null);
+		}
+
+		/**
+		 *
+		 * @param message
+		 * @param cause
+		 */
+		public ReconfigurationException(String message, Throwable cause) {
+			super(message, cause);
+			this.code = null;
+		}
+
+		/**
+		 *
+		 * @param message
+		 */
+		public ReconfigurationException(String message) {
+			this(null, message);
+		}
+
+		/**
+		 *
+		 * @param throwable
+		 */
+		public ReconfigurationException(Throwable throwable) {
+			super(throwable);
+			this.code = null;
+		}
+
+		/**
+		 * @param code
+		 * @param message
+		 * @param cause
+		 */
+		public ReconfigurationException(ResponseCodes code, String message,
+				Throwable cause) {
+			super(message, cause);
+			this.code = code;
+		}
+
+		/**
+		 * @return Code
+		 */
+		public ResponseCodes getCode() {
+			return this.code;
+		}
+	}
+
 
 	/**
 	 * @param args
