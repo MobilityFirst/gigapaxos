@@ -1108,6 +1108,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					batchedAccept.getMedianCheckpointedSlot());
 			AcceptPacket accept = this.paxosManager.match(digestedAccept);
 			if (accept != null) {
+				log.log(Level.FINE, "{0} received matching request for digested accept {1} within batched accept {2}",
+						new Object[]{this, accept, batchedAccept});
 				MessagingTask[] mtasksHandleAccept = this.handleAccept(accept);
 				if (mtasksHandleAccept != null)
 					for (MessagingTask mtask : mtasksHandleAccept)

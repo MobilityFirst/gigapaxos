@@ -3313,7 +3313,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	protected AcceptPacket release(RequestPacket request) {
-		return this.pendingDigests.release(request, true);
+		return this.release(request, true);
 	}
 
 	protected AcceptPacket digest(AcceptPacket multicastAccept) {

@@ -110,6 +110,7 @@ public class PendingDigests {
 	 */
 	public AcceptPacket release(RequestPacket request, boolean remove) {
 		AcceptPacket accept = null;
+		assert(this.requests.containsKey(request.requestID));
 		synchronized (this.requests) {
 			accept = this.accepts.get(request.requestID);
 		}
