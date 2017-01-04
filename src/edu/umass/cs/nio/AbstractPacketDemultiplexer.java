@@ -18,7 +18,11 @@ package edu.umass.cs.nio;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -125,14 +129,15 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				});
 		this.myThreadPoolSize = threadPoolSize;
 	}
-	
+
 	/**
 	 * Sets the number of packet demultiplexing threads.
 	 * 
 	 * @param corePoolSize
 	 * @return {@code this}
 	 */
-	public AbstractPacketDemultiplexer<MessageType> setNumDemultiplexerThreads(int corePoolSize) {
+	public AbstractPacketDemultiplexer<MessageType> setNumDemultiplexerThreads(
+			int corePoolSize) {
 		this.executor.setCorePoolSize(corePoolSize);
 		return this;
 	}
@@ -346,7 +351,12 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 
 		public void run() {
 			try {
+				long t=0;
+				if(NIOInstrumenter.monitorHandleMessageEnabled()) 
+						t = insert(this.json);
 				pd.handleMessage(this.json, header);
+				if(NIOInstrumenter.monitorHandleMessageEnabled())
+						release(t);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
 					ree.printStackTrace();
@@ -355,6 +365,36 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			} catch (Error e) {
 				e.printStackTrace();
 			}
+		}
+	}
+
+	private static TreeMap<Long, Object> handleMessageStats = new TreeMap<Long, Object>();
+
+	/**
+	 * @param threshold
+	 * @return Report of message(s) taking over {@code threshold} to be handled.
+	 */
+	public static String getHandleMessageReport(long threshold) {
+		Map.Entry<Long, Object> entry = handleMessageStats.firstEntry();
+		if (entry != null
+				&& (System.nanoTime() - entry.getKey()) / 1000 / 1000 > threshold)
+			return "Message [" + (entry.getValue())
+					+ " has been handled within " + threshold / 1000
+					+ " seconds";
+		return null;
+	}
+
+	private long insert(Object msg) {
+		synchronized (handleMessageStats) {
+			long t = System.nanoTime();
+			handleMessageStats.put(t, msg);
+			return t;
+		}
+	}
+
+	private synchronized void release(long t) {
+		synchronized (handleMessageStats) {
+			handleMessageStats.remove(t);
 		}
 	}
 

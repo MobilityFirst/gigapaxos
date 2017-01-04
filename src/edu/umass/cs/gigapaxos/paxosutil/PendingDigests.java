@@ -5,6 +5,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosManager;
@@ -12,6 +13,7 @@ import edu.umass.cs.gigapaxos.PaxosManager.RequestAndCallback;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.utils.Config;
@@ -105,12 +107,28 @@ public class PendingDigests {
 
 	/**
 	 * @param request
-	 * @param remove 
-	 * @return AcceptPacket if any released by request.
+	 * @param remove
+	 * @return Released accept.
 	 */
 	public AcceptPacket release(RequestPacket request, boolean remove) {
+		return this.release(request, remove, true);
+	}
+
+	/**
+	 * @param request
+	 * @param remove 
+	 * @param assertion 
+	 * @return AcceptPacket if any released by request.
+	 */
+	public AcceptPacket release(RequestPacket request, boolean remove, boolean assertion) {
 		AcceptPacket accept = null;
-		assert(this.requests.containsKey(request.requestID));
+		if(assertion && !this.requests.containsKey(request.requestID)) {
+			PaxosManager.getLogger().log(Level.SEVERE,
+					"PendingDigests trying to release unqueued request {0}",
+					new Object[] { request.getSummary() });
+					assert(false) : request;
+		}
+		
 		synchronized (this.requests) {
 			accept = this.accepts.get(request.requestID);
 		}
@@ -131,14 +149,7 @@ public class PendingDigests {
 		}
 		return null;
 	}
-	/**
-	 * @param request
-	 * @return Released accept.
-	 */
-	public AcceptPacket release(RequestPacket request) {
-		return this.release(request, true);
-		
-	}
+
 	private void logAnomaly(RequestPacket request, AcceptPacket accept) {
 		PaxosManager.getLogger().warning(
 				"Mismatched digests for matching requestIDs: "

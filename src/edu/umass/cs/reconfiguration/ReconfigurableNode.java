@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 
 import org.json.JSONObject;
@@ -95,6 +97,21 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		this.messenger.stop();
 		Reconfigurator.getLogger().info(
 				"----------" + this + " closed----->||||");
+	}
+	
+	/**
+	 * For testing. Only a server that has been started from within this JVM can be
+	 * closed and force-cleared using this method.
+	 * 
+	 * @param server 
+	 */
+	public static void forceClear(String server) {
+		if(allInstances.containsKey(server)) allInstances.get(server).close();
+		SQLReconfiguratorDB.dropState(server,
+				new ConsistentReconfigurableNodeConfig<String>(
+						new DefaultNodeConfig<String>(PaxosConfig.getActives(),
+								ReconfigurationConfig.getReconfigurators())));
+
 	}
 
 	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args,
@@ -232,10 +249,14 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			// wrap reconfigurator in active to make it reconfigurable
 			ActiveReplica<NodeIDType> activeReplica = reconfigurator
 					.getReconfigurableReconfiguratorAsActiveReplica();
-			pd.register(activeReplica.getPacketTypes(), activeReplica);
+			pd.register(activeReplica.getPacketTypes(true), activeReplica);
 			this.activeReplicas.add(activeReplica);
 		}
+		
+		allInstances.putIfAbsent(this.myID.toString(), this);
 	}
+	
+	private static ConcurrentMap<String,ReconfigurableNode<?>> allInstances = new ConcurrentHashMap<String,ReconfigurableNode<?>>();
 
 	// because ReconfigurableNode is abstract for backwards compatibility
 	/**
@@ -343,6 +364,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	public static void main(String[] args) throws IOException {
 		Config.register(args);
 		ReconfigurationConfig.setConsoleHandler();
+		if(Config.getGlobalBoolean(PC.ENABLE_HANDLE_MESSAGE_REPORT))
+			NIOInstrumenter.monitorHandleMessage();
 
 		PaxosConfig.sanityCheck();
 		if (args.length == 0)

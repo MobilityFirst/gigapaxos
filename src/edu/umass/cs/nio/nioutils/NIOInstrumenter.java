@@ -26,6 +26,7 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.utils.Util;
@@ -53,10 +54,12 @@ public class NIOInstrumenter {
 	private static int totalJSONRcvd = 0;
 	private static double averageDelay = 0;
 	private static boolean enabled = false;
-
+	
 	private static long PERIOD = 5000;
 	private static long lastUpdated = System.currentTimeMillis();
 	private static Timer timer = new Timer(true);
+	
+	private static final long THRESHOLD = 8000;
 	static {
 		if (enabled)
 			timer.scheduleAtFixedRate(new TimerTask() {
@@ -224,6 +227,34 @@ public class NIOInstrumenter {
 	 */
 	public void enable() {
 		enabled = true;
+	}
+	
+	/**
+	 * @return monitorHandleMessageEnabled
+	 */
+	public static boolean monitorHandleMessageEnabled() {
+		return monitorHandleMessageEnabled;
+	}
+	private static boolean monitorHandleMessageEnabled=false;
+	/**
+	 * Will monitor for long {@link AbstractPacketDemultiplexer#handleMessage(Object, NIOHeader)} instances.
+	 */
+	public static void monitorHandleMessage() {
+		{
+			monitorHandleMessageEnabled = true;
+//			System.out.println(NIOInstrumenter.class.getSimpleName() + " enabling handleMessage monitoring");
+			timer.scheduleAtFixedRate(new TimerTask() {
+				public void run() {
+					if (System.currentTimeMillis() - lastUpdated < PERIOD) {
+						String stats = AbstractPacketDemultiplexer.getHandleMessageReport(THRESHOLD);
+						if(stats!=null) {
+							System.out.println(stats);
+							if(log!=null) log.log(Level.WARNING, "{0}", new Object[]{stats});
+						}
+					}
+				}
+			}, 0, PERIOD);
+		}
 	}
 
 	/**

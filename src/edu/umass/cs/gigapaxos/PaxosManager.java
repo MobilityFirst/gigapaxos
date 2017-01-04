@@ -20,6 +20,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptReplyPacket;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedPaxosPacket;
@@ -185,7 +186,9 @@ public class PaxosManager<NodeIDType> {
 					if (!(rc.requestPacket instanceof AcceptPacket))
 						// insert in overflow
 						this.conflictIDRequests.put(rc.requestPacket, rc);
-				}
+				} 
+				// replace callback if equal request
+				else if(rc.callback!=null) this.requests.put(rc.requestPacket.requestID, rc);
 			}
 			this.lastIncremented = System.currentTimeMillis();
 		}
@@ -1638,6 +1641,7 @@ public class PaxosManager<NodeIDType> {
 		this.ppBatcher.stop();
 		this.largeCheckpointer.close();
 		this.executor.shutdownNow();
+		if(this.myApp instanceof Shutdownable) ((Shutdownable)this.myApp).shutdown();
 
 		for (Iterator<PaxosInstanceStateMachine> pismIter = this.pinstances
 				.concurrentIterator(); pismIter.hasNext();)
@@ -2595,21 +2599,36 @@ public class PaxosManager<NodeIDType> {
 		FindReplicaGroupPacket findGroup = new FindReplicaGroupPacket(
 				this.myID, pp); // paxosID and version should be within
 		int nodeID = FindReplicaGroupPacket.getNodeID(pp);
+		NodeIDType node = nodeID > 0 ? this.integerMap.get(nodeID) : 
+				(pp instanceof RequestPacket ? 
+				this.integerMap.get(((RequestPacket) pp).getEntryReplica())
+				: null)
+				;
 		if (nodeID >= 0) {
 			try {
 				log.log(Level.INFO,
 						"{0} received paxos {1} for non-existent instance {2}; contacting {3} for help",
 						new Object[] { this, pp.getSummary(), pp.getPaxosID(),
-								this.integerMap.get(nodeID) });
+								node });
 				this.send(new MessagingTask(nodeID, findGroup));
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
 			}
-		} else
-			log.log(Level.FINE,
-					"{0} cant find group member in {1}:{2}: {3}",
-					new Object[] { this, pp.getPaxosID(), pp.getVersion(),
-							pp.getSummary() });
+		} else {
+			log.log(Level.WARNING,
+					"{0} cant find group member in {1} {2}",
+					new Object[] {
+							this,
+							pp.getSummary(),
+							pp instanceof RequestPacket ? ((((RequestPacket) pp)
+									.getEntryReplica() != this.myID ? "forwarded by entry node"
+									+ node
+									: "received from client"
+											+ ((RequestPacket) pp)
+													.getClientAddress()))
+									+ ", which may be because the paxos instance has not yet been created or has been recently deleted."
+									: "" });
+		}
 	}
 
 	// process a request or send an answer
@@ -3362,7 +3381,7 @@ public class PaxosManager<NodeIDType> {
 
 	private void callbackRequestTimeout(RequestPacket request) {
 		PaxosPacket accept = null;
-		if ((accept = PaxosManager.this.release(request)) != null)
+		if ((accept = PaxosManager.this.pendingDigests.release(request, true, false)) != null)
 			try {
 				PaxosManager.this.send(
 						new MessagingTask(PaxosManager.this.getMyID(), accept),

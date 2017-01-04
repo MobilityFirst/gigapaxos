@@ -96,38 +96,11 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 */
 	public static final long DEFAULT_GC_TIMEOUT = 8000;
 	private static final long DEFAULT_GC_LONG_TIMEOUT = 5 * 60 * 1000;
-	/**
-	 * Application clients should assume that their sent requests may after all
-	 * get executed after up to {@link #CRP_GC_TIMEOUT} +
-	 * {@link #APP_REQUEST_TIMEOUT} time. Timing out and retransmitting the same
-	 * request before this time increases the likelihood of duplicate
-	 * executions. Of course, even with this thumb rule, it is possible for a
-	 * request to have actually gotten executed at servers but no execution
-	 * confirmation coming back.
-	 * 
-	 * FIXME: Rate limit by throwing exception if there are too many outstanding
-	 * requests.
-	 */
-	public static final long APP_REQUEST_TIMEOUT = DEFAULT_GC_TIMEOUT;
-	/**
-	 * 
-	 */
-	public static final long APP_REQUEST_LONG_TIMEOUT = DEFAULT_GC_LONG_TIMEOUT;
-
-	/**
-	 * Default timeout for a client reconfiguration packet.
-	 */
-	public static final long CRP_GC_TIMEOUT = DEFAULT_GC_TIMEOUT;
-	/**
-	 * 
-	 */
-	public static final long CRP_GC_LONG_TIMEOUT = DEFAULT_GC_LONG_TIMEOUT;
-
 	// can by design sometimes take a long time
 	private static final long SRP_GC_TIMEOUT = 60 * 60 * 000; // an hour
 
 	private static final long MAX_COORDINATION_LATENCY = 2000;
-
+	
 	final MessageNIOTransport<String, Object> niot;
 	final Set<InetSocketAddress> reconfigurators;
 	final SSL_MODES sslMode;
@@ -189,7 +162,10 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		}
 	};
 
-	private final class BlockingRequestCallback implements Callback<Request, V> {
+	/**
+[	 *
+	 */
+	public final class BlockingRequestCallback implements Callback<Request, V> {
 		Request response = null;
 		final Long timeout;
 		
@@ -209,7 +185,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		Request getResponse() {
 			synchronized (this) {
-				while (this.response == null)
+				if (this.response == null)
 					try {
 						this.wait(this.timeout);
 					} catch (InterruptedException e) {
@@ -223,15 +199,15 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	// all app client request callbacks
 	private final GCConcurrentHashMap<Long, Callback<Request, V>> callbacks = new GCConcurrentHashMap<Long, Callback<Request, V>>(
-			appGCCallback, APP_REQUEST_TIMEOUT);
+			appGCCallback, getAppRequestTimeout(DEFAULT_GC_TIMEOUT));
 	private final GCConcurrentHashMap<Long, Callback<Request, V>> callbacksLongTimeout = new GCConcurrentHashMap<Long, Callback<Request, V>>(
-			defaultGCCallback, APP_REQUEST_LONG_TIMEOUT);
+			defaultGCCallback, getAppRequestLongTimeout(DEFAULT_GC_LONG_TIMEOUT));
 
 	// client reconfiguration packet callbacks
 	private final GCConcurrentHashMap<String, Callback<Request,Request>> callbacksCRP = new GCConcurrentHashMap<String, Callback<Request,Request>>(
-			crpGCCallback, CRP_GC_TIMEOUT);
+			crpGCCallback, getCRPTimeout(DEFAULT_GC_TIMEOUT));
 	private final GCConcurrentHashMap<String, Callback<Request,Request>> callbacksCRPLongTimeout = new GCConcurrentHashMap<String, Callback<Request,Request>>(
-			crpGCCallback, CRP_GC_TIMEOUT);
+			crpGCCallback, getCRPTimeout(DEFAULT_GC_TIMEOUT));
 
 	// server reconfiguration packet callbacks,
 	private final GCConcurrentHashMap<String, RequestCallback> callbacksSRP = new GCConcurrentHashMap<String, RequestCallback>(
@@ -242,7 +218,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			defaultGCCallback, MIN_REQUEST_ACTIVES_INTERVAL);
 	// name->unsent app requests for which active replicas are not yet known
 	private final GCConcurrentHashMap<String, LinkedBlockingQueue<RequestAndCallback>> requestsPendingActives = new GCConcurrentHashMap<String, LinkedBlockingQueue<RequestAndCallback>>(
-			defaultGCCallback, CRP_GC_TIMEOUT); // FIXME: long timeout version
+			defaultGCCallback, getCRPTimeout(DEFAULT_GC_TIMEOUT)); // FIXME: long timeout version
 
 	/**
 	 * name->last replica from which coordinated response.
@@ -285,9 +261,9 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	private static final Logger log = Logger
 			.getLogger(ReconfigurableAppClientAsync.class.getName()); // Reconfigurator.getLogger();
 
-	private static final int MAX_OUTSTANDING_APP_REQUESTS = 4096;
+	private static int maxOutstandingAppRequests = 4096;
 
-	private static final int MAX_OUTSTANDING_CRP_REQUESTS = 4096;
+	private static int maxOutstandingCRPRequests = 4096;
 
 	class ActivesInfo {
 		final Set<InetSocketAddress> actives;
@@ -338,6 +314,46 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		if (checkConnectivity)
 			this.checkConnectivity();
+	}
+	
+	protected String getLabel() {
+		return "";
+	}
+
+
+	private static long getCRPTimeout(long t) {
+		return t;
+	}
+
+	private static long getAppRequestLongTimeout(long t) {
+		return t;
+	}
+
+	private static long getAppRequestTimeout(long t) {
+		return t;
+	}
+
+	private static int getMaxOutstandingAppRequests() {
+		return maxOutstandingAppRequests;
+	}
+	private static int getMaxOutstandingCRPRequests() {
+		return maxOutstandingCRPRequests;
+	}
+	protected static void setMaxOutstandingAppRequests(int n) {
+		 maxOutstandingAppRequests=n;
+	}
+	protected static void getMaxOutstandingCRPRequests(int n) {
+		 maxOutstandingCRPRequests=n;
+	}
+
+	/**
+	 * @param timeout
+	 */
+	public final void setGCTimeout(long timeout) {
+		this.activeReplicas.setGCTimeout(timeout);
+		this.callbacks.setGCTimeout(timeout);
+		this.callbacksCRP.setGCTimeout(timeout);
+		this.requestsPendingActives.setGCTimeout(timeout);
 	}
 
 	/**
@@ -422,7 +438,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 							|| rcPacket instanceof ServerReconfigurationPacket
 							|| rcPacket instanceof EchoRequest ? rcPacket
 							: null)) == null)
-				log.log(Level.WARNING,
+				ReconfigurableAppClientAsync.log.log(Level.WARNING,
 						"{0} dropping an undecodeable reconfiguration packet {1}",
 						new Object[] { ReconfigurableAppClientAsync.this,
 								strMsg });
@@ -447,7 +463,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 								.toString()));
 			} catch (RequestParseException | JSONException e) {
 				// should never happen unless app has bugs
-				log.log(Level.WARNING,
+				ReconfigurableAppClientAsync.log.log(Level.WARNING,
 						"{0} received an unrecognizable message that can not be decoded as an application packet: {1}",
 						new Object[] { this, msg });
 				e.printStackTrace();
@@ -468,7 +484,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				assert (mostRecentReplica != null) : callback.request;
 				ReconfigurableAppClientAsync.this.mostRecentlyWrittenMap.put(
 						request.getServiceName(), mostRecentReplica);
-				log.log(Level.FINE,
+				ReconfigurableAppClientAsync.log.log(Level.FINE,
 						"{0} most recently received a commit for a coordinated request [{1}] from replica {2} [{3}ms]",
 						new Object[] {
 								this,
@@ -476,7 +492,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 								mostRecentReplica,
 								(System.currentTimeMillis() - callback.sentTime) });
 			}
-			log.log(Level.FINEST,
+			ReconfigurableAppClientAsync.log.log(Level.FINEST,
 					"{0} updated latency map with sample {1}:{2} to {3}",
 					new Object[] { this, callback.serverSentTo,
 							System.currentTimeMillis() - callback.sentTime,
@@ -488,7 +504,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		private static final boolean USE_FORWARDEE_INFO = true;
 
-		private Level debug = Level.FINER;
+		private Level debug = Level.FINE;
 
 		/**
 		 * The main demultiplexing method for responses. It invokes the app
@@ -507,8 +523,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		@Override
 		public boolean handleMessage(Request request, NIOHeader header) {
 			assert (request != null); // otherwise would never come here
-			log.log(debug, "{0} handleMessage received {1}", new Object[] {
-					this, request.getSummary(log.isLoggable(debug)) });
+			ReconfigurableAppClientAsync.log.log(debug, "{0} handleMessage received {1}", new Object[] {
+					this, request.getSummary(ReconfigurableAppClientAsync.log.isLoggable(debug)) });
 			Request response = request;
 			Callback<Request, V> callback = null;
 			Callback<Request,Request> callbackCRP = null;
@@ -530,7 +546,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 					updateBestReplica((RequestAndCallback) callback);
 				} else if (response instanceof ClientRequest) {
-					log.log(Level.WARNING,
+					ReconfigurableAppClientAsync.log.log(Level.WARNING,
 							"{0} received an app response with no matching callback{1}",
 							new Object[] { ReconfigurableAppClientAsync.this,
 									response.getSummary() });
@@ -551,14 +567,14 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 						try {
 							InetSocketAddress untried = ((RequestAndCallback) callback)
 									.getUntried(activesInfo.actives);
-							log.log(Level.INFO,
+							ReconfigurableAppClientAsync.log.log(Level.INFO,
 									"{0} received {1}; retrying with  replica {2}; attempts={3}",
 									new Object[] { this, response.getSummary(),
 											untried, ((RequestAndCallback) callback).activeReplicaErrors });
 							// retry with a random other active replica
 							ReconfigurableAppClientAsync.this.sendRequest(
 									((RequestAndCallback) callback).request,
-									untried, callback);
+									untried, ((RequestAndCallback) callback).callback);
 						} catch (IOException e) {
 							e.printStackTrace();
 							ReconfigurableAppClientAsync.this
@@ -573,7 +589,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 						callback.processResponse(response);
 					}
 				} else if (response instanceof ClientReconfigurationPacket) {
-					log.log(Level.FINE,
+					ReconfigurableAppClientAsync.log.log(Level.FINE,
 							"{0} received response {1} from reconfigurator {2}",
 							new Object[] {
 									this,
@@ -589,7 +605,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 					else
 						// we usually don't expect to find a callback for
 						// ClientReconfigurationPacket
-						log.log(Level.FINEST,
+						ReconfigurableAppClientAsync.log.log(Level.FINEST,
 								"{0} found no callback for {1}",
 								new Object[] {
 										this,
@@ -636,8 +652,6 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			return true;
 		}
 
-		private static final boolean SHORT_CUT_TYPE_CHECK = true;
-
 		/**
 		 * We simply return a constant integer corresponding to either a
 		 * ClientReconfigurationPacket or app request here as this method is
@@ -651,15 +665,12 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		 */
 		@Override
 		protected Integer getPacketType(Request strMsg) {
-			if (SHORT_CUT_TYPE_CHECK)
-				return ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME
-						.getInt();
 			return strMsg.getRequestType().getInt();
 		}
 
 		@Override
 		protected Request processHeader(byte[] bytes, NIOHeader header) {
-			log.log(Level.FINEST, "{0} received message from {1}",
+			ReconfigurableAppClientAsync.log.log(Level.FINEST, "{0} received message from {1}",
 					new Object[] { this, header.sndr });
 			String message = null;
 			try {
@@ -736,7 +747,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				 * otherwise undecodeable response packets; if so, we just
 				 * return null. */
 				je.printStackTrace();
-				log.log(Level.INFO, this + ":" + je.getMessage(), je);
+				ReconfigurableAppClientAsync.log.log(Level.INFO, this + ":" + je.getMessage(), je);
 			}
 			return null;
 		}
@@ -865,7 +876,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			server = mostRecentlyWritten;
 		}
 
-		if (this.numOutstandingAppRequests() > MAX_OUTSTANDING_APP_REQUESTS)
+		if (this.numOutstandingAppRequests() > getMaxOutstandingAppRequests())
 			throw new IOException("Too many outstanding requests");
 
 		if (!(request instanceof EchoRequest))
@@ -874,13 +885,17 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		RequestCallbackFuture<V> future = callback instanceof RequestCallbackFuture ? (RequestCallbackFuture<V>) callback
 				: new RequestCallbackFuture<V>(request, callback);
+			
 		try {
-			Callback<Request, V> original = callback;
+			Map<Long, Callback<Request,V>> correctMap = (!hasLongTimeout(callback) ? this.callbacks
+					: this.callbacksLongTimeout);
+			RequestAndCallback requestAndCallback = new RequestAndCallback(
+					request, future).setServerSentTo(server);
 			// transforms all requests to a unique ID unless retransmission
-			while ((prev = (!hasLongTimeout(callback) ? this.callbacks
-					: this.callbacksLongTimeout).putIfAbsent(request
-					.getRequestID(), callback = new RequestAndCallback(request,
-							future).setServerSentTo(server))) != null
+			while ((prev = (correctMap)
+					.putIfAbsent(
+							request.getRequestID(),
+							requestAndCallback)) != null
 					&& !((RequestAndCallback) prev).request.equals(request))
 				if (ENABLE_ID_TRANSFORM)
 					request = ReplicableClientRequest.wrap(request,
@@ -895,10 +910,17 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 							+ ":"
 							+ ((RequestAndCallback) prev).request.getSummary());
 
+			// if callback has changed, replace old with new
+			if (prev != null
+			// not internal retransmission
+					&& callback != ((RequestAndCallback) prev).callback)
+				(correctMap).put(
+						request.getRequestID(), requestAndCallback);
+
 			// special case for long timeout tasks
-			if (hasLongTimeout(original) && prev==null)
+			if (hasLongTimeout(callback) && prev==null)
 				this.spawnGCClientRequest(
-						((TimeoutRequestCallback) original).getTimeout(),
+						((TimeoutRequestCallback) callback).getTimeout(),
 						request);
 
 			sendFailed = this.niot.sendToAddress(server, request) <= 0;
@@ -966,7 +988,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 */
 	public void sendRequest(ServerReconfigurationPacket<?> rcPacket,
 			RequestCallback callback) throws IOException {
-		if (this.numOutStandingCRPs() > MAX_OUTSTANDING_CRP_REQUESTS)
+		if (this.numOutStandingCRPs() > getMaxOutstandingCRPRequests())
 			throw new IOException("Too many outstanding requests");
 
 		InetSocketAddress isa = getRandom(this.reconfigurators
@@ -1012,16 +1034,33 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			@Override
 			public ClientReconfigurationPacket get()
 					throws InterruptedException, ExecutionException {
-				return (ClientReconfigurationPacket) future.get();
+				return processCRPIfException((ClientReconfigurationPacket) future.get());
 			}
 
 			@Override
 			public ClientReconfigurationPacket get(long timeout, TimeUnit unit)
 					throws InterruptedException, ExecutionException,
 					TimeoutException {
-				return (ClientReconfigurationPacket) future.get(timeout, unit);
+				return processCRPIfException((ClientReconfigurationPacket) future.get(timeout, unit));
 			}
 		};
+	}
+
+	private static ClientReconfigurationPacket processCRPIfException(
+			ClientReconfigurationPacket crp) throws ExecutionException {
+		try {
+			return processCRPResponse(crp);
+		} catch (ReconfigurationException e) {
+			throw new ExecutionException(e);
+		}
+	}
+
+	private static ClientReconfigurationPacket processCRPResponse(
+			ClientReconfigurationPacket crp) throws ReconfigurationException {
+		if (crp.isFailed())
+			throw new ReconfigurationException(crp.getResponseCode(),
+					crp.getResponseMessage());
+		return crp;
 	}
 
 	/**
@@ -1035,14 +1074,11 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			throws IOException, ReconfigurationException {
 		RequestFuture<ClientReconfigurationPacket> future = this.sendRequest(request,
 				defaultCRPCallback);
-		ClientReconfigurationPacket crp;
 		try {
-			crp = future.get();
-			if (crp.isFailed())
-				throw new ReconfigurationException(crp.getResponseCode(),
-						crp.getResponseMessage());
-			return crp;
-		} catch (InterruptedException | ExecutionException e) {
+			return future.get(timeout, TimeUnit.MILLISECONDS);
+		} catch (InterruptedException | ExecutionException | TimeoutException e) {
+			if(e.getCause() instanceof ReconfigurationException)
+				throw (ReconfigurationException)(e.getCause());
 			throw new ReconfigurationException(e);
 		}
 	}
@@ -1075,7 +1111,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	private boolean hasLongTimeout(Callback<Request,?> callback) {
 		return callback instanceof TimeoutRequestCallback
-				&& ((TimeoutRequestCallback) callback).getTimeout() > CRP_GC_TIMEOUT;
+				&& ((TimeoutRequestCallback) callback).getTimeout() > getCRPTimeout(DEFAULT_GC_TIMEOUT);
 	}
 
 
@@ -1194,6 +1230,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		RequestAndCallback(ClientRequest request,
 				Callback<Request, V> callback, NearestServerSelector redirector) {
 			super(request, callback);
+			assert(!(callback instanceof ReconfigurableAppClientAsync.RequestAndCallback));
 			this.request = request;
 			this.callback = callback;
 			this.redirector = redirector;
@@ -1206,17 +1243,17 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		public String toString() {
 			return this.request.getSummary() + "->" + this.serverSentTo + " "
-					+ (System.currentTimeMillis() - this.sentTime) + "ms back";
+					+ (System.currentTimeMillis() - this.sentTime) + "ms back||" + this.callback;
 		}
 
-		Callback<Request, V> setServerSentTo(InetSocketAddress isa) {
+		RequestAndCallback setServerSentTo(InetSocketAddress isa) {
 			this.sentTime = System.currentTimeMillis();
 			this.serverSentTo = isa;
 			return this;
 		}
 
 		 boolean isExpired() {
-			return System.currentTimeMillis() - this.sentTime > APP_REQUEST_TIMEOUT;
+			return System.currentTimeMillis() - this.sentTime > getAppRequestTimeout(DEFAULT_GC_TIMEOUT);
 		}
 
 		private int incrHeardFromRCs() {
@@ -1293,9 +1330,10 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				return this.sendRequest(request, actives.iterator().next(),
 						callback);
 			// else
-			RequestAndCallback future;
-			this.enqueueAndQueryForActives(future = new RequestAndCallback(request,
-					callback), true, true);
+			RequestCallbackFuture<V> future;
+			this.enqueueAndQueryForActives(new RequestAndCallback(request,
+					future = (callback instanceof RequestCallbackFuture ? (RequestCallbackFuture<V>) callback
+							: new RequestCallbackFuture<V>(request, callback))), true, true);
 			return future; //request.getRequestID();
 		}
 	}
@@ -1307,7 +1345,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				&& (lastQueriedTime = activesInfo.createTime) != null
 				// shorter timeout until we have some actives
 				&& ((activesInfo.actives == null && System.currentTimeMillis()
-						- lastQueriedTime < CRP_GC_TIMEOUT / 2)
+						- lastQueriedTime < getCRPTimeout(DEFAULT_GC_TIMEOUT) / 2)
 				// longer timeout once we have some actives
 				|| (activesInfo.actives != null && System.currentTimeMillis()
 						- lastQueriedTime < MIN_REQUEST_ACTIVES_INTERVAL))) {
@@ -1346,10 +1384,12 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 								: (InetSocketAddress) (Util
 										.selectRandom(actives)), callback);
 
-			RequestAndCallback future;
+			RequestCallbackFuture<V> future;
 			// else enqueue them
-			this.enqueueAndQueryForActives(future = new RequestAndCallback(request,
-					callback, redirector), false, false);
+			this.enqueueAndQueryForActives(new RequestAndCallback(request,
+					future = (callback instanceof RequestCallbackFuture ? (RequestCallbackFuture<V>) callback
+							: new RequestCallbackFuture<V>(request, callback))
+					, redirector), false, false);
 			return (RequestFuture<V>)future;//request.getRequestID();
 		}
 	}
@@ -1362,11 +1402,12 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	}
 
 	private boolean enqueue(RequestAndCallback rc, boolean anycast) {
-		this.requestsPendingActives.putIfAbsent(anycast ? ANY_ACTIVE
-				: rc.request.getServiceName(),
+		String name = anycast ? ANY_ACTIVE : rc.request.getServiceName();
+		// if(this.requestsPendingActives.contains(name))
+		this.requestsPendingActives.putIfAbsent(name,
 				new LinkedBlockingQueue<RequestAndCallback>());
 		LinkedBlockingQueue<RequestAndCallback> pending = this.requestsPendingActives
-				.get(anycast ? ANY_ACTIVE : rc.request.getServiceName());
+				.get(name);
 		assert (pending != null);
 		return pending.add(rc);
 	}
@@ -1784,7 +1825,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	}
 
 	public String toString() {
-		return this.getClass().getSimpleName()
+		return this.getClass().getSimpleName() + this.getLabel()
 				+ (this.niot != null ? this.niot.getListeningSocketAddress()
 						.getPort() : "");
 	}

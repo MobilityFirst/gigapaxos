@@ -56,6 +56,7 @@ public class ReconfigurationPacketDemultiplexer extends
 	 */
 	public ReconfigurationPacketDemultiplexer(Stringifiable<?> unstringer,
 			AppRequestParser arp) {
+		super();
 		this.unstringer = unstringer;
 		this.appRequestparser = arp;
 	}

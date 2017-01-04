@@ -22,6 +22,7 @@ public class RequestCallbackFuture<V> implements Callback<Request, V>,
 	private final Callback<Request, V> callback;
 	private Request response;
 	private Exception exception;
+	private boolean processResponseInvoked=false;
 
 	/**
 	 * @param request
@@ -45,7 +46,7 @@ public class RequestCallbackFuture<V> implements Callback<Request, V>,
 	private V waitResponse(Long timeout, TimeUnit unit) throws ExecutionException {
 		if(this.exception!=null) throw new ExecutionException(this.exception);
 		synchronized (this) {
-			while (this.response == null)
+			if (this.response == null)
 				try {
 					if (timeout != null)
 						this.wait(unit.toMillis(timeout));
@@ -56,7 +57,6 @@ public class RequestCallbackFuture<V> implements Callback<Request, V>,
 					// continue to wait
 				}
 		}
-		assert (this.response != null);
 		return (V) this.response;
 	}
 
@@ -80,8 +80,12 @@ public class RequestCallbackFuture<V> implements Callback<Request, V>,
 	}
 
 	@Override
-	public V get(long timeout, TimeUnit unit) throws ExecutionException {
-		return this.waitResponse(timeout, unit);
+	public V get(long timeout, TimeUnit unit) throws ExecutionException,
+			TimeoutException {
+		V response = this.waitResponse(timeout, unit);
+		if(!this.processResponseInvoked)
+			throw new TimeoutException("Request " + request.getSummary() + " timed out after " + unit.toMillis(timeout) + "ms");
+		return response;
 	}
 
 	/**
@@ -94,6 +98,7 @@ public class RequestCallbackFuture<V> implements Callback<Request, V>,
 	@Override
 	public V processResponse(Request response) {
 		V retval = null;
+		this.processResponseInvoked=true;
 		if (this.callback != null)
 			try {
 				retval = this.callback.processResponse(response);

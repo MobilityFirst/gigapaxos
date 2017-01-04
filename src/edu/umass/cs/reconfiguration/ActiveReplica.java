@@ -294,7 +294,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						((ClientRequest) request).getResponse(),
 						((ClientRequest) request).getRequestID())) != null) {
 			try {
-				log.log(Level.FINER,
+				log.log(Level.FINE,
 						"{0} sending response {1} back to requesting client {2} for {3} request {4}",
 						new Object[] {
 								this,
@@ -557,19 +557,29 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	/**
-	 * @return Set of packet types processed by ActiveReplica excluding app
-	 *         request types (that will be added later as this method is called
-	 *         by {@link ReconfigurableNode} before the app is even created).
+	 * @return Set of packet types processed by ActiveReplica on the server
+	 *         port. These include active replica types plus app or app
+	 *         coordinator types allowed on the server port.
 	 */
-	public Set<IntegerPacketType> getPacketTypes() {
-		Set<IntegerPacketType> types = this.getAppCoordinatorRequestTypes();
-		assert (types != null);
-		types.remove(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
-		types.addAll(this.getActiveReplicaPacketTypes());
+ 	protected Set<IntegerPacketType> getPacketTypes(boolean allow) {
+		Set<IntegerPacketType> types = allow ? this.appCoordinator
+				.getRequestTypes() : this.appCoordinator
+				.getCoordinatorRequestTypes();
+		if (types == null)
+			types = new HashSet<IntegerPacketType>();
 		types.addAll(this.appCoordinator.getMutualAuthAppRequestTypes());
+		/* We remove paxos packets because that is added as a separate
+		 * demultiplexer by PaxosManager. */
+		types.remove(PaxosPacket.PaxosPacketType.PAXOS_PACKET);
+
+		types.addAll(this.getActiveReplicaPacketTypes());
+
 		return types;
 	}
-
+ 	protected Set<IntegerPacketType> getPacketTypes() {
+ 		return getPacketTypes(Config
+				.getGlobalBoolean(RC.ALLOW_APP_TYPES_ON_SERVER_PORT));
+ 	}
 	/**
 	 * For graceful closure.
 	 */
@@ -963,14 +973,6 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						: new HashSet<IntegerPacketType>());
 	}
 
-	private Set<IntegerPacketType> cachedAppCoordTypes = null;
-
-	private Set<IntegerPacketType> getAppCoordinatorRequestTypes() {
-		return cachedAppCoordTypes != null ? cachedAppCoordTypes
-				: ((cachedAppCoordTypes = this.appCoordinator.getRequestTypes()) != null ? cachedAppCoordTypes
-						: new HashSet<IntegerPacketType>());
-	}
-
 	private boolean assertAppRequest(Request request) throws JSONException {
 		assert (request.getRequestType() == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST || this
 				.getAppRequestTypes().contains(request.getRequestType()) 
@@ -999,7 +1001,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				: JSONPacket.getPacketType(jsonObject);
 		if (appTypesAsIntegers == null)
 			appTypesAsIntegers = toIntegerSet(this
-					.getAppCoordinatorRequestTypes());
+					.getAppRequestTypes());
 		return type == 0 || appTypesAsIntegers.contains(type);
 	}
 
@@ -1176,7 +1178,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			if ((ssl ? getClientFacingSSLPort(myPort)
 					: getClientFacingClearPort(myPort)) != myPort) {
 				log.log(Level.INFO,
-						"{0} creating {1} client messenger at {2}:{3}",
+						"{0} maybe creating {1} client messenger at {2}:{3}",
 						new Object[] {
 								this,
 								ssl ? "SSL" : "",
@@ -1224,7 +1226,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 					if (this.messenger.getClientMessenger() instanceof Messenger)
 						((Messenger<NodeIDType, ?>) existing)
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
-										this.nodeConfig, this.appCoordinator));
+										this.nodeConfig, this.appCoordinator).setThreadName(this.getMyID().toString()+"-clientFacing"));
 				} else {
 					log.log(Level.INFO,
 							"{0} adding self as demultiplexer to existing {1} client messenger",
@@ -1232,7 +1234,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 					if (this.messenger.getSSLClientMessenger() instanceof Messenger)
 						((Messenger<NodeIDType, ?>) existing)
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
-										this.nodeConfig, this.appCoordinator));
+										this.nodeConfig, this.appCoordinator).setThreadName(this.getMyID().toString()+"-clientFacingSSL"));
 				}
 
 				Set<IntegerPacketType> appTypes = this.getAppRequestTypes();

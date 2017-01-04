@@ -1217,8 +1217,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							acceptReply.ballot.coordinatorID, committedPValue
 									.makeNoop().setForwarderID(this.getMyID())
 									.addDebugInfo("f"))) != null)
-				log.log(Level.INFO,
-						"{0} forwarding preempted request as no-op to node {1}:{2}",
+				log.log(Level.WARNING,
+						"{0} forwarding preempted request no-op to {1}: {2}",
 						new Object[] { this, acceptReply.ballot.coordinatorID,
 								committedPValue.getSummary() });
 			else

@@ -555,8 +555,13 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		CLIENT_DEMULTIPLEXER_THREADS(0),
-
+		CLIENT_DEMULTIPLEXER_THREADS(4),
+		
+		/**
+		 * 
+		 */
+		ENABLE_HANDLE_MESSAGE_REPORT (false),
+		
 		/**
 		 * Disables the feature that redirects requests to the most recent
 		 * replica from which a response to a coordinated request, i.e., a

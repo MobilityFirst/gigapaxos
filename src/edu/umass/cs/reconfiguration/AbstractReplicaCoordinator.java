@@ -32,6 +32,7 @@ import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.GenericMessagingTask;
@@ -137,6 +138,20 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 			Messenger<NodeIDType, ?> messenger) {
 		this(app);
 		this.messenger = messenger;
+	}
+	
+	private Set<IntegerPacketType> cachedAppCoordTypes = null;
+	/**
+	 * @return Request types for coordination requests. By default, it is 
+	 * the {@link #getRequestTypes()} - {@link #getAppRequestTypes()}. This
+	 * method must be overridden for non-default behavior.
+	 */
+	public Set<IntegerPacketType> getCoordinatorRequestTypes() {
+		if(cachedAppCoordTypes!=null) return cachedAppCoordTypes;
+		Set<IntegerPacketType> types = this.getRequestTypes();
+		if(types==null) types = new HashSet<IntegerPacketType>();
+		types.removeAll(this.getAppRequestTypes());
+		return cachedAppCoordTypes=types;
 	}
 
 	protected void setMessenger(Messenger<NodeIDType, ?> messenger) {
@@ -452,6 +467,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	public void stop() {
 		this.messenger.stop();
+		if(this.app instanceof Shutdownable)
+			((Shutdownable)this.app).shutdown();
 	}
 
 	/********************** Request propagation helper methods ******************/

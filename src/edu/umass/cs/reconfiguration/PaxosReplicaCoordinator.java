@@ -28,6 +28,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
 import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
@@ -318,7 +319,10 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	}
 
 	public void stop() {
-		super.stop();
+		this.messenger.stop();
 		this.paxosManager.close();
+
+		if(this.app instanceof Shutdownable)
+			((Shutdownable)this.app).shutdown();
 	}
 }

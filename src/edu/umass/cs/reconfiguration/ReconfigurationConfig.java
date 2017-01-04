@@ -315,7 +315,13 @@ public class ReconfigurationConfig {
 		 * MUTUAL_AUTH is used between servers.
 		 */
 		ALLOW_CLIENT_TO_CREATE_DELETE (true),
-		
+
+		/**
+		 * True if app request types are allowed on the server port. False means
+		 * that only app coordination request types will be allowed.
+		 */
+		ALLOW_APP_TYPES_ON_SERVER_PORT (true),
+
 		/**
 		 * True means that request IDs will be automatically transformed by
 		 * {@link ReconfigurableAppClientAsync} if it receives two unequal 
@@ -819,6 +825,7 @@ public class ReconfigurationConfig {
 	public static void setConsoleHandler() {
 		if (System.getProperty("java.util.logging.config.file") == null)
 			setConsoleHandler(Level.INFO);
+		else System.out.println("logging properties file=" + System.getProperty("java.util.logging.config.file"));
 	}
 
 	protected static CreateServiceName[] testMakeCreateNameRequest(String name,

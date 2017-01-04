@@ -24,6 +24,7 @@ import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.Application;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
@@ -33,7 +34,7 @@ import edu.umass.cs.reconfiguration.interfaces.Repliconfigurable;
 /**
 @author V. Arun
  */
-public class TrivialRepliconfigurable implements Repliconfigurable, AppRequestParserBytes {
+public class TrivialRepliconfigurable implements Repliconfigurable, AppRequestParserBytes, Shutdownable {
 	
 	/**
 	 * The underlying app.
@@ -137,5 +138,10 @@ public class TrivialRepliconfigurable implements Repliconfigurable, AppRequestPa
 	
 	public Set<IntegerPacketType> getMutualAuthRequestTypes() {
 		return this.app.getMutualAuthRequestTypes();
+	}
+	
+	public void shutdown() {
+		if(this.app instanceof Shutdownable)
+			((Shutdownable)this.app).shutdown();
 	}
 }
