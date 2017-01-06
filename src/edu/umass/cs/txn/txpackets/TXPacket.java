@@ -22,7 +22,7 @@ import edu.umass.cs.utils.IntegerPacketTypeMap;
  *
  *         All transaction processing related packets inherit from this class.
  */
-public class TXPacket extends JSONPacket implements ReplicableRequest,
+public abstract class TXPacket extends JSONPacket implements ReplicableRequest,
 		ClientRequest {
 
 	/**

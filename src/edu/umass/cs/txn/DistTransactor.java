@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.interfaces.Application;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
@@ -26,6 +27,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.txn.exceptions.ResponseCode;
 import edu.umass.cs.txn.exceptions.TXException;
+import edu.umass.cs.txn.interfaces.TXLocker;
 import edu.umass.cs.txn.interfaces.TxOp;
 import edu.umass.cs.txn.txpackets.AbortRequest;
 import edu.umass.cs.txn.txpackets.CommitRequest;
@@ -44,13 +46,15 @@ import edu.umass.cs.utils.GCConcurrentHashMap;
  *         purpose.
  * @param <NodeIDType>
  */
-public class DistTransactor<NodeIDType> extends AbstractTransactor<NodeIDType> {
+public class DistTransactor<NodeIDType> extends AbstractTransactor<NodeIDType> implements TXLocker {
 
 	/**
 	 * A distributed transaction processor needs a client to submit transaction
 	 * operations as well as to acquire and release locks.
 	 */
 	private final GigaPaxosClient<Request> gpClient;
+	
+	private final TXLocker txLocker;
 
 	/**
 	 * @param coordinator
@@ -60,17 +64,24 @@ public class DistTransactor<NodeIDType> extends AbstractTransactor<NodeIDType> {
 			throws IOException {
 		super(coordinator);
 		this.gpClient = TXUtils.getGPClient(coordinator);
+		this.txLocker = new TXLockerMap();
+	}
+	
+	private Application getApp() {
+//		if(this.app instanceof TrivialRepliconfigurable ? ((TrivialRepliconfigurable)this.app).)
+		return null;
 	}
 
 	/**
 	 * A blocking call that returns upon successfully locking {@code lockID} or
-	 * throws a {@link TXException} .
+	 * throws a {@link TXException}. Locking a group involves synchronously 
+	 * checkpointing its state and maintaining in memory its locked status.
 	 * 
 	 * @param lockID
 	 * @throws TXException
 	 */
 	public void lock(String lockID) throws TXException {
-		throw new RuntimeException("Unimplemented");
+		this.txLocker.lock(lockID);
 	}
 
 	/**

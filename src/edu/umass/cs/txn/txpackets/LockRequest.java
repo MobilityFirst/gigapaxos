@@ -20,6 +20,7 @@ public class LockRequest extends TXPacket {
 
 	/**
 	 * @param lockID
+	 * @param tx
 	 */
 	public LockRequest(String lockID, Transaction tx) {
 		super(TXPacket.PacketType.LOCK_REQUEST, tx.getTXID());
@@ -37,5 +38,16 @@ public class LockRequest extends TXPacket {
 
 	public JSONObject toJSONObjectImpl() {
 		throw new RuntimeException("Unimplemented");
+	}
+
+	/**
+	 * @return Service name that also acts as a lock ID.
+	 */
+	public String getLockID() {
+		return this.lockID;
+	}
+
+	public String getServiceName() {
+		return this.getLockID();
 	}
 }

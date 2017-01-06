@@ -11,7 +11,7 @@ tx_group_primary:
   restore(tx) : 
                 state=INIT
                 start_abort_timer(tx)
-                lock all sequentially
+                lock_groups(tx)
 
   timeout(tx) : 
   lock_fail(tx) : 
@@ -27,9 +27,11 @@ tx_group_primary:
   abort_timeout(tx, member) : 
                             reissue(ABORT,tx)
 
-  exec_all(tx) : 
-               if(state!=ABORT) issue(COMMIT, tx)
-               start_commit_timer(tx)
+  exec_all(tx) :
+  				if(state!=ABORT) return 
+				try_execute_all(tx);
+                issue(COMMIT, tx)
+                start_commit_timer(tx)
   (COMMIT,tx) : 
               state=COMMIT
               unlock all sequentially
@@ -58,7 +60,10 @@ tx_group_secondary:
 participant_group_member :
 -----------------------
   lock(tx) : lock if not locked
-  (ABORT,tx) : restore state to pre-transaction state 
+  (ABORT,tx) : restore state to pre-transaction state
+  start_epoch(CREATE_LOCK, tx): lock group except for tx requests
+  pre_delete(tx): lock group except for final STOP request
+  
 
 Liveness: A transaction terminates (commits or aborts) if a majority
 of the servers in tx_group are up. 
@@ -111,11 +116,22 @@ the transaction. One option is to silently drop such requests. Another
 is to handle such requests in a deterministic order across all
 replicas, for example, by queueing them in-order so as to be executed
 at the end of the transaction. But here lies a problem: we need to
-preserve the execute(.) invariant that a reques finishes completely
+preserve the execute(.) invariant that a request finishes completely
 when execute returns in part because otherwise responses won't get
 routed correctly. But if the encapsulator can also hijack the
 callbacks and store them as well, and we don't care to use
-ENQUEUE_REQUESTS, then there is no problem.
+ENQUEUE_REQUEST, then there is no problem.
 
 -----------------------------
 
+lock all groups sequentially: 
+  issue coordinated lock requests to all  constituent groups.
+
+try_execute_all(tx): 
+  foreach req in tx
+    if(req.isCreate) issue CREATE_LOCK(req.name)
+    else if(req.isDelete) issue PRE_DELETE(req.name)
+    else issue(req)
+    
+    
+    

@@ -21,6 +21,8 @@ import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.interfaces.GigaPaxosClient;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.txn.interfaces.TXRequest;
+import edu.umass.cs.txn.interfaces.Transactor;
 import edu.umass.cs.txn.txpackets.TXPacket;
 import edu.umass.cs.txn.txpackets.TxStateRequest;
 
@@ -30,7 +32,7 @@ import edu.umass.cs.txn.txpackets.TxStateRequest;
  *         A class with static utility methods related to transactions.
  * 
  */
-public class TXUtils {
+public class TXUtils implements Transactor {
 
 	private static final long RTO = ReconfigurableAppClientAsync.DEFAULT_GC_TIMEOUT;
 	private static final int DEFAULT_NUM_ATTEMPTS = 3;
@@ -43,7 +45,7 @@ public class TXUtils {
 	/**
 	 * Blocks and retries in parallel until all of a set of transaction steps
 	 * have successfully completed. The steps have to be idempotent, i.e.,
-	 * executing them multiple times should have the same effectas executing
+	 * executing them multiple times should have the same effect as executing
 	 * them exactly once.
 	 * 
 	 * @param gpClient
@@ -179,7 +181,17 @@ public class TXUtils {
 			public Set<IntegerPacketType> getRequestTypes() {
 				return app.getRequestTypes();
 			}
+			
+			public String getLabel() {
+				return TXUtils.class.getSimpleName() + "."+GigaPaxosClient.class.getSimpleName();
+			}
 		};
+	}
+
+	@Override
+	public void transact(TXRequest request) {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

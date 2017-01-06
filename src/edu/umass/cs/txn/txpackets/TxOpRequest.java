@@ -46,13 +46,19 @@ public class TxOpRequest extends TXPacket implements TxOp {
 				.getRequest(json.getString(Keys.REQUEST.toString()));
 	}
 
-	@Override
+	//@Override
 	public String getTxID() {
 		return this.txid;
 	}
 
 	@Override
 	public boolean handleResponse(Request response) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean isBlocking() {
 		// TODO Auto-generated method stub
 		return false;
 	}

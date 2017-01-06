@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
@@ -15,7 +17,10 @@ import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.txn.interfaces.TXInterface;
+import edu.umass.cs.txn.interfaces.TxOp;
 import edu.umass.cs.txn.txpackets.TXPacket;
+import edu.umass.cs.txn.txpackets.TxOpRequest;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.GCConcurrentHashMap;
 
@@ -84,12 +89,27 @@ public abstract class AbstractTransactor<NodeIDType> extends
 
 	@Override
 	public boolean execute(Request request, boolean noReplyToClient) {
-		if (!ENABLE_TRANSACTIONS || !isLocked(request.getServiceName()))
-			return this.coordinator.execute(request, noReplyToClient, this.callbacks.remove(request.getServiceName()));
+		if (!ENABLE_TRANSACTIONS || !isLocked(request.getServiceName()) || 
+				(request instanceof TxOpRequest && this.isOngoing(((TxOpRequest)request).getTxID())))
+			return this.coordinator.execute(request, noReplyToClient,
+					this.callbacks.remove(request.getServiceName()));
 		enqueue(request, noReplyToClient);
 		/* Need to return true here no matter what, otherwise paxos will be
 		 * stuck. */
 		return true;
+	}
+	/**
+	 * @param txID
+	 * @return True if txID is an ongoing transaction.
+	 */
+	private boolean isOngoing(String txID) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private TXInterface getTransaction(String serviceName) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 	protected abstract void enqueue(Request request, boolean noReplyToClient);
@@ -154,7 +174,33 @@ public abstract class AbstractTransactor<NodeIDType> extends
 
 	@Override
 	public boolean restore(String name, String state) {
-		return this.coordinator.restore(name, state);
+		TXInterface request = this.decodeTX(state);
+		if (request == null)
+			return this.coordinator.restore(name, state);
+		else
+			return this.processTX((TXInterface) request);
+	}
+
+	private boolean processTX(TXInterface request) {
+		Set<NodeIDType> group = this.getReplicaGroup(request.getTXID());
+		SortedSet<String> sorted = new TreeSet<String>();
+		for (NodeIDType node : group)
+			sorted.add(node.toString());
+		if (this.getMyID().toString().equals(sorted.iterator().next())) {
+			// if first in list, actually do stuff
+		}
+		// else secondary
+		return spawnWaitPrimaryTask(request);
+	}
+
+	private boolean spawnWaitPrimaryTask(TXInterface request) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private TXInterface decodeTX(String state) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 	/* ********* End of Repliconfigurable methods *************** */

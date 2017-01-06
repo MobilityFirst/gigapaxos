@@ -3,14 +3,19 @@ package edu.umass.cs.txn;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
+import edu.umass.cs.txn.interfaces.TXInterface;
+import edu.umass.cs.txn.interfaces.TXRequest;
 import edu.umass.cs.txn.interfaces.TxOp;
 import edu.umass.cs.txn.txpackets.TXPacket;
 import edu.umass.cs.txn.txpackets.TxOpRequest;
@@ -33,43 +38,40 @@ import edu.umass.cs.utils.Util;
  *         can be reverted if necessary.
  *
  */
-public class Transaction {
+public class Transaction implements TXInterface {
 
 	protected static enum Keys {
 		TXOPS, TXID, DELETES,
 	}
 
-	// the sequence of operations in this transaction
-	private ArrayList<TxOp> txops;
-
+	private final TXRequest tx;
+	
 	// a transaction number chosen to be unique at each client
-	private long txn;
+	private final long txn;
 
 	// the server issuing the transaction
 	private InetSocketAddress entryServer;
-
+	
 	/**
 	 * @param entryServer
-	 * @param ops
+	 * @param tx
 	 */
-	public Transaction(InetSocketAddress entryServer, ArrayList<Request> ops) {
-		this(entryServer, ops.toArray(new Request[0]));
-	}
-
-	/**
-	 * @param entryServer
-	 * @param requests
-	 */
-	public Transaction(InetSocketAddress entryServer, Request... requests) {
+	public Transaction(InetSocketAddress entryServer, TXInterface tx) {
+		this.tx = tx;
 		this.txn = getNewTxid(entryServer);
-		this.txops = new ArrayList<TxOp>();
-		for (Request request : requests)
-			// if (!(request instanceof DeleteServiceName))
-			this.txops
-					.add(new TxOpRequest(Util.toString(entryServer), request));
-		/* Name deletions should be issued only after the transaction has been
-		 * committed. */
+		this.entryServer = entryServer;
 	}
+	
+	/**
+	 * @param entryServer
+	 * @param tx
+	 */
+	public Transaction(InetSocketAddress entryServer, TXRequest tx) {
+		this.txn = getNewTxid(entryServer);
+		this.entryServer = entryServer;
+		this.tx = tx;
+	}
+	
 
 	/**
 	 * @return The set of lock identifiers needed for this transaction in
@@ -86,7 +88,8 @@ public class Transaction {
 	 *         Modifying this sequence will violate safety.
 	 */
 	public ArrayList<TxOp> getTxOps() {
-		return this.txops;
+		throw new RuntimeException("Unimplemented");
+		//return this.txops;
 	}
 
 	/**
@@ -141,5 +144,12 @@ public class Transaction {
 
 	protected synchronized static String releaseTxid(long txid) {
 		return txids.remove(txid);
+	}
+
+
+	@Override
+	public Iterator<TxOp> iterator() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

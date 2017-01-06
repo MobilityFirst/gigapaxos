@@ -780,29 +780,45 @@ public class Util {
 		Files.write(Paths.get(filename), modified.getBytes());
 	}
 
-       /**
-        * Sorts a map by value.
-        * 
-        * @param <K>
-        * @param <V>
-        * @param map
-        * @return the sorted map
-        */
+	public static Object printThisLine() {
+		return printThisLine(true);
+
+	}
+
+	public static Object printThisLine(Boolean log) {
+		return log ? new Object() {
+			public String toString() {
+				StackTraceElement ste = Thread.currentThread().getStackTrace()[log == null ? 5
+						: 4];
+				return ste.getFileName() + ":" + ste.getLineNumber();
+			}
+		}
+				: null;
+	}
+
+	/**
+	 * Sorts a map by value.
+	 * 
+	 * @param <K>
+	 * @param <V>
+	 * @param map
+	 * @return the sorted map
+	 */
 	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(
 			Map<K, V> map) {
 		Map<K, V> result = new LinkedHashMap<>();
 		Stream<Map.Entry<K, V>> st = map.entrySet().stream();
 
-                st.sorted(Map.Entry.comparingByValue())
-                        .forEachOrdered(new Consumer<Entry<K, V>>() {
-                    @Override
-                    public void accept(Entry<K, V> entry) {
-                             result.put(entry.getKey(), entry.getValue());
-                    }
-                });
-// Android doesn't like Lambdas - Westy 10/16
-//		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
-//				e -> result.put(e.getKey(), e.getValue()));
+		st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
+				new Consumer<Entry<K, V>>() {
+					@Override
+					public void accept(Entry<K, V> entry) {
+						result.put(entry.getKey(), entry.getValue());
+					}
+				});
+		// Android doesn't like Lambdas - Westy 10/16
+		// st.sorted(Map.Entry.comparingByValue()).forEachOrdered(
+		// e -> result.put(e.getKey(), e.getValue()));
 
 		return result;
 	}

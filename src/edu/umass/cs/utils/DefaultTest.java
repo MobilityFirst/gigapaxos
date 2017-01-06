@@ -31,6 +31,12 @@ public class DefaultTest {
 	@Rule
 	public TestName testName = new TestName();
 
+	 /**
+	 * To repeat a test a given number of times.
+	 */
+	@Rule
+	 public RepeatRule repeatRule = new RepeatRule();
+
 	/**
 	 * 
 	 */

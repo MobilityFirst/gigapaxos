@@ -14,12 +14,6 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfiguration
 public interface TxOp extends Request {
 
 	/**
-	 * @return The transaction identifier of the transaction to which this
-	 *         operation belongs.
-	 */
-	public String getTxID();
-
-	/**
 	 * @param response
 	 * @return True if the response indicates that this operation was executed
 	 *         successfully and the transaction can proceed to the next
@@ -27,4 +21,19 @@ public interface TxOp extends Request {
 	 *         aborted with a rollback.
 	 */
 	public boolean handleResponse(Request response);
+
+	/**
+	 * @return True if this operation must block until finished.
+	 */
+	default boolean isBlocking() {
+		return true;
+	}
+
+	/**
+	 * @return True if executing it multiple times has the same effect as
+	 *         executing it exactly once.
+	 */
+	default boolean isIdempotent() {
+		return false;
+	}
 }
