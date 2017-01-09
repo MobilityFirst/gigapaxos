@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2015 University of Massachusetts
+/* Copyright (c) 2015 University of Massachusetts
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,8 +12,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  * 
- * Initial developer(s): V. Arun
- */
+ * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxosutil;
 
 import java.util.HashMap;
@@ -62,11 +60,11 @@ public class RequestInstrumenter {
 			int receiver) {
 		if (DEBUG)
 			synchronized (RequestInstrumenter.class) {
-				map.put(request.getRequestID(),
-						(map.containsKey(request.getRequestID()) ? map
-								.get(request.getRequestID()) : "")
-								+ rcvformat(request.getRequestID(), request,
-										sender, receiver));
+				if (map.containsKey(request.getRequestID()))
+					map.put(request.getRequestID(),
+							(map.get(request.getRequestID()))
+									+ rcvformat(request.getRequestID(),
+											request, sender, receiver));
 			}
 	}
 
@@ -122,14 +120,24 @@ public class RequestInstrumenter {
 		return "";
 	}
 
+	public static String getLog() {
+		if (DEBUG)
+			synchronized (RequestInstrumenter.class) {
+				String s = "{";
+				for (long qid : map.keySet())
+					s += "\n" + qid + "=" + map.get(qid);
+				return s + (map.isEmpty() ? "}" : "\n}");
+			}
+		return "";
+	}
+
 	private static String rcvformat(long requestID, PaxosPacket packet,
 			int sender, int receiver) {
 		if (DEBUG)
 			synchronized (RequestInstrumenter.class) {
 
-				return requestID + " " + packet.getType().toString() + " ("
-						+ sender + ")   ->" + receiver + " : "
-						+ packet.toString() + "\n";
+				return packet.getType().toString() + " (" + sender + ")   ->"
+						+ receiver + " : " + packet.getSummary() + "\n  ";
 			}
 		return "";
 	}
@@ -138,9 +146,8 @@ public class RequestInstrumenter {
 			int sender, int receiver) {
 		if (DEBUG)
 			synchronized (RequestInstrumenter.class) {
-				return requestID + " " + packet.getType().toString() + " "
-						+ sender + "->   (" + receiver + ") : "
-						+ packet.toString() + "\n";
+				return packet.getType().toString() + " " + sender + "->   ("
+						+ receiver + ") : " + packet.getSummary() + "\n  ";
 			}
 		return "";
 	}

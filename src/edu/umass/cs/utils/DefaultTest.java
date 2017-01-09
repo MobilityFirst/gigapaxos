@@ -3,6 +3,7 @@ package edu.umass.cs.utils;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,11 +32,11 @@ public class DefaultTest {
 	@Rule
 	public TestName testName = new TestName();
 
-	 /**
+	/**
 	 * To repeat a test a given number of times.
 	 */
 	@Rule
-	 public RepeatRule repeatRule = new RepeatRule();
+	public RepeatRule repeatRule = new RepeatRule();
 
 	/**
 	 * 
@@ -44,25 +45,47 @@ public class DefaultTest {
 	public TestWatcher watcher = new TestWatcher() {
 		@Override
 		protected void failed(Throwable e, Description description) {
-			System.out.println(" FAILED!!!!!!!!!!!!! " + e);
+			System.out.println((repeatIndex != lastPrinted ? repeatIndex : "")
+					+ " FAILED!!!!!!!!!!!!! " + e);
 			e.printStackTrace();
 			System.exit(1);
 		}
 
 		@Override
 		protected void succeeded(Description description) {
-			if (!testName.getMethodName().equals("testPackage"))
-				System.out.println(" succeeded");
+			System.out.println(" succeeded");
 		}
 	};
+
+	/**
+	 * To repeat a test a given number of times.
+	 */
+
+	int repeatIndex = 0, lastPrinted = 1;
 
 	/**
 	 * 
 	 */
 	@Before
 	public void beforeMethod() {
-		if (!testName.getMethodName().equals("testPackage"))
+		if (repeatRule.times() > 1)
+			System.out
+					.print(repeatIndex++ == 0 ? testName.getMethodName() + " "
+							+ repeatIndex + " "
+
+							: (repeatIndex == lastPrinted * 2 && (lastPrinted *= 2) > 0) ? (repeatIndex+" ")
+									: "");
+		else 
 			System.out.print(testName.getMethodName() + " ");
+	}
+
+	/**
+	 * 
+	 */
+	@After
+	public void afterMethod() {
+		if (repeatIndex == repeatRule.times() && repeatIndex > lastPrinted)
+			System.out.print(repeatIndex + " ");
 	}
 
 	/**
@@ -106,12 +129,13 @@ public class DefaultTest {
 	 */
 	@Test
 	public void test() {
-		
+
 	}
+
 	/**
 	 * @throws ClassNotFoundException
 	 */
-	//@Test
+	// @Test
 	public void testPackage() throws ClassNotFoundException {
 		if (called)
 			return;

@@ -504,7 +504,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 		private static final boolean USE_FORWARDEE_INFO = true;
 
-		private Level debug = Level.FINE;
+		private Level debug = Level.FINER;
 
 		/**
 		 * The main demultiplexing method for responses. It invokes the app

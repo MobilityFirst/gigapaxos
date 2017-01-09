@@ -53,9 +53,6 @@ import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
 
 import javax.sql.DataSource;
 
@@ -235,7 +232,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private Connection cursorConn = null;
 
 	private final Journaler journaler;
-	private final MapDBContainer mapDB;
 
 	private boolean closed = true;
 
@@ -281,10 +277,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		this.journaler = new Journaler(this.logDirectory, this.strID/* this.myID */);
 		this.deleteTmpJournalFiles();
 
-		this.mapDB = USE_MAP_DB ? new MapDBContainer(DBMaker.fileDB(
-				new File(this.getLogIndexDBPrefix())).make(), DBMaker
-				.memoryDB().transactionDisable().make()) : null;
-
 		Diskable<String, LogIndex> disk = new Diskable<String, LogIndex>() {
 
 			@Override
@@ -304,9 +296,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 
 		};
-		this.messageLog = USE_MAP_DB ? new MessageLogMapDB(this.mapDB.inMemory,
-				this.mapDB.onDisk, disk)
-				: USE_DISK_MAP ? new MessageLogDiskMap(disk)
+		this.messageLog = USE_DISK_MAP ? new MessageLogDiskMap(disk)
 						: new MessageLogPausable(disk);
 
 		// will set up db, connection, tables, etc. as needed
@@ -321,7 +311,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		super(IntegerMap.NULL_INT_NODE, null, null);
 		this.strID = strID;
 		this.messageLog = null;
-		this.mapDB = null;
 		this.journaler = null;
 		this.GC = null;
 		this.initialize(false);
@@ -1039,8 +1028,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						this.messageLog.add(packets[i].logMsg,
 								this.journaler.curLogfile,
 								this.journaler.curLogfileSize, bytes.length);
-					if (USE_MAP_DB && Util.oneIn(1000))
-						this.mapDB.dbMemory.commit();
 					SQLPaxosLogger.this.journaler.appendToLogFile(bbuf.array(),
 							pkt.logMsg.getPaxosID());
 					assert (pending[i] == null || this.journaler.curLogfileSize == pending[i].logfileOffset
@@ -1163,8 +1150,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			.getGlobalBoolean(PC.ALL_BUT_APPEND);
 	private static final boolean DISABLE_GET_LOGGED_MESSAGES = Config
 			.getGlobalBoolean(PC.DISABLE_GET_LOGGED_MESSAGES);
-	private static final boolean USE_MAP_DB = Config
-			.getGlobalBoolean(PC.USE_MAP_DB);
 	private static final boolean USE_DISK_MAP = Config
 			.getGlobalBoolean(PC.USE_DISK_MAP);
 	private static final boolean DISABLE_CHECKPOINTING = Config
@@ -3864,8 +3849,6 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		if (this.messageLog != null)
 			this.messageLog.close();
 		this.setClosed(true);
-		if (this.mapDB != null)
-			this.mapDB.close();
 		// can not close derby until all instances are done
 		if (allClosed() || !isEmbeddedDB())
 			this.closeGracefully();
@@ -4773,124 +4756,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	 * node can accept conflicting accepts during crashes.
 	 */
 
-	static class MapDBContainer {
 
-		final DB dbDisk;
-
-		final DB dbMemory;
-
-		// big map populated with data expired from cache
-		final HTreeMap<String, LogIndex> onDisk;
-
-		// fast in-memory collection with limited size
-		final HTreeMap<String, LogIndex> inMemory;
-
-		MapDBContainer(DB dbDisk, DB dbMemory) {
-			this.dbDisk = dbDisk;
-			this.dbMemory = dbMemory;
-			this.onDisk = dbDisk.hashMapCreate("onDisk").makeOrGet();
-			this.inMemory = dbMemory.hashMapCreate("inMemory")
-					.expireAfterAccess(120, TimeUnit.SECONDS)
-					// this registers overflow to `onDisk`
-					.expireOverflow(onDisk, true)
-					// good idea is to enable background expiration
-					.executorEnable().make();
-		}
-
-		public void close() {
-			if (this.dbMemory != null) {
-				this.dbMemory.commit();
-				this.dbMemory.close();
-			}
-			if (this.dbDisk != null) {
-				this.dbDisk.commit();
-				this.dbDisk.close();
-			}
-		}
-	}
-
-	/* This was an experimental MessageLog based on mapdb that is no longer
-	 * used. mapdb seems way too slow even when all map entries ought to
-	 * comfortably fit in memory. We also don't need mapdb's level of durability
-	 * upon a crash because we maintain our own write-ahead log. */
-	@Deprecated
-	static class MessageLogMapDB extends MessageLogPausable {
-		final HTreeMap<String, LogIndex> inMemory;
-		final HTreeMap<String, LogIndex> onDisk;
-
-		MessageLogMapDB(HTreeMap<String, LogIndex> inMemory,
-				HTreeMap<String, LogIndex> onDisk,
-				Diskable<String, LogIndex> disk) {
-			super(disk);
-			this.inMemory = inMemory;
-			this.onDisk = onDisk;
-		}
-
-		synchronized LogIndex getOrCreateIfNotExistsOrLower(String paxosID,
-				int version) {
-			LogIndex logIndex = this.inMemory.get(paxosID);
-			if (logIndex == null || logIndex.version - version < 0)
-				this.onDisk.put(paxosID, (logIndex = new LogIndex(paxosID,
-						version)));
-			return logIndex != null && logIndex.version == version ? logIndex
-					: null;
-		}
-
-		synchronized void add(PaxosPacket msg, String logfile, long offset,
-				int length) {
-			long t = System.nanoTime();
-			LogIndex logIndex = this.getOrCreateIfNotExistsOrLower(
-					msg.getPaxosID(), msg.getVersion());
-			if (logIndex == null)
-				return;
-
-			boolean isPValue = msg instanceof PValuePacket;
-			logIndex.add(isPValue ? ((PValuePacket) msg).slot
-					: ((PreparePacket) msg).firstUndecidedSlot,
-					isPValue ? ((PValuePacket) msg).ballot.ballotNumber
-							: ((PreparePacket) msg).ballot.ballotNumber,
-					isPValue ? ((PValuePacket) msg).ballot.coordinatorID
-							: ((PreparePacket) msg).ballot.coordinatorID, msg
-							.getType().getInt(), logfile, offset, length);
-			this.inMemory.put(msg.getPaxosID(), logIndex);
-			assert (logIndex.getMinLogfile() != null);
-			if (ENABLE_INSTRUMENTATION && Util.oneIn(10))
-				DelayProfiler.updateDelayNano("logAddDelay", t);
-		}
-
-		synchronized void setGCSlot(String paxosID, int version, int gcSlot) {
-			LogIndex logIndex = this.getOrCreateIfNotExistsOrLower(paxosID,
-					version);
-			if (logIndex == null)
-				return;
-
-			this.inMemory.put(paxosID, logIndex.setGCSlot(gcSlot));
-		}
-
-		synchronized LogIndex getLogIndex(String paxosID, int version) {
-			LogIndex logIndex = this.inMemory.get(paxosID);
-			return logIndex != null && logIndex.version == version ? logIndex
-					: null;
-		}
-
-		synchronized String toString(String paxosID) {
-			LogIndex logIndex = this.inMemory.get(paxosID);
-			return logIndex != null ? logIndex.toString() : null;
-		}
-
-		synchronized LogIndex getLogIndex(String paxosID) {
-			LogIndex logIndex = this.inMemory.get(paxosID);
-			if (logIndex == null) {
-				// restore from disk
-			}
-			return logIndex;
-		}
-
-		synchronized String getMinLogfile(String paxosID) {
-			LogIndex logIndex = this.inMemory.get(paxosID);
-			return logIndex != null ? logIndex.getMinLogfile() : null;
-		}
-	}
 
 	/* This MessageLog structure is no longer used and has been replaced with
 	 * MessageLogDiskMap that is a more general-purpose pausable hash map. */

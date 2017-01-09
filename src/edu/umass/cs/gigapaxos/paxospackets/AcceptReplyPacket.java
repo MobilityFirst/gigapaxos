@@ -74,9 +74,10 @@ public class AcceptReplyPacket extends PaxosPacket {
 		this.ballot = ballot;
 		this.slotNumber = slotNumber;
 		this.maxCheckpointedSlot = maxCheckpointedSlot;
-		this.requestID = ar != null ? ar.requestID : requestID; // debugging
-																// only
-
+		// debugging only
+		this.requestID = ar != null ? (ar instanceof BatchedAcceptReply ? ((BatchedAcceptReply) ar)
+				.getRequestID(slotNumber) : ar.requestID)
+				: requestID; 
 	}
 
 	/**
@@ -132,8 +133,8 @@ public class AcceptReplyPacket extends PaxosPacket {
 	;
 
 	static enum Fields implements GetType {
-		acceptor(int.class), ballot(Ballot.class), slotNumber(
-				int.class), maxCheckpointedSlot(int.class), requestID(long.class), undigestRequest(
+		acceptor(int.class), ballot(Ballot.class), slotNumber(int.class), maxCheckpointedSlot(
+				int.class), requestID(long.class), undigestRequest(
 				boolean.class);
 		final Class<?> type;
 
@@ -198,7 +199,7 @@ public class AcceptReplyPacket extends PaxosPacket {
 
 	@Override
 	protected String getSummaryString() {
-		return acceptor + ", " + ballot + ", " + slotNumber + "("
+		return acceptor + "->" + ballot + ", " + slotNumber + "("
 				+ maxCheckpointedSlot + ")";
 	}
 

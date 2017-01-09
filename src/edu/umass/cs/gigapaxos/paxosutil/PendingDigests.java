@@ -92,14 +92,14 @@ public class PendingDigests {
 				this.accepts.put(accept.requestID, accept);
 		}
 
-		if (rc != null && rc.requestPacket.getPaxosID().equals(accept.getPaxosID())) {
-			if (rc.requestPacket.digestEquals(accept,
+		if (rc != null && rc.getRequestPacket().getPaxosID().equals(accept.getPaxosID())) {
+			if (rc.getRequestPacket().digestEquals(accept,
 					mds[(int) (Math.random() * mds.length)])) {
-				accept = accept.undigest(rc.requestPacket);
+				accept = accept.undigest(rc.getRequestPacket());
 				assert (accept.hasRequestValue());
 				return accept;
 			} else
-				logAnomaly(rc.requestPacket, accept);
+				logAnomaly(rc.getRequestPacket(), accept);
 		}
 
 		return null;

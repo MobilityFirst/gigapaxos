@@ -352,6 +352,9 @@ public class RequestPacket extends PaxosPacket implements Request,
 		noop.batched = this.batched;
 		return noop;
 	}
+	public RequestPacket makeNewRequest() {
+		return new RequestPacket(this);
+	}
 
 	public RequestPacket setReturnRequestValue() {
 		this.shouldReturnRequestValue = true;

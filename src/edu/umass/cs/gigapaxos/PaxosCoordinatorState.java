@@ -1188,7 +1188,6 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 								+ decision);
 						assert (!pcs.myProposals.containsKey(decision.slot));
 					} else if (decision.getType() == PaxosPacketType.PREEMPTED) {
-						System.out.println("PREEMPTED proposal: " + decision);
 						assert (!pcs.myProposals.containsKey(decision.slot));
 					}
 				}

@@ -808,10 +808,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (PaxosCoordinator.exists(this.coordinator,
 				this.paxosState.getBallot())) {
 			// multicast ACCEPT to all
-			AcceptPacket multicastAccept = null;
 			proposal.addDebugInfoDeep("a");
-			multicastAccept = PaxosCoordinator.propose(this.coordinator,
-					this.groupMembers, proposal);
+			AcceptPacket multicastAccept = this.getPaxosManager()
+					.getPreviouslyIssuedAccept(proposal);
+			if (multicastAccept == null || !multicastAccept.ballot.equals(this.coordinator.getBallot()))
+				this.getPaxosManager().setIssuedAccept(
+						multicastAccept = PaxosCoordinator.propose(
+								this.coordinator, this.groupMembers, proposal));
 			if (multicastAccept != null) {
 				assert (this.coordinator.getBallot().coordinatorID == getMyID() && multicastAccept.sender == getMyID());
 				if (proposal.isBroadcasted())
@@ -960,6 +963,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				&& !acceptList.isEmpty()) {
 			mtask = new MessagingTask(this.groupMembers,
 					((acceptList).toArray(new PaxosPacket[0])));
+			// can't have previous accepts as just became coordinator
+			for(AcceptPacket accept : acceptList)
+				this.getPaxosManager().setIssuedAccept(accept);
 			log.log(Level.INFO, "{0} elected coordinator; sending {1}",
 					new Object[] { this, mtask });
 		} else if(acceptList != null && this.coordinator.isActive())
@@ -1152,6 +1158,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		this.paxosManager.heardFrom(acceptReply.acceptor); // FD optimization
 		RequestInstrumenter.received(acceptReply, acceptReply.acceptor,
 				this.getMyID());
+		
+		log.log(Level.FINER, "{0} handling accept reply {1}", new Object[]{this, acceptReply});
 
 		// handle if undigest request first
 		if (acceptReply.isUndigestRequest()) {
@@ -1208,17 +1216,24 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			 * coordinator as this can result in multiple executions of a
 			 * request. Although the multiple executions will have different
 			 * slot numbers and will not violate paxos safety, this is extremely
-			 * undesirable for most applications. */
+			 * undesirable for most applications. 
+			 * 
+			 * Update: We no longer need to convert preempted requests to a no-op 
+			 * before forwarding to the new coordinator because we have support for
+			 * handling retransmitted duplicate requests without double execution. 
+			 * */
 			assert (committedPValue.ballot.compareTo(acceptReply.ballot) < 0) : (committedPValue
 					+ " >= " + acceptReply);
 			if (!committedPValue.isNoop()
 					// forward only if not already a no-op
 					&& (unicastPreempted = new MessagingTask(
 							acceptReply.ballot.coordinatorID, committedPValue
-									.makeNoop().setForwarderID(this.getMyID())
+//									 .makeNoop()
+							.makeNewRequest()
+									.setForwarderID(this.getMyID())
 									.addDebugInfo("f"))) != null)
 				log.log(Level.WARNING,
-						"{0} forwarding preempted request no-op to {1}: {2}",
+						"{0} forwarding preempted request to {1}: {2}",
 						new Object[] { this, acceptReply.ballot.coordinatorID,
 								committedPValue.getSummary() });
 			else
@@ -1248,6 +1263,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		Integer[] acceptedSlots = batchedAR.getAcceptedSlots();
 		// DelayProfiler.updateCount("BATCHED_ACCEPT_REPLIES", 1);
+
+		log.log(Level.FINER, "{0} handling batched accept reply {1}", new Object[]{this, batchedAR});
 
 		// sort out decisions from preempted proposals
 		for (Integer slot : acceptedSlots) {
@@ -1300,8 +1317,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 	private MessagingTask handleCommittedRequest(PValuePacket committed) {
 		assert (committed.getPaxosID() != null);
-		RequestInstrumenter.received(committed, committed.ballot.coordinatorID,
-				this.getMyID());
+		//RequestInstrumenter.received(committed, committed.ballot.coordinatorID,this.getMyID());
 		if (instrument(!BATCHED_COMMITS)
 				&& committed.ballot.coordinatorID != this.getMyID())
 			DelayProfiler.updateCount("COMMITS", 1);

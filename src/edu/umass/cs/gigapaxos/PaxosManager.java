@@ -234,7 +234,7 @@ public class PaxosManager<NodeIDType> {
 		/**
 		 * 
 		 */
-		 public final RequestPacket requestPacket;
+		 protected RequestPacket requestPacket;
 		/**
 		 * 
 		 */
@@ -243,6 +243,15 @@ public class PaxosManager<NodeIDType> {
 		RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
 			this.requestPacket = request;
 			this.callback = callback;
+		}
+		/**
+		 * @return RequestPacket
+		 */
+		public RequestPacket getRequestPacket() {
+			return this.requestPacket;
+		}
+		protected AcceptPacket setAcceptPacket(AcceptPacket accept) {
+			return (AcceptPacket)(this.requestPacket= accept);
 		}
 	}
 
@@ -1106,13 +1115,13 @@ public class PaxosManager<NodeIDType> {
 				PaxosInstanceStateMachine pism = this.getInstance(request
 						.getPaxosID());
 
+				level = pism!=null ? level : Level.FINE;
 				log.log(level, "{0} received paxos message for {1} : {2}",
 						new Object[] { this,
 								pism != null ? pism : "non-existent instance",
 								request.getSummary(log.isLoggable(level)) });
 				if ((pism != null)
-						&& (pism.getVersion() == request.getVersion())
-						&& (!pism.isStopped()))
+						&& (pism.getVersion() == request.getVersion()))
 					pism.handlePaxosMessage(request);
 				else
 					// for recovering group created while crashed
@@ -2615,7 +2624,7 @@ public class PaxosManager<NodeIDType> {
 				ioe.printStackTrace();
 			}
 		} else {
-			log.log(Level.WARNING,
+			log.log(pp instanceof RequestPacket ? Level.WARNING : Level.INFO,
 					"{0} cant find group member in {1} {2}",
 					new Object[] {
 							this,
@@ -3415,5 +3424,24 @@ public class PaxosManager<NodeIDType> {
 			if (!this.FD.isNodeUp(iter.next()))
 				iter.remove();
 		return nodes;
+	}
+
+	protected AcceptPacket getPreviouslyIssuedAccept(RequestPacket proposal) {
+		RequestAndCallback rc = null;
+		if (((rc = this.outstanding.requests.get(proposal.getRequestID())) != null || (rc = this.outstanding.conflictIDRequests
+				.get(proposal)) != null)
+				&& rc.requestPacket instanceof AcceptPacket
+				&& rc.requestPacket.equals(proposal))
+			return (AcceptPacket) rc.requestPacket;
+		return null;
+	}
+
+	protected AcceptPacket setIssuedAccept(AcceptPacket accept) {
+		RequestAndCallback rc = accept!=null ? this.outstanding.requests.get(accept
+				.getRequestID()) : null;
+		if (rc != null
+				|| (rc = this.outstanding.conflictIDRequests.get(accept)) != null)
+			rc.setAcceptPacket(accept);
+		return accept;
 	}
 }

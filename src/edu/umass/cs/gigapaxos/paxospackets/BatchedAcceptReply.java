@@ -4,6 +4,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.json.JSONArray;
@@ -29,11 +30,11 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 	 */
 	public static final int MAX_BATCH_SIZE = 2048;
 
-	private final TreeSet<Integer> slots = new TreeSet<Integer>();
+	private final TreeMap<Integer, Long> slots = new TreeMap<Integer, Long>();
 
 	// exists only to check field sequence, not automate serialization
 	static enum Fields implements GetType {
-		slots(TreeSet.class);
+		slots(TreeMap.class);
 		final Class<?> type;
 
 		Fields(Class<?> type) {
@@ -57,7 +58,7 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 		super(ar.acceptor, ar.ballot, ar.slotNumber, ar.maxCheckpointedSlot);
 		this.packetType = PaxosPacket.PaxosPacketType.BATCHED_ACCEPT_REPLY;
 		this.putPaxosID(ar.getPaxosID(), ar.getVersion());
-		this.slots.add(ar.slotNumber);
+		this.slots.put(ar.slotNumber, ar.getRequestID());
 	}
 
 	/**
@@ -70,21 +71,31 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 
 		JSONArray jsonArray = json.getJSONArray(PaxosPacket.Keys.SLOTS
 				.toString());
-		for (int i = 0; i < jsonArray.length(); i++)
-			this.slots.add(jsonArray.getInt(i));
+		for (int i = 0; i < jsonArray.length(); i += 2)
+			this.slots.put(jsonArray.getInt(i), jsonArray.getLong(i + 1));
 	}
 
 	@Override
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
-		json.put(PaxosPacket.Keys.SLOTS.toString(), this.slots);
+		JSONArray jarray = new JSONArray();
+		for (Integer slot : this.slots.keySet())
+			jarray.put(slot).put(this.slots.get(slot));
+		json.put(PaxosPacket.Keys.SLOTS.toString(), jarray);
+		// json.put(PaxosPacket.Keys.SLOTS.toString(), this.slots);
 		return json;
 	}
 
 	@Override
 	public net.minidev.json.JSONObject toJSONSmartImpl() throws JSONException {
 		net.minidev.json.JSONObject json = super.toJSONSmartImpl();
-		json.put(PaxosPacket.Keys.SLOTS.toString(), this.slots);
+		net.minidev.json.JSONArray jarray = new net.minidev.json.JSONArray();
+		for (Integer slot : this.slots.keySet()) {
+			jarray.add(slot);
+			jarray.add(this.slots.get(slot));
+		}
+		json.put(PaxosPacket.Keys.SLOTS.toString(), jarray);
+		// json.put(PaxosPacket.Keys.SLOTS.toString(), this.slots);
 		return json;
 	}
 
@@ -105,7 +116,7 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 
 		int numSlots = bbuf.getInt();
 		for (int i = 0; i < numSlots; i++)
-			this.slots.add(bbuf.getInt());
+			this.slots.put(bbuf.getInt(), bbuf.getLong());
 		assert (!bbuf.hasRemaining()); // perfect alignment
 	}
 
@@ -127,8 +138,8 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 			// PaxosPacket
 					SIZEOF_PAXOSPACKET_FIXED + paxosIDLength
 							// self
-							+ SIZEOF_BATCHEDACCEPTREPLY + 4
-							* (this.slots.size() + 1)]);
+							+ SIZEOF_BATCHEDACCEPTREPLY + 4 + (4+8)
+							* (this.slots.size())]);
 
 			super.toBytes(bbuf); // AcceptReplyPacket and above
 			assert (bbuf.position() == SIZEOF_PAXOSPACKET_FIXED + paxosIDLength
@@ -136,8 +147,8 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 
 			// self
 			bbuf.putInt(this.slots.size());
-			for (Integer i : slots)
-				bbuf.putInt(i);
+			for (Integer i : slots.keySet())
+				bbuf.putInt(i).putLong(slots.get(i));
 			assert (!bbuf.hasRemaining()) : bbuf.remaining();
 			// all done with byteification
 
@@ -152,7 +163,8 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 					+ this.getClass().getSimpleName()
 					+ ".slots.size()=" + this.slots.size();
 
-			if (PaxosMessenger.INSTRUMENT_SERIALIZATION && Util.oneIn(Integer.MAX_VALUE))
+			if (PaxosMessenger.INSTRUMENT_SERIALIZATION
+					&& Util.oneIn(Integer.MAX_VALUE))
 				DelayProfiler
 						.updateDelayNano("batchedAcceptReplyByteification", t,
 								this.slots.size());
@@ -172,14 +184,22 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 		if (!ar.ballot.equals(this.ballot) || !this.paxosID.equals(ar.paxosID))
 			throw new RuntimeException("Unable to combine " + ar.getSummary()
 					+ " with " + this.getSummary());
-		return this.slots.add(ar.slotNumber);
+		return this.slots.put(ar.slotNumber, ar.getRequestID()) != null;
 	}
 
 	/**
 	 * @return Accepted slots.
 	 */
 	public Integer[] getAcceptedSlots() {
-		return this.slots.toArray(new Integer[0]);
+		return this.slots.keySet().toArray(new Integer[0]);
+	}
+
+	/**
+	 * @param slot
+	 * @return Long request ID for {@code slot}
+	 */
+	public Long getRequestID(int slot) {
+		return this.slots.get(slot);
 	}
 
 	/**
@@ -189,6 +209,37 @@ public class BatchedAcceptReply extends AcceptReplyPacket implements Byteable {
 		return this.slots.size();
 	}
 
+	@Override
+	protected String getSummaryString() {
+		return acceptor
+				+ "->"
+				+ ballot
+				+ ", "
+				+ (this.slots.size() == 1 ? this.slots : "["
+						+ this.slots.firstEntry() + "..."
+						+ this.slots.lastEntry() + "]") + "("
+				+ maxCheckpointedSlot + ")";
+	}
+
 	public static void main(String[] args) {
+		Util.assertAssertionsEnabled();
+		try {
+			AcceptReplyPacket ar1 = new AcceptReplyPacket(23,
+					new Ballot(0, 234), 1, -1);
+			ar1.putPaxosID("pid1", 0);
+			AcceptReplyPacket ar2 = new AcceptReplyPacket(23,
+					new Ballot(0, 234), 2, -1);
+			ar2.putPaxosID("pid1", 0);
+			BatchedAcceptReply bar = new BatchedAcceptReply(ar1);
+			bar.addAcceptReply(ar2);
+			System.out.println(bar);
+			System.out.println(new BatchedAcceptReply(bar.toJSONObject()));
+			assert(bar.toJSONObject().toString().equals(new BatchedAcceptReply(bar.toJSONObject()).toString()));
+			BatchedAcceptReply bar1 = new BatchedAcceptReply(ByteBuffer.wrap(bar.toBytes())); 
+			System.out.println(bar1);
+			assert(bar.toString().equals(new BatchedAcceptReply(ByteBuffer.wrap(bar.toBytes())).toString()));
+		} catch (JSONException | UnsupportedEncodingException | UnknownHostException e) {
+			e.printStackTrace();
+		}
 	}
 }
