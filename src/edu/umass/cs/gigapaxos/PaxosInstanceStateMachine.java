@@ -16,8 +16,6 @@
 package edu.umass.cs.gigapaxos;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -28,10 +26,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.json.JSONException;
-import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
@@ -42,13 +38,13 @@ import edu.umass.cs.gigapaxos.paxospackets.BatchedAcceptReply;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit;
 import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxospackets.PreparePacket;
 import edu.umass.cs.gigapaxos.paxospackets.PrepareReplyPacket;
 import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxospackets.StatePacket;
 import edu.umass.cs.gigapaxos.paxospackets.SyncDecisionsPacket;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.HotRestoreInfo;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
@@ -64,10 +60,10 @@ import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Keyable;
 import edu.umass.cs.utils.Pausable;
 import edu.umass.cs.utils.Util;
-import edu.umass.cs.utils.DelayProfiler;
 
 /**
  * @author V. Arun

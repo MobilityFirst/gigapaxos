@@ -1,7 +1,6 @@
 package edu.umass.cs.gigapaxos.paxospackets;
 
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Field;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;

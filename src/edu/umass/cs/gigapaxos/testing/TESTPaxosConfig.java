@@ -15,8 +15,6 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.testing;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;

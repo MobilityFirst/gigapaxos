@@ -31,16 +31,15 @@ import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptReplyPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxospackets.PrepareReplyPacket;
 import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.WaitforUtility;
 import edu.umass.cs.utils.Config;
-import edu.umass.cs.utils.DelayProfiler;
-import edu.umass.cs.utils.Util;
 import edu.umass.cs.utils.NullIfEmptyMap;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun

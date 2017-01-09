@@ -23,12 +23,11 @@ import java.util.Set;
 
 import org.json.JSONObject;
 
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.deprecated.ReplicableDeprecated;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.JSONMessenger;
-import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;

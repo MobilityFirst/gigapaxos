@@ -18,8 +18,8 @@ package edu.umass.cs.gigapaxos.paxosutil;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptReplyPacket;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedAccept;

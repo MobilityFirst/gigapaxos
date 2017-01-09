@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -44,8 +45,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
-
-import java.util.function.Consumer;
 
 /**
  * @author arun

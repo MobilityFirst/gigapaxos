@@ -19,15 +19,14 @@ package edu.umass.cs.nio.nioutils;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import edu.umass.cs.nio.interfaces.NodeConfig;
-
-import java.util.HashSet;
-
 import org.json.JSONArray;
 import org.json.JSONException;
+
+import edu.umass.cs.nio.interfaces.NodeConfig;
 
 /**
  * @author V. Arun

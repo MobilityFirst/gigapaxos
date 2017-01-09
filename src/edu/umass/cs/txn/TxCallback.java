@@ -1,17 +1,12 @@
 package edu.umass.cs.txn;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.reconfiguration.interfaces.GigaPaxosClient;
-import edu.umass.cs.txn.interfaces.TxOp;
 import edu.umass.cs.txn.txpackets.AbortRequest;
 import edu.umass.cs.txn.txpackets.LockRequest;
 import edu.umass.cs.txn.txpackets.TXPacket;

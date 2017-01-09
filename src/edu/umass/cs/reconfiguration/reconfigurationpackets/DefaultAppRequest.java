@@ -21,7 +21,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;

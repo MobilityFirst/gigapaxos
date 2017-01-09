@@ -34,9 +34,9 @@ import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.AckStartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
 import edu.umass.cs.utils.MyLogger;
 
 /**

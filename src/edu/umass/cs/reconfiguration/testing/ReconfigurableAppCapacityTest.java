@@ -1,19 +1,12 @@
 package edu.umass.cs.reconfiguration.testing;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.json.JSONException;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -22,12 +15,9 @@ import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
-import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
-import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
-import edu.umass.cs.gigapaxos.testing.TESTPaxosMain;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
@@ -37,8 +27,6 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfiguration
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
-import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig;
-import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.DelayProfiler;

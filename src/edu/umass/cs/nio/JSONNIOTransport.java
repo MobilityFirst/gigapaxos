@@ -17,11 +17,11 @@
  */
 package edu.umass.cs.nio;
 
+import java.io.IOException;
+
 import org.json.JSONObject;
 
 import edu.umass.cs.nio.interfaces.NodeConfig;
-
-import java.io.IOException;
 
 /**
  * @author V. Arun

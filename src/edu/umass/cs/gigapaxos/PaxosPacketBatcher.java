@@ -28,7 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
 
 import org.json.JSONException;
 

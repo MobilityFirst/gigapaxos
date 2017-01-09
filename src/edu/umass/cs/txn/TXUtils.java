@@ -5,13 +5,8 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
-import edu.umass.cs.gigapaxos.interfaces.Application;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;

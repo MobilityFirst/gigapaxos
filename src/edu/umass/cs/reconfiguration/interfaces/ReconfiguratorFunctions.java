@@ -3,14 +3,7 @@ package edu.umass.cs.reconfiguration.interfaces;
 import edu.umass.cs.gigapaxos.async.RequestCallbackFuture;
 import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.reconfiguration.Reconfigurator;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
 
 /**
  * @author arun

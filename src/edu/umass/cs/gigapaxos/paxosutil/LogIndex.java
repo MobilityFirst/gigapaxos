@@ -12,7 +12,6 @@ import org.json.JSONException;
 import org.junit.Test;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.utils.Config;

@@ -15,7 +15,6 @@ import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
-import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile.Keys;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 

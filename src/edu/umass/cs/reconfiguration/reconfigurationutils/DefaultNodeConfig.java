@@ -12,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONArray;
 import org.json.JSONException;
 
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
 

@@ -17,13 +17,13 @@
  */
 package edu.umass.cs.nio;
 
-import edu.umass.cs.nio.nioutils.InterfaceDelayEmulator;
+import java.net.SocketAddress;
+import java.util.Timer;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.net.SocketAddress;
-import java.util.Timer;
+import edu.umass.cs.nio.nioutils.InterfaceDelayEmulator;
 
 /**
  * @author V. Arun

@@ -1,7 +1,6 @@
 package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
 

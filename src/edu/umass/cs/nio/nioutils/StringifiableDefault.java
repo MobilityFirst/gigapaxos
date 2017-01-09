@@ -17,16 +17,13 @@
  */
 package edu.umass.cs.nio.nioutils;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 
-import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.utils.Util;
 

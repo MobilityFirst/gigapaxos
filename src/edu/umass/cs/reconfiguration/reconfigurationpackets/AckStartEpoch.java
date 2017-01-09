@@ -23,7 +23,6 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
-import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 
 /**
 @author V. Arun

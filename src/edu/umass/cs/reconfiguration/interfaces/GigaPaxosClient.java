@@ -3,14 +3,11 @@ package edu.umass.cs.reconfiguration.interfaces;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-import edu.umass.cs.gigapaxos.async.RequestCallbackFuture;
 import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 
 /**

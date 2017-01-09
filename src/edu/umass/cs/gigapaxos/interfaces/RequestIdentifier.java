@@ -1,6 +1,5 @@
 package edu.umass.cs.gigapaxos.interfaces;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
 
 /**
  * @author arun

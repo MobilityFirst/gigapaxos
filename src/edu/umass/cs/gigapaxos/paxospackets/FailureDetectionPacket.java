@@ -19,11 +19,11 @@ package edu.umass.cs.gigapaxos.paxospackets;
 
 import java.net.InetSocketAddress;
 
-import edu.umass.cs.nio.MessageNIOTransport;
-import edu.umass.cs.nio.interfaces.Stringifiable;
-
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import edu.umass.cs.nio.MessageNIOTransport;
+import edu.umass.cs.nio.interfaces.Stringifiable;
 
 /**
  * 

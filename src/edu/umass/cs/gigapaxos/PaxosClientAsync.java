@@ -17,12 +17,8 @@
 package edu.umass.cs.gigapaxos;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -31,13 +27,10 @@ import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
-import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
-import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexer;
+import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosPacketDemultiplexerFast;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
-import edu.umass.cs.nio.JSONPacket;
-import edu.umass.cs.nio.MessageExtractor;
 import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.nioutils.NIOHeader;

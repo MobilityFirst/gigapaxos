@@ -17,10 +17,6 @@
  */
 package edu.umass.cs.gigapaxos.interfaces;
 
-import java.util.Set;
-
-import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
 /**
  * @author V. Arun

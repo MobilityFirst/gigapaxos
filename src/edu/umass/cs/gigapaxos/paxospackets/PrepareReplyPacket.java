@@ -17,16 +17,16 @@
  */
 package edu.umass.cs.gigapaxos.paxospackets;
 
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.TreeMap;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
-
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * 

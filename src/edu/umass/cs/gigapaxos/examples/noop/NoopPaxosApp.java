@@ -1,14 +1,11 @@
 package edu.umass.cs.gigapaxos.examples.noop;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 import edu.umass.cs.gigapaxos.examples.PaxosAppRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.examples.noop.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;

@@ -1,9 +1,5 @@
 package edu.umass.cs.txn.txpackets;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -11,10 +7,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
 import edu.umass.cs.txn.exceptions.ResponseCode;
-import edu.umass.cs.utils.GCConcurrentHashMap;
-import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 import edu.umass.cs.utils.IntegerPacketTypeMap;
 
 /**

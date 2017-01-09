@@ -15,18 +15,6 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
-import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
-import edu.umass.cs.nio.interfaces.DataProcessingWorker;
-import edu.umass.cs.nio.interfaces.HandshakeCallback;
-import edu.umass.cs.nio.interfaces.NodeConfig;
-import edu.umass.cs.nio.nioutils.DataProcessingWorkerDefault;
-import edu.umass.cs.nio.nioutils.NIOInstrumenter;
-import edu.umass.cs.nio.nioutils.RTTEstimator;
-import edu.umass.cs.nio.nioutils.SampleNodeConfig;
-import edu.umass.cs.utils.DelayProfiler;
-import edu.umass.cs.utils.Stringer;
-import edu.umass.cs.utils.Util;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.BindException;
@@ -41,14 +29,11 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.spi.AbstractSelectableChannel;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -62,6 +47,17 @@ import java.util.logging.Logger;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
+
+import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
+import edu.umass.cs.nio.interfaces.DataProcessingWorker;
+import edu.umass.cs.nio.interfaces.HandshakeCallback;
+import edu.umass.cs.nio.interfaces.NodeConfig;
+import edu.umass.cs.nio.nioutils.DataProcessingWorkerDefault;
+import edu.umass.cs.nio.nioutils.NIOInstrumenter;
+import edu.umass.cs.nio.nioutils.RTTEstimator;
+import edu.umass.cs.nio.nioutils.SampleNodeConfig;
+import edu.umass.cs.utils.Stringer;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun

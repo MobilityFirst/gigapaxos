@@ -41,8 +41,6 @@ import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxosutil.RequestInstrumenter;
-import edu.umass.cs.nio.JSONNIOTransport;
-import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.SSLMessenger;

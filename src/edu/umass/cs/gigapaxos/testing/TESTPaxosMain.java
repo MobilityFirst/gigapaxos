@@ -31,9 +31,7 @@ import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
-import edu.umass.cs.reconfiguration.testing.TESTReconfigurationMain;
 import edu.umass.cs.utils.Config;
-import edu.umass.cs.utils.DelayProfiler;
 
 /**
  * @author V. Arun

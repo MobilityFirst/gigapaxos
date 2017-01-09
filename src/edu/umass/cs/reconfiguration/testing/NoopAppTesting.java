@@ -42,12 +42,10 @@ import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.examples.AbstractReconfigurablePaxosApp;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
-import edu.umass.cs.reconfiguration.examples.AppRequest.PacketType;
 import edu.umass.cs.reconfiguration.examples.AppRequest.ResponseCodes;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.Config;
-import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun

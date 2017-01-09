@@ -1,10 +1,8 @@
 package edu.umass.cs.reconfiguration.testing;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -27,38 +25,27 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
-import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxosutil.RateLimiter;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
-import edu.umass.cs.reconfiguration.ReconfigurableNode;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
-import edu.umass.cs.reconfiguration.SQLReconfiguratorDB;
-import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureActiveNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigureRCNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfigurationPacket;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
-import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
-import edu.umass.cs.utils.Util;
 
 /**
  * @author arun

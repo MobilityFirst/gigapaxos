@@ -9,16 +9,14 @@ import java.util.TreeSet;
 import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
-import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.txn.interfaces.TXInterface;
-import edu.umass.cs.txn.interfaces.TxOp;
 import edu.umass.cs.txn.txpackets.TXPacket;
 import edu.umass.cs.txn.txpackets.TxOpRequest;
 import edu.umass.cs.utils.Config;

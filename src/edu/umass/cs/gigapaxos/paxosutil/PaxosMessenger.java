@@ -25,7 +25,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;

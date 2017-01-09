@@ -21,7 +21,6 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Set;
 
-import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 

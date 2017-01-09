@@ -15,8 +15,6 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxosutil;
 
-import static org.junit.Assert.fail;
-
 import org.junit.Assert;
 import org.junit.Test;
 

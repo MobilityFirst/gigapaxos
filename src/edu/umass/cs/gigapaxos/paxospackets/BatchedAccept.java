@@ -4,7 +4,6 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
 import org.json.JSONArray;
 import org.json.JSONException;

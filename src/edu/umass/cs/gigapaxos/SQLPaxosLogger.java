@@ -15,53 +15,11 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
-import com.mchange.v2.c3p0.ComboPooledDataSource;
-
-import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
-import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
-import edu.umass.cs.gigapaxos.paxospackets.PreparePacket;
-import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
-import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
-import edu.umass.cs.gigapaxos.paxospackets.StatePacket;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
-import edu.umass.cs.gigapaxos.paxosutil.Ballot;
-import edu.umass.cs.gigapaxos.paxosutil.HotRestoreInfo;
-import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
-import edu.umass.cs.gigapaxos.paxosutil.LogIndex;
-import edu.umass.cs.gigapaxos.paxosutil.LogIndex.LogIndexEntry;
-import edu.umass.cs.gigapaxos.paxosutil.LogMessagingTask;
-import edu.umass.cs.gigapaxos.paxosutil.PaxosMessenger;
-import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
-import edu.umass.cs.gigapaxos.paxosutil.RecoveryInfo;
-import edu.umass.cs.gigapaxos.paxosutil.SQL;
-import edu.umass.cs.gigapaxos.paxosutil.SlotBallotState;
-import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
-import edu.umass.cs.gigapaxos.testing.TESTPaxosMain;
-import edu.umass.cs.nio.MessageExtractor;
-import edu.umass.cs.utils.Config;
-import edu.umass.cs.utils.DiskMap;
-import edu.umass.cs.utils.Diskable;
-import edu.umass.cs.utils.MultiArrayMap;
-import edu.umass.cs.utils.Util;
-import edu.umass.cs.utils.DelayProfiler;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.junit.Test;
-import org.junit.runner.JUnitCore;
-import org.junit.runner.Result;
-import org.junit.runner.notification.Failure;
-
-import javax.sql.DataSource;
-
 import java.beans.PropertyVetoException;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
@@ -70,7 +28,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileLock;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -99,12 +56,50 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
+
+import javax.sql.DataSource;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.junit.Test;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
+import org.junit.runner.notification.Failure;
+
+import com.mchange.v2.c3p0.ComboPooledDataSource;
+
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
+import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
+import edu.umass.cs.gigapaxos.paxospackets.PreparePacket;
+import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
+import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
+import edu.umass.cs.gigapaxos.paxospackets.StatePacket;
+import edu.umass.cs.gigapaxos.paxosutil.Ballot;
+import edu.umass.cs.gigapaxos.paxosutil.HotRestoreInfo;
+import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
+import edu.umass.cs.gigapaxos.paxosutil.LogIndex;
+import edu.umass.cs.gigapaxos.paxosutil.LogIndex.LogIndexEntry;
+import edu.umass.cs.gigapaxos.paxosutil.LogMessagingTask;
+import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
+import edu.umass.cs.gigapaxos.paxosutil.PaxosMessenger;
+import edu.umass.cs.gigapaxos.paxosutil.RecoveryInfo;
+import edu.umass.cs.gigapaxos.paxosutil.SQL;
+import edu.umass.cs.gigapaxos.paxosutil.SlotBallotState;
+import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
+import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.DiskMap;
+import edu.umass.cs.utils.Diskable;
+import edu.umass.cs.utils.MultiArrayMap;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun

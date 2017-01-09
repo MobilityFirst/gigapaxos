@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
@@ -13,9 +11,9 @@ import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.reconfiguration.ReconfigurableNode;
+import edu.umass.cs.reconfiguration.ReconfigurableNode.DefaultReconfigurableNode;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.SQLReconfiguratorDB;
-import edu.umass.cs.reconfiguration.ReconfigurableNode.DefaultReconfigurableNode;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;

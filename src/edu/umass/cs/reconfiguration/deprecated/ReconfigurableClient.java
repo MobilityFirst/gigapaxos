@@ -49,7 +49,6 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.MyLogger;
-import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun

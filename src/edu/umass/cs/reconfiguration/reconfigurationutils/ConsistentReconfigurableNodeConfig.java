@@ -30,9 +30,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 
 import edu.umass.cs.nio.nioutils.RTTEstimator;
-import edu.umass.cs.reconfiguration.ReconfigurationConfig;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;

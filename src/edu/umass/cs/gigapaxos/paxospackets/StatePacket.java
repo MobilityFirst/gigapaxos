@@ -17,12 +17,12 @@
  */
 package edu.umass.cs.gigapaxos.paxospackets;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.SlotBallotState;
 import edu.umass.cs.utils.Util;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 
 /**

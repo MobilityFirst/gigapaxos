@@ -15,6 +15,18 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.nio;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -27,19 +39,6 @@ import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
 import edu.umass.cs.nio.nioutils.SampleNodeConfig;
 import edu.umass.cs.utils.Util;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.util.TimerTask;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
 /**
  * @author V. Arun

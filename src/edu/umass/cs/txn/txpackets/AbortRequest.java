@@ -3,9 +3,6 @@ package edu.umass.cs.txn.txpackets;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.txn.Transaction;
-
 /**
  * @author arun
  * 

@@ -28,7 +28,6 @@ import org.json.JSONObject;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
-import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorRequest;
 import edu.umass.cs.utils.Util;
 

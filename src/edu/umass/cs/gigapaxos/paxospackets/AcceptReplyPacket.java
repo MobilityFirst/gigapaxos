@@ -16,18 +16,12 @@
 package edu.umass.cs.gigapaxos.paxospackets;
 
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Field;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Set;
-import java.util.TreeSet;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import com.mchange.v1.lang.ClassUtils;
-
-import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit.Fields;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 
 /**

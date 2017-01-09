@@ -1,13 +1,11 @@
 package edu.umass.cs.gigapaxos.async;
 
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
 
 /**

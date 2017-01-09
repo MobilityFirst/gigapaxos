@@ -17,7 +17,6 @@ package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 

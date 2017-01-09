@@ -15,11 +15,8 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.nio.nioutils;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 

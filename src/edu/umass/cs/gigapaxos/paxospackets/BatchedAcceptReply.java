@@ -3,16 +3,12 @@ package edu.umass.cs.gigapaxos.paxospackets;
 import java.io.UnsupportedEncodingException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit.Fields;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.GetType;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosMessenger;

@@ -16,7 +16,6 @@ import javax.crypto.SecretKey;
 import org.junit.Assert;
 import org.junit.Test;
 
-import edu.umass.cs.utils.SessionKeys.SecretKeyAndCertificate;
 import edu.umass.cs.utils.SessionKeys.SecretKeyCertificate;
 
 /**

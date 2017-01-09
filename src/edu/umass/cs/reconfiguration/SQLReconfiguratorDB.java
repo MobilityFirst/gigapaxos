@@ -35,7 +35,6 @@ import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -48,7 +47,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -63,9 +61,7 @@ import org.json.JSONObject;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
@@ -84,9 +80,9 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.R
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.DiskMap;
+import edu.umass.cs.utils.MyLogger;
 import edu.umass.cs.utils.StringLocker;
 import edu.umass.cs.utils.Util;
-import edu.umass.cs.utils.MyLogger;
 
 /**
  * @author V. Arun

@@ -24,14 +24,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosManager;
-import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
-import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -40,7 +36,6 @@ import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 

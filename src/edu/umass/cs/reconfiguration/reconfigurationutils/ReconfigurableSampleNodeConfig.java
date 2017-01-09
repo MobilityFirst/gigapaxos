@@ -17,14 +17,14 @@
  */
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
-import java.util.TreeSet;
 import java.util.Set;
-
-import edu.umass.cs.nio.nioutils.SampleNodeConfig;
-import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
+import java.util.TreeSet;
 
 import org.json.JSONArray;
 import org.json.JSONException;
+
+import edu.umass.cs.nio.nioutils.SampleNodeConfig;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 
 /**
  * @author V. Arun

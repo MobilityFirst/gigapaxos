@@ -18,17 +18,15 @@ package edu.umass.cs.nio;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.json.JSONException;
@@ -38,8 +36,6 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Stringer;
-
-import java.util.logging.Level;
 
 /**
  * @author V. Arun

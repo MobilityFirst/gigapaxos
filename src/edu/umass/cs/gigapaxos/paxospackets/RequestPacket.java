@@ -15,14 +15,27 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos.paxospackets;
 
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
+import java.util.logging.Level;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.RequestBatcher;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -35,24 +48,7 @@ import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DefaultTest;
-import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
-
-import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Field;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
-import java.util.logging.Level;
 
 /**
  * @author arun

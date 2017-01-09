@@ -23,11 +23,8 @@ import java.security.MessageDigest;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosMessenger;
-import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Util;
 

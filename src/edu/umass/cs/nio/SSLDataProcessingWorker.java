@@ -17,7 +17,6 @@ package edu.umass.cs.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectableChannel;

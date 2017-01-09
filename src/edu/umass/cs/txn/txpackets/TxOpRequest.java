@@ -5,7 +5,6 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.txn.interfaces.TxOp;
 

@@ -14,7 +14,6 @@ import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
-import edu.umass.cs.reconfiguration.examples.AppRequest.PacketType;
 import edu.umass.cs.utils.Config;
 
 /**

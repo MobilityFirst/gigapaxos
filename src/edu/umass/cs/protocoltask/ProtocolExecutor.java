@@ -31,8 +31,6 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 
 import edu.umass.cs.nio.GenericMessagingTask;
-import edu.umass.cs.nio.JSONMessenger;
-import edu.umass.cs.nio.MessageNIOTransport;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.protocoltask.json.ProtocolPacket;
 import edu.umass.cs.utils.MultiArrayMap;

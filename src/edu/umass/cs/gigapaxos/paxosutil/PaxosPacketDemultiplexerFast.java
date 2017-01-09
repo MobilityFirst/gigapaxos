@@ -16,10 +16,8 @@
 package edu.umass.cs.gigapaxos.paxosutil;
 
 import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 
 import org.json.JSONArray;
@@ -31,12 +29,10 @@ import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedAcceptReply;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit;
-import edu.umass.cs.gigapaxos.paxospackets.BatchedPaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
-import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
-import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket.PaxosPacketType;
+import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.MessageExtractor;

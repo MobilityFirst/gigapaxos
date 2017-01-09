@@ -1,7 +1,6 @@
 package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.utils.IntegerType;
 
 /**
  * @author arun

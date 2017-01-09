@@ -3,28 +3,17 @@ package edu.umass.cs.txn;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.logging.Level;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Application;
-import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
-import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
-import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.GigaPaxosClient;
-import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
-import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.txn.exceptions.ResponseCode;
 import edu.umass.cs.txn.exceptions.TXException;
 import edu.umass.cs.txn.interfaces.TXLocker;
@@ -32,10 +21,8 @@ import edu.umass.cs.txn.interfaces.TxOp;
 import edu.umass.cs.txn.txpackets.AbortRequest;
 import edu.umass.cs.txn.txpackets.CommitRequest;
 import edu.umass.cs.txn.txpackets.LockRequest;
-import edu.umass.cs.txn.txpackets.TXPacket;
 import edu.umass.cs.txn.txpackets.UnlockRequest;
 import edu.umass.cs.utils.Config;
-import edu.umass.cs.utils.GCConcurrentHashMap;
 
 /**
  * @author arun

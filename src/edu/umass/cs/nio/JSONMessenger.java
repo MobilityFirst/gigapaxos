@@ -29,8 +29,6 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.gigapaxos.paxospackets.ProposalPacket;
-import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.AddressMessenger;
 import edu.umass.cs.nio.interfaces.Byteable;
@@ -38,9 +36,7 @@ import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
-import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.Stringer;
-import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun

@@ -27,8 +27,8 @@ import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.RepliconfigurableReconfiguratorDB;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.StartEpoch;
 
 /**
  * @author arun

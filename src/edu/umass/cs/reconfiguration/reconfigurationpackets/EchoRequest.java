@@ -3,8 +3,6 @@ package edu.umass.cs.reconfiguration.reconfigurationpackets;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
