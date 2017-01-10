@@ -754,6 +754,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 			return m;
 	}
 
+	// unused
 	protected synchronized Set<K> commit(K key) throws IOException {
 		Map<K, V> singleton = new ConcurrentHashMap<K, V>();
 		if (this.map.containsKey(key))

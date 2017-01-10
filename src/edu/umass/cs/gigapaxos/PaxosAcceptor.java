@@ -228,8 +228,8 @@ public class PaxosAcceptor {
 		PrepareReplyPacket preply = null;
 		if (prepare.ballot.compareTo(new Ballot(ballotNum, ballotCoord)) > 0) {
 			log.log(Level.FINE,
-					"Node {0} acceptor updating to higher ballot {1}",
-					new Object[] { myID, prepare.ballot });
+					"{0} acceptor updating to higher ballot {1}",
+					new Object[] { this, prepare.ballot });
 			this.ballotNum = prepare.ballot.ballotNumber;
 			this.ballotCoord = prepare.ballot.coordinatorID;
 		}
@@ -288,8 +288,8 @@ public class PaxosAcceptor {
 			this.ballotCoord = accept.ballot.coordinatorID;
 			if (accept.slot - this.acceptedGCSlot > 0)
 				this.acceptedProposals.put(accept.slot, accept); // wraparound
-			log.log(Level.FINE, "Node{0} acceptor accepting {1}", new Object[] {
-					myID, accept.getSummary(log.isLoggable(Level.FINE)) });
+			log.log(Level.FINE, "{0} acceptor accepting {1}", new Object[] {
+					this, accept.getSummary(log.isLoggable(Level.FINE)) });
 		}
 		garbageCollectAccepted(accept.getMedianCheckpointedSlot());
 		return new Ballot(ballotNum, ballotCoord);

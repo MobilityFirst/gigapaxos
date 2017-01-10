@@ -588,7 +588,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 												.getString("state")), 32, 32) });
 			}
 		} catch (SQLException | UnsupportedEncodingException sqle) {
-			log.severe("SQLException while copying epoch final state for "
+			log.severe(this + ": SQLException while copying epoch final state for "
 					+ paxosID
 					+ ":"
 					+ version
@@ -748,7 +748,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				return this.fos;
 			} catch (IOException e) {
 				if (ENABLE_JOURNALING) {
-					log.severe("Unable to create log file " + filename
+					log.severe(this + " unable to create log file " + filename
 							+ "; exiting");
 					e.printStackTrace();
 					System.exit(1);
@@ -1832,7 +1832,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				// DelayProfiler.updateCount("#logged", -deleted)
 				;
 		} catch (SQLException sqle) {
-			log.severe("SQLException while deleting outdated messages for "
+			log.severe(this + ": SQLException while deleting outdated messages for "
 					+ paxosID);
 			sqle.printStackTrace();
 		} finally {
@@ -1887,7 +1887,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						new Object[] { this, message });
 				logged = true;
 			} else {
-				log.severe("SQLException while logging as " + cmd + " : "
+				log.severe(this +": SQLException while logging as " + cmd + " : "
 						+ sqle);
 				sqle.printStackTrace();
 			}
@@ -2353,10 +2353,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						.getString(1) : lobToString(stateRS.getBlob(1)));
 			}
 		} catch (IOException e) {
-			log.severe("IOException while getting state " + " : " + e);
+			log.severe(this + ": IOException while getting state " + " : " + e);
 			e.printStackTrace();
 		} catch (SQLException sqle) {
-			log.severe("SQLException while getting state: " + table + " "
+			log.severe(this + ": SQLException while getting state: " + table + " "
 					+ paxosID + " " + column + " : " + sqle);
 			sqle.printStackTrace();
 		} finally {
@@ -2380,7 +2380,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				exists = true;
 			}
 		} catch (SQLException sqle) {
-			log.severe("SQLException while getting state: " + table + " "
+			log.severe(this + ": SQLException while getting state: " + table + " "
 					+ paxosID + " : " + sqle);
 			sqle.printStackTrace();
 		} finally {
@@ -2473,7 +2473,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 							Util.stringToStringSet(stateRS.getString(7)));
 			}
 		} catch (SQLException | IOException | JSONException e) {
-			log.severe(e.getClass().getSimpleName() + " while getting slot "
+			log.severe(this + ": "+ e.getClass().getSimpleName() + " while getting slot "
 					+ " : " + e);
 			e.printStackTrace();
 		} finally {
@@ -2547,7 +2547,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				pri = new RecoveryInfo(paxosID, version, pieces);
 			}
 		} catch (SQLException | JSONException e) {
-			log.severe((e instanceof SQLException ? "SQL" : "JSON")
+			log.severe(this + ": "+ (e instanceof SQLException ? "SQL" : "JSON")
 					+ "Exception while getting all paxos IDs " + " : " + e);
 		} finally {
 			cleanup(pstmt, stateRS);
@@ -2572,7 +2572,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			this.cursorRset = this.cursorPstmt.executeQuery();
 			initiated = true;
 		} catch (SQLException sqle) {
-			log.severe("SQLException while getting all paxos IDs " + " : "
+			log.severe(this + ": SQLException while getting all paxos IDs " + " : "
 					+ sqle);
 		}
 		return initiated;
@@ -2601,7 +2601,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				this.unpauseLogIndex(paxosID);
 			}
 		} catch (SQLException | JSONException | IOException e) {
-			log.severe(e.getClass().getSimpleName()
+			log.severe(this + ": " +e.getClass().getSimpleName()
 					+ " in readNextCheckpoint: " + " : " + e);
 		}
 		return pri;
@@ -2630,7 +2630,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					initiated = true;
 				}
 			} catch (SQLException sqle) {
-				log.severe("SQLException while getting all paxos IDs " + " : "
+				log.severe(this + ": SQLException while getting all paxos IDs " + " : "
 						+ sqle);
 			}
 		else if (isJournalingEnabled()) {
@@ -2690,7 +2690,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				unpaused.add(rset.getString(1));
 			}
 		} catch (SQLException e) {
-			log.severe("SQLException while getting all paxos IDs " + " : " + e);
+			log.severe(this + ": SQLException while getting all paxos IDs " + " : " + e);
 		} finally {
 			cleanup(pstmt, rset);
 			cleanup(conn);
@@ -3048,7 +3048,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				messages.add(packet);
 			}
 		} catch (SQLException | JSONException e) {
-			log.severe(e.getClass().getSimpleName()
+			log.severe(this + ": " + e.getClass().getSimpleName()
 					+ " while getting slot for " + paxosID);
 			e.printStackTrace();
 		} finally {
@@ -3236,7 +3236,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 			// DelayProfiler.updateDelay("get_indexed_logfiles", t);
 		} catch (SQLException e) {
-			log.severe(e.getClass().getSimpleName()
+			log.severe(this + ": " + e.getClass().getSimpleName()
 					+ " while getting logfile names");
 			e.printStackTrace();
 		} finally {
@@ -3803,7 +3803,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					new Object[] { this, paxosID, version, paxosID });
 		} catch (SQLException sqle) {
 			if (!removedP)
-				log.severe("Could not remove table "
+				log.severe(this + " could not remove table "
 						+ (removedCP ? (removedM ? getPTable() : getMTable())
 								: getCTable()));
 			sqle.printStackTrace();
@@ -3900,13 +3900,13 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				if (((sqle.getErrorCode() == 50000) && ("XJ015".equals(sqle
 						.getSQLState())))) {
 					// we got the expected exception
-					log.info("Derby shut down normally");
+					log.info(this + " derby shut down normally");
 					// Note that for single database shutdown, the expected
 					// SQL state is "08006", and the error code is 45000.
 				} else {
 					// if the error code or SQLState is different, we have
 					// an unexpected exception (shutdown failed)
-					log.severe("Derby did not shut down normally");
+					log.severe(this + " derby did not shut down normally");
 					sqle.printStackTrace();
 				}
 			}
@@ -3930,7 +3930,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 
 		} catch (SQLException sqle) {
-			log.severe("Could not close connection gracefully");
+			log.severe(this + " could not close connection gracefully");
 			sqle.printStackTrace();
 		}
 		return isClosed();
@@ -4058,7 +4058,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 					"Created tables ", getCTable(), " and ", getMTable(),
 					" and ", getPTable() });
 		} catch (SQLException sqle) {
-			log.severe("Could not create table(s): "
+			log.severe(this + " could not create table(s): "
 					+ (createdPTable ? "" : getPTable()) + " "
 					+ (createdPrevCheckpoint ? "" : getPCTable()) + " "
 					+ (createdMessages ? "" : getMTable()) + " "
@@ -4142,7 +4142,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 
 		} catch (Exception sqle) {
-			log.severe("SQLException while sanity checking table schema");
+			log.severe(this + ": SQLException while sanity checking table schema");
 			sqle.printStackTrace();
 			System.exit(1);
 		} finally {
@@ -4163,7 +4163,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						table, " already exists" });
 				created = true;
 			} else {
-				log.severe("Could not create table: " + table + " "
+				log.severe(this + " could not create table: " + table + " "
 						+ sqle.getSQLState() + " " + sqle.getErrorCode());
 				sqle.printStackTrace();
 			}
@@ -4324,7 +4324,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			dataSource = (ComboPooledDataSource) setupDataSourceC3P0(
 					dbCreation, props);
 		} catch (SQLException e) {
-			log.severe("Could not create pooled data source to DB "
+			log.severe(this + " could not create pooled data source to DB "
 					+ dbCreation);
 			e.printStackTrace();
 			return false;
@@ -4333,18 +4333,18 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		while (!connected && connAttempts < maxAttempts) {
 			try {
 				connAttempts++;
-				log.info("Attempting getCursorConn() to db " + dbCreation);
+				log.info(this + " attempting getCursorConn() to db " + dbCreation);
 				if (getCursorConn() == null)
 					// test opening a connection
 					this.cursorConn = dataSource.getConnection();
-				log.info("Connected to and created database "
+				log.info(this + " connected to and created database "
 						+ this.getMyDBName());
 				connected = true;
 				// mchange complains at unsuppressable INFO otherwise
 				if (isEmbeddedDB())
 					fixURI(); // remove create flag
 			} catch (SQLException sqle) {
-				log.severe("Could not connect to derby DB: "
+				log.severe(this + " could not connect to derby DB: "
 						+ sqle.getSQLState() + ":" + sqle.getErrorCode());
 				sqle.printStackTrace();
 				try {
@@ -4423,7 +4423,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				this.cursorRset = null;
 			}
 		} catch (SQLException sqle) {
-			log.severe("Could not close connection " + this.cursorConn);
+			log.severe(this + " could not close connection " + this.cursorConn);
 			sqle.printStackTrace();
 		}
 	}
@@ -4434,7 +4434,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				conn.close();
 			}
 		} catch (SQLException sqle) {
-			log.severe("Could not close connection " + conn);
+			log.severe(this + " could not close connection " + conn);
 			sqle.printStackTrace();
 		}
 	}
@@ -4445,7 +4445,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				stmt.close();
 			}
 		} catch (SQLException sqle) {
-			log.severe("Could not clean up statement " + stmt);
+			log.severe(this + " could not clean up statement " + stmt);
 			sqle.printStackTrace();
 		}
 	}
@@ -4456,7 +4456,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				rs.close();
 			}
 		} catch (SQLException sqle) {
-			log.severe("Could not close result set " + rs);
+			log.severe(this + " could not close result set " + rs);
 			sqle.printStackTrace();
 		}
 	}
@@ -4532,7 +4532,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				logged = msg.equals(insertedMsg);
 			}
 		} catch (SQLException | IOException e) {
-			log.severe(e.getClass().getSimpleName() + " while getting slot "
+			log.severe(this + ": " + e.getClass().getSimpleName() + " while getting slot "
 					+ " : " + e);
 			e.printStackTrace();
 		} finally {
@@ -4656,7 +4656,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 						.add(new RecoveryInfo(paxosID, version, pieces));
 			}
 		} catch (SQLException | JSONException e) {
-			log.severe((e instanceof SQLException ? "SQL" : "JSON")
+			log.severe(this + ":" + (e instanceof SQLException ? "SQL" : "JSON")
 					+ "Exception while getting all paxos IDs " + " : " + e);
 		} finally {
 			cleanup(pstmt, stateRS);

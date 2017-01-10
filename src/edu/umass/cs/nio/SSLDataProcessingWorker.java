@@ -91,30 +91,17 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 	private static final Logger log = NIOTransport.getLogger();
 
 	/**
-	 * Wraps an underlying data processing worker by adding an unwrap function
-	 * just before delivering it to the underlying worker.
-	 * 
-	 * @param worker
-	 * @throws NoSuchAlgorithmException
-	 * @throws SSLException
-	 */
-	protected SSLDataProcessingWorker(DataProcessingWorker worker)
-			throws NoSuchAlgorithmException, SSLException {
-		this.decryptedWorker = worker;
-		this.sslMode = NIOTransport.DEFAULT_SSL_MODE;
-	}
-
-	/**
 	 * @param worker
 	 * @param sslMode
 	 * @throws NoSuchAlgorithmException
 	 * @throws SSLException
 	 */
 	protected SSLDataProcessingWorker(DataProcessingWorker worker,
-			SSLDataProcessingWorker.SSL_MODES sslMode)
+			SSLDataProcessingWorker.SSL_MODES sslMode, String myID)
 			throws NoSuchAlgorithmException, SSLException {
 		this.decryptedWorker = worker;
 		this.sslMode = sslMode;
+		this.myID = myID;
 	}
 
 	protected SSLDataProcessingWorker setHandshakeCallback(
@@ -210,7 +197,7 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 
 		NonBlockingSSLImpl(SelectionKey key, SSLEngine engine,
 				 Executor taskWorkers) {
-			super(key, engine, taskWorkers);
+			super(key, engine, taskWorkers, SSLDataProcessingWorker.this.myID);
 			this.engine = engine;
 		}
 

@@ -182,12 +182,15 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		AbstractPaxosLogger.fileLock(id);
 
 		ReconfigurationPacketDemultiplexer pd;
+		
+		if(Config.getGlobalBoolean(PC.ENABLE_HANDLE_MESSAGE_REPORT))
+			NIOInstrumenter.monitorHandleMessage();
 
 		String err = null;
 		if (!nodeConfig.getActiveReplicas().contains(id)
 				&& !nodeConfig.getReconfigurators().contains(id)) {
 			Reconfigurator.getLogger().severe(
-					err = "Node " + id
+					err =  id
 							+ " not present in NodeConfig argument \n  "
 							+ nodeConfig.getActiveReplicas() + "\n  "
 							+ nodeConfig.getReconfigurators());
@@ -281,7 +284,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	}
 
 	public String toString() {
-		return "Node" + this.myID;
+		return this.myID.toString();
 	}
 	/**
 	 * @return String ID
@@ -357,8 +360,6 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	public static void main(String[] args) throws IOException {
 		Config.register(args);
 		ReconfigurationConfig.setConsoleHandler();
-		if(Config.getGlobalBoolean(PC.ENABLE_HANDLE_MESSAGE_REPORT))
-			NIOInstrumenter.monitorHandleMessage();
 
 		PaxosConfig.sanityCheck();
 		if (args.length == 0)

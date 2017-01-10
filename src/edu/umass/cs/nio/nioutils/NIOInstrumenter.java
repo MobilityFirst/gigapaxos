@@ -36,7 +36,7 @@ import edu.umass.cs.utils.Util;
  */
 
 public class NIOInstrumenter {
-	private static Logger log=NIOTransport.getLogger();
+	private static Logger log = NIOTransport.getLogger();
 	private static int totalSent = 0; // Sent by NIOTransport
 	private static int totalRcvd = 0; // Received by NIOTransport
 
@@ -51,11 +51,11 @@ public class NIOInstrumenter {
 	private static int totalJSONRcvd = 0;
 	private static double averageDelay = 0;
 	private static boolean enabled = false;
-	
+
 	private static long PERIOD = 5000;
 	private static long lastUpdated = System.currentTimeMillis();
 	private static Timer timer = new Timer(true);
-	
+
 	private static final long THRESHOLD = 8000;
 	static {
 		if (enabled)
@@ -64,7 +64,9 @@ public class NIOInstrumenter {
 					if (System.currentTimeMillis() - lastUpdated < PERIOD) {
 						String stats = NIOInstrumenter.getJSONStats();
 						System.out.println(stats);
-						if(log!=null) log.log(Level.WARNING, "{0}", new Object[]{stats});
+						if (log != null)
+							log.log(Level.WARNING, "{0}",
+									new Object[] { stats });
 					}
 				}
 			}, 0, PERIOD);
@@ -76,6 +78,7 @@ public class NIOInstrumenter {
 	public static void setLogger(Logger l) {
 		log = l;
 	}
+
 	/**
 	 * 
 	 */
@@ -225,29 +228,36 @@ public class NIOInstrumenter {
 	public void enable() {
 		enabled = true;
 	}
-	
+
 	/**
 	 * @return monitorHandleMessageEnabled
 	 */
 	public static boolean monitorHandleMessageEnabled() {
 		return monitorHandleMessageEnabled;
 	}
-	private static boolean monitorHandleMessageEnabled=false;
+
+	private static boolean monitorHandleMessageEnabled = false;
+
 	/**
-	 * Will monitor for long {@link AbstractPacketDemultiplexer#handleMessage(Object, NIOHeader)} instances.
+	 * Will monitor for long
+	 * {@link AbstractPacketDemultiplexer#handleMessage(Object, NIOHeader)}
+	 * instances.
 	 */
 	public static void monitorHandleMessage() {
 		{
+			log.log(Level.INFO,
+					"Initializing handleMessageMonitor with threshold "
+							+ THRESHOLD + " period " + PERIOD);
 			monitorHandleMessageEnabled = true;
-//			System.out.println(NIOInstrumenter.class.getSimpleName() + " enabling handleMessage monitoring");
 			timer.scheduleAtFixedRate(new TimerTask() {
 				public void run() {
-					if (System.currentTimeMillis() - lastUpdated < PERIOD) {
-						String stats = AbstractPacketDemultiplexer.getHandleMessageReport(THRESHOLD);
-						if(stats!=null) {
-							System.out.println(stats);
-							if(log!=null) log.log(Level.WARNING, "{0}", new Object[]{stats});
-						}
+					String stats = AbstractPacketDemultiplexer
+							.getHandleMessageReport(THRESHOLD);
+					if (stats != null) {
+						System.out.println(stats);
+						if (log != null)
+							log.log(Level.WARNING, "{0}",
+									new Object[] { stats });
 					}
 				}
 			}, 0, PERIOD);

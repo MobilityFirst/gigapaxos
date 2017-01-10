@@ -13,6 +13,9 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
 
+import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.paxosutil.RequestInstrumenter;
+
 /**
  *
  */
@@ -45,6 +48,8 @@ public class DefaultTest {
 			System.out.println((repeatIndex != lastPrinted ? repeatIndex : "")
 					+ " FAILED!!!!!!!!!!!!! " + e);
 			e.printStackTrace();
+			if (Config.getGlobalBoolean(PC.DEBUG))
+				System.out.println(RequestInstrumenter.getLog());
 			System.exit(1);
 		}
 
@@ -70,9 +75,9 @@ public class DefaultTest {
 					.print(repeatIndex++ == 0 ? testName.getMethodName() + " "
 							+ repeatIndex + " "
 
-							: (repeatIndex == lastPrinted * 2 && (lastPrinted *= 2) > 0) ? (repeatIndex+" ")
+							: (repeatIndex == lastPrinted * 2 && (lastPrinted *= 2) > 0) ? (repeatIndex + " ")
 									: "");
-		else 
+		else
 			System.out.print(testName.getMethodName() + " ");
 	}
 

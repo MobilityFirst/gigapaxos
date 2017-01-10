@@ -232,4 +232,8 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 
 		return first;
 	}
+	
+	public String toString() {
+		return RequestBatcher.class.getSimpleName()+":"+this.paxosManager;
+	}
 }

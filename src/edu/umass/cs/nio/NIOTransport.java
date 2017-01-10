@@ -357,7 +357,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 					|| sslMode
 							.equals(SSLDataProcessingWorker.SSL_MODES.MUTUAL_AUTH)) {
 				return (worker instanceof SSLDataProcessingWorker ? (SSLDataProcessingWorker) worker
-						: new SSLDataProcessingWorker(worker, sslMode))
+						: new SSLDataProcessingWorker(worker, sslMode, this.toString()))
 						.setHandshakeCallback(this);
 				// CLEAR is not a legitimate SSLDataProcessingWorker type
 			}
@@ -621,7 +621,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 					this.read(key);
 			} catch (IOException | CancelledKeyException e) {
 				updateFailed(key);
-				log.log(Level.WARNING, "Node {0} incurred IOException on {1}"
+				log.log(Level.WARNING, "{0} incurred IOException on {1}"
 						+ " likely because remote end closed connection",
 						new Object[] {
 								this,
@@ -826,7 +826,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			try {
 				length = getPayloadLength(bbuf);
 			} catch (IOException ioe) {
-				throw new IOException("Node" + myID + ":" + ioe.getMessage()
+				throw new IOException(myID + ":" + ioe.getMessage()
 						+ " on channel " + socketChannel);
 			}
 			// allocate new buffer and read payload
@@ -1033,8 +1033,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 						NIOTransport.this.write(key);
 					} catch (IOException e) {
 						NIOTransport.this.updateFailed(key);
-						log.info("Node"
-								+ myID
+						log.info(
+								myID
 								+ " incurred IOException on "
 								+ key.channel()
 								+ " likely because remote end closed connection");
@@ -1485,12 +1485,12 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				// wait till handshake complete for SSL writes
 						| (isSSL() ? 0 : SelectionKey.OP_WRITE));
 			} catch (ClosedChannelException e) {
-				log.warning("Node"
-						+ myID
+				log.warning(
+						myID
 						+ " failed to set interest ops immediately after accept()");
 				// do nothing
 			} catch (IOException e) {
-				log.warning("Node" + myID + " failed to get remote address");
+				log.warning(myID + " failed to get remote address");
 				// do nothing
 			}
 		}
@@ -1527,7 +1527,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		synchronized (this.sockAddrToSockChannel) {
 			if (!this.isConnected(isa, true) && checkAndReconnect(isa)) {
 				log.log(Level.FINE,
-						"Node {0} has no connection to {1} either because "
+						"{0} has no connection to {1} either because "
 								+ "one has not been established or "
 								+ "was previously closed by remote end.",
 						new Object[] { this, isa });

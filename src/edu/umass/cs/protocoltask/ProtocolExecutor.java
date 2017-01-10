@@ -242,7 +242,7 @@ public class ProtocolExecutor<NodeIDType, EventType, KeyType> {
 	private synchronized void insert(
 			ProtocolTaskWrapper<NodeIDType, EventType, KeyType> task) {
 		if (task.getKey() == null || this.isRunning(task.getKey())) {
-			String errorMsg = "Node" + myID + " trying to insert "
+			String errorMsg =  myID + " trying to insert "
 					+ (task.getKey() == null ? "null" : "duplicate") + " key "
 					+ task.getKey();
 			log.warning(errorMsg);
@@ -387,11 +387,11 @@ public class ProtocolExecutor<NodeIDType, EventType, KeyType> {
 		 * rely on a default task step.
 		 */
 		if ((task = this.defaultTasks.get(event.getType())) != null) {
-			log.fine("Node" + myID + " handling default event "
+			log.fine(myID + " handling default event "
 					+ event.getType());
 		} else if (event.getKey() != null
 				&& (task = this.retrieve(event.getKey())) != null) {
-			log.fine("Node" + myID + " handling protocol task for "
+			log.fine( myID + " handling protocol task for "
 					+ event.getType() + ":" + event.getKey());
 		} else if (event.getKey() == null) {
 			log.warning("No default handler and null key for event "

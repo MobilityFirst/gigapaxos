@@ -222,7 +222,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		// log creation only if the number of instances is small
 		log.log(((hri == null || initialState != null) && notManyInstances()) ? Level.INFO
 				: Level.FINER,
-				"Node{0} initialized paxos {1} {2} with members {3}; {4} {5} {6}",
+				"{0} initialized paxos {1} {2} with members {3}; {4} {5} {6}",
 				new Object[] {
 						this.getNodeID(),
 						(this.paxosState.getBallotCoordLog() == this.getMyID() ? "coordinator"
@@ -359,7 +359,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				log.warning(this
 						+ " unable to delete application state; retrying");
 			else
-				throw new RuntimeException("Node" + getNodeID()
+				throw new RuntimeException(getNodeID()
 						+ " unable to delete " + this.getPaxosIDVersion());
 		return true;
 	}
@@ -601,7 +601,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (slotBallot == null && roundRobinCoordinator(0) == this.getMyID())
 			this.coordinator = PaxosCoordinator.createCoordinator(0,
 					this.getMyID(), getMembers(), (initialState != null
-							|| nullCheckpointStateEnabled() ? 1 : 0), true); // slotBallot==null
+							|| nullCheckpointStateEnabled() ? 1 : 0), true,
+					this.getNodeID()); // slotBallot==null
 		/* Note: We don't have to create coordinator state here. It will get
 		 * created if needed when the first external (non-recovery) packet is
 		 * received. But we create the very first coordinator here as otherwise
@@ -643,7 +644,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				slotBallot != null ? slotBallot.ballotnum : 0,
 				slotBallot != null ? slotBallot.coordinator : this
 						.roundRobinCoordinator(0),
-				slotBallot != null ? (slotBallot.slot + 1) : 0, null);
+				slotBallot != null ? (slotBallot.slot + 1) : 0, null) {
+			public String toString() {
+				return PaxosAcceptor.class + ":" + PaxosInstanceStateMachine.this.getNodeID();
+			}
+		};
 		if (slotBallot == null && !missedBirthing)
 			this.putInitialState(initialState); // will set nextSlot to 1
 		if (missedBirthing)
@@ -1323,7 +1328,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			log.log(Level.INFO, "{0} received syncd decision {1}",
 					new Object[] { this, committed.getSummary() });
 
-		PValuePacket correspondingAccept = null;
+		PValuePacket correspondingAccept = null, metaDecision=null;
 		// log, extract from or add to acceptor, and execute the request at app
 		if (!committed.isRecovery()
 				&& (committed.hasRequestValue() || LOG_META_DECISIONS))
@@ -1337,7 +1342,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 											.getAccept(committed.slot)) != null
 									// and corresponding accept ballot dominates
 									&& correspondingAccept.ballot
-											.compareTo(committed.ballot) >= 0 ? committed
+											.compareTo(committed.ballot) >= 0 ? metaDecision= committed
 									.getMetaDecision() :
 							/* Could still be a placeholder meta decision as we
 							 * may have gotten this decision through a batched
@@ -1354,7 +1359,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					"{0} expecting {1}; received out-of-order commit {2} {3}",
 					new Object[] { this, this.paxosState.getSlotLog(),
 							committed.slot,
-							committed.getSummary(log.isLoggable(Level.FINE)) });
+							(metaDecision!=null ? metaDecision : committed).getSummary(log.isLoggable(Level.FINE)) });
 
 		return mtask;
 	}
@@ -2066,7 +2071,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	}
 
 	private String getNodeState() {
-		return "Node" + this.getNodeID() + ":" + this.getPaxosIDVersion() + ":"
+		return this.getNodeID() + ":" + this.getPaxosIDVersion() + ":"
 				+ this.getBallots();
 	}
 

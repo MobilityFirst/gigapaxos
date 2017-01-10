@@ -54,6 +54,8 @@ public abstract class AbstractNIOSSL implements Runnable {
 
 	final SSLEngine engine;
 	final Executor taskWorkers;
+	
+	final String myID;
 
 	final SelectionKey key;
 	private static final Logger log = Logger.getLogger(NIOTransport.class
@@ -63,9 +65,10 @@ public abstract class AbstractNIOSSL implements Runnable {
 	 * @param key
 	 * @param engine
 	 * @param taskWorkers
+	 * @param myID 
 	 */
 	public AbstractNIOSSL(SelectionKey key, SSLEngine engine,
-			Executor taskWorkers) {
+			Executor taskWorkers, String myID) {
 		this.wrapSrc = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
 		this.wrapDst = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
 		this.unwrapSrc = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE);
@@ -73,6 +76,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 		this.engine = engine;
 		this.taskWorkers = taskWorkers;
 		this.key = key;
+		this.myID = myID;
 
 		run();
 	}
@@ -405,7 +409,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 
 	public String toString() {
 		return AbstractNIOSSL.class.getSimpleName()
-				+ (this.key != null ? this.key.channel() : "");
+				+":"+this.myID+":"+ (this.key != null ? this.key.channel() : "");
 	}
 
 	/**

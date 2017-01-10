@@ -1125,7 +1125,7 @@ public class PaxosManager<NodeIDType> {
 				break;
 			}
 		} catch (JSONException je) {
-			log.severe("Node" + this.myID + " received bad JSON message: "
+			log.severe(this.myID + " received bad JSON message: "
 					+ request);
 			je.printStackTrace();
 		} finally {
@@ -3132,7 +3132,7 @@ public class PaxosManager<NodeIDType> {
 				log.info("Waiting for node " + members[i] + " to recover ");
 				pms[i].waitToRecover();
 			}
-			log.info("Node" + members[i]
+			log.info(members[i]
 					+ " finished recovery including rollback;\n" + names[0]
 					+ " recovered at slot " + apps[i].getNumCommitted(names[0]));
 			// need max recovery slot for names[0] below
@@ -3218,7 +3218,7 @@ public class PaxosManager<NodeIDType> {
 			apps[maxRecoveredNode].waitToFinish();
 			;
 		}
-		log.info("Node" + maxRecoveredNode + " has executed up to slot "
+		log.info(maxRecoveredNode + " has executed up to slot "
 				+ (maxRecoverySlot + numRequests));
 
 		/* The code below waits for all uncrashed replicas to finish executing
@@ -3433,6 +3433,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	protected AcceptPacket setIssuedAccept(AcceptPacket accept) {
+		assert(accept==null || accept.getRequestValue()!=null) : accept;
 		RequestAndCallback rc = accept!=null ? this.outstanding.requests.get(accept
 				.getRequestID()) : null;
 		if (rc != null

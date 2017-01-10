@@ -36,6 +36,7 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Stringer;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -374,9 +375,9 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		Map.Entry<Long, Object> entry = handleMessageStats.firstEntry();
 		if (entry != null
 				&& (System.nanoTime() - entry.getKey()) / 1000 / 1000 > threshold)
-			return "Message [" + (entry.getValue())
+			return "Message [" + Util.truncate(entry.getValue().toString(), 64, 64)
 					+ " has been handled within " + threshold / 1000
-					+ " seconds";
+					+ " seconds; total=" + handleMessageStats.size();
 		return null;
 	}
 

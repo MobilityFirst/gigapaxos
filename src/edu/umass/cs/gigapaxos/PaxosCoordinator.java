@@ -88,9 +88,13 @@ public abstract class PaxosCoordinator {
 	}
 
 	protected static PaxosCoordinator createCoordinator(int bnum,
-			int coord, int[] members, int slot, boolean recovery) {
+			int coord, int[] members, int slot, boolean recovery, final String myID) {
 		PaxosCoordinatorState c = new PaxosCoordinatorState(bnum, coord,
-				slot, members, null);
+				slot, members, null) {
+			public String toString() {
+				return PaxosCoordinator.class+":"+myID;
+			}
+		};
 		if (bnum == 0 || recovery)
 			// initial coordinator status assumed, not explicitly prepared.
 			c.setCoordinatorActive();

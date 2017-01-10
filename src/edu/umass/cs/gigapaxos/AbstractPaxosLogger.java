@@ -168,8 +168,8 @@ public abstract class AbstractPaxosLogger {
 		// else spawn a log-and-message task
 		PaxosPacket packet = logMTask.logMsg;
 		log.log(Level.FINE,
-				"{0}{1}{2}{3}{4}{5}",
-				new Object[] { "Node ", logger.myID, " logging ",
+				"{0}{1}{2}{3}{4}",
+				new Object[] { logger.myID, " logging ",
 						(packet.getType()), ": ",
 						packet.getSummary(log.isLoggable(Level.FINE)) });
 		assert (packet.getPaxosID() != null) : ("Null paxosID in " + packet);
@@ -231,7 +231,7 @@ public abstract class AbstractPaxosLogger {
 			MessagingTask mtask = new MessagingTask(logger.myID,
 					PaxosPacket.markRecovered(paxosMsg));
 			try {
-				log.log(Level.FINE, "{0}{1}{2}{3}", new Object[] { "Node ",
+				log.log(Level.FINE, "{0}{1}{2}", new Object[] { 
 						logger.myID, " rolling forward ", mtask });
 				messenger.send(mtask);
 			} catch (IOException e) {

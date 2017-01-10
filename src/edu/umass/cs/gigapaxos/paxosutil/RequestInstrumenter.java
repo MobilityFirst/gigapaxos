@@ -123,10 +123,10 @@ public class RequestInstrumenter {
 	public static String getLog() {
 		if (DEBUG)
 			synchronized (RequestInstrumenter.class) {
-				String s = "{";
+				String s = "--{";
 				for (long qid : map.keySet())
 					s += "\n" + qid + "=" + map.get(qid);
-				return s + (map.isEmpty() ? "}" : "\n}");
+				return s + (map.isEmpty() ? "}" : "\n}--");
 			}
 		return "";
 	}

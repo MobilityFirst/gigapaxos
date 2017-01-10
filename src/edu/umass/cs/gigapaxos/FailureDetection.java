@@ -238,7 +238,7 @@ public class FailureDetection<NodeIDType> {
 	}
 
 	protected void receive(FailureDetectionPacket<NodeIDType> fdp) {
-		log.log(Level.FINEST, "{0}{1}{2}{3}", new Object[] { "Node ",
+		log.log(Level.FINEST, "{0}{1}{2}", new Object[] {
 				this.myID, " received ping from node ", fdp.senderNodeID });
 		this.heardFrom(fdp.senderNodeID);
 	}

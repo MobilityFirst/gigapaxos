@@ -908,14 +908,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					}
 				}
 			} catch (IOException | JSONException e) {
-				log.severe("Node" + myID + " unable to insert checkpoint");
+				log.severe(myID + " unable to insert checkpoint");
 				e.printStackTrace();
 			} finally {
 				try {
 					if (br != null)
 						br.close();
 				} catch (IOException e) {
-					log.severe("Node" + myID
+					log.severe(myID
 							+ " unable to close checkpoint file");
 					e.printStackTrace();
 				}
@@ -960,7 +960,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				pending.add(name);
 			}
 		} catch (SQLException e) {
-			log.severe("Node" + this.myID
+			log.severe( this.myID
 					+ " SQLException while getting pending reconfigurations");
 			e.printStackTrace();
 		} finally {
@@ -982,8 +982,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					+ "'");
 			pstmt.execute();
 		} catch (SQLException e) {
-			log.severe("Node"
-					+ this.myID
+			log.severe(
+					this.myID
 					+ " SQLException while removing unnecessary pending reconfiguration entries");
 			e.printStackTrace();
 		} finally {

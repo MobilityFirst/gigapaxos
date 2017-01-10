@@ -198,7 +198,7 @@ public class JSONMessenger<NodeIDType> implements
 					execpool.schedule(rtxTask, RTX_DELAY, TimeUnit.MILLISECONDS);
 				} else {
 					assert (sent == -1) : sent;
-					log.warning("Node " + this.nioTransport.getMyID()
+					log.warning( this.nioTransport.getMyID()
 							+ " failed to send message to node "
 							+ mtask.recipients[r] + ": " + msg);
 				}
@@ -270,8 +270,7 @@ public class JSONMessenger<NodeIDType> implements
 				if (sent < msg.toString().length() && sent != -1) {
 					// nio can only send all or none, hence the assert
 					assert (sent == 0);
-					log.warning("Node "
-							+ nioTransport.getMyID()
+					log.warning(nioTransport.getMyID()
 							+ "->"
 							+ dest
 							+ " messenger backing off under severe congestion, Hail Mary!");
@@ -282,8 +281,7 @@ public class JSONMessenger<NodeIDType> implements
 				}
 				// queue clogged and !isConnected, best to give up
 				else if (sent == -1) {
-					log.severe("Node "
-							+ nioTransport.getMyID()
+					log.severe(nioTransport.getMyID()
 							+ "->"
 							+ dest
 							+ " messenger dropping message as destination unreachable: "

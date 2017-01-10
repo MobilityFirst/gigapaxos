@@ -106,7 +106,7 @@ public class PaxosServer {
 			}
 		} else {
 			PaxosManager.getLogger().severe(
-					"Node" + messenger.getMyID()
+					 messenger.getMyID()
 							+ " unable to create paxos application replica");
 		}
 		if (curApp instanceof ClientMessenger) {
