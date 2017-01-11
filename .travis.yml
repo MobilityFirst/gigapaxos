@@ -1,0 +1,11 @@
+language: java
+# sudo: required instructs Travis to use a "real VM" instead of a docker VM
+sudo: required
+jdk:
+- oraclejdk8
+notifications:
+  email:
+    on_success: always
+    on_failure: always
+script:
+- travis_checks.sh
