@@ -418,13 +418,26 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		long methodEntryTime = System.currentTimeMillis();
 		assert (pp != null || !mode.equals(SyncMode.DEFAULT_SYNC));
 
-		Level level = Level.FINEST;
-		if (pp != null)
-			log.log(level, "{0} received {1}",
-					new Object[] { this, pp.getSummary(log.isLoggable(level)) });
+		PaxosPacket.PaxosPacketType msgType = pp != null ? pp.getType()
+				: PaxosPacket.PaxosPacketType.NO_TYPE;
 
-		if (pp != null && pp.getVersion() != this.getVersion())
+		Level level = Level.FINEST;
+		log.log(level,
+				"{0} starting handlePaxosMessage{3}({1}) {2}",
+				new Object[] {
+						this,
+						pp != null ? pp.getSummary(log.isLoggable(level))
+								: msgType,
+						mode != SyncMode.DEFAULT_SYNC ? mode : "",
+						pp!=null && log.isLoggable(level)? pp.hashCode()+"":"" });
+
+		if (pp != null && pp.getVersion() != this.getVersion()) {
+			log.log(Level.INFO,
+					"{0} version inconsistent with {1}; returning",
+					new Object[] { this,
+							pp.getSummary(log.isLoggable(Level.INFO)) });
 			return;
+		}
 
 		/* Note: Because incoming messages may be handled concurrently, some
 		 * messages may continue to get processed for a little while after a
@@ -434,7 +447,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * messaging is turned off for all but DECISION or CHECKPOINT_STATE
 		 * packets) and can not change any disk state. */
 		if (this.paxosState.isStopped()) {
-			log.log(Level.INFO, "{0} stopped; dropping {1}", new Object[] {
+			log.log(Level.INFO, "{0} stopped; dropping {1}; returning", new Object[] {
 					this, pp.getSummary() });
 			return;
 		}
@@ -448,22 +461,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (!this.paxosManager.hasRecovered(this) && !recovery)
 			return; // only process recovery message during rollForward
 
-		PaxosPacket.PaxosPacketType msgType = pp != null ? pp.getType()
-				: PaxosPacket.PaxosPacketType.NO_TYPE;
-		log.log(Level.FINEST,
-				"{0} received {1}:{2}",
-				new Object[] {
-						this,
-						msgType,
-						pp != null ? pp.getSummary(log.isLoggable(Level.FINEST))
-								: pp });
-
 		boolean isPoke = msgType.equals(PaxosPacketType.NO_TYPE);
 		if (!isPoke)
 			this.markActive();
-		else
-			log.log(Level.FINER, "{0} received NO_TYPE poke {1};",
-					new Object[] { this, mode });
 
 		MessagingTask[] mtasks = new MessagingTask[3];
 		/* Check for coordinator'ing upon *every* message except poke messages.
@@ -479,13 +479,6 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				: this.pokeLocalCoordinator()
 				// neither during recovery
 				: null);
-
-		log.log(level,
-				"{0} about to switch on packet type {1}",
-				new Object[] {
-						this,
-						pp != null ? pp.getSummary(log.isLoggable(level))
-								: null });
 
 		MessagingTask mtask = null;
 		MessagingTask[] batchedTasks = null;
@@ -567,6 +560,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (!recovery) {
 			this.sendMessagingTask(mtasks);
 		}
+		
+		level = Level.FINEST;
+		if (pp != null)
+			log.log(level, "{0} finished handlePaxosMessage{2}({1})",
+					new Object[] { this, pp.getSummary(log.isLoggable(level)),
+							log.isLoggable(level) ? pp.hashCode()+"":"" });
 	}
 
 	/************** Start of private methods ****************/
@@ -646,7 +645,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						.roundRobinCoordinator(0),
 				slotBallot != null ? (slotBallot.slot + 1) : 0, null) {
 			public String toString() {
-				return PaxosAcceptor.class + ":" + PaxosInstanceStateMachine.this.getNodeID();
+				return PaxosAcceptor.class.getSimpleName() + ":" + PaxosInstanceStateMachine.this.getNodeID();
 			}
 		};
 		if (slotBallot == null && !missedBirthing)
@@ -734,9 +733,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	// will send a noop message to self to force event-driven actions
 	protected void poke(boolean forceSync) {
 		try {
-			log.log(Level.FINE, "{0} being poked", new Object[] { this });
-			this.handlePaxosMessage(null, forceSync ? SyncMode.FORCE_SYNC
-					: SyncMode.SYNC_TO_PAUSE);
+			SyncMode sync = forceSync ? SyncMode.FORCE_SYNC
+					: SyncMode.SYNC_TO_PAUSE;
+			log.log(Level.FINE, "{0} being poked {1}", new Object[] { this,
+					sync });
+			this.handlePaxosMessage(null, sync);
 		} catch (JSONException je) {
 			je.printStackTrace();
 		}
@@ -834,7 +835,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 												// coordinator
 			log.log(Level.FINER,
 					"{0} is not the coordinator; forwarding to {1}: {2}",
-					new Object[] { this, this.paxosState.getBallotCoordLog(),
+					new Object[] { this, this.paxosManager.intToString(this.paxosState.getBallotCoordLog()),
 							proposal.getSummary(log.isLoggable(Level.FINER)) });
 			int coordinator = this.paxosState.getBallotCoord();
 
@@ -1012,7 +1013,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			// copy.batchSize()+1);
 			return new MessagingTask[0];
 		} else
-			log.log(Level.FINER, "{0} received matching accept ", new Object[] {
+			log.log(Level.FINER, "{0} received matching accept for {1}", new Object[] {
 					this, accept.getSummary() });
 
 		// DelayProfiler.updateCount("C_ACCEPTS_RCVD", accept.batchSize()+1);
@@ -1115,8 +1116,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					batchedAccept.getMedianCheckpointedSlot());
 			AcceptPacket accept = this.paxosManager.match(digestedAccept);
 			if (accept != null) {
-				log.log(Level.FINE, "{0} received matching request for digested accept {1} within batched accept {2}",
-						new Object[]{this, accept, batchedAccept});
+				Level level = Level.FINE;
+				log.log(level,
+						"{0} received matching request for digested accept {1} within batched accept {2}",
+						new Object[] { this,
+								accept.getSummary(log.isLoggable(level)),
+								batchedAccept.getSummary(log.isLoggable(level)) });
 				MessagingTask[] mtasksHandleAccept = this.handleAccept(accept);
 				if (mtasksHandleAccept != null)
 					for (MessagingTask mtask : mtasksHandleAccept)
@@ -1160,7 +1165,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		RequestInstrumenter.received(acceptReply, acceptReply.acceptor,
 				this.getMyID());
 		
-		log.log(Level.FINER, "{0} handling accept reply {1}", new Object[]{this, acceptReply});
+		Level level=Level.FINER;
+		log.log(level, "{0} handling accept reply {1}", new Object[]{this, acceptReply.getSummary(log.isLoggable(level))});
 
 		// handle if undigest request first
 		if (acceptReply.isUndigestRequest()) {
@@ -1265,7 +1271,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		Integer[] acceptedSlots = batchedAR.getAcceptedSlots();
 		// DelayProfiler.updateCount("BATCHED_ACCEPT_REPLIES", 1);
 
-		log.log(Level.FINER, "{0} handling batched accept reply {1}", new Object[]{this, batchedAR});
+		Level level = Level.FINER;
+		log.log(level, "{0} handling batched accept reply {1}", new Object[]{this, batchedAR.getSummary(log.isLoggable(level))});
 
 		// sort out decisions from preempted proposals
 		for (Integer slot : acceptedSlots) {
@@ -2062,10 +2069,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	}
 
 	private String getBallots() {
-		return "[C:("
-				+ (this.coordinator != null ? this.coordinator.getBallotStr()
-						: "null")
-				+ "), A:("
+		return "["
+				+ (this.coordinator != null ? "C:("
+						+ (this.coordinator != null ? this.coordinator
+								.getBallotStr() : "null") + "), " : "")
+
+				+
+
+				"A:("
 				+ (this.paxosState != null ? this.paxosState.getBallotSlot()
 						: "null") + ")]";
 	}
@@ -2131,9 +2142,6 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (accept != null)
 			log.log(Level.INFO, "{0} resending timed out ACCEPT {1}",
 					new Object[] { this, accept.getSummary() });
-		else
-			log.log(Level.FINEST, "{0} coordinator {1} is good for now",
-					new Object[] { this, this.coordinator });
 		MessagingTask reAccept = (accept != null ? new MessagingTask(
 				this.groupMembers, accept) : null);
 		return reAccept;

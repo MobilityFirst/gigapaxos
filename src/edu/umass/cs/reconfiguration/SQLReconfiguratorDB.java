@@ -327,8 +327,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				toCommit, committed)));
 		log.log(Level.FINE,
 				"{0} committed {1}({2}) out of {3}({4})",
-				new Object[] { this, committed.size(), committed,
-						toCommit.size(), toCommit.keySet() });
+				new Object[] { this, committed.size(), Util.truncatedLog(committed, 64),
+						toCommit.size(), Util.truncatedLog(toCommit.keySet(), 64) });
 		return committed;
 	}
 

@@ -134,7 +134,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 	/***************** Paxos related methods below ***********/
 	@Override
 	public boolean execute(Request request, boolean doNotReplyToClient) {
-		log.log(Level.FINE, "{0} executing {1}", new Object[] { this, request });
+		log.log(Level.FINE, "{0} executing {1}", new Object[] { this, request.getSummary() });
 		if (request.getServiceName().equals(Request.NO_OP)
 				&& request.toString().equals(Request.NO_OP))
 			return true;

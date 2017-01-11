@@ -144,6 +144,19 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 		// Note: Default extractor will not do any useful demultiplexing
 		super(id, nodeConfig, new MessageExtractor(), true, sslMode);
 	}
+	
+	/**
+	 * @param isa
+	 * @param nodeConfig
+	 * @param sslMode
+	 * @throws IOException
+	 */
+	public MessageNIOTransport(InetSocketAddress isa,
+			NodeConfig<NodeIDType> nodeConfig,
+			SSLDataProcessingWorker.SSL_MODES sslMode) throws IOException {
+		// Note: Default extractor will not do any useful demultiplexing
+		super(isa, nodeConfig, new MessageExtractor(), true, sslMode);
+	}
 
 	/**
 	 * 
@@ -734,7 +747,7 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 
 	@Override
 	public int sendToID(NodeIDType id, byte[] msg) throws IOException {
-		return id != myID ? this.sendUnderlying(id, msg) : this.sendLocal(msg);
+		return !id.equals(myID) ? this.sendUnderlying(id, msg) : this.sendLocal(msg);
 	}
 
 	@Override

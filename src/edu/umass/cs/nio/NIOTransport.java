@@ -310,6 +310,21 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		this(id, nc, (id == null ? new InetSocketAddress(0) : null), worker,
 				true, sslMode);
 	}
+	
+	/**
+	 * @param isa
+	 * @param nc
+	 * @param worker
+	 * @param start
+	 * @param sslMode
+	 * @throws IOException
+	 */
+	public NIOTransport(InetSocketAddress isa, NodeConfig<NodeIDType> nc,
+			DataProcessingWorker worker, boolean start,
+			SSLDataProcessingWorker.SSL_MODES sslMode) throws IOException {
+		this(null, nc, isa, worker,
+				true, sslMode);
+	}
 
 	/**
 	 * @param id
@@ -387,7 +402,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		Level level = Level.FINEST;
 		log.log(level, "{0} -> {1}={2}:{3}:[{4}]", new Object[] { this, id,
 				address, port,
-				log.isLoggable(level) ? new Stringer(data) : data });
+				log.isLoggable(level) ? Util.truncate(new Stringer(data),32,32) : data });
 		if (this.nodeConfig == null)
 			throw new NullPointerException(
 					"Attempting ID-based communication with null InterfaceNodeConfig");
@@ -1794,8 +1809,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	}
 
 	public String toString() {
-		return this.getClass().getSimpleName() + ":"
-				+ (this.myID != null ? this.myID : this.listeningAddress) + ":"
+		return this.getClass().getSimpleName()
+				+ ":"
+				+ (this.myID != null ? this.myID
+						: (this.me!=null && this.me.getName() != null ? this.me.getName() + ":"
+								: "") + this.listeningAddress) + ":"
 				+ this.listeningPort;
 	}
 

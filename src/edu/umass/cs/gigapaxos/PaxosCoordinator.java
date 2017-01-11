@@ -92,7 +92,7 @@ public abstract class PaxosCoordinator {
 		PaxosCoordinatorState c = new PaxosCoordinatorState(bnum, coord,
 				slot, members, null) {
 			public String toString() {
-				return PaxosCoordinator.class+":"+myID;
+				return PaxosCoordinator.class.getSimpleName()+":"+myID;
 			}
 		};
 		if (bnum == 0 || recovery)

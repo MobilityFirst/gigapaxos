@@ -948,7 +948,7 @@ public class PaxosManager<NodeIDType> {
 							level,
 							"{0} packet fast demultiplexer received {1}",
 							new Object[] { PaxosManager.this,
-									pp.getSummary(log.isLoggable(level)) });
+									pp.getSummary(PaxosManager.log.isLoggable(level)) });
 
 					if (PaxosMessenger.INSTRUMENT_SERIALIZATION
 							&& Util.oneIn(100))
@@ -1465,7 +1465,7 @@ public class PaxosManager<NodeIDType> {
 												true)),
 								ssl ? SSLDataProcessingWorker.SSL_MODES.valueOf(Config
 										.getGlobalString(PC.CLIENT_SSL_MODE))
-										: SSL_MODES.CLEAR));
+										: SSL_MODES.CLEAR).setName(this.intToString(this.myID)));
 				if (Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS)
 						&& !createdNIOTransport.getListeningSocketAddress()
 								.equals(myAddressOffsetted))

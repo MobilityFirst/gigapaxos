@@ -37,6 +37,8 @@ import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.utils.Stringer;
+import edu.umass.cs.utils.Summarizable;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -110,8 +112,11 @@ public class JSONMessenger<NodeIDType> implements
 			try {
 				log.info((this + " starting worker with ssl mode " + this.nioTransport
 						.getSSLMode()));
+				// only sends
 				this.workers[i] = new MessageNIOTransport<NodeIDType, JSONObject>(
-						null, this.getNodeConfig(),
+						//(NodeIDType)null,
+						new InetSocketAddress(this.getListeningSocketAddress().getAddress(), 0), 
+						this.getNodeConfig(),
 						this.nioTransport.getSSLMode());
 				this.workers[i].setName(JSONMessenger.class.getSimpleName()
 						+ niot.getMyID() + "_send_worker" + i);
@@ -178,16 +183,21 @@ public class JSONMessenger<NodeIDType> implements
 					continue; // remaining sends might succeed
 				}
 
+				Level level;
 				// check success or failure and react accordingly
 				if (sent > 0) {
-					log.log(Level.FINEST,
+					log.log(level = Level.FINEST,
 							"{0}->{1}:[{2}] ",
 							new Object[] {
 									this,
 									mtask.recipients[r],
-									message != null ? message
-											: log.isLoggable(Level.FINEST) ? new Stringer(
-													msgBytes) : msgBytes });
+									log.isLoggable(level) ? (msg instanceof Summarizable ? ((Summarizable) msg)
+											.getSummary(log.isLoggable(level))
+											: message != null ? Util.truncate(
+													message, 32, 32) : Util
+													.truncate(new Stringer(
+															msgBytes), 32, 32))
+											: msgBytes });
 				} else if (sent == 0) {
 					log.log(Level.INFO,
 							"{0} experiencing congestion; this is not disastrous (yet)", new Object[]{this});
@@ -307,7 +317,7 @@ public class JSONMessenger<NodeIDType> implements
 
 	private int sendToID(NodeIDType id, byte[] msgBytes, boolean useWorkers)
 			throws IOException {
-		int i = (int) (Math.random() * (this.workers.length + 1));
+		int i = (int) (Math.random() * (this.workers.length));
 		return (useWorkers && this.workers.length > 0
 				&& i < this.workers.length && this.workers[i] != null) ? this.workers[i]
 				.sendToID(id, msgBytes) : this.nioTransport.sendToID(id,

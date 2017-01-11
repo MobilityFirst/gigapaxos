@@ -362,23 +362,13 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			}
 			// else must be app request
 			else if (assertAppRequest(incoming)) {
-				log.log(Level.FINER,
+				log.log(Level.FINE,
 						"{0} handleMessage received appRequest {1}",
 						new Object[] {
 								this,
-								incoming.getSummary(log.isLoggable(Level.FINER)) });
+								incoming.getSummary(log.isLoggable(Level.FINE)) });
 				// long startTime = System.currentTimeMillis();
 				Request request = incoming;
-
-				log.log(Level.FINE,
-						"{0} received app request {1}:{2}:{3}",
-						new Object[] {
-								this,
-								request.getRequestType(),
-								request.getServiceName(),
-								(request instanceof ClientRequest ? ((ClientRequest) request)
-										.getRequestID() : "") });
-
 				boolean isCoordinatedRequest = isCoordinated(request);
 
 				SenderAndRequest senderAndRequest = new SenderAndRequest(
@@ -1193,6 +1183,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 							this.nodeConfig.getBindAddress(getMyID()),
 							ssl ? getClientFacingSSLPort(myPort)
 									: getClientFacingClearPort(myPort));
+					// only receives
 					cMsgr = new JSONMessenger<InetSocketAddress>(
 							(niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 									isa.getAddress(),

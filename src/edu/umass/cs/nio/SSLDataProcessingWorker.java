@@ -249,8 +249,11 @@ public class SSLDataProcessingWorker implements InterfaceMessageExtractor {
 				 * SSL template and has nothing to do with NIO. */
 				assert (key != null);
 				int totalLength = encrypted.remaining();
-				// hack! try few times, but can't really wait here.
-				for (int attempts = 0; attempts < 1 && encrypted.hasRemaining(); attempts++)
+				/* Try few times, but can't really wait here except in case
+				 * of handshaking when we have to send everything out.
+				 */
+				for (int attempts = 0; (attempts < 1 || !this
+						.isHandshakeComplete()) && encrypted.hasRemaining(); attempts++)
 					channel.write(encrypted);
 
 				NIOInstrumenter.incrEncrBytesSent(totalLength - encrypted.remaining());

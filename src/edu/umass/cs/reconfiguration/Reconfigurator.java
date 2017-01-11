@@ -613,15 +613,19 @@ public class Reconfigurator<NodeIDType> implements
 		if ((record = this.DB.getReconfigurationRecord(create.getServiceName())) == null) {
 			if (callback != this.defaultCallback)
 				this.callbacksCRP.put(getCRPKey(create), callback);
-			this.initiateReconfiguration(create.getServiceName(), record,
-					this.consistentNodeConfig.getReplicatedActives(create
-							.getServiceName()), create.getCreator(), create
-							.getMyReceiver(), create.getForwader(), create
-							.getInitialState(), create.getNameStates(), null);
+			this.initiateReconfiguration(create
+					.getServiceName(), record, this.consistentNodeConfig
+					.getReplicatedActives(create.getServiceName()), create
+					.getCreator(), create.getMyReceiver(),
+					create.getForwader(), create.getInitialState(), create
+							.getNameStates(), null);
+		}
+		else if(!record.isReady()) {
+			// drop silently so sender can time out
 		}
 
 		// record already exists, so return error message
-		else
+		else if (record.isReady())
 			// this.sendClientReconfigurationPacket
 			callback.handleResponse(create
 					.setFailed(
@@ -1580,6 +1584,7 @@ public class Reconfigurator<NodeIDType> implements
 							this.consistentNodeConfig.getBindAddress(getMyID()),
 							ssl ? getClientFacingSSLPort(myPort)
 									: getClientFacingClearPort(myPort));
+					// only receives
 					cMsgr = new JSONMessenger<InetSocketAddress>(
 							niot = new MessageNIOTransport<InetSocketAddress, JSONObject>(
 									isa.getAddress(),
@@ -1603,7 +1608,7 @@ public class Reconfigurator<NodeIDType> implements
 						((Messenger<NodeIDType, ?>) this.messenger
 								.getClientMessenger())
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
-										this.getUnstringer(), this.DB));
+										this.getUnstringer(), this.DB).setThreadName(this.getMyID().toString()+"-clientFacing"));
 				} else {
 					log.log(Level.INFO,
 							"{0} adding self as demultiplexer to existing {1} client messenger",
@@ -1612,7 +1617,7 @@ public class Reconfigurator<NodeIDType> implements
 						((Messenger<NodeIDType, ?>) this.messenger
 								.getSSLClientMessenger())
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
-										this.getUnstringer(), this.DB));
+										this.getUnstringer(), this.DB).setThreadName(this.getMyID().toString()+"-clientFacingSSL"));
 				}
 				assert (pd != null);
 				pd.register(

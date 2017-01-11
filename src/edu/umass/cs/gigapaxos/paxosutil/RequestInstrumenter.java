@@ -17,8 +17,6 @@ package edu.umass.cs.gigapaxos.paxosutil;
 
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptReplyPacket;
@@ -41,9 +39,6 @@ public class RequestInstrumenter {
 	public static final boolean DEBUG = Config.getGlobalBoolean(PC.DEBUG);
 
 	private static final HashMap<Long, String> map = new HashMap<Long, String>();
-
-	private static Logger log = Logger.getLogger(RequestInstrumenter.class
-			.getName());
 
 	public static void received(RequestPacket request, int sender, int receiver) {
 		if (DEBUG)
@@ -96,8 +91,6 @@ public class RequestInstrumenter {
 			synchronized (RequestInstrumenter.class) {
 				retval = map.remove(requestID);
 			}
-		if (retval != null)
-			log.log(Level.FINE, "{0}\n{2}", new Object[] { requestID, retval });
 		return retval;
 	}
 

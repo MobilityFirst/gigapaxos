@@ -23,7 +23,7 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
 /**
  * @author V. Arun
  */
-public interface Request {
+public interface Request extends Summarizable{
 	/**
 	 * A string representing a special no-op request.
 	 */
@@ -61,14 +61,6 @@ public interface Request {
 										.getRequestID() : "");
 			}
 		};
-	}
-	/**
-	 * @param get
-	 * @return Summary if get is true.
-	 */
-	default Object getSummary(boolean get) {
-		if(get) return getSummary();
-		return null;
 	}
 
 	/**

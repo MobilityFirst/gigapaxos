@@ -137,7 +137,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 		} catch (BufferOverflowException boe) {
 			// will never come here
 			unwrapSrc = getBiggerBuffer(unwrapSrc, encrypted);
-			log.log(Level.FINE, "{0} increased unwrapSrc buffer size to {1}",
+			log.log(Level.INFO, "{0} increased unwrapSrc buffer size to {1}",
 					new Object[] { this, unwrapSrc.capacity() });
 
 		}
@@ -218,7 +218,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 					try {
 						long t0 = System.nanoTime();
 						sslTask.run();
-						log.log(Level.FINE,
+						log.log(Level.FINEST,
 								"{0} async SSL task {1} took {2}ms",
 								new Object[] { this, sslTask,
 										(System.nanoTime() - t0) / 1000000 });
@@ -262,8 +262,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 			break;
 
 		case BUFFER_UNDERFLOW:
-			log.log(Level.FINE, "{0} wrap BUFFER_UNDERFLOW",
-					new Object[] { this });
+			log.log(Level.FINEST, "{0} wrap BUFFER_UNDERFLOW",new Object[] { this });
 			// try again later
 			break;
 
@@ -380,7 +379,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 			// try increasing size first
 			if (biggerSize < MAX_BUFFER_SIZE) {
 				unwrapDst = getBiggerBuffer(unwrapDst, biggerSize);
-				log.log(Level.FINE,
+				log.log(Level.INFO,
 						"{0} increased unwrapDst buffer size to {1}",
 						new Object[] { this, unwrapDst.capacity() });
 				// retry the operation.
@@ -390,7 +389,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 			break;
 
 		case BUFFER_UNDERFLOW:
-			log.log(Level.FINE, "{0} unwrap BUFFER_UNDERFLOW",
+			log.log(Level.FINEST, "{0} unwrap BUFFER_UNDERFLOW",
 					new Object[] { this });
 			return false;
 		}

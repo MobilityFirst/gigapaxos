@@ -36,6 +36,7 @@ import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Stringer;
+import edu.umass.cs.utils.Summarizable;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -169,15 +170,31 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			return false;
 		}
 		Integer type = message != null ? getPacketType(message) : null;
-		log.log(level, "{0} handling type {1} message {2}:{3}", new Object[] {
-				this, type, header,
-				log.isLoggable(level) ? new Stringer(msg) : msg });
+		log.log(level,
+				"{0} handling type {1} message {2}:{3}",
+				new Object[] {
+						this,
+						type,
+						header,
+						log.isLoggable(level) ? (message instanceof Summarizable ? ((Summarizable) message)
+								.getSummary(log.isLoggable(level)) : Util
+								.truncate(new Stringer(msg), 32, 32))
+								: msg });
 
 		if (type == null || !this.demuxMap.containsKey(type)) {
 			/* It is natural for some demultiplexers to not handle some packet
 			 * types, so it is not a "bad" thing that requires a warning log. */
-			log.log(Level.FINER, "{0} ignoring unknown packet type: {1}: {2}",
-					new Object[] { this, type, message });
+			log.log(level,
+					"{0} ignoring unknown packet type: {1}: {2}",
+					new Object[] {
+							this,
+							type,
+							(message instanceof Summarizable ? ((Summarizable) message)
+									.getSummary(log.isLoggable(level))
+									: (message instanceof Summarizable ? ((Summarizable) message)
+											.getSummary(log.isLoggable(level))
+											: Util.truncate(new Stringer(msg),
+													32, 32))) });
 			return false;
 		}
 		Tasker tasker = new Tasker(message, this.demuxMap.get(type), header);
@@ -190,8 +207,14 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 			tasker.run();
 		} else
 			try {
-				log.log(Level.FINEST, "{0} invoking {1}.handleMessage({2})",
-						new Object[] { this, tasker.pd, message });
+				log.log(level = Level.FINER,
+						"{0} invoking {1}.handleMessage({2})",
+						new Object[] {
+								this,
+								tasker.pd,
+								(message instanceof Summarizable ? ((Summarizable) message)
+										.getSummary(log.isLoggable(level))
+										: Util.truncate(message, 32, 32)) });
 				// task should still be non-blocking
 				executor.schedule(tasker,
 						emulateDelays ? JSONDelayEmulator.getEmulatedDelay()
@@ -348,12 +371,12 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 
 		public void run() {
 			try {
-				long t=0;
-				if(NIOInstrumenter.monitorHandleMessageEnabled()) 
-						t = insert(this.json);
+				long t = 0;
+				if (NIOInstrumenter.monitorHandleMessageEnabled())
+					t = insert(this.json);
 				pd.handleMessage(this.json, header);
-				if(NIOInstrumenter.monitorHandleMessageEnabled())
-						release(t);
+				if (NIOInstrumenter.monitorHandleMessageEnabled())
+					release(t);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
 					ree.printStackTrace();
@@ -375,7 +398,8 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		Map.Entry<Long, Object> entry = handleMessageStats.firstEntry();
 		if (entry != null
 				&& (System.nanoTime() - entry.getKey()) / 1000 / 1000 > threshold)
-			return "Message [" + Util.truncate(entry.getValue().toString(), 64, 64)
+			return "Message ["
+					+ Util.truncate(entry.getValue().toString(), 64, 64)
 					+ " has been handled within " + threshold / 1000
 					+ " seconds; total=" + handleMessageStats.size();
 		return null;

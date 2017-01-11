@@ -561,6 +561,9 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	}
 
 	private boolean shouldGC(boolean strict) {
+		// avoid unnecessary synchronization
+		if(this.ongoingGC) return false;
+		
 		synchronized (this) {
 			if (strict)
 				return this.map.size() >= this.capacityEstimate;

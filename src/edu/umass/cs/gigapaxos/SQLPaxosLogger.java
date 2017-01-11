@@ -1593,6 +1593,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		Connection conn = null;
 		String minLogfile = null;
 		ArrayList<Integer> batch = new ArrayList<Integer>();
+		long t = System.currentTimeMillis();
 		try {
 			for (int i = 0; i < tasks.length; i++) {
 				CheckpointTask task = tasks[i];
@@ -1694,6 +1695,10 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 								+ " paxos instances");
 			}
 		}
+		
+		log.log(Level.INFO, "{0} finished checkpointing {1} task(s) in {2}ms",
+				new Object[] { this, tasks.length,
+						System.currentTimeMillis() - t });
 
 		for (CheckpointTask task : tasks)
 			this.deleteOutdatedMessages(task.paxosID, task.version,

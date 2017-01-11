@@ -26,6 +26,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
+import edu.umass.cs.gigapaxos.interfaces.Summarizable;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.utils.Config;
@@ -37,7 +38,7 @@ import edu.umass.cs.utils.Config;
  *         The parent class for all paxos packet types. Every paxos packet has a
  *         minimum of three fields: packet type, paxos group ID, version.
  */
-public abstract class PaxosPacket extends JSONPacket {
+public abstract class PaxosPacket extends JSONPacket implements Summarizable {
 
 	/**
 	 * Keys used in json packets.

@@ -38,6 +38,7 @@ import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.nio.nioutils.PacketDemultiplexerDefault;
 import edu.umass.cs.utils.Stringer;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -287,7 +288,7 @@ public class MessageExtractor implements InterfaceMessageExtractor {
 							this,
 							pd,
 							header,
-							log.isLoggable(level) ? new Stringer(message)
+							log.isLoggable(level) ? Util.truncate(new Stringer(message), 32, 32)
 									: message });
 			// the handler turns true if it handled the message
 			if (pd.handleMessageSuper(message, header))
