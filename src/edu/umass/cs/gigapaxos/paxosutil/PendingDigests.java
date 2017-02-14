@@ -8,7 +8,7 @@ import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosManager;
-import edu.umass.cs.gigapaxos.PaxosManager.RequestAndCallback;
+import edu.umass.cs.gigapaxos.PaxosConfig.RequestAndCallback;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.utils.Config;

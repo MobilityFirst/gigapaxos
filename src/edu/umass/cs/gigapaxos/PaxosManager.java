@@ -153,15 +153,15 @@ public class PaxosManager<NodeIDType> {
 	private class Outstanding {
 		int totalRequestSize = 0;
 		long lastIncremented = System.currentTimeMillis();
-		ConcurrentHashMap<Long, RequestAndCallback> requests = USE_GC_MAP ? new GCConcurrentHashMap<Long, RequestAndCallback>(
+		ConcurrentHashMap<Long, PaxosConfig.RequestAndCallback> requests = USE_GC_MAP ? new GCConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>(
 				new GCConcurrentHashMapCallback() {
 					@Override
 					public void callbackGC(Object key, Object value) {
-						PaxosManager.this.callbackRequestTimeout(((RequestAndCallback) value).requestPacket);
+						PaxosManager.this.callbackRequestTimeout(((PaxosConfig.RequestAndCallback) value).requestPacket);
 					}
 				}, REQUEST_TIMEOUT)
-				: new ConcurrentHashMap<Long, RequestAndCallback>();
-		HashMap<RequestPacket, RequestAndCallback> conflictIDRequests = new HashMap<RequestPacket, RequestAndCallback>();
+				: new ConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>();
+		HashMap<RequestPacket, PaxosConfig.RequestAndCallback> conflictIDRequests = new HashMap<RequestPacket, PaxosConfig.RequestAndCallback>();
 		ConcurrentHashMap<RequestPacket, RequestResponseAndCallback> responses = USE_GC_MAP ? new GCConcurrentHashMap<RequestPacket, RequestResponseAndCallback>(
 				new GCConcurrentHashMapCallback() {
 					@Override
@@ -170,10 +170,10 @@ public class PaxosManager<NodeIDType> {
 				}, REQUEST_TIMEOUT)
 				: new ConcurrentHashMap<RequestPacket, RequestResponseAndCallback>();
 
-		private void enqueue(RequestAndCallback rc) {
+		private void enqueue(PaxosConfig.RequestAndCallback rc) {
 			assert (rc.requestPacket.getType() != PaxosPacketType.ACCEPT || rc.requestPacket
 					.hasRequestValue());
-			RequestAndCallback prev = null;
+			PaxosConfig.RequestAndCallback prev = null;
 			synchronized (this.requests) {
 				if ((prev = this.requests.putIfAbsent(rc.requestPacket.requestID, rc)) == null)
 					totalRequestSize += rc.requestPacket.lengthEstimate();
@@ -190,8 +190,8 @@ public class PaxosManager<NodeIDType> {
 		}
 
 		// called by executed callback
-		private RequestAndCallback dequeue(RequestPacket request) {
-			RequestAndCallback queued = this.requests.get(request.requestID);
+		private PaxosConfig.RequestAndCallback dequeue(RequestPacket request) {
+			PaxosConfig.RequestAndCallback queued = this.requests.get(request.requestID);
 			if (queued != null && queued.requestPacket.equals(request))
 				return this.requests.remove(request.requestID);
 			else
@@ -213,7 +213,7 @@ public class PaxosManager<NodeIDType> {
 
 	private void GC() {
 		if (this.outstanding.requests instanceof GCConcurrentHashMap)
-			((GCConcurrentHashMap<Long, RequestAndCallback>) this.outstanding.requests)
+			((GCConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>) this.outstanding.requests)
 					.tryGC(REQUEST_TIMEOUT);
 		else if (System.currentTimeMillis() - this.outstanding.lastIncremented > PaxosManager.FADE_OUTSTANDING_TIMEOUT) {
 			if (this.outstanding.requests.size() > MAX_OUTSTANDING_REQUESTS)
@@ -223,35 +223,7 @@ public class PaxosManager<NodeIDType> {
 		}
 	}
 
-	/**
-	 *
-	 */
-	 public static class RequestAndCallback {
-		/**
-		 * 
-		 */
-		 protected RequestPacket requestPacket;
-		/**
-		 * 
-		 */
-		 final ExecutedCallback callback;
-
-		RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
-			this.requestPacket = request;
-			this.callback = callback;
-		}
-		/**
-		 * @return RequestPacket
-		 */
-		public RequestPacket getRequestPacket() {
-			return this.requestPacket;
-		}
-		protected AcceptPacket setAcceptPacket(AcceptPacket accept) {
-			return (AcceptPacket)(this.requestPacket= accept);
-		}
-	}
-
-	static class RequestResponseAndCallback extends RequestAndCallback {
+	static class RequestResponseAndCallback extends PaxosConfig.RequestAndCallback {
 		/* this is actually the request whose getResponse contains the response. */
 		final Request clientRequest;
 
@@ -302,7 +274,7 @@ public class PaxosManager<NodeIDType> {
 	// called by PaxosInstanceStateMachine as execute callback
 	protected boolean executed(RequestPacket requestPacket, Request request,
 			boolean sendResponse) {
-		RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
+		PaxosConfig.RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 		if (rc != null)
 			this.outstanding.totalRequestSize -= rc.requestPacket.lengthEstimate();
 		RequestInstrumenter.remove(requestPacket.requestID);
@@ -326,7 +298,7 @@ public class PaxosManager<NodeIDType> {
 		if (ENABLE_RESPONSE_CACHING
 				&& (rrc = this.outstanding.responses.get((requestPacket))) != null) {
 			RequestInstrumenter.remove(requestPacket.requestID);
-			RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
+			PaxosConfig.RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 			if (rc!=null && rc.callback != null)
 				rc.callback.executed(rrc.clientRequest, false);
 			else if (rrc.callback != null)
@@ -451,7 +423,7 @@ public class PaxosManager<NodeIDType> {
 											- PaxosManager.this.outstanding.lastIncremented > REQUEST_TIMEOUT)
 									|| monitorIterval > 0) {
 								HashMap<Long, String> instances = new HashMap<Long, String>();
-								for (RequestAndCallback rc : PaxosManager.this.outstanding.requests
+								for (PaxosConfig.RequestAndCallback rc : PaxosManager.this.outstanding.requests
 										.values())
 									instances.put(rc.requestPacket.requestID,
 											rc.requestPacket.getPaxosID() + ":"
@@ -472,7 +444,7 @@ public class PaxosManager<NodeIDType> {
 								if (!PaxosManager.this.outstanding.requests
 										.isEmpty()
 										&& PaxosManager.this.outstanding.requests instanceof GCConcurrentHashMap)
-									((GCConcurrentHashMap<Long, RequestAndCallback>) PaxosManager.this.outstanding.requests)
+									((GCConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>) PaxosManager.this.outstanding.requests)
 											.tryGC(REQUEST_TIMEOUT);
 
 							}
@@ -1155,7 +1127,7 @@ public class PaxosManager<NodeIDType> {
 					new Object[] { this, pism.getPaxosIDVersion(),
 							requestPacket.getSummary() });
 
-			this.outstanding.enqueue(new RequestAndCallback(requestPacket,
+			this.outstanding.enqueue(new PaxosConfig.RequestAndCallback(requestPacket,
 					callback));
 			this.handleIncomingPacket(requestPacket);
 		} else
@@ -1525,11 +1497,11 @@ public class PaxosManager<NodeIDType> {
 		request.setEntryReplicaAndReturnCount(this.myID);
 
 		// if (request.getEntryReplica() == getMyID())
-		this.outstanding.enqueue(new RequestAndCallback(request, null));
+		this.outstanding.enqueue(new PaxosConfig.RequestAndCallback(request, null));
 		if (request.batchSize() > 0)
 			for (RequestPacket req : request.getBatched())
 				// if (request.getEntryReplica() == getMyID())
-				this.outstanding.enqueue(new RequestAndCallback(req, null));
+				this.outstanding.enqueue(new PaxosConfig.RequestAndCallback(req, null));
 		if (Util.oneIn(10))
 			DelayProfiler.updateMovAvg("outstanding",
 					this.outstanding.requests.size());
@@ -3423,7 +3395,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	protected AcceptPacket getPreviouslyIssuedAccept(RequestPacket proposal) {
-		RequestAndCallback rc = null;
+		PaxosConfig.RequestAndCallback rc = null;
 		if (((rc = this.outstanding.requests.get(proposal.getRequestID())) != null || (rc = this.outstanding.conflictIDRequests
 				.get(proposal)) != null)
 				&& rc.requestPacket instanceof AcceptPacket
@@ -3434,7 +3406,7 @@ public class PaxosManager<NodeIDType> {
 
 	protected AcceptPacket setIssuedAccept(AcceptPacket accept) {
 		assert(accept==null || accept.getRequestValue()!=null) : accept;
-		RequestAndCallback rc = accept!=null ? this.outstanding.requests.get(accept
+		PaxosConfig.RequestAndCallback rc = accept!=null ? this.outstanding.requests.get(accept
 				.getRequestID()) : null;
 		if (rc != null
 				|| (rc = this.outstanding.conflictIDRequests.get(accept)) != null)

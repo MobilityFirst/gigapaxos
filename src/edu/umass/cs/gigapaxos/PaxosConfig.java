@@ -26,6 +26,9 @@ import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
+import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
+import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import org.junit.Assert;
 
 import org.json.JSONArray;
@@ -1123,4 +1126,32 @@ public class PaxosConfig {
 				: !noPropertiesFile ? PaxosConfig.DEFAULT_GIGAPAXOS_CONFIG_FILE
 						: null;
 	}
+
+    /**
+     *
+     */
+     public static class RequestAndCallback {
+        /**
+         *
+         */
+         protected RequestPacket requestPacket;
+        /**
+         *
+         */
+         final ExecutedCallback callback;
+
+        RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
+            this.requestPacket = request;
+            this.callback = callback;
+        }
+        /**
+         * @return RequestPacket
+         */
+        public RequestPacket getRequestPacket() {
+            return this.requestPacket;
+        }
+        protected AcceptPacket setAcceptPacket(AcceptPacket accept) {
+            return (AcceptPacket)(this.requestPacket= accept);
+        }
+    }
 }
