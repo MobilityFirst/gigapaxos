@@ -37,6 +37,7 @@ import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile;
@@ -45,7 +46,7 @@ import edu.umass.cs.utils.Util;
 
 /**
  * @author arun
- * 
+ *
  *         Reconfiguration configuration parameters. These parameters are
  *         expected to be statically set at JVM initiation time and should not
  *         be changed subsequently. A static code block can be used to read
@@ -55,6 +56,7 @@ import edu.umass.cs.utils.Util;
  *         respective classes.
  */
 public class ReconfigurationConfig {
+
 	/**
 	 * 
 	 */
@@ -92,6 +94,17 @@ public class ReconfigurationConfig {
 	 */
 	public static final Class<?> application = getClassSuppressExceptions(Config
 			.getGlobalString(RC.APPLICATION));
+
+	private static final boolean IS_AGGREGATED_MERGE_SPLIT = true;
+
+	/**
+	 * Default true now for an improved merge/split implementation. Doing merges
+	 * in the old way potentially violates RSM safety. True effectively disables
+	 * the use of {@link RCRecordRequest.RequestTypes#RECONFIGURATION_MERGE}.
+	 */
+	protected static final boolean isAggregatedMergeSplit() {
+		return IS_AGGREGATED_MERGE_SPLIT;
+	}
 
 	/**
 	 * Reconfiguration config parameters.
