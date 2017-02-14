@@ -88,7 +88,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			node.close();
 		}
 		this.messenger.stop();
-		Reconfigurator.getLogger().info(
+		ReconfigurationConfig.getLogger().info(
 				"----------" + this + " closed----->||||");
 	}
 	
@@ -114,7 +114,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			if (app instanceof ClientMessenger)
 				((ClientMessenger) app).setClientMessenger(messenger);
 			else
-				Reconfigurator
+				ReconfigurationConfig
 						.getLogger()
 						.info(app.getClass().getSimpleName()
 								+ " does not implement "
@@ -126,7 +126,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(
 					app, myID, nodeConfig, messenger).setOutOfOrderLimit(Config.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));;
 			
-			Reconfigurator.getLogger().info(
+			ReconfigurationConfig.getLogger().info(
 					"Creating default group with "
 							+ nodeConfig.getActiveReplicas());
 			prc.createDefaultGroupNodes(app.getClass().getSimpleName() + "0",
@@ -144,7 +144,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			AbstractReplicaCoordinator<NodeIDType> appCoordinator = this
 					.createAppCoordinator();
 			if (appCoordinator instanceof PaxosReplicaCoordinator)
-				Reconfigurator
+				ReconfigurationConfig
 						.getLogger()
 						.warning(
 								"Using createAppCoordinator() is discouraged for "
@@ -189,7 +189,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		String err = null;
 		if (!nodeConfig.getActiveReplicas().contains(id)
 				&& !nodeConfig.getReconfigurators().contains(id)) {
-			Reconfigurator.getLogger().severe(
+			ReconfigurationConfig.getLogger().severe(
 					err =  id
 							+ " not present in NodeConfig argument \n  "
 							+ nodeConfig.getActiveReplicas() + "\n  "
@@ -197,7 +197,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			throw new IOException(err);
 		}
 		// else
-		Reconfigurator.getLogger().info(
+		ReconfigurationConfig.getLogger().info(
 				this + ":" + this.myID + " listening on "
 						+ nodeConfig.getNodeAddress(myID) + ":"
 						+ nodeConfig.getNodePort(myID));
@@ -215,7 +215,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 						ReconfigurationConfig.getServerSSLMode()))));
 		if (!niot.getListeningSocketAddress().equals(isa)
 				&& Config.getGlobalBoolean(PC.STRICT_ADDRESS_CHECKS)) {
-			Reconfigurator
+			ReconfigurationConfig
 					.getLogger()
 					.severe(err = this
 							+ " unable to start ReconfigurableNode at socket address "
@@ -423,7 +423,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 							ReconfigurationConfig.getReconfigurators()),
 					appArgs, false);
 		}
-		Reconfigurator.getLogger().log(Level.INFO, "{0} server{1} ready (total number of servers={2})",
+		ReconfigurationConfig.getLogger().log(Level.INFO, "{0} server{1} ready (total number of servers={2})",
 				new Object[] { serversStr, (numServers > 1 ? "s" : ""), PaxosConfig.getActives().size() +  
 				ReconfigurationConfig.getReconfigurators().size()});
 		System.out.println("]; server" + (numServers > 1 ? "s" : "") + servers

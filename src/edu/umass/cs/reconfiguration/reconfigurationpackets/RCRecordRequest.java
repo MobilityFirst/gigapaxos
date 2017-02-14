@@ -19,6 +19,7 @@ package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
 import java.util.logging.Level;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -26,7 +27,6 @@ import edu.umass.cs.gigapaxos.interfaces.SummarizableRequest;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 
@@ -215,7 +215,7 @@ public class RCRecordRequest<NodeIDType> extends
 						+ this.startEpoch.getPrevEpochNumber() : "");
 	}
 	public String getSummary(Level level) {
-		if(Reconfigurator.getLogger().isLoggable(level))
+		if(ReconfigurationConfig.getLogger().isLoggable(level))
 			return this.getSummary();
 		else return null;
 	}

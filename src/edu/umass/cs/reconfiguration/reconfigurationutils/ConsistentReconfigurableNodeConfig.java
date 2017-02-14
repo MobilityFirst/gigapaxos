@@ -26,12 +26,12 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import org.json.JSONArray;
 import org.json.JSONException;
 
 import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
@@ -395,7 +395,7 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		InetAddress ip = this.nodeConfig.getNodeAddress(id);
 		int port = this.nodeConfig.getNodePort(id);
 		if (port == -1 && !this.isSlatedForRemoval(id))
-			Reconfigurator.getLogger()
+			ReconfigurationConfig.getLogger()
 					.warning("No port found for nodeID " + id);
 		return (ip != null ? new InetSocketAddress(ip, port) : null);
 	}
@@ -412,7 +412,7 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		InetAddress ip = this.nodeConfig.getBindAddress(id);
 		int port = this.nodeConfig.getNodePort(id);
 		if (port == -1 && !this.isSlatedForRemoval(id))
-			Reconfigurator.getLogger()
+			ReconfigurationConfig.getLogger()
 					.warning("No port found for nodeID " + id);
 		return (ip != null ? new InetSocketAddress(ip, port) : null);
 	}

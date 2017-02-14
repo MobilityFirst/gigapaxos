@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.net.ssl.SSLException;
 
@@ -136,16 +135,6 @@ public class Reconfigurator<NodeIDType> implements
 	private PendingBatchCreates pendingBatchCreations = new PendingBatchCreates();
 	private boolean recovering = true;
 
-	private static final Logger log = Logger.getLogger(Reconfigurator.class
-			.getName());
-
-	/**
-	 * @return Logger used by all of the reconfiguration package.
-	 */
-	public static final Logger getLogger() {
-		return log;
-	}
-
 	/**
 	 * For profiling statistics in {@link DelayProfiler}.
 	 */
@@ -205,7 +194,7 @@ public class Reconfigurator<NodeIDType> implements
 
 		// if here, recovery must be complete
 		this.DB.setRecovering(this.recovering = false);
-		log.log(Level.FINE,
+		ReconfigurationConfig.log.log(Level.FINE,
 				"{0} finished recovery with NodeConfig = {1}",
 				new Object[] { this,
 						this.consistentNodeConfig.getReconfigurators() });
@@ -261,8 +250,8 @@ public class Reconfigurator<NodeIDType> implements
 			@SuppressWarnings("unchecked")
 			ReconfigurationPacket.PacketType rcType = ((BasicReconfigurationPacket<NodeIDType>) incoming)
 					.getReconfigurationPacketType();
-			log.log(debug, "{0} received {1} {2}", new Object[] { this, rcType,
-					incoming.getSummary(log.isLoggable(debug)) });
+			ReconfigurationConfig.log.log(debug, "{0} received {1} {2}", new Object[] { this, rcType,
+					incoming.getSummary(ReconfigurationConfig.log.isLoggable(debug)) });
 
 			// try handling as reconfiguration packet through protocol task
 			@SuppressWarnings("unchecked")
@@ -271,11 +260,11 @@ public class Reconfigurator<NodeIDType> implements
 			// all packets are handled through executor, nice and simple
 			if (!this.protocolExecutor.handleEvent(rcPacket))
 				// do nothing
-				log.log(debug, MyLogger.FORMAT[2],
+				ReconfigurationConfig.log.log(debug, MyLogger.FORMAT[2],
 						new Object[] { this, "unable to handle packet",
-								incoming.getSummary(log.isLoggable(debug)) });
+								incoming.getSummary(ReconfigurationConfig.log.isLoggable(debug)) });
 		} catch (ProtocolTaskCreationException e) {
-			log.severe(this + " incurred exception " + e.getMessage()
+			ReconfigurationConfig.log.severe(this + " incurred exception " + e.getMessage()
 					+ " while trying to handle message " + incoming);
 			e.printStackTrace();
 		}
@@ -303,7 +292,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.messenger.stop();
 		this.DB.close();
 		HttpReconfigurator.closeAll();
-		log.log(Level.INFO, "{0} closing with nodeConfig = {1}", new Object[] {
+		ReconfigurationConfig.log.log(Level.INFO, "{0} closing with nodeConfig = {1}", new Object[] {
 				this, this.consistentNodeConfig });
 	}
 
@@ -320,7 +309,7 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleDemandReport(
 			DemandReport<NodeIDType> report,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		log.log(Level.FINEST, "{0} received {1} {2}", new Object[] { this,
+		ReconfigurationConfig.log.log(Level.FINEST, "{0} received {1} {2}", new Object[] { this,
 				report.getType(), report });
 		if (report.needsCoordination())
 			this.DB.handleIncoming(report, null); // coordinated
@@ -443,7 +432,7 @@ public class Reconfigurator<NodeIDType> implements
 				.get(headName);
 		jobs.remaining.remove(batchCreateHeadName);
 		if (jobs.remaining.isEmpty()) {
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"{0} returning completed batch create with head name {1} with {2} parts and {3} total constituent names",
 					new Object[] { this, headName, jobs.parts.size(),
 							jobs.totalNames() });
@@ -451,7 +440,7 @@ public class Reconfigurator<NodeIDType> implements
 					.remove(headName).original;
 		}
 		// else
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} completed batch create part job with head name {1}; jobs remaining = {2}",
 				new Object[] { this, batchCreateHeadName, jobs.remaining });
 		return null;
@@ -496,7 +485,7 @@ public class Reconfigurator<NodeIDType> implements
 			CreateServiceName create,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
 			RequestCallback callback) {
-		log.log(!this.pendingBatchCreations.headnameToOverallHeadname
+		ReconfigurationConfig.log.log(!this.pendingBatchCreations.headnameToOverallHeadname
 				.containsKey(create.getServiceName()) ? Level.INFO : Level.INFO,
 				"{0} received {1} from client {2} {3}",
 				new Object[] {
@@ -525,7 +514,7 @@ public class Reconfigurator<NodeIDType> implements
 					create.getServiceName(),
 					jobs = new BatchCreateJobs(create.getServiceName(), this
 							.makeCreateServiceNameBatches(create), create));
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"{0} inserted batch create with {1} parts ({2}) and {3} total constituent names",
 					new Object[] { this, jobs.parts.size(), jobs.remaining,
 							jobs.totalNames() });
@@ -597,7 +586,7 @@ public class Reconfigurator<NodeIDType> implements
 		 * true even if that RC group is itself undergoing reconfiguration. If
 		 * nodeConfig is outdated at some node, that only affects the choice of
 		 * active replicas below, not their consistency. */
-		log.log(Level.FINE, "{0} processing {1} from creator {2} {3}",
+		ReconfigurationConfig.log.log(Level.FINE, "{0} processing {1} from creator {2} {3}",
 				new Object[] {
 						this,
 						create.getSummary(),
@@ -661,7 +650,7 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleRCRecordRequest(
 			RCRecordRequest<NodeIDType> rcRecReq,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		log.log(Level.FINE, "{0} receievd {1}",
+		ReconfigurationConfig.log.log(Level.FINE, "{0} receievd {1}",
 				new Object[] { this, rcRecReq.getSummary() });
 
 		GenericMessagingTask<NodeIDType, ?> mtask = null;
@@ -736,7 +725,7 @@ public class Reconfigurator<NodeIDType> implements
 			DeleteServiceName delete,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
 			RequestCallback callback) {
-		log.log(Level.INFO, "{0} received {1} from creator {2}", new Object[] {
+		ReconfigurationConfig.log.log(Level.INFO, "{0} received {1} from creator {2}", new Object[] {
 				this, delete.getSummary(), delete.getCreator() });
 
 		if (this.processRedirection(delete)) {
@@ -744,7 +733,7 @@ public class Reconfigurator<NodeIDType> implements
 				this.callbacksCRP.put(getCRPKey(delete), callback);
 			return null;
 		}
-		log.log(Level.FINE,
+		ReconfigurationConfig.log.log(Level.FINE,
 				"{0} processing delete request {1} from creator {2} {3}",
 				new Object[] {
 						this,
@@ -785,7 +774,7 @@ public class Reconfigurator<NodeIDType> implements
 						delete.getServiceName()
 								+ (record != null ? " is being reconfigured and can not be deleted just yet."
 										: " does not exist")));
-		log.log(Level.FINE,
+		ReconfigurationConfig.log.log(Level.FINE,
 				"{0} discarded {1} because RC record is not reconfiguration ready.",
 				new Object[] { this, delete.getSummary() });
 		return null;
@@ -814,7 +803,7 @@ public class Reconfigurator<NodeIDType> implements
 				@Override
 				public void callbackGC(Object key, Object value) {
 					assert (value instanceof RequestCallback);
-					log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] {
+					ReconfigurationConfig.log.log(Level.INFO, "{0} timing out {1}:{2}", new Object[] {
 							this, key, value });
 				}
 			}, CRP_GC_TIMEOUT);
@@ -878,7 +867,7 @@ public class Reconfigurator<NodeIDType> implements
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks,
 			RequestCallback callback) {
 
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} received {1} {2} from client {3} {4}",
 				new Object[] {
 						this,
@@ -923,7 +912,7 @@ public class Reconfigurator<NodeIDType> implements
 				.getReconfigurationRecord(request.getServiceName());
 		if (record == null || record.getActiveReplicas() == null
 				|| record.isDeletePending()) {
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} returning null active replicas for name {1}; record = {2}",
 					new Object[] { this, request.getServiceName(), record });
 			// I am responsible but can't find actives for the name
@@ -984,13 +973,13 @@ public class Reconfigurator<NodeIDType> implements
 		assert (changeRC.getServiceName()
 				.equals(AbstractReconfiguratorDB.RecordNames.RC_NODES
 						.toString()));
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"\n\n{0}\n{1} received {2} request {3} from initiator {4}\n{5}",
 				new Object[] { separator, this, changeRC.getType(),
 						changeRC.getSummary(), changeRC.getIssuer(), separator });
 		if (!this.isPermitted(changeRC)) {
 			String errorMessage = " Impermissible node config change request";
-			log.severe(this + errorMessage + ": " + changeRC);
+			ReconfigurationConfig.log.severe(this + errorMessage + ": " + changeRC);
 			// this.sendRCReconfigurationErrorToInitiator(changeRC).setFailed().setResponseMessage(errorMessage);
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
 					changeRC.getIssuer(), changeRC.setFailed()
@@ -1004,7 +993,7 @@ public class Reconfigurator<NodeIDType> implements
 
 		if (!ncRecord.isReady()) {
 			String errorMessage = " Trying to conduct concurrent node config changes";
-			log.warning(this + errorMessage + ": " + changeRC);
+			ReconfigurationConfig.log.warning(this + errorMessage + ": " + changeRC);
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
 					changeRC.getIssuer(), changeRC.setFailed()
 							.setResponseMessage(errorMessage))).toArray();
@@ -1037,7 +1026,7 @@ public class Reconfigurator<NodeIDType> implements
 		assert (changeActives.getServiceName()
 				.equals(AbstractReconfiguratorDB.RecordNames.AR_NODES
 						.toString()));
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"\n\n{0}\n{1} received {2} request {3} from initiator {4}\n{5}",
 				new Object[] { separator, this, changeActives.getType(),
 						changeActives.getSummary(), changeActives.getIssuer(),
@@ -1045,14 +1034,14 @@ public class Reconfigurator<NodeIDType> implements
 
 		if (!this.isPermitted(changeActives)) {
 			String errorMessage = " Impermissible node config change request";
-			log.severe(this + errorMessage + ": " + changeActives);
+			ReconfigurationConfig.log.severe(this + errorMessage + ": " + changeActives);
 			// this.sendRCReconfigurationErrorToInitiator(changeRC).setFailed().setResponseMessage(errorMessage);
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
 					changeActives.getIssuer(), changeActives.setFailed()
 							.setResponseMessage(errorMessage))).toArray();
 		} else if (this.nothingToDo(changeActives)) {
 			String errorMessage = " Requested node additions or deletions already in place";
-			log.log(Level.INFO, "{0} {1} : {2}", new Object[] { this,
+			ReconfigurationConfig.log.log(Level.INFO, "{0} {1} : {2}", new Object[] { this,
 					errorMessage, changeActives });
 			// do not setFailed() in this case
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
@@ -1068,7 +1057,7 @@ public class Reconfigurator<NodeIDType> implements
 
 		if (!activeNCRecord.isReady()) {
 			String errorMessage = " Trying to conduct concurrent node config changes";
-			log.warning(this + errorMessage + ": " + changeActives.getSummary()
+			ReconfigurationConfig.log.warning(this + errorMessage + ": " + changeActives.getSummary()
 					+ "\n when activeNCRecord = " + activeNCRecord.getSummary());
 			return (new GenericMessagingTask<InetSocketAddress, ServerReconfigurationPacket<NodeIDType>>(
 					changeActives.getIssuer(), changeActives.setFailed()
@@ -1167,7 +1156,7 @@ public class Reconfigurator<NodeIDType> implements
 		RCRecordRequest<NodeIDType> rcRecReq = (RCRecordRequest<NodeIDType>) rcPacket;
 
 		if (this.isCommitWorkerCoordinated(rcRecReq)) {
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} executing CommitWorker callback after {1} execution of {2}",
 					new Object[] { this, (handled ? "successful" : "failed"),
 							rcRecReq.getSummary() });
@@ -1240,7 +1229,7 @@ public class Reconfigurator<NodeIDType> implements
 				 * merge succeeded or failed is in this Reconfigurator
 				 * executed() callback function but WaitEpochFinalState by
 				 * design belongs to ActiveReplica. */
-				log.log(Level.INFO, "{0} restarting failed merge {1}",
+				ReconfigurationConfig.log.log(Level.INFO, "{0} restarting failed merge {1}",
 						new Object[] { this, rcRecReq.getSummary() });
 				this.protocolExecutor
 						.spawnIfNotRunning(new WaitAckStopEpoch<NodeIDType>(
@@ -1339,7 +1328,7 @@ public class Reconfigurator<NodeIDType> implements
 		assert (!this.isTaskRunning(this.getTaskKey(WaitAckStopEpoch.class,
 				rcRecReq)));
 
-		log.log(Level.FINE,
+		ReconfigurationConfig.log.log(Level.FINE,
 				MyLogger.FORMAT[8],
 				new Object[] { this, "spawning WaitAckStopEpoch for",
 						rcRecReq.startEpoch.getPrevGroupName(), ":",
@@ -1379,7 +1368,7 @@ public class Reconfigurator<NodeIDType> implements
 		 * be true for a reconfiguration intent packet exactly once. */
 		if (this.isTaskRunning(this.getTaskKey(WaitPrimaryExecution.class,
 				rcRecReq))) {
-			log.log(Level.INFO, MyLogger.FORMAT[3], new Object[] { this,
+			ReconfigurationConfig.log.log(Level.INFO, MyLogger.FORMAT[3], new Object[] { this,
 					" TASK IS ALREADY RUNNING: ", rcRecReq.getSummary() });
 		}
 		// disable
@@ -1387,7 +1376,7 @@ public class Reconfigurator<NodeIDType> implements
 				rcRecReq)));
 		//
 
-		log.log(Level.FINE, MyLogger.FORMAT[3],
+		ReconfigurationConfig.log.log(Level.FINE, MyLogger.FORMAT[3],
 				new Object[] { this, " spawning WaitPrimaryExecution for ",
 						rcRecReq.getServiceName(),
 						rcRecReq.getEpochNumber() - 1 });
@@ -1415,7 +1404,7 @@ public class Reconfigurator<NodeIDType> implements
 
 	// put anything needing periodic instrumentation here
 	private void instrument(Level level) {
-		log.log(level,
+		ReconfigurationConfig.log.log(level,
 				"{0} activeThreadCount = {1}; taskCount = {2}; completedTaskCount = {3}",
 				new Object[] { this, this.protocolExecutor.getActiveCount(),
 						this.protocolExecutor.getTaskCount(),
@@ -1437,7 +1426,7 @@ public class Reconfigurator<NodeIDType> implements
 		AddressMessenger<JSONObject> cMsgr = this.messenger
 				.getClientMessenger(listenSockAddr);
 		cMsgr = cMsgr != null ? cMsgr : this.messenger;
-		log.log(Level.FINEST,
+		ReconfigurationConfig.log.log(Level.FINEST,
 				"{0} returning messenger listening on address {1}",
 				new Object[] { this, listenSockAddr, cMsgr });
 		return cMsgr;
@@ -1459,7 +1448,7 @@ public class Reconfigurator<NodeIDType> implements
 		 * received a redirected response before checking whether I am
 		 * responsible, otherwise there will be an infinite forwarding loop. */
 		if (clientRCPacket.isRedirectedResponse()) {
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} relaying RESPONSE for forwarded request {1} to {2}",
 					new Object[] { this, clientRCPacket.getSummary(),
 							clientRCPacket.getCreator() });
@@ -1564,7 +1553,7 @@ public class Reconfigurator<NodeIDType> implements
 			int myPort = (this.consistentNodeConfig.getNodePort(getMyID()));
 			if ((ssl ? getClientFacingSSLPort(myPort)
 					: getClientFacingClearPort(myPort)) != myPort) {
-				log.log(Level.INFO,
+				ReconfigurationConfig.log.log(Level.INFO,
 						"{0} creating {1} client messenger at {2}:{3}",
 						new Object[] {
 								this,
@@ -1601,7 +1590,7 @@ public class Reconfigurator<NodeIDType> implements
 										+ "; created messenger listening instead on "
 										+ niot.getListeningSocketAddress());
 				} else if (!ssl) {
-					log.log(Level.INFO,
+					ReconfigurationConfig.log.log(Level.INFO,
 							"{0} adding self as demultiplexer to existing {1} client messenger",
 							new Object[] { this, ssl ? "SSL" : "" });
 					if (this.messenger.getClientMessenger() instanceof Messenger)
@@ -1610,7 +1599,7 @@ public class Reconfigurator<NodeIDType> implements
 								.addPacketDemultiplexer(pd = new ReconfigurationPacketDemultiplexer(
 										this.getUnstringer(), this.DB).setThreadName(this.getMyID().toString()+"-clientFacing"));
 				} else {
-					log.log(Level.INFO,
+					ReconfigurationConfig.log.log(Level.INFO,
 							"{0} adding self as demultiplexer to existing {1} client messenger",
 							new Object[] { this, ssl ? "SSL" : "" });
 					if (this.messenger.getSSLClientMessenger() instanceof Messenger)
@@ -1630,7 +1619,7 @@ public class Reconfigurator<NodeIDType> implements
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			log.severe(this + " failed to initialize client messenger: "
+			ReconfigurationConfig.log.severe(this + " failed to initialize client messenger: "
 					+ e.getMessage());
 			System.exit(1);
 		}
@@ -1760,7 +1749,7 @@ public class Reconfigurator<NodeIDType> implements
 		boolean ready = recordGroupName != null && recordGroupName.isReady()
 				&& (recordServiceName == null || recordServiceName.isReady());
 		if (!ready)
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} not ready to reconfigure {1}; record={2} and rcGroupRecord={3}",
 					new Object[] {
 							this,
@@ -1957,7 +1946,7 @@ public class Reconfigurator<NodeIDType> implements
 			 * immaterial. It is really only used to construct the corresponding
 			 * WaitAckStopEpoch task, i.e., the intent itself will not be
 			 * committed again (and indeed can not be by design). */
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} initiating pending reconfiguration for {1}",
 					new Object[] { this, name });
 			RCRecordRequest<NodeIDType> rcRecReq = new RCRecordRequest<NodeIDType>(
@@ -1991,7 +1980,7 @@ public class Reconfigurator<NodeIDType> implements
 
 			request = request.setForwader(this.consistentNodeConfig
 					.getBindSocketAddress(getMyID()));
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"{0} forwarding client request {1} to reconfigurator {2}:{3}",
 					new Object[] {
 							this,
@@ -2009,7 +1998,7 @@ public class Reconfigurator<NodeIDType> implements
 					// .toJSONObject()
 					));
 		} catch (IOException /* | JSONException */e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
+			ReconfigurationConfig.log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
 		}
@@ -2022,7 +2011,7 @@ public class Reconfigurator<NodeIDType> implements
 			InetSocketAddress querier = this.getQuerier(response);
 			if (querier.equals(response.getCreator())) {
 				// only response can go back to client
-				log.log(Level.INFO,
+				ReconfigurationConfig.log.log(Level.INFO,
 						"{0} sending client RESPONSE {1}:{2} back to client",
 						new Object[] { this, response.getSummary(),
 								response.getResponseMessage(), querier });
@@ -2034,7 +2023,7 @@ public class Reconfigurator<NodeIDType> implements
 								));
 			} else {
 				// may be a request or response
-				log.log(Level.INFO,
+				ReconfigurationConfig.log.log(Level.INFO,
 						"{0} sending {1} {2} to reconfigurator {3}",
 						new Object[] { this,
 								response.isRequest() ? "request" : "RESPONSE",
@@ -2045,7 +2034,7 @@ public class Reconfigurator<NodeIDType> implements
 						)) > 0);
 			}
 		} catch (IOException /* | JSONException */e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
+			ReconfigurationConfig.log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
 		}
@@ -2057,7 +2046,7 @@ public class Reconfigurator<NodeIDType> implements
 	private AddressMessenger<JSONObject> getMessenger(InetSocketAddress receiver) {
 		if (receiver.equals(this.consistentNodeConfig.getBindSocketAddress(this
 				.getMyID()))) {
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} using messenger for {1}; bindAddress is {2}",
 					new Object[] {
 							this,
@@ -2066,7 +2055,7 @@ public class Reconfigurator<NodeIDType> implements
 									.getMyID()) });
 			return this.messenger;
 		} else {
-			log.log(Level.FINE,
+			ReconfigurationConfig.log.log(Level.FINE,
 					"{0} using clientMessenger for {1}; bindAddress is {2}",
 					new Object[] {
 							this,
@@ -2110,7 +2099,7 @@ public class Reconfigurator<NodeIDType> implements
 
 			// need to use different messengers for client and forwarder
 			else if (querier.equals(rcRecReq.startEpoch.creator)) {
-				log.log(Level.INFO,
+				ReconfigurationConfig.log.log(Level.INFO,
 						"{0} sending creation confirmation {1} back to client",
 						new Object[] { this, response.getSummary(), querier });
 				// this.getClientMessenger()
@@ -2121,7 +2110,7 @@ public class Reconfigurator<NodeIDType> implements
 								// .toJSONObject()
 								));
 			} else {
-				log.log(Level.INFO,
+				ReconfigurationConfig.log.log(Level.INFO,
 						"{0} sending creation confirmation {1} to forwarding reconfigurator {2}",
 						new Object[] { this, response.getSummary(), querier });
 				this.messenger.sendToAddress(
@@ -2133,7 +2122,7 @@ public class Reconfigurator<NodeIDType> implements
 						));
 			}
 		} catch (IOException /* | JSONException */e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
+			ReconfigurationConfig.log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
 		}
@@ -2165,7 +2154,7 @@ public class Reconfigurator<NodeIDType> implements
 					rcRecReq.startEpoch.getForwarder()).makeResponse();
 
 			if (querier.equals(rcRecReq.startEpoch.creator)) {
-				log.log(Level.FINE,
+				ReconfigurationConfig.log.log(Level.FINE,
 						"{0} sending deletion confirmation {1} back to client",
 						new Object[] { this, response.getSummary(), querier });
 				// this.getClientMessenger()
@@ -2176,7 +2165,7 @@ public class Reconfigurator<NodeIDType> implements
 								// .toJSONObject()
 								));
 			} else {
-				log.log(Level.FINE,
+				ReconfigurationConfig.log.log(Level.FINE,
 						"{0} sending deletion confirmation {1} to forwarding reconfigurator {2}",
 						new Object[] { this, response.getSummary(), querier });
 				this.messenger.sendToAddress(querier,
@@ -2185,7 +2174,7 @@ public class Reconfigurator<NodeIDType> implements
 						));
 			}
 		} catch (IOException /* | JSONException */e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
+			ReconfigurationConfig.log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
 		}
@@ -2225,7 +2214,7 @@ public class Reconfigurator<NodeIDType> implements
 					this.DB.getMyID(), rcRecReq.startEpoch.newlyAddedNodes,
 					this.diff(rcRecReq.startEpoch.prevEpochGroup,
 							rcRecReq.startEpoch.curEpochGroup));
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"\n\n{0}\n{1} sending {2} confirmation to {3}: {4}\n{5}",
 					new Object[] {
 							separator,
@@ -2238,7 +2227,7 @@ public class Reconfigurator<NodeIDType> implements
 					// .toJSONObject()
 					));
 		} catch (IOException /* | JSONException */e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
+			ReconfigurationConfig.log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
 		}
@@ -2251,12 +2240,12 @@ public class Reconfigurator<NodeIDType> implements
 					this.DB.getMyID(), rcRecReq.startEpoch.newlyAddedNodes,
 					this.diff(rcRecReq.startEpoch.prevEpochGroup,
 							rcRecReq.startEpoch.curEpochGroup));
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"{0} has nodeConfig = {1} after processing {2}",
 					new Object[] { this, this.consistentNodeConfig,
 							response.getSummary() });
 
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"\n\n{0}\n{1} finished required reconfigurations to change active replica(s) {2}; sending response to {3}\n{4}\n",
 					new Object[] { separator, this, response.getSummary(),
 							rcRecReq.startEpoch.creator, separator });
@@ -2265,7 +2254,7 @@ public class Reconfigurator<NodeIDType> implements
 					// .toJSONObject()
 					));
 		} catch (IOException /* | JSONException */e) {
-			log.severe(this + " incurred " + e.getClass().getSimpleName()
+			ReconfigurationConfig.log.severe(this + " incurred " + e.getClass().getSimpleName()
 					+ e.getMessage());
 			e.printStackTrace();
 		}
@@ -2299,13 +2288,13 @@ public class Reconfigurator<NodeIDType> implements
 	public GenericMessagingTask<NodeIDType, ?>[] handleEchoRequest(
 			EchoRequest echo,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
-		log.log(Level.FINE, "{0} received echo request {1}", new Object[] {
+		ReconfigurationConfig.log.log(Level.FINE, "{0} received echo request {1}", new Object[] {
 				this, echo.getSummary() });
 		if (echo.isRequest()) {
 			// ignore echo requests
 		} else if (echo.hasClosest()) {
 			RTTEstimator.closest(echo.getSender(), echo.getClosest());
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"{0} received closest map {1} from {2}; RTTEstimator.closest={3}",
 					new Object[] {
 							this,
@@ -2373,7 +2362,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * eventually complete, which may take a while. */
 	private void spawnExecuteActiveNodeConfigChange(
 			final RCRecordRequest<NodeIDType> rcRecReq) {
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} spawning active node config change task for {1}",
 				new Object[] {
 						this,
@@ -2479,12 +2468,12 @@ public class Reconfigurator<NodeIDType> implements
 					Util.writeProperty(prefix + node, null,
 							PaxosConfig.getPropertiesFile(), prefix);
 			} catch (IOException ioe) {
-				log.severe(this
+				ReconfigurationConfig.log.severe(this
 						+ " incurred exception while modifying properties file"
 						+ PaxosConfig.getPropertiesFile() + ioe);
 			}
 		else
-			log.log(Level.INFO,
+			ReconfigurationConfig.log.log(Level.INFO,
 					"{0} not updating non-existent properties file upon adds={1}, deletes={2}",
 					new Object[] { this,
 							rcRecReq.startEpoch.getNewlyAddedNodes(),
@@ -2510,7 +2499,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * changes. At this point, this node must be deleted and re-added to NC. */
 	private void postCompleteNodeConfigChange(
 			RCRecordRequest<NodeIDType> rcRecReq) {
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} completed node config change for epoch {1}; (forcing checkpoint..)",
 				new Object[] { this, rcRecReq.getEpochNumber() });
 		this.DB.forceCheckpoint(rcRecReq.getServiceName());
@@ -2540,7 +2529,7 @@ public class Reconfigurator<NodeIDType> implements
 					.entrySet()) {
 				this.consistentNodeConfig.addReconfigurator(entry.getKey(),
 						entry.getValue());
-				log.log(Level.FINE,
+				ReconfigurationConfig.log.log(Level.FINE,
 						"{0} added new reconfigurator {1}={2} to node config",
 						new Object[] {
 								this,
@@ -2647,7 +2636,7 @@ public class Reconfigurator<NodeIDType> implements
 					newRCGroups, ncRecord);
 		}
 
-		log.log(Level.INFO, "\n                           "
+		ReconfigurationConfig.log.log(Level.INFO, "\n                           "
 				+ "{0} changed/split/merged = \n{1}", new Object[] { this,
 				changedSplitMerged });
 		return !(changedSplitMerged).isEmpty();
@@ -2674,7 +2663,7 @@ public class Reconfigurator<NodeIDType> implements
 					NODE_CONFIG_RESTART_PERIOD);
 		else {
 			if (rcRecReq.isReconfigurationMerge())
-				log.log(Level.INFO, "{0} coordinating merge {1}", new Object[] {
+				ReconfigurationConfig.log.log(Level.INFO, "{0} coordinating merge {1}", new Object[] {
 						this, rcRecReq.getSummary() });
 			this.commitWorker.enqueueForExecution(rcRecReq);
 		}
@@ -2712,7 +2701,7 @@ public class Reconfigurator<NodeIDType> implements
 			if (!isPresent(newRCGroup, affectedNodes))
 				continue; // don't trivial-reconfigure
 			else
-				log.log(Level.FINE,
+				ReconfigurationConfig.log.log(Level.FINE,
 						"{0} finds {1} present in affected RC groups {2}",
 						new Object[] { this, newRCGroup, affectedNodes });
 			final Map<String, Set<String>> mergees = this.isMergerGroup(
@@ -2910,7 +2899,7 @@ public class Reconfigurator<NodeIDType> implements
 
 		Map<String, String> finalStates = new ConcurrentHashMap<String, String>();
 
-		log.log(Level.INFO, "{0} starting wait on stop task monitors {1}",
+		ReconfigurationConfig.log.log(Level.INFO, "{0} starting wait on stop task monitors {1}",
 				new Object[] { this, stopTasks });
 
 		// FIXME: should start tasks inside synchronized?
@@ -2937,14 +2926,14 @@ public class Reconfigurator<NodeIDType> implements
 					}
 				} catch (InterruptedException e) {
 					e.printStackTrace();
-					log.log(Level.INFO,
+					ReconfigurationConfig.log.log(Level.INFO,
 							"{0} interrupted while waiting on tasks {1}",
 							new Object[] { this, stopTasks });
 					throw new RuntimeException(
 							"Task to spawn merge/split fetch tasks interrupted");
 				}
 		}
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} finished waiting on all stop task monitors {1}",
 				new Object[] { this, stopTasks });
 		// merge mergee checkpoints
@@ -3199,7 +3188,7 @@ public class Reconfigurator<NodeIDType> implements
 			InetSocketAddress creator) {
 		boolean initiated = this.DB.app.initiateReadActiveRecords(active);
 		if (!initiated) {
-			log.log(Level.WARNING,
+			ReconfigurationConfig.log.log(Level.WARNING,
 					"{0} deleteActiveReplica {1} unable to initiate read active records",
 					new Object[] { this, active });
 			return false;
@@ -3209,7 +3198,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.consistentNodeConfig.slateForRemovalActive(active);
 		ReconfigurationRecord<NodeIDType> record = null;
 		while ((record = this.DB.app.readNextActiveRecord()) != null) {
-			log.log(Level.FINEST,
+			ReconfigurationConfig.log.log(Level.FINEST,
 					"{0} reconfiguring {1} in order to delete active {1}",
 					new Object[] { this, record.getName(), active });
 			try {
@@ -3238,7 +3227,7 @@ public class Reconfigurator<NodeIDType> implements
 					this.DB.notifyOutstanding(record.getName());
 			}
 		}
-		log.log(Level.INFO,
+		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} closing read active records cursor after initiating "
 						+ "{1} reconfigurations in order to delete active {2}",
 				new Object[] { this, rcCount, active });

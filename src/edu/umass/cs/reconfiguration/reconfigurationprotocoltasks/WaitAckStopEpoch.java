@@ -29,6 +29,7 @@ import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ThresholdProtocolTask;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.RepliconfigurableReconfiguratorDB;
@@ -79,7 +80,7 @@ public class WaitAckStopEpoch<NodeIDType>
 	protected int restartCount = 0;
 	private final long initTime = System.currentTimeMillis();
 
-	protected static final Logger log = Reconfigurator.getLogger();
+	protected static final Logger log = ReconfigurationConfig.getLogger();
 
 	private static final int WARN_NUM_RESTARTS = 5;
 

@@ -100,7 +100,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 	protected final ConsistentReconfigurableNodeConfig<NodeIDType> consistentNodeConfig;
 	protected boolean recovering = true;
 
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 
 	/**
 	 * @param myID

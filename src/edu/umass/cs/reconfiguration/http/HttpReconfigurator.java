@@ -3,6 +3,8 @@ package edu.umass.cs.reconfiguration.http;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -56,7 +58,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.nio.JSONPacket;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorFunctions;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationPacket;
@@ -156,7 +157,7 @@ public class HttpReconfigurator {
 
 	private static final Set<HttpReconfigurator> instances = new HashSet<HttpReconfigurator>();
 
-	private static final Logger log = Reconfigurator.getLogger();
+	private static final Logger log = ReconfigurationConfig.getLogger();
 
 	private final EventLoopGroup bossGroup;
 	private final EventLoopGroup workerGroup;

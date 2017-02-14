@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import org.json.JSONException;
 
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
@@ -30,7 +31,6 @@ import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 
 /**
  * @author arun
@@ -43,7 +43,7 @@ public class DynamoReplicaCoordinator<NodeIDType> extends
 		AbstractReplicaCoordinator<NodeIDType> {
 
 	private final ConsistentNodeConfig<NodeIDType> consistentNodeConfig;
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 
 	/**
 	 * @param app

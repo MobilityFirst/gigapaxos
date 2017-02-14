@@ -139,7 +139,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private final boolean noReporting;
 	private boolean recovering = true;
 
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 
 	/* Stores only those requests for which a callback is desired after
 	 * (coordinated) execution. StopEpoch is the only example of such a request

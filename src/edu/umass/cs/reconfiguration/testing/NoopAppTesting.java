@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -39,7 +40,6 @@ import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.examples.AbstractReconfigurablePaxosApp;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.examples.AppRequest.ResponseCodes;
@@ -187,7 +187,7 @@ public class NoopAppTesting extends AbstractReconfigurablePaxosApp<String>
 		try {
 			return staticGetRequest(stringified);
 		} catch (JSONException je) {
-			Reconfigurator.getLogger().fine(
+			ReconfigurationConfig.getLogger().fine(
 					"App-" + myID + " unable to parse request " + stringified);
 			throw new RequestParseException(je);
 		}
