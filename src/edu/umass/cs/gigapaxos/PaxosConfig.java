@@ -165,7 +165,7 @@ public class PaxosConfig {
 			.getGlobalString(PC.APPLICATION));
 
     /**
-     * @return Logger used by PaxosManager.
+     * @return Logger used by PaxosConfig.
      */
     public static final Logger getLogger() {
         return log
