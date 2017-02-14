@@ -26,9 +26,6 @@ import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 
-import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
-import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
-import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import org.junit.Assert;
 
 import org.json.JSONArray;
@@ -36,6 +33,9 @@ import org.json.JSONException;
 
 import edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp;
 import edu.umass.cs.gigapaxos.paxosutil.E2ELatencyAwareRedirector;
+import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
+import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
+import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
