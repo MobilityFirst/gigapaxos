@@ -50,7 +50,7 @@ public class RequestBatcher extends ConsumerTask<RequestPacket> {
 	private final PaxosManager<?> paxosManager;
 	private static double agreementLatency = 0;
 
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = PaxosConfig.getLogger();
 
 	/**
 	 * @param lock

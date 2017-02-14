@@ -20,12 +20,12 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedAcceptReply;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedCommit;
@@ -181,7 +181,7 @@ public abstract class PaxosPacketDemultiplexerFast extends
 	}
 
 	private static void fatal(Object json) {
-		PaxosManager.getLogger().severe(
+		PaxosConfig.getLogger().severe(
 				PaxosPacketDemultiplexerFast.class.getSimpleName()
 						+ " received " + json);
 		throw new RuntimeException(
