@@ -636,8 +636,8 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 			this.outstandingReconfigurations.remove(name);
 			this.outstandingReconfigurations.notify();
 		}
-		log.log(Level.INFO, "{0} has -outstanding = {1}", new Object[] { this,
-				this.outstandingReconfigurations });
+		log.log(Level.INFO, "{0} has -outstanding = {1}; removed {2}", new Object[] { this,
+				this.outstandingReconfigurations, name });
 	}
 
 }

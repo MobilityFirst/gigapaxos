@@ -888,7 +888,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		boolean added = true;
 		for (NodeIDType active : ancRecord.getNewActives()) {
 			assert (this.consistentNodeConfig.getNodeSocketAddress(active) != null) : getMyID()
-					+ " had no socket addres for " + active;
+					+ " found no socket address for " + active + "; actives=" + this.consistentNodeConfig.getActiveReplicas();
 			added = added
 					&& this.addActiveReplica(active, this.consistentNodeConfig
 							.getNodeSocketAddress(active), version);
