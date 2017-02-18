@@ -713,7 +713,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			return this.deleteReconfigurationRecordDB(name, epoch);
 	}
 
-	private synchronized boolean deleteReconfigurationRecordDB(String name,
+	private boolean deleteReconfigurationRecordDB(String name,
 			Integer epoch) {
 		if (epoch != null) {
 			ReconfigurationRecord<NodeIDType> record = this
@@ -732,7 +732,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return deleted;
 	}
 
-	private synchronized boolean deleteReconfigurationRecordDB(String name) {
+	private boolean deleteReconfigurationRecordDB(String name) {
 		return this.deleteReconfigurationRecordDB(name, null);
 	}
 

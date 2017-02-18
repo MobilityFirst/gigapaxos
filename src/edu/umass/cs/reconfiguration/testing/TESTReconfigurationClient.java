@@ -521,8 +521,8 @@ public class TESTReconfigurationClient {
 						}
 					});
 			monitorWait(success, timeout);
-			if (!success[0])
-				Thread.sleep(Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT));
+//			if (!success[0])
+//				Thread.sleep(Config.getGlobalLong(TRC.TEST_RTX_TIMEOUT));
 		} while (!success[0]
 				&& (timeout == null || System.currentTimeMillis() - t < timeout));
 		return success[0];

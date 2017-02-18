@@ -325,7 +325,6 @@ public class PaxosManager<NodeIDType> {
 		RequestResponseAndCallback rrc = null;
 		if (ENABLE_RESPONSE_CACHING
 				&& (rrc = this.outstanding.responses.get((requestPacket))) != null) {
-			RequestInstrumenter.remove(requestPacket.requestID);
 			RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 			if (rc!=null && rc.callback != null)
 				rc.callback.executed(rrc.clientRequest, false);

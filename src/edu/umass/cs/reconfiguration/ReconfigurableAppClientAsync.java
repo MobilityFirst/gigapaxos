@@ -64,6 +64,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.GCConcurrentHashMap;
 import edu.umass.cs.utils.GCConcurrentHashMapCallback;
+import edu.umass.cs.utils.Stringer;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -716,10 +717,16 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 													json), unstringer);
 
 				// byte-parseable app packet
-				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes)
-					// AppInstrumenter.recvdAppPacket();
-					return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
-							.getRequest(bytes, header);
+				else if (ReconfigurableAppClientAsync.this instanceof AppRequestParserBytes) {
+					try {
+						return ((AppRequestParserBytes) ReconfigurableAppClientAsync.this)
+								.getRequest(bytes, header);
+					} catch (Exception | Error e) {
+						log.log(Level.SEVERE, "{0} received unparseable packet {1}:{2}", new Object[]{ReconfigurableAppClientAsync.this,
+								header, new Stringer(bytes)});
+						throw e;
+					}
+				}
 
 				// JSON-stampable app packet
 				else if (JSONPacket.couldBeJSON(bytes)

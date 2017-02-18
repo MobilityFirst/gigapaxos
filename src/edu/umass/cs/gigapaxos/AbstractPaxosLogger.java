@@ -304,7 +304,7 @@ public abstract class AbstractPaxosLogger {
 	/**
 	 * @param strID
 	 */
-	public static final void fileLock(Object strID) {
+	public synchronized static final void fileLock(Object strID) {
 		RandomAccessFile raf = null;
 		try {
 			String logdir = getLocksDir();
@@ -315,7 +315,7 @@ public abstract class AbstractPaxosLogger {
 			FileLock lock = (raf = new RandomAccessFile(file, "rw"))
 					.getChannel().tryLock();
 			if (lock == null)
-				throw new RuntimeException("Unable to start node " + strID
+				throw new IOException("Unable to start node " + strID
 						+ " likely because node " + strID + " from "
 						+ Util.readFileAsString(filename).split("\n")[0].trim().replaceAll("#", "")
 						+ " is already running");

@@ -370,13 +370,11 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 		}
 
 		public void run() {
+			long t = 0;
 			try {
-				long t = 0;
 				if (NIOInstrumenter.monitorHandleMessageEnabled())
 					t = insert(this.json);
 				pd.handleMessage(this.json, header);
-				if (NIOInstrumenter.monitorHandleMessageEnabled())
-					release(t);
 			} catch (RejectedExecutionException ree) {
 				if (!executor.isShutdown())
 					ree.printStackTrace();
@@ -384,6 +382,9 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				e.printStackTrace(); // unless printed task will die silently
 			} catch (Error e) {
 				e.printStackTrace();
+			} finally {
+				if (NIOInstrumenter.monitorHandleMessageEnabled())
+					release(t);
 			}
 		}
 	}
@@ -400,7 +401,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 				&& (System.nanoTime() - entry.getKey()) / 1000 / 1000 > threshold)
 			return "Message ["
 					+ Util.truncate(entry.getValue().toString(), 64, 64)
-					+ " has been handled within " + threshold / 1000
+					+ " has not been handled within " + threshold / 1000
 					+ " seconds; total=" + handleMessageStats.size();
 		return null;
 	}

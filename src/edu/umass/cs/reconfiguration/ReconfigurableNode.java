@@ -106,6 +106,13 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								ReconfigurationConfig.getReconfigurators())));
 
 	}
+	
+	/**
+	 * @param server
+	 */
+	public static void stopServer(String server) {
+		if(allInstances.containsKey(server)) allInstances.get(server).close();
+	}
 
 	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig) {
