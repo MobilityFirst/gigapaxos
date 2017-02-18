@@ -25,7 +25,6 @@ import java.util.logging.Logger;
 
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.RepliconfigurableReconfiguratorDB;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
@@ -345,7 +344,7 @@ public class CommitWorker<NodeIDType> implements Runnable {
 	private final AbstractReplicaCoordinator<?> coordinator;
 	private final ReconfiguratorCallback callback;
 
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 
 	/**
 	 * @param coordinator

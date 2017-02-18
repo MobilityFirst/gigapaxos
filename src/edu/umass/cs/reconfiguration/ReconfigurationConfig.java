@@ -27,6 +27,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -55,7 +56,10 @@ import edu.umass.cs.utils.Util;
  *         respective classes.
  */
 public class ReconfigurationConfig {
-	/**
+    static final Logger log = Logger.getLogger(ReconfigurationConfig.class
+            .getName());
+
+    /**
 	 * 
 	 */
 	public static void load() {
@@ -93,7 +97,14 @@ public class ReconfigurationConfig {
 	public static final Class<?> application = getClassSuppressExceptions(Config
 			.getGlobalString(RC.APPLICATION));
 
-	/**
+    /**
+     * @return Logger used by all of the reconfiguration package.
+     */
+    public static final Logger getLogger() {
+        return log;
+    }
+
+    /**
 	 * Reconfiguration config parameters.
 	 */
 	public static enum RC implements Config.ConfigurableEnum {
@@ -690,7 +701,7 @@ public class ReconfigurationConfig {
 			} catch (InstantiationException | IllegalAccessException
 					| IllegalArgumentException | InvocationTargetException
 					| NoSuchMethodException | SecurityException e1) {
-				Reconfigurator.getLogger().info(
+				getLogger().info(
 						ReconfigurationConfig.application
 								+ " does not support (String[]) constructor;"
 								+ " trying default constructor instead");
@@ -701,8 +712,7 @@ public class ReconfigurationConfig {
 				} catch (InstantiationException | IllegalAccessException
 						| IllegalArgumentException | InvocationTargetException
 						| NoSuchMethodException | SecurityException e2) {
-					Reconfigurator
-							.getLogger()
+					getLogger()
 							.severe("App "
 									+ ReconfigurationConfig.application
 											.getSimpleName()
@@ -799,9 +809,9 @@ public class ReconfigurationConfig {
 	public static void setConsoleHandler(Level level) {
 		ConsoleHandler handler = new ConsoleHandler();
 		handler.setLevel(level);
-		Reconfigurator.getLogger().setLevel(level);
-		Reconfigurator.getLogger().addHandler(handler);
-		Reconfigurator.getLogger().setUseParentHandlers(false);
+		getLogger().setLevel(level);
+		getLogger().addHandler(handler);
+		getLogger().setUseParentHandlers(false);
 
 		PaxosManager.getLogger().setLevel(level);
 		PaxosManager.getLogger().addHandler(handler);

@@ -25,7 +25,6 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 
 /**
  * @author V. Arun
@@ -208,7 +207,7 @@ public abstract class AbstractDemandProfile {
 		} catch (InstantiationException | IllegalAccessException
 				| IllegalArgumentException | InvocationTargetException
 				| NoSuchMethodException | SecurityException e) {
-			Reconfigurator.getLogger().severe(e.getClass().getSimpleName() + " while creating " + clazz + " with JSONObject " + json);
+			ReconfigurationConfig.getLogger().severe(e.getClass().getSimpleName() + " while creating " + clazz + " with JSONObject " + json);
 			e.printStackTrace();
 		}
 		return null;
