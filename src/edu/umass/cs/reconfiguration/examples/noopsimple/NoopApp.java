@@ -230,6 +230,10 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	public Set<IntegerPacketType> getRequestTypes() {
 		return staticGetRequestTypes();
 	}
+	@Override
+	public Set<IntegerPacketType> getMutualAuthRequestTypes() {
+		return staticGetMutualAuthRequestTypes();
+	}
 
 	/**
 	 * We use this method also at the client, so it is static.

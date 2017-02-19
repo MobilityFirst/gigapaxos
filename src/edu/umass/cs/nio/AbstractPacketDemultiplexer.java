@@ -333,7 +333,7 @@ public abstract class AbstractPacketDemultiplexer<MessageType> implements
 	 * @param types
 	 */
 	public void register(IntegerPacketType[] types) {
-		log.info("Registering types "
+		log.log(Level.INFO, "{0} registering types "
 				+ (new HashSet<Object>(Arrays.asList(types))) + " for " + this);
 		for (Object type : types)
 			register((IntegerPacketType) type, this);
