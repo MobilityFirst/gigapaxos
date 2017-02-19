@@ -100,7 +100,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 	protected final ConsistentReconfigurableNodeConfig<NodeIDType> consistentNodeConfig;
 	protected boolean recovering = true;
 
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 
 	/**
 	 * @param myID
@@ -594,7 +594,7 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 					 * transition from n-1:READY (as opposed to
 					 * n-1:WAIT_ACK_STOP) to n:READY. This can only happen when
 					 * isAggregatedMergeSplit. */
-					|| (Reconfigurator.isAggregatedMergeSplit() && record
+					|| (ReconfigurationConfig.isAggregatedMergeSplit() && record
 							.getState().equals(RCStates.READY))) && (rcRecReq
 							.isReconfigurationComplete()
 					/* Batch creation initializes records to -1:WAIT_ACK_STOP in

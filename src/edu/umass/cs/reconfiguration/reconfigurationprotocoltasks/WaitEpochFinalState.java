@@ -30,6 +30,7 @@ import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ThresholdProtocolTask;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.AckStartEpoch;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EpochFinalState;
@@ -62,7 +63,7 @@ public class WaitEpochFinalState<NodeIDType>
 
 	private final String key;
 
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 
 	private static final int WARN_NUM_RESTARTS = 4;
 

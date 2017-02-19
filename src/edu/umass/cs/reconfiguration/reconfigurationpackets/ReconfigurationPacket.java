@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -32,7 +33,6 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.json.ProtocolPacket;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.IntegerPacketTypeMap;
@@ -338,7 +338,7 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		} catch (IllegalAccessException iae) {
 			iae.printStackTrace();
 		} catch (ClassNotFoundException cnfe) {
-			Reconfigurator.getLogger().info(
+			ReconfigurationConfig.getLogger().info(
 					"Class " + canonicalClassName + " not found");
 			cnfe.printStackTrace();
 		} catch (InstantiationException ie) {
