@@ -37,7 +37,6 @@ import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.SQLPaxosLogger;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -91,7 +90,7 @@ public class LargeCheckpointer {
 	private ScheduledExecutorService executor;
 	private boolean closed = false;
 
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = PaxosConfig.getLogger();
 
 	/**
 	 * @param dir

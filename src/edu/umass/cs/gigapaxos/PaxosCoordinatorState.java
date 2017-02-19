@@ -142,7 +142,7 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 	 */
 	private int[] nodeSlotNumbers = null;
 
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = PaxosConfig.getLogger();
 
 	// Used in myProposals map above and nowhere else
 	private class ProposalStateAtCoordinator {

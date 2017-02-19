@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -560,7 +561,7 @@ public abstract class PaxosPacket extends JSONPacket implements Summarizable {
 	static void checkFields(Class<?> clazz, GetType[] expFields) {
 		if(!STRICT_ADDRESS_CHECKS) return;
 		Field[] fields = clazz.getDeclaredFields();
-		boolean print = edu.umass.cs.gigapaxos.PaxosManager.getLogger()
+		boolean print = PaxosConfig.getLogger()
 				.isLoggable(Level.FINE);
 		if (print)
 			System.out.println("Checking fields for " + clazz);

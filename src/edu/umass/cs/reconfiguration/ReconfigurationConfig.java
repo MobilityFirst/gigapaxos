@@ -803,9 +803,9 @@ public class ReconfigurationConfig {
 		Reconfigurator.getLogger().addHandler(handler);
 		Reconfigurator.getLogger().setUseParentHandlers(false);
 
-		PaxosManager.getLogger().setLevel(level);
-		PaxosManager.getLogger().addHandler(handler);
-		PaxosManager.getLogger().setUseParentHandlers(false);
+		PaxosConfig.getLogger().setLevel(level);
+		PaxosConfig.getLogger().addHandler(handler);
+		PaxosConfig.getLogger().setUseParentHandlers(false);
 
 		NIOTransport.getLogger().setLevel(level);
 		NIOTransport.getLogger().addHandler(handler);

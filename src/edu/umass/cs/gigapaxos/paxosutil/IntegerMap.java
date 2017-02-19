@@ -24,7 +24,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
 
-import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -50,7 +50,7 @@ public class IntegerMap<NodeIDType> {
 	private HashMap<Integer, NodeIDType> nodeMap = new HashMap<Integer, NodeIDType>();
 	private static boolean allInteger = true;
 
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = PaxosConfig.getLogger();
 	
 	/**
 	 * Maps NodeIDType to int and stores the mapping

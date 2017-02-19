@@ -29,13 +29,13 @@ import java.util.List;
 import java.util.Random;
 import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.RequestBatcher;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -743,7 +743,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	private static void checkMyFields() {
 		Field[] fields = RequestPacket.class.getDeclaredFields();
 		int totalSize = 0;
-		if (edu.umass.cs.gigapaxos.PaxosManager.getLogger().isLoggable(
+		if (PaxosConfig.getLogger().isLoggable(
 				Level.FINE))
 			System.out.println(RequestPacket.class + " has " + fields.length
 					+ " fields");
@@ -1495,7 +1495,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	}
 	
 	private static boolean logAnomaly(RequestPacket req1, RequestPacket req2) {
-		PaxosManager.getLogger().log(Level.SEVERE, "Received two requests with identical ");
+		PaxosConfig.getLogger().log(Level.SEVERE, "Received two requests with identical ");
 		return true;
 	}
 	
