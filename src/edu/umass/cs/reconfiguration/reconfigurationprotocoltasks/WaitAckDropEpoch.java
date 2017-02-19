@@ -69,7 +69,7 @@ public class WaitAckDropEpoch<NodeIDType>
 
 	private final String key;
 
-	private static final Logger log = Reconfigurator.getLogger();
+	private static final Logger log = ReconfigurationConfig.getLogger();
 
 	/**
 	 * @param startEpoch

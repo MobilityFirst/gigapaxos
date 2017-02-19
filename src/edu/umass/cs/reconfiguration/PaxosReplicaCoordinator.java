@@ -48,7 +48,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		AbstractReplicaCoordinator<NodeIDType> {
 
 	private final PaxosManager<NodeIDType> paxosManager;
-	protected static final Logger log = (Reconfigurator.getLogger());
+	protected static final Logger log = (ReconfigurationConfig.getLogger());
 
 	/**
 	 * @param app

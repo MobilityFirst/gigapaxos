@@ -1351,7 +1351,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			return true;
 		}
 		if (lastQueriedTime != null)
-			Reconfigurator.getLogger().log(Level.FINEST,
+			ReconfigurationConfig.getLogger().log(Level.FINEST,
 					"{0} last queried time for {1} is {2}",
 					new Object[] { this, name, lastQueriedTime });
 		return false;
@@ -1418,7 +1418,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				this.activeReplicas.remove(name);
 				this.mostRecentlyWrittenMap.remove(name);
 			}
-			Reconfigurator.getLogger().log(Level.FINE,
+			ReconfigurationConfig.getLogger().log(Level.FINE,
 					"{0} requesting active replicas for {1}",
 					new Object[] { this, name });
 			this.sendRequesNullCallback(new RequestActiveReplicas(name));
