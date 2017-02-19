@@ -130,7 +130,7 @@ public class TESTReconfigurationConfig {
 		/**
 		 * Default number of retries when expecting success.
 		 */
-		TEST_RETRIES(1),
+		TEST_RETRIES(2),
 
 		/**
 		 * 
