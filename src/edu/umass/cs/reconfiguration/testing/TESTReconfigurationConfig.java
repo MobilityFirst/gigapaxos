@@ -128,6 +128,11 @@ public class TESTReconfigurationConfig {
 		TEST_RTX_TIMEOUT(TESTReconfigurationClient.DEFAULT_RTX_TIMEOUT),
 
 		/**
+		 * Default number of retries when expecting success.
+		 */
+		TEST_RETRIES(1),
+
+		/**
 		 * 
 		 */
 		TEST_APP_REQUEST_TIMEOUT(TESTReconfigurationClient.DEFAULT_APP_REQUEST_TIMEOUT),

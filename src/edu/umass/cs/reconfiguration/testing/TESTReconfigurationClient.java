@@ -91,6 +91,11 @@ public class TESTReconfigurationClient {
 			return NoopApp.staticGetRequestTypes();
 		}
 
+		@Override
+		public Set<IntegerPacketType> getMutualAuthRequestTypes() {
+			return NoopApp.staticGetMutualAuthRequestTypes();
+		}
+
 		public void close() {
 			super.close();
 		}
@@ -156,28 +161,35 @@ public class TESTReconfigurationClient {
 		return clients[(int) (Math.random() * clients.length)];
 	}
 
-	private boolean testAppRequest(String name, Map<Long, Request> outstandingQ, Long timeout)
+	private boolean testAppRequest(String name,
+			Map<Long, Request> outstandingQ, Long timeout)
 			throws NumberFormatException, IOException {
-		return this.testAppRequest(
-				new AppRequest(name,
-						//Long.valueOf(name.replaceAll("[a-z]*", "")),
-						(long)(Math.random()*Long.MAX_VALUE),
-						"request_value",
-						AppRequest.PacketType.DEFAULT_APP_REQUEST, false),
-				outstandingQ, timeout);
+		return this.testAppRequest(getAppRequest(name), outstandingQ, timeout);
 	}
-	
+
+	private static AppRequest getAppRequest(String name) {
+		return getAppRequest(name, AppRequest.PacketType.DEFAULT_APP_REQUEST);
+	}
+
+	private static AppRequest getAppRequest(String name,
+			AppRequest.PacketType type) {
+		return new AppRequest(name,
+				// Long.valueOf(name.replaceAll("[a-z]*", "")),
+				(long) (Math.random() * Long.MAX_VALUE), "request_value", type,
+				false);
+	}
+
 	// Similar to testAppRequest but with a non-default request type
 	private boolean testAppRequestNonDefault(String name,
 			AppRequest.PacketType type) throws NumberFormatException,
 			IOException {
-		return this.testAppRequest(new AppRequest(name,
-				(long) (Math.random() * Long.MAX_VALUE), "request_value", type,
-				false), new ConcurrentHashMap<Long, Request>(), null);
+		return this.testAppRequest(getAppRequest(name, type),
+				new ConcurrentHashMap<Long, Request>(), null);
 	}
 
-	private static final String appName = ReconfigurationConfig.application.getSimpleName();
-	
+	private static final String appName = ReconfigurationConfig.application
+			.getSimpleName();
+
 	/**
 	 * Tests an app request and synchronously waits for the response if
 	 * {@code outstandingQ} is null, else it asynchronously sends the request.
@@ -189,8 +201,8 @@ public class TESTReconfigurationClient {
 	 * @throws IOException
 	 */
 	private boolean testAppRequest(AppRequest request,
-			Map<Long, Request> outstandingQ, Long timeout) throws NumberFormatException,
-			IOException {
+			Map<Long, Request> outstandingQ, Long timeout)
+			throws NumberFormatException, IOException {
 		long t = System.currentTimeMillis();
 		boolean[] success = new boolean[1];
 		if (outstandingQ != null)
@@ -199,44 +211,50 @@ public class TESTReconfigurationClient {
 				"Sending app request {0} for name {1}",
 				new Object[] { request.getClass().getSimpleName(),
 						request.getServiceName() });
-		getRandomClient().sendRequest((this.wrapReplicableClientRequest ? ReplicableClientRequest.wrap(request) : request), new RequestCallback() {
-			@Override
-			public void handleResponse(Request response) {
-				if (outstandingQ != null)
-					synchronized (outstandingQ) {
-						if (!(response instanceof ActiveReplicaError))
-							outstandingQ.remove(request.getRequestID());
-						outstandingQ.notify();
-					}
-				DelayProfiler.updateDelay(appName+".e2e",
-						t);
-				if (response instanceof ActiveReplicaError) {
-					log.log(Level.INFO,
-							"Received {0} for app request to name {1} in "
-									+ "{2}ms; |outstanding|={3}",
-							new Object[] {
-									ActiveReplicaError.class.getSimpleName(),
-									request.getServiceName(),
-									(System.currentTimeMillis() - t),
-									outstandingQ != null ? outstandingQ.size()
-											: 0 });
-				}
-				if (response instanceof AppRequest) {
-					log.log(Level.INFO,
-							"Received response for app request to name {0} "
-									+ "exists in {1}ms; |outstanding|={2}",
-							new Object[] {
-									request.getServiceName(),
-									(System.currentTimeMillis() - t),
-									outstandingQ != null ? outstandingQ.size()
-											: 0 });
-					String reqValue = ((AppRequest) response).getValue();
-					setNumReconfigurations(Integer.valueOf(reqValue.split(" ")[1]));
-					success[0] = true;
-				}
-				monitorNotify(success[0]);
-			}
-		});
+		getRandomClient()
+				.sendRequest(
+						(this.wrapReplicableClientRequest ? ReplicableClientRequest.wrap(request)
+								: request), new RequestCallback() {
+							@Override
+							public void handleResponse(Request response) {
+								if (outstandingQ != null)
+									synchronized (outstandingQ) {
+										if (!(response instanceof ActiveReplicaError))
+											outstandingQ.remove(request
+													.getRequestID());
+										outstandingQ.notify();
+									}
+								DelayProfiler.updateDelay(appName + ".e2e", t);
+								if (response instanceof ActiveReplicaError) {
+									log.log(Level.INFO,
+											"Received {0} for app request to name {1} in "
+													+ "{2}ms; |outstanding|={3}",
+											new Object[] {
+													ActiveReplicaError.class
+															.getSimpleName(),
+													request.getServiceName(),
+													(System.currentTimeMillis() - t),
+													outstandingQ != null ? outstandingQ
+															.size() : 0 });
+								}
+								if (response instanceof AppRequest) {
+									log.log(Level.INFO,
+											"Received response for app request to name {0} "
+													+ "exists in {1}ms; |outstanding|={2}",
+											new Object[] {
+													request.getServiceName(),
+													(System.currentTimeMillis() - t),
+													outstandingQ != null ? outstandingQ
+															.size() : 0 });
+									String reqValue = ((AppRequest) response)
+											.getValue();
+									setNumReconfigurations(Integer
+											.valueOf(reqValue.split(" ")[1]));
+									success[0] = true;
+								}
+								monitorNotify(success[0]);
+							}
+						});
 		if (outstandingQ == null)
 			monitorWait(success, timeout);
 		return outstandingQ != null || success[0];
@@ -281,9 +299,8 @@ public class TESTReconfigurationClient {
 		for (Request request : requests.values())
 			if (request instanceof AppRequest) {
 				try {
-				testAppRequest((AppRequest) request, requests, null);
-				} catch(IOException ioe) {
-					System.out.println(this+"--------------------"+request);
+					testAppRequest((AppRequest) request, requests, null);
+				} catch (IOException ioe) {
 					ioe.printStackTrace();
 					throw ioe;
 				}
@@ -293,14 +310,14 @@ public class TESTReconfigurationClient {
 
 	private boolean testAppRequests(String[] names, boolean retryUntilSuccess)
 			throws NumberFormatException, IOException {
-		RateLimiter r = new RateLimiter(
+		RateLimiter rateLimiter = new RateLimiter(
 				Config.getGlobalDouble(TRC.TEST_APP_REQUEST_RATE));
 		final ConcurrentHashMap<Long, Request> outstanding = new ConcurrentHashMap<Long, Request>();
 
 		for (int i = 0; i < names.length; i++) {
 			// non-blocking
 			this.testAppRequest(names[i], outstanding, null);
-			r.record();
+			rateLimiter.record();
 		}
 		waitForAppResponses(Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT),
 				outstanding);
@@ -308,7 +325,7 @@ public class TESTReconfigurationClient {
 			while (!outstanding.isEmpty()) {
 				log.log(Level.INFO, "Retrying {0} outstanding app requests",
 						new Object[] { outstanding.size() });
-				testAppRequests(outstanding, r);
+				testAppRequests(outstanding, rateLimiter);
 				try {
 					Thread.sleep(Config
 							.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
@@ -330,6 +347,10 @@ public class TESTReconfigurationClient {
 		return testExists(names, false);
 	}
 
+	private boolean testNotExists(String name) throws IOException {
+		return testExists(name, false);
+	}
+
 	private boolean testExists(String[] names, boolean exists)
 			throws IOException {
 		boolean retval = true;
@@ -337,6 +358,10 @@ public class TESTReconfigurationClient {
 			retval = retval && testExists(names[i], exists);
 		}
 		return retval;
+	}
+
+	private boolean testExists(String name) throws IOException {
+		return testExists(name, true);
 	}
 
 	private boolean testExists(String name, boolean exists) throws IOException {
@@ -473,6 +498,10 @@ public class TESTReconfigurationClient {
 		for (int i = 0; i < names.length; i++)
 			created = created && testCreate(names[i], generateRandomState());
 		return created;
+	}
+
+	private boolean testCreate(String name) throws IOException {
+		return testCreate(name, generateRandomState());
 	}
 
 	// sequentially tests deletes of names
@@ -667,28 +696,6 @@ public class TESTReconfigurationClient {
 	protected static final long DEFAULT_RTX_TIMEOUT = 2000;
 	protected static final long DEFAULT_APP_REQUEST_TIMEOUT = 2000;
 
-	
-	/**
-	 * Method to test {@link PacketType#APP_REQUEST3} that is a transaction.
-	 * 
-	 * @throws NumberFormatException
-	 * @throws IOException
-	 * @throws InterruptedException
-	 */
-	@Test
-	public void test000_TX() throws NumberFormatException, IOException,
-			InterruptedException {
-		String[] names = generateRandomNames(1);
-		boolean test = testNotExists(names)
-				&& testCreates(names)
-				&& testExists(names)
-				&& testAppRequestNonDefault(names[0],
-						AppRequest.PacketType.APP_REQUEST3)
-				&& testDeletes(names) && testNotExists(names);
-		Assert.assertEquals(true, test);
-		success();
-	}
-
 	/**
 	 * Tests that a request to a random app name fails as expected.
 	 * 
@@ -728,12 +735,14 @@ public class TESTReconfigurationClient {
 		Assert.assertEquals(test, true); // should pass
 		success();
 	}
+
 	/**
 	 * @throws IOException
 	 */
 	@Test(timeout = DEFAULT_APP_REQUEST_TIMEOUT)
 	public void test00_AnycastRequest() throws IOException {
-		boolean test = testAppRequest(generateRandomName(), null, DEFAULT_TIMEOUT);
+		boolean test = testAppRequest(generateRandomName(), null,
+				DEFAULT_TIMEOUT);
 		Assert.assertEquals(test, false); // should fail
 		success();
 	}
@@ -801,7 +810,7 @@ public class TESTReconfigurationClient {
 		Assert.assertEquals(true, test);
 		success();
 	}
-	
+
 	private boolean wrapReplicableClientRequest = false;
 
 	/**
@@ -835,6 +844,75 @@ public class TESTReconfigurationClient {
 	}
 
 	/**
+	 * Method to test {@link PacketType#APP_REQUEST3} that is a transaction.
+	 * 
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test02_NonDefaultRequest() throws NumberFormatException,
+			IOException, InterruptedException {
+		String[] names = generateRandomNames(1);
+		boolean test = testNotExists(names)
+				&& testCreates(names)
+				&& testExists(names)
+				&& testAppRequestNonDefault(names[0],
+						AppRequest.PacketType.APP_REQUEST3)
+				&& testDeletes(names) && testNotExists(names);
+		Assert.assertEquals(true, test);
+		success();
+	}
+
+	/**
+	 * @throws IOException
+	 * @throws NumberFormatException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void test02_MutualAuthRequest() throws IOException,
+			NumberFormatException, InterruptedException {
+		String name = generateRandomName();
+		boolean test = testNotExists(name)
+				&& testCreate(name)
+				&& testExists(name)
+				&& testAppRequest(getAppRequest(name,
+						AppRequest.PacketType.ADMIN_APP_REQUEST))
+				&& testDelete(name) && testNotExists(name);
+		Assert.assertEquals(true, test);
+		success();
+	}
+
+	/**
+	 * Blocking app request with default number of retries.
+	 * 
+	 * @param request
+	 * @return
+	 * @throws IOException
+	 */
+	private boolean testAppRequest(AppRequest request) throws IOException {
+		return this.testAppRequest(request,
+				Config.getGlobalInt(TRC.TEST_RETRIES));
+	}
+
+	/**
+	 * Blocking app request with retries.
+	 * 
+	 * @param request
+	 * @param retries
+	 * @return True if response received within {@code retries} retransmissions.
+	 * @throws IOException
+	 */
+	private boolean testAppRequest(AppRequest request, int retries)
+			throws IOException {
+		Request response = null;
+		for (int i = 0; i <= retries; i++)
+			response = this.getRandomClient().sendRequest(request,
+					Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
+		return response != null;
+	}
+
+	/**
 	 * Same as {@link #test01_BasicSequence()} but with batch created names.
 	 * 
 	 * @throws IOException
@@ -854,7 +932,8 @@ public class TESTReconfigurationClient {
 				&& testAppRequests(bNames,
 						Config.getGlobalInt(TRC.TEST_NUM_REQUESTS_PER_NAME))
 				&& testDeletes(bNames) && testNotExists(bNames);
-		log.info(testName.getMethodName() + ": " + DelayProfiler.getStats());
+		log.log(Level.INFO, "{0}: {1}", new Object[] {
+				testName.getMethodName(), DelayProfiler.getStats() });
 		Assert.assertEquals(test, true);
 		success();
 	}
@@ -902,7 +981,7 @@ public class TESTReconfigurationClient {
 	}
 
 	/**
-	 * Deletion of a non-existent active replica fails.
+	 * Deletion of a non-existent active replica succeeds.
 	 * 
 	 * @throws IOException
 	 * @throws InterruptedException
@@ -1084,7 +1163,7 @@ public class TESTReconfigurationClient {
 		TESTReconfigurationConfig.load();
 		Config.getConfig(ReconfigurationConfig.RC.class).put(
 				ReconfigurationConfig.RC.RECONFIGURE_IN_PLACE, true);
-		//ReconfigurationConfig.setDemandProfile(ProximateBalance.class);
+		// ReconfigurationConfig.setDemandProfile(ProximateBalance.class);
 
 		Result result = JUnitCore.runClasses(TESTReconfigurationClient.class);
 		for (Failure failure : result.getFailures()) {

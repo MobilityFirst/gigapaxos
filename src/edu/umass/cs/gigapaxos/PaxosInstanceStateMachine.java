@@ -1029,7 +1029,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			PaxosInstanceStateMachine.execute(this, getPaxosManager(),
 					this.getApp(), accept, false);
 			if (Util.oneIn(10))
-				log.info(DelayProfiler.getStats());
+				log.log(Level.INFO, "{0}", new Object[]{DelayProfiler.getStats()});
 			// return null;
 		}
 

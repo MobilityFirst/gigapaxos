@@ -818,7 +818,6 @@ public class ReconfigurationConfig {
 	public static void setConsoleHandler() {
 		if (System.getProperty("java.util.logging.config.file") == null)
 			setConsoleHandler(Level.INFO);
-		else System.out.println("logging properties file=" + System.getProperty("java.util.logging.config.file"));
 	}
 
 	protected static CreateServiceName[] testMakeCreateNameRequest(String name,

@@ -311,6 +311,17 @@ public class DelayProfiler {
 	public static String getStats() {
 		return getStats(null);
 	}
+	
+	/**
+	 * @return Statistics as object for logging.
+	 */
+	public static Object getStatsLog() {
+		return new Object() {
+			public String toString() {
+				return getStats(null);
+			}
+		};
+	}
 
 	/**
 	 * @param fields

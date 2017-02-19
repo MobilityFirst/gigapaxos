@@ -99,6 +99,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 		switch ((AppRequest.PacketType) (request.getRequestType())) {
 		case DEFAULT_APP_REQUEST:
 		case APP_REQUEST3:
+		case ADMIN_APP_REQUEST:
 			return processRequest((AppRequest) request, doNotReplyToClient);
 		default:
 			// everything else is an absolute no-op
@@ -223,6 +224,7 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	}
 
 	private static AppRequest.PacketType[] types = AppRequest.PacketType.values();
+	private static AppRequest.PacketType[] mutualAuthTypes = {AppRequest.PacketType.ADMIN_APP_REQUEST};
 
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
@@ -235,7 +237,16 @@ public class NoopApp extends AbstractReconfigurablePaxosApp<String> implements
 	 * @return App request types.
 	 */
 	public static Set<IntegerPacketType> staticGetRequestTypes() {
-		return new HashSet<IntegerPacketType>(Arrays.asList(types));
+		Set<IntegerPacketType> copy = new HashSet<IntegerPacketType>(Arrays.asList(types));
+		copy.remove(new HashSet<IntegerPacketType>(Arrays.asList(mutualAuthTypes)));
+		return copy;
+	}
+
+	/**
+	 * @return Packet types requiring mutual authentication.
+	 */
+	public static Set<IntegerPacketType> staticGetMutualAuthRequestTypes() {
+		return new HashSet<IntegerPacketType>(Arrays.asList(mutualAuthTypes));
 	}
 
 	@Override

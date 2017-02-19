@@ -93,9 +93,10 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	private static final long MAX_COORDINATION_LATENCY = 2000;
 	
-	final MessageNIOTransport<String, Object> niot;
-	final Set<InetSocketAddress> reconfigurators;
+	private final MessageNIOTransport<String, Object> niot, niotMA;
+	final Set<InetSocketAddress> clientFacingReconfigurators, reconfigurators;
 	final SSL_MODES sslMode;
+	
 	private final E2ELatencyAwareRedirector e2eRedirector;
 
 	final GCConcurrentHashMapCallback defaultGCCallback = new GCConcurrentHashMapCallback() {
@@ -289,18 +290,30 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset,
 			boolean checkConnectivity) throws IOException {
 		this.sslMode = sslMode;
+		
+		// set up transport
 		(this.niot = (new MessageNIOTransport<String, Object>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
 				sslMode))).setName(this.toString());
+		if (this.sslMode != ReconfigurationConfig.getServerSSLMode()
+				&& (!this.getMutualAuthTypes().isEmpty() || !Config
+						.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE)))
+			(this.niotMA = (new MessageNIOTransport<String, Object>(null, null,
+					(new ClientPacketDemultiplexer(getMutualAuthTypes())),
+					true, ReconfigurationConfig.getServerSSLMode())))
+					.setName(this.toString());
+		else
+			this.niotMA = null;
+		
 		log.log(Level.INFO,
 				"{0} listening on {1}; ssl mode = {2}; client port offset = {3}",
 				new Object[] { this, niot.getListeningSocketAddress(),
 						this.sslMode, clientPortOffset });
-		this.reconfigurators = (PaxosConfig.offsetSocketAddresses(
-				reconfigurators, clientPortOffset));
+		this.clientFacingReconfigurators = (PaxosConfig.offsetSocketAddresses(
+				this.reconfigurators = reconfigurators, clientPortOffset));
 
 		log.log(Level.FINE, "{0} reconfigurators={1}", new Object[] { this,
-				(this.reconfigurators) });
+				(this.clientFacingReconfigurators) });
 		this.e2eRedirector = new E2ELatencyAwareRedirector(
 				this.niot.getListeningSocketAddress());
 
@@ -346,18 +359,6 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		this.callbacks.setGCTimeout(timeout);
 		this.callbacksCRP.setGCTimeout(timeout);
 		this.requestsPendingActives.setGCTimeout(timeout);
-	}
-
-	/**
-	 * @param reconfigurators
-	 * @param sslMode
-	 * @param clientPortOffset
-	 * @throws IOException
-	 */
-	public ReconfigurableAppClientAsync(Set<InetSocketAddress> reconfigurators,
-			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset)
-			throws IOException {
-		this(reconfigurators, sslMode, clientPortOffset, true);
 	}
 
 	/**
@@ -857,12 +858,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		Callback<Request, V> prev = null;
 
 		// send mutual auth requests to main active replica port instead
-		if (this.getMutualAuthTypes().contains(request.getRequestType()))
-			server = new InetSocketAddress(server.getAddress(),
-					server.getPort() + (
-					this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
-							.getClientPortClearOffset()
-							: -ReconfigurationConfig.getClientPortSSLOffset()));
+		if (this.sendToServerPort(request))
+			server = Util.offsetPort(server, getServerPortOffset());
 
 		// use replica recently written to if any
 		InetSocketAddress mostRecentlyWritten = READ_YOUR_WRITES ? this.mostRecentlyWrittenMap
@@ -921,7 +918,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 						((TimeoutRequestCallback) callback).getTimeout(),
 						request);
 
-			sendFailed = this.niot.sendToAddress(server, request) <= 0;
+			sendFailed = this.getNIO(request).sendToAddress(server, request) <= 0;
 			Level level = request instanceof EchoRequest ? Level.FINE
 					: Level.FINE;
 			log.log(level,
@@ -989,16 +986,20 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		if (this.numOutStandingCRPs() > getMaxOutstandingCRPRequests())
 			throw new IOException("Too many outstanding requests");
 
-		InetSocketAddress isa = getRandom(this.reconfigurators
+		InetSocketAddress isa = getRandom(this.clientFacingReconfigurators
 				.toArray(new InetSocketAddress[0]));
 		// overwrite the most recent callback
 		this.callbacksSRP.put(getKey(rcPacket), callback);
 		this.niot.sendToAddress(Util.offsetPort(
 				isa,
 				// subtract offset to go to server-server port
-				this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
-						.getClientPortClearOffset() : -ReconfigurationConfig
-						.getClientPortSSLOffset()), rcPacket);
+				getServerPortOffset()), rcPacket);
+	}
+	
+	private int getServerPortOffset() {
+		return this.sslMode == SSL_MODES.CLEAR ? -ReconfigurationConfig
+				.getClientPortClearOffset() : -ReconfigurationConfig
+				.getClientPortSSLOffset();
 	}
 	
 	private static RequestCallback defaultCRPCallback = new RequestCallback() {
@@ -1089,17 +1090,21 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 * @return Future for asynchronous task
 	 * @throws IOException
 	 */
-	public RequestFuture<ClientReconfigurationPacket> sendRequest(ClientReconfigurationPacket request,
-			RequestCallback callback) throws IOException {
+	public RequestFuture<ClientReconfigurationPacket> sendRequest(
+			ClientReconfigurationPacket request, RequestCallback callback)
+			throws IOException {
 		InetSocketAddress server = null;
-		 return this.sendRequest(
-				request,
-				// to avoid lagging reconfigurators
-				(server = this.mostRecentlyCreatedMap.get(request
-						.getServiceName())) != null ? server
-				// could also select random reconfigurator here
-						: this.e2eRedirector.getNearest(this.reconfigurators),
-				callback);
+		return this
+				.sendRequest(
+						request,
+						// to avoid lagging reconfigurators
+						(server = this.mostRecentlyCreatedMap.get(request
+								.getServiceName())) != null ? server
+								// could also select random reconfigurator here
+								: this.e2eRedirector.getNearest(this
+										.sendToServerPort(request) ? this.reconfigurators
+										: this.clientFacingReconfigurators),
+						callback);
 	}
 
 	private void sendRequesNullCallback(ClientReconfigurationPacket request)
@@ -1166,13 +1171,27 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 						request);
 
 		this.sendRequest(request, reconfigurator != null ? reconfigurator
-				: this.e2eRedirector.getNearest(reconfigurators));
+				: this.e2eRedirector.getNearest(clientFacingReconfigurators));
 		return toRequestFutureCRP(future);
 	}
 
 	private boolean sendRequest(ClientReconfigurationPacket request,
 			InetSocketAddress reconfigurator) throws IOException {
-		return this.niot.sendToAddress(reconfigurator, request) > 0;
+		return this.getNIO(request).sendToAddress(reconfigurator, request) > 0;
+	}
+	
+	private MessageNIOTransport<String, Object> getNIO(Request request) {
+		return this.sendToServerPort(request) && this.niotMA!=null ? this.niotMA : this.niot;
+	}
+	private boolean sendToServerPort(Request request) {
+		return isMutualAuth(request)
+				|| (request instanceof ClientReconfigurationPacket && !Config
+						.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE)) ? true
+				: false;
+	}
+	private boolean isMutualAuth(Request request) {
+		return (request instanceof ClientRequest && this.getMutualAuthTypes()
+				.contains(request.getRequestType()));
 	}
 
 	private InetSocketAddress getRandom(InetSocketAddress[] isas) {
@@ -1638,7 +1657,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			Set<InetSocketAddress> servers = new HashSet<InetSocketAddress>(
 					actives);
 			if (SEND_CLOSEST_TO_RECONFIGURATORS)
-				servers.addAll(reconfigurators);
+				servers.addAll(clientFacingReconfigurators);
 			log.log(Level.INFO, "{0} sending closest-{1} map {2} to {3}",
 					new Object[] { this, this.closest.size(), this.closest,
 							servers });
@@ -1716,7 +1735,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 					new RequestActiveReplicas(Config
 							.getGlobalString(RC.BROADCAST_NAME)),
 					address != null ? address : this
-							.getRandom(this.reconfigurators
+							.getRandom(this.clientFacingReconfigurators
 									.toArray(new InetSocketAddress[0])),
 					new RequestCallback() {
 						@Override
@@ -1795,15 +1814,15 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	 * @throws IOException
 	 */
 	public void checkConnectivity() throws IOException {
-		for (InetSocketAddress address : this.reconfigurators)
+		for (InetSocketAddress address : this.clientFacingReconfigurators)
 			if (this.checkConnectivity(CONNECTIVITY_CHECK_TIMEOUT,
 			/* at least 2 attempts per reconfigurator and 3 if there is just a
 			 * single reconfigurator. */
-			2 + 1 / this.reconfigurators.size(), address))
+			2 + 1 / this.clientFacingReconfigurators.size(), address))
 				return;
 
 		throw new IOException(CONNECTION_CHECK_ERROR + " : "
-				+ this.reconfigurators);
+				+ this.clientFacingReconfigurators);
 	}
 
 	/**
@@ -1813,13 +1832,14 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		if (this.timer != null)
 			this.timer.cancel();
 		this.niot.stop();
+		if(this.niotMA!=null) this.niotMA.stop();
 	}
 
 	/**
 	 * @return The list of default servers.
 	 */
 	public Set<InetSocketAddress> getDefaultServers() {
-		return new HashSet<InetSocketAddress>((this.reconfigurators));
+		return new HashSet<InetSocketAddress>((this.clientFacingReconfigurators));
 	}
 
 	public String toString() {
