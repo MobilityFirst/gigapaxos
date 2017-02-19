@@ -61,7 +61,7 @@ import edu.umass.cs.gigapaxos.paxosutil.HotRestoreInfo;
  */
 public abstract class PaxosCoordinator {
 
-	private static Logger log = (PaxosManager.getLogger());
+	private static Logger log = (PaxosConfig.getLogger());
 
 	protected static PaxosCoordinator makeCoordinator(PaxosCoordinator c, int bnum,
 			int coord, int[] members, int slot, boolean recovery) {

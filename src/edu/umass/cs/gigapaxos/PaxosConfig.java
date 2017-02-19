@@ -25,6 +25,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.junit.Assert;
 
@@ -64,8 +65,9 @@ public class PaxosConfig {
 	 * 
 	 */
 	public static final String DEFAULT_SERVER_PREFIX = "active.";
+    static final Logger log = Logger.getLogger(PaxosConfig.class.getName());
 
-	static {
+    static {
 		load();
 	}
 
@@ -119,7 +121,7 @@ public class PaxosConfig {
 						|| Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR)
 								.trim().equals("."));
 		if (Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR).trim().equals("."))
-			PaxosManager.getLogger().warning(
+			getLogger().warning(
 					PC.GIGAPAXOS_DATA_DIR + " must be an absolute path;"
 							+ " specifying \".\" is deprecated and discouraged.");
 		return true;
@@ -162,7 +164,15 @@ public class PaxosConfig {
 	public static final Class<?> application = getClassSuppressExceptions(Config
 			.getGlobalString(PC.APPLICATION));
 
-	/**
+    /**
+     * @return Logger used by PaxosConfig.
+     */
+    public static final Logger getLogger() {
+        return log
+        ;
+    }
+
+    /**
 	 * All gigapaxos config parameters that can be specified via a configuration
 	 * file.
 	 */
@@ -984,9 +994,9 @@ public class PaxosConfig {
 	public static void setConsoleHandler(Level level) {
 		ConsoleHandler handler = new ConsoleHandler();
 		handler.setLevel(level);
-		PaxosManager.getLogger().setLevel(level);
-		PaxosManager.getLogger().addHandler(handler);
-		PaxosManager.getLogger().setUseParentHandlers(false);
+		getLogger().setLevel(level);
+		getLogger().addHandler(handler);
+		getLogger().setUseParentHandlers(false);
 
 		NIOTransport.getLogger().setLevel(level);
 		NIOTransport.getLogger().addHandler(handler);

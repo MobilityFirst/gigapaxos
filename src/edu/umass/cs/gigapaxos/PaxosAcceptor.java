@@ -103,7 +103,7 @@ public class PaxosAcceptor {
 	private byte lastSyncdTime = 0;
 
 	// static, so does not count towards space.
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = PaxosConfig.getLogger();
 
 	PaxosAcceptor(int b, int c, int s, HotRestoreInfo hri) {
 		this.ballotNum = b;

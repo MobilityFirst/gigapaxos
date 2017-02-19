@@ -97,7 +97,7 @@ public class PaxosServer {
 				} catch (InstantiationException | IllegalAccessException
 						| IllegalArgumentException | InvocationTargetException
 						| NoSuchMethodException | SecurityException e) {
-					PaxosManager
+					PaxosConfig
 							.getLogger()
 							.severe("App must support a constructor with a single (String[]) argument"
 									+ " or the default constructor (with no arguments)");
@@ -105,7 +105,7 @@ public class PaxosServer {
 				}
 			}
 		} else {
-			PaxosManager.getLogger().severe(
+			PaxosConfig.getLogger().severe(
 					 messenger.getMyID()
 							+ " unable to create paxos application replica");
 		}

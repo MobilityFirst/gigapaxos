@@ -1359,7 +1359,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			baos.close();
 			inflator.end();
 		} catch (DataFormatException e) {
-			PaxosManager.getLogger().severe(
+			PaxosConfig.getLogger().severe(
 					"DataFormatException while decompressing buffer of length "
 							+ buf.length);
 			e.printStackTrace();

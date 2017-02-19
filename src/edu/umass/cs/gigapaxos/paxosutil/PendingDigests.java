@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.PaxosManager.RequestAndCallback;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -118,7 +118,7 @@ public class PendingDigests {
 	public AcceptPacket release(RequestPacket request, boolean remove, boolean assertion) {
 		AcceptPacket accept = null;
 		if(assertion && !this.requests.containsKey(request.requestID)) {
-			PaxosManager.getLogger().log(Level.SEVERE,
+			PaxosConfig.getLogger().log(Level.SEVERE,
 					"PendingDigests trying to release unqueued request {0}",
 					new Object[] { request.getSummary() });
 					assert(false) : request;
@@ -146,7 +146,7 @@ public class PendingDigests {
 	}
 
 	private void logAnomaly(RequestPacket request, AcceptPacket accept) {
-		PaxosManager.getLogger().warning(
+		PaxosConfig.getLogger().warning(
 				"Mismatched digests for matching requestIDs: "
 						+ request.getSummary() + " != " + accept.getSummary());
 	}
