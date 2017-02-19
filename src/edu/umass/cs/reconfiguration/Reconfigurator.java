@@ -2628,7 +2628,7 @@ public class Reconfigurator<NodeIDType> implements
 		// adjustCurWithNewRCGroups(curRCGroups, newRCGroups, ncRecord);
 		String changedSplitMerged = this.changeExistingGroups(curRCGroups,
 				newRCGroups, ncRecord, affectedNodes);
-		if (!isAggregatedMergeSplit()) {
+		if (!ReconfigurationConfig.isAggregatedMergeSplit()) {
 			// the two methods below are unused with aggregated merge/split
 			changedSplitMerged += this.splitExistingGroups(curRCGroups,
 					newRCGroups, ncRecord);
@@ -2668,24 +2668,13 @@ public class Reconfigurator<NodeIDType> implements
 			this.commitWorker.enqueueForExecution(rcRecReq);
 		}
 	}
-	
-	private static final boolean IS_AGGREGATED_MERGE_SPLIT = true;
-
-	/**
-	 * Default true now for an improved merge/split implementation. Doing merges
-	 * in the old way potentially violates RSM safety. True effectively disables
-	 * the use of {@link RCRecordRequest.RequestTypes#RECONFIGURATION_MERGE}.
-	 */
-	protected static final boolean isAggregatedMergeSplit() {
-		return IS_AGGREGATED_MERGE_SPLIT;
-	}
 
 	/**
 	 * This method reconfigures groups that exist locally both in the old and
 	 * new rings, i.e., this node just has to do a standard reconfiguration
 	 * operation because the membership of the paxos group is changing.
 	 * 
-	 * With {@link #isAggregatedMergeSplit()}, this method suffices for all
+	 * With {@link ReconfigurationConfig#isAggregatedMergeSplit()}, this method suffices for all
 	 * necessary reconfigurations; otherwise, we have to also invoke
 	 * splitExistingGroups and mergeExistingGroups.
 	 */
@@ -2710,7 +2699,7 @@ public class Reconfigurator<NodeIDType> implements
 					newRCGroup, curRCGroups, newRCGroups, ncRecord);
 			int ncEpoch = ncRecord.getRCEpoch(newRCGroup);
 
-			boolean invokeAggregatedMergeSplit = isAggregatedMergeSplit()
+			boolean invokeAggregatedMergeSplit = ReconfigurationConfig.isAggregatedMergeSplit()
 					&& (!mergees.isEmpty() || splitParentGroup != null);
 
 			if (curRCGroups.keySet().contains(newRCGroup)
@@ -2722,7 +2711,7 @@ public class Reconfigurator<NodeIDType> implements
 						+ "} to {" + newRCGroup + ":" + (ncEpoch) + "=" + newRCGroups
 							.get(newRCGroup)) + "}";
 
-				if ((mergees).isEmpty() || !isAggregatedMergeSplit()) {
+				if ((mergees).isEmpty() || !ReconfigurationConfig.isAggregatedMergeSplit()) {
 					this.repeatUntilObviated(new RCRecordRequest<NodeIDType>(
 							this.getMyID(), new StartEpoch<NodeIDType>(this
 									.getMyID(), newRCGroup, ncEpoch,
@@ -2951,7 +2940,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * other corresponding to the new but currently non-existent group. A
 	 * detailed example is described below.
 	 * 
-	 * Note: This method is unused with {@link #isAggregatedMergeSplit()}.
+	 * Note: This method is unused with {@link ReconfigurationConfig#isAggregatedMergeSplit()}.
 	 * 
 	 * @param curRCGroups
 	 * @param newRCGroups
@@ -3023,7 +3012,7 @@ public class Reconfigurator<NodeIDType> implements
 	 * through a paxos update operation. A detailed example and a discussion of
 	 * relevant concerns is described below.
 	 * 
-	 * Note: This method is unused with {@link #isAggregatedMergeSplit()}.
+	 * Note: This method is unused with {@link ReconfigurationConfig#isAggregatedMergeSplit()}.
 	 * 
 	 * @param curRCGroups
 	 * @param newRCGroups

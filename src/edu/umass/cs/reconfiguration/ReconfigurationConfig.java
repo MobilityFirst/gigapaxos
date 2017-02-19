@@ -38,6 +38,7 @@ import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile;
@@ -59,7 +60,7 @@ public class ReconfigurationConfig {
     static final Logger log = Logger.getLogger(ReconfigurationConfig.class
             .getName());
 
-    /**
+	/**
 	 * 
 	 */
 	public static void load() {
@@ -104,7 +105,18 @@ public class ReconfigurationConfig {
         return log;
     }
 
-    /**
+	private static final boolean IS_AGGREGATED_MERGE_SPLIT = true;
+    
+	/**
+	 * Default true now for an improved merge/split implementation. Doing merges
+	 * in the old way potentially violates RSM safety. True effectively disables
+	 * the use of {@link RCRecordRequest.RequestTypes#RECONFIGURATION_MERGE}.
+	 */
+	protected static final boolean isAggregatedMergeSplit() {
+		return IS_AGGREGATED_MERGE_SPLIT;
+	}
+
+	/**
 	 * Reconfiguration config parameters.
 	 */
 	public static enum RC implements Config.ConfigurableEnum {
