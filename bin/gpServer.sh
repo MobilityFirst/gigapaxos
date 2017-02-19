@@ -71,6 +71,7 @@ function set_default_conf {
   elif [[ -L $CONFDIR/$default && \
     -e `readlink $CONFDIR/$default` ]]; then
     echo `readlink $CONFDIR/$default`
+  else echo $CONFDIR/$default
   fi 
 }
 
@@ -164,6 +165,7 @@ $DEFAULT_GP_PROPERTIES")
   exit 1
 fi
 
+APP_RESOURCES=`echo $APP_RESOURCES|sed s/"\/$"//g`
 APP_RESOURCES_SIMPLE=`echo $APP_RESOURCES|sed s/"^.*\/"//g`
 
 # get APPLICATION from gigapaxos.properties file
@@ -301,15 +303,21 @@ fi
 function append_to_ln_cmd {
   src_file=$1
   default=$2
+  unlink_first=$3
   simple=`echo $1|sed s/".*\/"//g`
-  
+
+  link_target="$APP_SIMPLE/$(get_simple_name $default)"
+  cur_link="ln -fs ~/$APP_SIMPLE/$CONF/$simple $link_target "
+  if [[ ! -z $unlink_first ]]; then
+    cur_link="if [[ -e $link_target ]]; then \
+      unlink $link_target; fi; $cur_link"
+  fi
+
   if [[ -e $1 ]]; then
     if [[ -z $LINK_CMD ]]; then
-      LINK_CMD="ln -fs ~/$APP_SIMPLE/$CONF/$simple \
-        $APP_SIMPLE/$(get_simple_name $default) "
+      LINK_CMD=$cur_link
     else
-      LINK_CMD="$LINK_CMD; ln -fs ~/$APP_SIMPLE/$CONF/$simple \
-        $APP_SIMPLE/$(get_simple_name $default) "
+      LINK_CMD="$LINK_CMD; $cur_link "
     fi
   fi
 }
@@ -320,7 +328,7 @@ append_to_ln_cmd $KEYSTORE $DEFAULT_KEYSTORE
 append_to_ln_cmd $TRUSTSTORE $DEFAULT_TRUSTSTORE
 append_to_ln_cmd $LOG_PROPERTIES $DEFAULT_LOG_PROPERTIES
 append_to_ln_cmd $LOG4J_PROPERTIES $DEFAULT_LOG4J_PROPERTIES
-append_to_ln_cmd $APP_RESOURCES $DEFAULT_APP_RESOURCES
+append_to_ln_cmd $APP_RESOURCES $DEFAULT_APP_RESOURCES true
 
 function rsync_symlink {
   address=$1

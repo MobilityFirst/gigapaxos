@@ -365,6 +365,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	 * @throws IOException
 	 */
 	public static void main(String[] args) throws IOException {
+		PaxosConfig.ensureFileHandlerDirExists();
 		Config.register(args);
 		ReconfigurationConfig.setConsoleHandler();
 

@@ -15,6 +15,9 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -30,8 +33,8 @@ import java.util.logging.Logger;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
-import org.junit.Assert;
 
+import org.junit.Assert;
 import org.json.JSONArray;
 import org.json.JSONException;
 
@@ -113,11 +116,31 @@ public class PaxosConfig {
 			config = Config.getConfig(PC.class);
 		return config;
 	}
-	
+
+	/**
+	 * @throws FileNotFoundException
+	 * @throws IOException
+	 */
+	public static void ensureFileHandlerDirExists() throws FileNotFoundException, IOException {
+		// ensure log file handler directory exists
+		String logFile = System.getProperty("java.util.logging.config.file");
+		if(logFile==null) return;
+		Properties logProps = new Properties();
+		if(new File(logFile).exists())
+			logProps.load(new FileInputStream(logFile));
+		String logFiles = logProps
+				.getProperty("java.util.logging.FileHandler.pattern");
+		if (logFiles != null) {
+			logFiles = logFiles.replaceAll("%.*", "").trim();
+			new File(logFiles).mkdirs();
+		}
+	}
 	/** 
 	 * @return True if all parameters are sane.
+	 * @throws IOException 
+	 * @throws FileNotFoundException 
 	 */
-	public static boolean sanityCheck() {
+	public static boolean sanityCheck() throws FileNotFoundException, IOException {
 		Assert.assertTrue(PC.GIGAPAXOS_DATA_DIR + " must be an absolute path",
 				Config.getGlobalString(PC.GIGAPAXOS_DATA_DIR).startsWith("/")
 				// only for backwards compatibility
