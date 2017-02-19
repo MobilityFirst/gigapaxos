@@ -33,7 +33,6 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.examples.AppRequest.PacketType;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
@@ -60,7 +59,7 @@ import edu.umass.cs.utils.Util;
 @FixMethodOrder(org.junit.runners.MethodSorters.NAME_ASCENDING)
 public class TESTReconfigurationClient {
 
-	private static Logger log = Reconfigurator.getLogger();
+	private static Logger log = ReconfigurationConfig.getLogger();
 
 	private static enum ProfilerKeys {
 		reconfiguration_rate, request_actives, app_request, create, delete

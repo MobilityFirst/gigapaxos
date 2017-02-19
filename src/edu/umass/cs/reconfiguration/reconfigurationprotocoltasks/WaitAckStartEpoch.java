@@ -28,6 +28,7 @@ import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ThresholdProtocolTask;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.RepliconfigurableReconfiguratorDB;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.AckStartEpoch;
@@ -70,7 +71,7 @@ public class WaitAckStartEpoch<NodeIDType>
 	private boolean majority = false;
 	private int numRestarts = 0;
 
-	private static final Logger log = Reconfigurator.getLogger();
+	private static final Logger log = ReconfigurationConfig.getLogger();
 
 	/**
 	 * @param startEpoch

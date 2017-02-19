@@ -27,6 +27,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -37,6 +38,7 @@ import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile;
@@ -55,6 +57,9 @@ import edu.umass.cs.utils.Util;
  *         respective classes.
  */
 public class ReconfigurationConfig {
+    static final Logger log = Logger.getLogger(ReconfigurationConfig.class
+            .getName());
+
 	/**
 	 * 
 	 */
@@ -92,6 +97,24 @@ public class ReconfigurationConfig {
 	 */
 	public static final Class<?> application = getClassSuppressExceptions(Config
 			.getGlobalString(RC.APPLICATION));
+
+    /**
+     * @return Logger used by all of the reconfiguration package.
+     */
+    public static final Logger getLogger() {
+        return log;
+    }
+
+	private static final boolean IS_AGGREGATED_MERGE_SPLIT = true;
+    
+	/**
+	 * Default true now for an improved merge/split implementation. Doing merges
+	 * in the old way potentially violates RSM safety. True effectively disables
+	 * the use of {@link RCRecordRequest.RequestTypes#RECONFIGURATION_MERGE}.
+	 */
+	protected static final boolean isAggregatedMergeSplit() {
+		return IS_AGGREGATED_MERGE_SPLIT;
+	}
 
 	/**
 	 * Reconfiguration config parameters.
@@ -690,7 +713,7 @@ public class ReconfigurationConfig {
 			} catch (InstantiationException | IllegalAccessException
 					| IllegalArgumentException | InvocationTargetException
 					| NoSuchMethodException | SecurityException e1) {
-				Reconfigurator.getLogger().info(
+				getLogger().info(
 						ReconfigurationConfig.application
 								+ " does not support (String[]) constructor;"
 								+ " trying default constructor instead");
@@ -701,8 +724,7 @@ public class ReconfigurationConfig {
 				} catch (InstantiationException | IllegalAccessException
 						| IllegalArgumentException | InvocationTargetException
 						| NoSuchMethodException | SecurityException e2) {
-					Reconfigurator
-							.getLogger()
+					getLogger()
 							.severe("App "
 									+ ReconfigurationConfig.application
 											.getSimpleName()
@@ -799,13 +821,13 @@ public class ReconfigurationConfig {
 	public static void setConsoleHandler(Level level) {
 		ConsoleHandler handler = new ConsoleHandler();
 		handler.setLevel(level);
-		Reconfigurator.getLogger().setLevel(level);
-		Reconfigurator.getLogger().addHandler(handler);
-		Reconfigurator.getLogger().setUseParentHandlers(false);
+		getLogger().setLevel(level);
+		getLogger().addHandler(handler);
+		getLogger().setUseParentHandlers(false);
 
-		PaxosManager.getLogger().setLevel(level);
-		PaxosManager.getLogger().addHandler(handler);
-		PaxosManager.getLogger().setUseParentHandlers(false);
+		PaxosConfig.getLogger().setLevel(level);
+		PaxosConfig.getLogger().addHandler(handler);
+		PaxosConfig.getLogger().setUseParentHandlers(false);
 
 		NIOTransport.getLogger().setLevel(level);
 		NIOTransport.getLogger().addHandler(handler);

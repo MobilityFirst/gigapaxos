@@ -35,7 +35,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -153,15 +152,15 @@ public class PaxosManager<NodeIDType> {
 	private class Outstanding {
 		int totalRequestSize = 0;
 		long lastIncremented = System.currentTimeMillis();
-		ConcurrentHashMap<Long, RequestAndCallback> requests = USE_GC_MAP ? new GCConcurrentHashMap<Long, RequestAndCallback>(
+		ConcurrentHashMap<Long, PaxosConfig.RequestAndCallback> requests = USE_GC_MAP ? new GCConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>(
 				new GCConcurrentHashMapCallback() {
 					@Override
 					public void callbackGC(Object key, Object value) {
-						PaxosManager.this.callbackRequestTimeout(((RequestAndCallback) value).requestPacket);
+						PaxosManager.this.callbackRequestTimeout(((PaxosConfig.RequestAndCallback) value).requestPacket);
 					}
 				}, REQUEST_TIMEOUT)
-				: new ConcurrentHashMap<Long, RequestAndCallback>();
-		HashMap<RequestPacket, RequestAndCallback> conflictIDRequests = new HashMap<RequestPacket, RequestAndCallback>();
+				: new ConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>();
+		HashMap<RequestPacket, PaxosConfig.RequestAndCallback> conflictIDRequests = new HashMap<RequestPacket, PaxosConfig.RequestAndCallback>();
 		ConcurrentHashMap<RequestPacket, RequestResponseAndCallback> responses = USE_GC_MAP ? new GCConcurrentHashMap<RequestPacket, RequestResponseAndCallback>(
 				new GCConcurrentHashMapCallback() {
 					@Override
@@ -170,10 +169,10 @@ public class PaxosManager<NodeIDType> {
 				}, REQUEST_TIMEOUT)
 				: new ConcurrentHashMap<RequestPacket, RequestResponseAndCallback>();
 
-		private void enqueue(RequestAndCallback rc) {
+		private void enqueue(PaxosConfig.RequestAndCallback rc) {
 			assert (rc.requestPacket.getType() != PaxosPacketType.ACCEPT || rc.requestPacket
 					.hasRequestValue());
-			RequestAndCallback prev = null;
+			PaxosConfig.RequestAndCallback prev = null;
 			synchronized (this.requests) {
 				if ((prev = this.requests.putIfAbsent(rc.requestPacket.requestID, rc)) == null)
 					totalRequestSize += rc.requestPacket.lengthEstimate();
@@ -190,8 +189,8 @@ public class PaxosManager<NodeIDType> {
 		}
 
 		// called by executed callback
-		private RequestAndCallback dequeue(RequestPacket request) {
-			RequestAndCallback queued = this.requests.get(request.requestID);
+		private PaxosConfig.RequestAndCallback dequeue(RequestPacket request) {
+			PaxosConfig.RequestAndCallback queued = this.requests.get(request.requestID);
 			if (queued != null && queued.requestPacket.equals(request))
 				return this.requests.remove(request.requestID);
 			else
@@ -213,45 +212,17 @@ public class PaxosManager<NodeIDType> {
 
 	private void GC() {
 		if (this.outstanding.requests instanceof GCConcurrentHashMap)
-			((GCConcurrentHashMap<Long, RequestAndCallback>) this.outstanding.requests)
+			((GCConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>) this.outstanding.requests)
 					.tryGC(REQUEST_TIMEOUT);
 		else if (System.currentTimeMillis() - this.outstanding.lastIncremented > PaxosManager.FADE_OUTSTANDING_TIMEOUT) {
 			if (this.outstanding.requests.size() > MAX_OUTSTANDING_REQUESTS)
-				PaxosManager.log.severe(this
+				PaxosConfig.log.severe(this
 						+ " clearing clogged outstanding queue");
 			this.outstanding.requests.clear();
 		}
 	}
 
-	/**
-	 *
-	 */
-	 public static class RequestAndCallback {
-		/**
-		 * 
-		 */
-		 protected RequestPacket requestPacket;
-		/**
-		 * 
-		 */
-		 final ExecutedCallback callback;
-
-		RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
-			this.requestPacket = request;
-			this.callback = callback;
-		}
-		/**
-		 * @return RequestPacket
-		 */
-		public RequestPacket getRequestPacket() {
-			return this.requestPacket;
-		}
-		protected AcceptPacket setAcceptPacket(AcceptPacket accept) {
-			return (AcceptPacket)(this.requestPacket= accept);
-		}
-	}
-
-	static class RequestResponseAndCallback extends RequestAndCallback {
+	static class RequestResponseAndCallback extends PaxosConfig.RequestAndCallback {
 		/* this is actually the request whose getResponse contains the response. */
 		final Request clientRequest;
 
@@ -302,7 +273,7 @@ public class PaxosManager<NodeIDType> {
 	// called by PaxosInstanceStateMachine as execute callback
 	protected boolean executed(RequestPacket requestPacket, Request request,
 			boolean sendResponse) {
-		RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
+		PaxosConfig.RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 		if (rc != null)
 			this.outstanding.totalRequestSize -= rc.requestPacket.lengthEstimate();
 		RequestInstrumenter.remove(requestPacket.requestID);
@@ -325,7 +296,7 @@ public class PaxosManager<NodeIDType> {
 		RequestResponseAndCallback rrc = null;
 		if (ENABLE_RESPONSE_CACHING
 				&& (rrc = this.outstanding.responses.get((requestPacket))) != null) {
-			RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
+			PaxosConfig.RequestAndCallback rc = this.outstanding.dequeue(requestPacket);
 			if (rc!=null && rc.callback != null)
 				rc.callback.executed(rrc.clientRequest, false);
 			else if (rrc.callback != null)
@@ -352,8 +323,6 @@ public class PaxosManager<NodeIDType> {
 	 * PaxosManager is only responsible for managing state for and
 	 * demultiplexing incoming packets to a number of paxos instances at this
 	 * node. */
-
-	private static final Logger log = Logger.getLogger(PaxosManager.class.getName());
 
 	/**
 	 * @param id
@@ -450,12 +419,12 @@ public class PaxosManager<NodeIDType> {
 											- PaxosManager.this.outstanding.lastIncremented > REQUEST_TIMEOUT)
 									|| monitorIterval > 0) {
 								HashMap<Long, String> instances = new HashMap<Long, String>();
-								for (RequestAndCallback rc : PaxosManager.this.outstanding.requests
+								for (PaxosConfig.RequestAndCallback rc : PaxosManager.this.outstanding.requests
 										.values())
 									instances.put(rc.requestPacket.requestID,
 											rc.requestPacket.getPaxosID() + ":"
 													+ rc.requestPacket.getSummary());
-								log.log(Level.INFO,
+								PaxosConfig.log.log(Level.INFO,
 										"{0} |outstanding|={1}; {2}; |unpaused|={3}; \n|pending|={4}; {5}",
 										new Object[] {
 												PaxosManager.this,
@@ -471,7 +440,7 @@ public class PaxosManager<NodeIDType> {
 								if (!PaxosManager.this.outstanding.requests
 										.isEmpty()
 										&& PaxosManager.this.outstanding.requests instanceof GCConcurrentHashMap)
-									((GCConcurrentHashMap<Long, RequestAndCallback>) PaxosManager.this.outstanding.requests)
+									((GCConcurrentHashMap<Long, PaxosConfig.RequestAndCallback>) PaxosManager.this.outstanding.requests)
 											.tryGC(REQUEST_TIMEOUT);
 
 							}
@@ -642,7 +611,7 @@ public class PaxosManager<NodeIDType> {
 		waitPinstancesSize();
 		synchronized (this) {
 			int[] members = Util.setToIntArray(this.integerMap.put(gms));
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} batch-inserting initial checkpoints for {1} names: {2}",
 					new Object[] { this, nameStates.size(),
 							Util.truncatedLog(nameStates.entrySet(), 8) });
@@ -727,7 +696,7 @@ public class PaxosManager<NodeIDType> {
 				tryHotRestore, tryRestore);
 		// if equal or higher version exists, return false
 		if ((pism != null) && (pism.getVersion() - version >= 0)) {
-			log.log(Level.FINE,
+			PaxosConfig.log.log(Level.FINE,
 					"{0} paxos instance {1}:{2} or higher version currently exists",
 					new Object[] { this, paxosID, version });
 			return null;
@@ -735,7 +704,7 @@ public class PaxosManager<NodeIDType> {
 
 		// if lower version exists, return false
 		if (pism != null && (pism.getVersion() - version < 0)) {
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} has pre-existing paxos instance {1} when asked to create version {2}",
 					new Object[] { this, pism.getPaxosIDVersion(), version });
 			// pism must be explicitly stopped first
@@ -743,7 +712,7 @@ public class PaxosManager<NodeIDType> {
 		}
 		// if equal or higher version stopped on disk, return false
 		if (pism == null && equalOrHigherVersionStopped(paxosID, version)) {
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} paxos instance {1}:{2} can not be created as equal or higher "
 							+ "version {3}:{4} was previously created and stopped",
 					new Object[] { this, paxosID, version, paxosID,
@@ -764,7 +733,7 @@ public class PaxosManager<NodeIDType> {
 		incrCreated();
 		this.notifyUponCreation();
 		assert (this.getInstance(paxosID, false, false) != null);
-		log.log(Level.FINE,
+		PaxosConfig.log.log(Level.FINE,
 				"{0} successfully {1} paxos instance {2}",
 				new Object[] { this, hri != null ? "unpaused" : "created",
 						pism.getPaxosIDVersion() });
@@ -853,7 +822,7 @@ public class PaxosManager<NodeIDType> {
 
 		public boolean handleMessage(JSONObject jsonMsg, edu.umass.cs.nio.nioutils.NIOHeader header) {
 			try {
-				PaxosManager.log.log(Level.FINEST,
+				PaxosConfig.log.log(Level.FINEST,
 						"{0} packet json demultiplexer received {1}",
 						new Object[] { PaxosManager.this, jsonMsg });
 				PaxosManager.this
@@ -943,11 +912,11 @@ public class PaxosManager<NodeIDType> {
 									PaxosManager.this.unstringer);
 					Level level = type == PaxosPacketType.REQUEST ? Level.FINE
 							: Level.FINEST;
-					PaxosManager.log.log(
+					PaxosConfig.log.log(
 							level,
 							"{0} packet fast demultiplexer received {1}",
 							new Object[] { PaxosManager.this,
-									pp.getSummary(PaxosManager.log.isLoggable(level)) });
+									pp.getSummary(PaxosConfig.log.isLoggable(level)) });
 
 					if (PaxosMessenger.INSTRUMENT_SERIALIZATION
 							&& Util.oneIn(100))
@@ -969,7 +938,7 @@ public class PaxosManager<NodeIDType> {
 				PaxosPacketType type = ((PaxosPacket) msg).getType();
 				Level level = (type == PaxosPacketType.REQUEST ? Level.FINE
 						: Level.FINEST);
-				PaxosManager.log
+				PaxosConfig.log
 						.log(level,
 								"{0} packet fast-byte demultiplexer received {1} {2}",
 								new Object[] {
@@ -1060,21 +1029,21 @@ public class PaxosManager<NodeIDType> {
 				&& RequestBatcher.shouldEnqueue()
 				&& !((RequestPacket) pp).isBroadcasted()) {
 			if (pp.getPaxosID() != null) {
-				log.log(level, "{0} enqueueing request {1}", new Object[] {
-						this, pp.getSummary(log.isLoggable(level)) });
+				PaxosConfig.log.log(level, "{0} enqueueing request {1}", new Object[] {
+						this, pp.getSummary(PaxosConfig.log.isLoggable(level)) });
 				this.requestBatcher.enqueue(((RequestPacket) pp));
 			} else
 				error((RequestPacket) pp);
 		} else {
-			log.log(level,
+			PaxosConfig.log.log(level,
 					"{0} handling paxos packet {1} directly without enqueueuing",
-					new Object[] { this, pp.getSummary(log.isLoggable(level)) });
+					new Object[] { this, pp.getSummary(PaxosConfig.log.isLoggable(level)) });
 			this.handlePaxosPacket(pp);
 		}
 	}
 
 	private void error(RequestPacket req) {
-		log.warning(this + " received request with no paxosID: "
+		PaxosConfig.log.warning(this + " received request with no paxosID: "
 				+ req.getSummary());
 	}
 
@@ -1111,10 +1080,10 @@ public class PaxosManager<NodeIDType> {
 						.getPaxosID());
 
 				level = pism!=null ? level : Level.FINE;
-				log.log(level, "{0} received paxos message for {1} : {2}",
+				PaxosConfig.log.log(level, "{0} received paxos message for {1} : {2}",
 						new Object[] { this,
 								pism != null ? pism : "non-existent instance",
-								request.getSummary(log.isLoggable(level)) });
+								request.getSummary(PaxosConfig.log.isLoggable(level)) });
 				if ((pism != null)
 						&& (pism.getVersion() == request.getVersion()))
 					pism.handlePaxosMessage(request);
@@ -1124,7 +1093,7 @@ public class PaxosManager<NodeIDType> {
 				break;
 			}
 		} catch (JSONException je) {
-			log.severe(this.myID + " received bad JSON message: "
+			PaxosConfig.log.severe(this.myID + " received bad JSON message: "
 					+ request);
 			je.printStackTrace();
 		} finally {
@@ -1150,15 +1119,15 @@ public class PaxosManager<NodeIDType> {
 			matched = true;
 			requestPacket.putPaxosID(paxosID, pism.getVersion());
 
-			log.log(Level.FINE, "{0} proposing to {1}: {2}",
+			PaxosConfig.log.log(Level.FINE, "{0} proposing to {1}: {2}",
 					new Object[] { this, pism.getPaxosIDVersion(),
 							requestPacket.getSummary() });
 
-			this.outstanding.enqueue(new RequestAndCallback(requestPacket,
+			this.outstanding.enqueue(new PaxosConfig.RequestAndCallback(requestPacket,
 					callback));
 			this.handleIncomingPacket(requestPacket);
 		} else
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} could not find paxos instance {1} for request {2} with body {3}; "
 							+ " last known version was [{4}]",
 					new Object[] {
@@ -1266,7 +1235,7 @@ public class PaxosManager<NodeIDType> {
 					.getRequestPacket(request, true).putPaxosID(paxosID,
 					version)), callback);
 		} else
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} failed to propose stop request for {1}:{2}; {3}",
 					new Object[] {
 							this,
@@ -1299,7 +1268,7 @@ public class PaxosManager<NodeIDType> {
 					.setReturnRequestValue().putPaxosID(paxosID, version)),
 					callback);
 		} else
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} failed to propose stop request for {1}:{2}; {3}",
 					new Object[] {
 							this,
@@ -1442,7 +1411,7 @@ public class PaxosManager<NodeIDType> {
 				InetSocketAddress myAddressOffsetted = new InetSocketAddress(
 						myAddress.getAddress(), myAddress.getPort()
 								+ clientPortOffset);
-				log.log(Level.INFO,
+				PaxosConfig.log.log(Level.INFO,
 						"{0} creating client messenger at {1}; (offset={2}{3})",
 						new Object[] { this, myAddressOffsetted,
 								clientPortOffset, ssl ? "/SSL" : "" });
@@ -1483,7 +1452,7 @@ public class PaxosManager<NodeIDType> {
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			log.severe(e.getMessage());
+			PaxosConfig.log.severe(e.getMessage());
 			System.exit(1);
 		}
 		return this;
@@ -1524,11 +1493,11 @@ public class PaxosManager<NodeIDType> {
 		request.setEntryReplicaAndReturnCount(this.myID);
 
 		// if (request.getEntryReplica() == getMyID())
-		this.outstanding.enqueue(new RequestAndCallback(request, null));
+		this.outstanding.enqueue(new PaxosConfig.RequestAndCallback(request, null));
 		if (request.batchSize() > 0)
 			for (RequestPacket req : request.getBatched())
 				// if (request.getEntryReplica() == getMyID())
-				this.outstanding.enqueue(new RequestAndCallback(req, null));
+				this.outstanding.enqueue(new PaxosConfig.RequestAndCallback(req, null));
 		if (Util.oneIn(10))
 			DelayProfiler.updateMovAvg("outstanding",
 					this.outstanding.requests.size());
@@ -1649,7 +1618,7 @@ public class PaxosManager<NodeIDType> {
 
 		for (Iterator<PaxosInstanceStateMachine> pismIter = this.pinstances
 				.concurrentIterator(); pismIter.hasNext();)
-			log.log(Level.FINE,
+			PaxosConfig.log.log(Level.FINE,
 					"{0} terminating with paxos instance state {1}",
 					new Object[] { this, pismIter.next().toStringLong() });
 	}
@@ -1715,10 +1684,10 @@ public class PaxosManager<NodeIDType> {
 						false);
 			}
 		} catch (JSONException e) {
-			log.severe(this + " unable to parse " + request.getSummary());
+			PaxosConfig.log.severe(this + " unable to parse " + request.getSummary());
 			e.printStackTrace();
 		} catch (IOException e) {
-			log.severe(this + " IOException while lazy-propagating "
+			PaxosConfig.log.severe(this + " IOException while lazy-propagating "
 					+ request.getSummary());
 			e.printStackTrace();
 		}
@@ -1780,7 +1749,7 @@ public class PaxosManager<NodeIDType> {
 	private synchronized void initiateRecovery() {
 		boolean found = false;
 		int groupCount = 0, freq = 1;
-		log.log(Level.INFO, "{0} beginning to recover checkpoints",
+		PaxosConfig.log.log(Level.INFO, "{0} beginning to recover checkpoints",
 				new Object[] { this });
 		while (this.paxosLogger.initiateReadCheckpoints(true))
 			; // acquires lock
@@ -1797,7 +1766,7 @@ public class PaxosManager<NodeIDType> {
 			} catch (PaxosInstanceCreationException pice) {
 				// should we remove this checkpoint?
 				pice.printStackTrace();
-				log.severe(this + " unable to create paxos instance "
+				PaxosConfig.log.severe(this + " unable to create paxos instance "
 						+ pri.getPaxosID());
 			}
 			if ((++groupCount) % freq == 0) {
@@ -1805,11 +1774,11 @@ public class PaxosManager<NodeIDType> {
 			}
 		}
 		this.paxosLogger.closeReadAll(); // releases lock
-		log.log(Level.INFO,
+		PaxosConfig.log.log(Level.INFO,
 				"{0} has recovered checkpoints for {1} paxos groups",
 				new Object[] { this, groupCount });
 		if (!found) {
-			log.warning("No checkpoint state found for node "
+			PaxosConfig.log.warning("No checkpoint state found for node "
 					+ this.myID
 					+ ". This can only happen if\n"
 					+ "(1) the node is newly joining the system, or\n(2) the node previously crashed before "
@@ -1818,7 +1787,7 @@ public class PaxosManager<NodeIDType> {
 		int logCount = 0;
 		freq = 1;
 		// roll forward all logged messages in a single pass
-		log.log(Level.INFO, "{0} beginning to roll forward logged messages",
+		PaxosConfig.log.log(Level.INFO, "{0} beginning to roll forward logged messages",
 				new Object[] { this });
 		while (this.paxosLogger.initiateReadMessages())
 			; // acquires lock
@@ -1851,7 +1820,7 @@ public class PaxosManager<NodeIDType> {
 						} catch (JSONException e) {
 							e.printStackTrace();
 							try {
-								log.severe(PaxosManager.this
+								PaxosConfig.log.severe(PaxosManager.this
 										+ " unable to decode string of byte length "
 										+ str.getBytes("ISO-8859-1").length);
 							} catch (UnsupportedEncodingException e1) {
@@ -1931,23 +1900,23 @@ public class PaxosManager<NodeIDType> {
 			while ((paxosPacket = this.paxosLogger.readNextMessage()) != null) {
 				paxosPacket = PaxosPacket.markRecovered(paxosPacket);
 				Level level = Level.FINEST;
-				log.log(level,
+				PaxosConfig.log.log(level,
 						"{0} rolling forward logged message {1}",
 						new Object[] { this,
-								paxosPacket.getSummary(log.isLoggable(level)) });
+								paxosPacket.getSummary(PaxosConfig.log.isLoggable(level)) });
 				this.handlePaxosPacket((paxosPacket));
 				if ((++logCount) % freq == 0) {
 					freq *= 2;
 				}
 			}
 		} catch (NumberFormatException e) {
-			Util.suicide(log, this + " recovery interrupted while parsing "
+			Util.suicide(PaxosConfig.log, this + " recovery interrupted while parsing "
 					+ paxosPacketString
 					+ ";\n Exiting because it is unsafe to continue recovery.");
 			e.printStackTrace();
 		}
 		this.paxosLogger.closeReadAll(); // releases lock
-		log.log(Level.INFO,
+		PaxosConfig.log.log(Level.INFO,
 				"{0} rolled forward {1} messages total across {2} paxos groups",
 				new Object[] { this, logCount, groupCount });
 
@@ -1961,7 +1930,7 @@ public class PaxosManager<NodeIDType> {
 			if (pism != null)
 				pism.setActive();
 			Boolean isActive = pism != null ? pism.isActive() : null;
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} recovered paxos instance {1}; isActive = {2} ",
 					new Object[] { this,
 							pism != null ? pism.toStringLong() : null, isActive });
@@ -1970,7 +1939,7 @@ public class PaxosManager<NodeIDType> {
 
 		this.hasRecovered = true;
 		this.notifyRecovered();
-		log.log(Level.INFO,
+		PaxosConfig.log.log(Level.INFO,
 				"------------------{0} recovery complete-------------------",
 				new Object[] { this });
 	}
@@ -2094,7 +2063,7 @@ public class PaxosManager<NodeIDType> {
 		PaxosInstanceStateMachine existing = this
 				.getInstance(pism.getPaxosID());
 		if (existing != null && (pism.getVersion() - existing.getVersion() < 0)) {
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} unable to kill {1} because {2} already exists in the map",
 					new Object[] { this, pism, existing });
 			return;
@@ -2102,7 +2071,7 @@ public class PaxosManager<NodeIDType> {
 
 		// else got murder work to do (even if existing==null)
 		while (!pism.kill(clean))
-			log.severe("Problem stopping paxos instance " + pism.getPaxosID()
+			PaxosConfig.log.severe("Problem stopping paxos instance " + pism.getPaxosID()
 					+ ":" + pism.getVersion());
 		incrKilled();
 		this.softCrash(pism);
@@ -2139,7 +2108,7 @@ public class PaxosManager<NodeIDType> {
 		if (pism == null || this.isClosed()
 				|| !this.pinstances.containsValue(pism))
 			return;
-		log.warning(this + " crash-and-recovering paxos instance " + pism);
+		PaxosConfig.log.warning(this + " crash-and-recovering paxos instance " + pism);
 		this.softCrash(pism);
 		this.recover(pism.getPaxosID(), pism.getVersion(), pism.getMyID(),
 				this.integerMap.get(Util.arrayToIntSet(pism.getMembers())),
@@ -2155,14 +2124,14 @@ public class PaxosManager<NodeIDType> {
 
 		// else hibernate
 		boolean hibernated = false;
-		log.log(Level.INFO, "{0} trying to hibernate {1}", new Object[] { this,
+		PaxosConfig.log.log(Level.INFO, "{0} trying to hibernate {1}", new Object[] { this,
 				pism });
 		boolean stopped = pism.tryForcedCheckpointAndStop();
 
 		if (stopped) {
 			this.softCrash(pism);
 			hibernated = true;
-			log.log(Level.INFO, "{0} sucessfully hibernated {1}", new Object[] {
+			PaxosConfig.log.log(Level.INFO, "{0} sucessfully hibernated {1}", new Object[] {
 					this, pism });
 		}
 		return hibernated;
@@ -2175,7 +2144,7 @@ public class PaxosManager<NodeIDType> {
 		PaxosInstanceStateMachine pism = null;
 		if ((pism = this.pinstances.get(paxosID)) != null)
 			return pism;
-		log.log(Level.INFO, "{0} trying to restore instance {1}", new Object[] {
+		PaxosConfig.log.log(Level.INFO, "{0} trying to restore instance {1}", new Object[] {
 				this, paxosID });
 		RecoveryInfo pri = this.paxosLogger.getRecoveryInfo(paxosID);
 		if (pri != null)
@@ -2183,11 +2152,11 @@ public class PaxosManager<NodeIDType> {
 					this.getNodesFromStringSet(pri.getMembers()), this.myApp,
 					pri.getState());
 		if (pism != null)
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} successfully restored hibernated instance {1}",
 					new Object[] { this, pism });
 		else
-			log.log(Level.WARNING, "{0} unable to restore paxos instance {1}",
+			PaxosConfig.log.log(Level.WARNING, "{0} unable to restore paxos instance {1}",
 					new Object[] { this, paxosID });
 		return pism;
 	}
@@ -2206,7 +2175,7 @@ public class PaxosManager<NodeIDType> {
 		if (pism == null || this.isClosed()
 				|| !this.pinstances.containsValue(pism) || !isPauseEnabled())
 			return null;
-		log.log(Level.FINE, "{0} trying to pause {1}", new Object[] { this,
+		PaxosConfig.log.log(Level.FINE, "{0} trying to pause {1}", new Object[] { this,
 				pism.getPaxosIDVersion() });
 
 		// else try to pause
@@ -2219,10 +2188,10 @@ public class PaxosManager<NodeIDType> {
 			this.softCrash(pism);
 			if (Util.oneIn(Integer.MAX_VALUE))
 				DelayProfiler.updateDelay("pause", pauseInitTime);
-			log.log(Level.FINE, "{0} successfully paused {1}", new Object[] {
+			PaxosConfig.log.log(Level.FINE, "{0} successfully paused {1}", new Object[] {
 					this, pism.getPaxosIDVersion() });
 		} else
-			log.log(Level.FINE, "{0} failed to pause {1}", new Object[] { this,
+			PaxosConfig.log.log(Level.FINE, "{0} failed to pause {1}", new Object[] { this,
 					pism });
 		return hri;
 	}
@@ -2274,10 +2243,10 @@ public class PaxosManager<NodeIDType> {
 					this.integerMap.get(Util.arrayToIntSet(hri.members)),
 					this.myApp, null, hri, false) != null;
 			if (rolledBack)
-				log.log(Level.INFO, "{0} rolled back pausing of {1}",
+				PaxosConfig.log.log(Level.INFO, "{0} rolled back pausing of {1}",
 						new Object[] { this, hri.paxosID });
 			else
-				log.log(Level.SEVERE,
+				PaxosConfig.log.log(Level.SEVERE,
 						"{0} unable to roll back failed pausing of {1}",
 						new Object[] { this, hri.paxosID });
 		}
@@ -2306,13 +2275,13 @@ public class PaxosManager<NodeIDType> {
 		 * drop even though the instance exists locally. Such packet drops will
 		 * not affect safety but it is good to avoid them. */
 		synchronized (this.stringLocker.get(paxosID)) {
-			log.log(Level.FINE, "{0} about to try to unpause instance {1}",
+			PaxosConfig.log.log(Level.FINE, "{0} about to try to unpause instance {1}",
 					new Object[] { this, paxosID });
 
 			HotRestoreInfo hri = this.paxosLogger.unpause(paxosID);
 
 			if (hri != null) {
-				log.log(Level.FINE,
+				PaxosConfig.log.log(Level.FINE,
 						"{0} successfully unpaused paused instance {1}",
 						new Object[] { this, paxosID });
 				restored = this.createPaxosInstance(hri.paxosID, hri.version,
@@ -2320,7 +2289,7 @@ public class PaxosManager<NodeIDType> {
 						this.myApp, null, hri, false);
 				// if (restored != null) restored.markActive();
 			} else
-				log.log(Level.FINE, "{0} unable to unpause instance {1}",
+				PaxosConfig.log.log(Level.FINE, "{0} unable to unpause instance {1}",
 						new Object[] { this, paxosID });
 		}
 		this.stringLocker.remove(paxosID);
@@ -2336,7 +2305,7 @@ public class PaxosManager<NodeIDType> {
 	 * forward. */
 	private PaxosInstanceStateMachine recover(String paxosID, int version,
 			int id, Set<NodeIDType> members, Replicable app, String state) {
-		log.log(Level.FINE, "{0} {1}:{2} {3} recovering", new Object[] { this,
+		PaxosConfig.log.log(Level.FINE, "{0} {1}:{2} {3} recovering", new Object[] { this,
 				paxosID, version, members });
 		PaxosInstanceStateMachine pism = this.createPaxosInstance(paxosID,
 				version, (members), app, null, null, false);
@@ -2359,7 +2328,7 @@ public class PaxosManager<NodeIDType> {
 	 * the receipt of any external packet. */
 	private void rollForward(String paxosID, int version) {
 		if (/* !ONE_PASS_RECOVERY || */this.hasRecovered()) {
-			log.log(Level.FINE, "{0} about to roll forward {1}:{2}",
+			PaxosConfig.log.log(Level.FINE, "{0} about to roll forward {1}:{2}",
 					new Object[] { this, paxosID, version });
 			AbstractPaxosLogger.rollForward(paxosLogger, paxosID, messenger);
 			PaxosInstanceStateMachine pism = (this.getInstance(paxosID, true,
@@ -2398,7 +2367,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	private void logPacketDrop(PaxosPacket pp) {
-		log.log(PaxosPacket.isRecovery(pp) ? Level.FINE : Level.INFO,
+		PaxosConfig.log.log(PaxosPacket.isRecovery(pp) ? Level.FINE : Level.INFO,
 				"{0} dropping packet {1} as unable to find active paxos instance",
 				new Object[] { this, pp.getSummary() });
 	}
@@ -2411,7 +2380,7 @@ public class PaxosManager<NodeIDType> {
 			this.FD.heardFrom(this.integerMap.get(id));
 		} catch (RuntimeException re) {
 			// do nothing, can happen during recovery
-			log.log(Level.INFO, "{0} has no NodeIDType entry for integer {1}",
+			PaxosConfig.log.log(Level.INFO, "{0} has no NodeIDType entry for integer {1}",
 					new Object[] { this, id });
 		}
 	}
@@ -2548,7 +2517,7 @@ public class PaxosManager<NodeIDType> {
 			return true;
 
 		if (pism != null && pism.getVersion() - version < 0) {
-			log.log(Level.INFO,
+			PaxosConfig.log.log(Level.INFO,
 					"{0} forcibly killing {1} in order to create {2}:{3}",
 					new Object[] { this, pism.getPaxosIDVersion(), paxosID,
 							version });
@@ -2610,7 +2579,7 @@ public class PaxosManager<NodeIDType> {
 				;
 		if (nodeID >= 0) {
 			try {
-				log.log(Level.INFO,
+				PaxosConfig.log.log(Level.INFO,
 						"{0} received paxos {1} for non-existent instance {2}; contacting {3} for help",
 						new Object[] { this, pp.getSummary(), pp.getPaxosID(),
 								node });
@@ -2619,7 +2588,7 @@ public class PaxosManager<NodeIDType> {
 				ioe.printStackTrace();
 			}
 		} else {
-			log.log(pp instanceof RequestPacket ? Level.WARNING : Level.INFO,
+			PaxosConfig.log.log(pp instanceof RequestPacket ? Level.WARNING : Level.INFO,
 					"{0} cant find group member in {1} {2}",
 					new Object[] {
 							this,
@@ -2675,7 +2644,7 @@ public class PaxosManager<NodeIDType> {
 						.get(Util.arrayToIntSet(findGroup.group)), myApp, null,
 						null, false, true) != null;
 				if (created)
-					log.log(Level.INFO,
+					PaxosConfig.log.log(Level.INFO,
 							"{0} created paxos instance {1}:{2} from nothing because it apparently missed its birthing",
 							new Object[] { this, findGroup.getPaxosID(),
 									findGroup.getVersion() });
@@ -2732,7 +2701,7 @@ public class PaxosManager<NodeIDType> {
 
 		long t0 = System.currentTimeMillis();
 		RateLimiter rateLimiter = new RateLimiter(PAUSE_RATE_LIMIT);
-		log.log(Level.FINE,
+		PaxosConfig.log.log(Level.FINE,
 				"{0} initiating deactivation attempt, |activePaxii| = {1}",
 				new Object[] { this, this.pinstances.size() });
 		int numPaused = 0;
@@ -2749,7 +2718,7 @@ public class PaxosManager<NodeIDType> {
 			// if size > capacity/2, pause 1/FORCE_PAUSE_FACTOR fraction
 					|| (this.pinstances.size() > this.pinstances.capacity() / 2 && numPaused < this.pinstances
 							.capacity() / FORCE_PAUSE_FACTOR)) {
-				log.log(Level.FINER, "{0} trying to pause {1} [{2}]",
+				PaxosConfig.log.log(Level.FINER, "{0} trying to pause {1} [{2}]",
 						new Object[] { this, paxosID, pism });
 				/* The sync below ensures that, at least once every deactivation
 				 * period, we sync decisions for an active paxos instance. This
@@ -2808,7 +2777,7 @@ public class PaxosManager<NodeIDType> {
 					Set<String> batchPaused = pause(batch, true);
 					if (batchPaused != null)
 						numPaused += batchPaused.size();
-					log.log(Level.FINE, "{0} paused {1}", new Object[] { this,
+					PaxosConfig.log.log(Level.FINE, "{0} paused {1}", new Object[] { this,
 							batchPaused });
 					this.printPauseLog(batchPaused);
 					batch.clear();
@@ -2826,7 +2795,7 @@ public class PaxosManager<NodeIDType> {
 		long totalCreated = this.getNumCreated();
 		long totalCurrent = this.getNumInstancesAndResetChanged();
 
-		log.log(paused.size() > 0 || this.totalInstancesChanged ? Level.INFO
+		PaxosConfig.log.log(paused.size() > 0 || this.totalInstancesChanged ? Level.INFO
 				: Level.FINE,
 				"{0} deactivated {1} idle instances {2}; has {3} active instances{4}; avg_pause_delay = {5};"
 						+ " avg_deactivation_loop_delay = {6}; total_instances_created = {7}; total_current_instances = {8}",
@@ -3013,13 +2982,6 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	/* ********************** Testing methods below ********************* */
-	/**
-	 * @return Logger used by PaxosManager.
-	 */
-	public static final Logger getLogger() {
-		return log
-		;
-	}
 
 	private void testingInitialization() {
 		if (cleanDB)
@@ -3128,10 +3090,10 @@ public class PaxosManager<NodeIDType> {
 		for (int i = 0; i < numNodes; i++) {
 			while (!TESTPaxosConfig.isCrashed(members[i])
 					&& !TESTPaxosConfig.getRecovered(members[i], names[0])) {
-				log.info("Waiting for node " + members[i] + " to recover ");
+				PaxosConfig.log.info("Waiting for node " + members[i] + " to recover ");
 				pms[i].waitToRecover();
 			}
-			log.info(members[i]
+			PaxosConfig.log.info(members[i]
 					+ " finished recovery including rollback;\n" + names[0]
 					+ " recovered at slot " + apps[i].getNumCommitted(names[0]));
 			// need max recovery slot for names[0] below
@@ -3197,7 +3159,7 @@ public class PaxosManager<NodeIDType> {
 		 * Scheduling a request will invoke PaxosManager.propose() that will
 		 * cause it to send the request to the corresponding
 		 * PaxosInstanceStateMachine. */
-		log.info("Waiting for request scheduling to complete.");
+		PaxosConfig.log.info("Waiting for request scheduling to complete.");
 		for (int i = 0; i < numRequests; i++) {
 			try {
 				futures[i].get();
@@ -3206,7 +3168,7 @@ public class PaxosManager<NodeIDType> {
 				numExceptions++;
 			}
 		}
-		log.info("Request scheduling complete; numExceptions=" + numExceptions);
+		PaxosConfig.log.info("Request scheduling complete; numExceptions=" + numExceptions);
 		Thread.sleep(1000);
 
 		/* Wait for scheduled requests to finish being processed by paxos. We
@@ -3217,7 +3179,7 @@ public class PaxosManager<NodeIDType> {
 			apps[maxRecoveredNode].waitToFinish();
 			;
 		}
-		log.info(maxRecoveredNode + " has executed up to slot "
+		PaxosConfig.log.info(maxRecoveredNode + " has executed up to slot "
 				+ (maxRecoverySlot + numRequests));
 
 		/* The code below waits for all uncrashed replicas to finish executing
@@ -3238,7 +3200,7 @@ public class PaxosManager<NodeIDType> {
 						apps[j].waitToFinish(names[0], committed1);
 					else if (committed1 < committed2)
 						apps[i].waitToFinish(names[0], committed2);
-					log.info("Waiting : (slot1,hash1)=(" + committed1 + ","
+					PaxosConfig.log.info("Waiting : (slot1,hash1)=(" + committed1 + ","
 							+ apps[i].getHash(names[0]) + "(; (slot2,hash2="
 							+ committed2 + "," + apps[j].getHash(names[0])
 							+ ")");
@@ -3349,11 +3311,11 @@ public class PaxosManager<NodeIDType> {
 	 * digested accept will be discarded in any case after this callback. */
 	private void callbackDigestedAcceptTimeout(AcceptPacket accept) {
 		try {
-			PaxosManager.log.log(
+			PaxosConfig.log.log(
 					Level.INFO,
 					"{0} trying to release digested accept {1}",
 					new Object[] { PaxosManager.this,
-							accept.getSummary(log.isLoggable(Level.INFO)) });
+							accept.getSummary(PaxosConfig.log.isLoggable(Level.INFO)) });
 			AcceptPacket released = PaxosManager.this.release(accept, false);
 			if (released != null) {
 				PaxosManager.this.handlePaxosPacket(released);
@@ -3378,7 +3340,7 @@ public class PaxosManager<NodeIDType> {
 					e.printStackTrace();
 				}
 		} catch (Exception e) {
-			log.severe(this + " incurred exception on digested accept timeout");
+			PaxosConfig.log.severe(this + " incurred exception on digested accept timeout");
 			e.printStackTrace();
 		}
 	}
@@ -3391,21 +3353,21 @@ public class PaxosManager<NodeIDType> {
 						new MessagingTask(PaxosManager.this.getMyID(), accept),
 						false, false);
 			} catch (JSONException | IOException e) {
-				log.severe(PaxosManager.this
+				PaxosConfig.log.severe(PaxosManager.this
 						+ " incurred exception while expiring request and releasing accept "
 						+ accept.getSummary());
 				e.printStackTrace();
 			}
 		this.outstanding.totalRequestSize -= request.lengthEstimate();
 		Level level = accept != null ? Level.INFO : Level.FINE;
-		PaxosManager.log.log(
+		PaxosConfig.log.log(
 				level,
 				"{0} garbage collected enqueued request {1}"
 						+ (accept != null ? "; released accept {2}" : ""),
 				new Object[] {
 						PaxosManager.this,
-						request.getSummary(log.isLoggable(level)),
-						accept != null ? accept.getSummary(log
+						request.getSummary(PaxosConfig.log.isLoggable(level)),
+						accept != null ? accept.getSummary(PaxosConfig.log
 								.isLoggable(level)) : "" });
 	}
 
@@ -3422,7 +3384,7 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	protected AcceptPacket getPreviouslyIssuedAccept(RequestPacket proposal) {
-		RequestAndCallback rc = null;
+		PaxosConfig.RequestAndCallback rc = null;
 		if (((rc = this.outstanding.requests.get(proposal.getRequestID())) != null || (rc = this.outstanding.conflictIDRequests
 				.get(proposal)) != null)
 				&& rc.requestPacket instanceof AcceptPacket
@@ -3433,7 +3395,7 @@ public class PaxosManager<NodeIDType> {
 
 	protected AcceptPacket setIssuedAccept(AcceptPacket accept) {
 		assert(accept==null || accept.getRequestValue()!=null) : accept;
-		RequestAndCallback rc = accept!=null ? this.outstanding.requests.get(accept
+		PaxosConfig.RequestAndCallback rc = accept!=null ? this.outstanding.requests.get(accept
 				.getRequestID()) : null;
 		if (rc != null
 				|| (rc = this.outstanding.conflictIDRequests.get(accept)) != null)

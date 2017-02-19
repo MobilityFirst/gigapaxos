@@ -169,7 +169,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private boolean closed = true;
 
-	private static final Logger log = (Reconfigurator.getLogger());
+	private static final Logger log = (ReconfigurationConfig.getLogger());
 	private static final int MAX_DB_BATCH_SIZE = Config
 			.getGlobalInt(PC.MAX_DB_BATCH_SIZE);
 

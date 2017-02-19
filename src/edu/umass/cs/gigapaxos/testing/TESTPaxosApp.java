@@ -29,11 +29,11 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientMessenger;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -83,7 +83,7 @@ public class TESTPaxosApp implements Replicable,
 		private HashMap<Integer, String> committed = null;
 	}
 
-	private static Logger log = PaxosManager.getLogger();
+	private static Logger log = PaxosConfig.getLogger();
 
 	/**
 	 * @param nio

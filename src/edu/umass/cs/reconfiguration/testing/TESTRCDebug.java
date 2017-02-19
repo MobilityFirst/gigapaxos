@@ -31,7 +31,6 @@ import edu.umass.cs.gigapaxos.paxosutil.RateLimiter;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ActiveReplicaError;
@@ -57,7 +56,7 @@ import edu.umass.cs.utils.DelayProfiler;
 @FixMethodOrder(org.junit.runners.MethodSorters.NAME_ASCENDING)
 public class TESTRCDebug {
 
-	private static Logger log = Reconfigurator.getLogger();
+	private static Logger log = ReconfigurationConfig.getLogger();
 
 	private static enum ProfilerKeys {
 		reconfiguration_rate, request_actives, app_request, create, delete

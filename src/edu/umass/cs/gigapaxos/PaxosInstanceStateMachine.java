@@ -188,7 +188,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/************ End of non-final paxos state ***********************************************/
 
 	// static, so does not count towards space.
-	private static final Logger log = (PaxosManager.getLogger());
+	private static final Logger log = (PaxosConfig.getLogger());
 
 	PaxosInstanceStateMachine(String groupId, int version, int id,
 			Set<Integer> gms, Replicable app, String initialState,

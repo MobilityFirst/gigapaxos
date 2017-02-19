@@ -12,8 +12,8 @@ import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
-import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.txn.interfaces.TXInterface;
@@ -79,7 +79,7 @@ public abstract class AbstractTransactor<NodeIDType> extends
 				&& this.callbacks.putIfAbsent(request, callback) == null)
 			return this.coordinator.coordinateRequest(request, callback);
 		// else
-		Reconfigurator.getLogger().log(Level.WARNING,
+		ReconfigurationConfig.getLogger().log(Level.WARNING,
 				"{0} dropping request {1} because queue size limit reached",
 				new Object[] { this, request.getSummary() });
 		return false;
