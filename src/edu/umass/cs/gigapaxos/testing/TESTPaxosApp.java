@@ -107,9 +107,6 @@ public class TESTPaxosApp implements Replicable,
 		}
 	}
 
-	static {
-		TESTPaxosConfig.load();
-	}
 	private static final boolean ABSOLUTE_NOOP = Config
 			.getGlobalBoolean(TESTPaxosConfig.TC.ABSOLUTE_NOOP_APP);
 	private static final long APP_DELAY = Config

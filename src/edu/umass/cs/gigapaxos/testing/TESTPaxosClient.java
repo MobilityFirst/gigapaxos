@@ -58,7 +58,7 @@ import edu.umass.cs.utils.Util;
  */
 public class TESTPaxosClient {
 	static {
-		TESTPaxosConfig.load();
+		//TESTPaxosConfig.load();
 	}
 
 	// because the single-threaded sender is a bottleneck on multicore

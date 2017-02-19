@@ -71,7 +71,6 @@ function set_default_conf {
   elif [[ -L $CONFDIR/$default && \
     -e `readlink $CONFDIR/$default` ]]; then
     echo `readlink $CONFDIR/$default`
-  else echo $CONFDIR/$default
   fi 
 }
 
@@ -263,7 +262,7 @@ function get_file_list {
   trustStorePassword=$value
   get_value "java.util.logging.config.file" "$cmdline_args" $LOG_PROPERTIES
   LOG_PROPERTIES=$value
-  get_value "java.util.logging.config.file" "$cmdline_args" $LOG4J_PROPERTIES
+  get_value "log4j.configuration" "$cmdline_args" $LOG4J_PROPERTIES
   LOG4J_PROPERTIES=$value
 
   conf_transferrables="$GP_PROPERTIES $KEYSTORE $TRUSTSTORE $LOG_PROPERTIES\
@@ -305,15 +304,17 @@ function append_to_ln_cmd {
   default=$2
   unlink_first=$3
   simple=`echo $1|sed s/".*\/"//g`
+  simple_default=`echo $2|sed s/".*\/"//g`
 
   link_target="$APP_SIMPLE/$(get_simple_name $default)"
-  cur_link="ln -fs ~/$APP_SIMPLE/$CONF/$simple $link_target "
+  link_src="~/$APP_SIMPLE/$CONF/$simple"
+  cur_link="ln -fs $link_src $link_target "
   if [[ ! -z $unlink_first ]]; then
-    cur_link="if [[ -e $link_target ]]; then \
+    cur_link="if [[ -L $link_target ]]; then \
       unlink $link_target; fi; $cur_link"
   fi
 
-  if [[ -e $1 ]]; then
+  if [[ -e $1 && $simple != $simple_default ]]; then
     if [[ -z $LINK_CMD ]]; then
       LINK_CMD=$cur_link
     else

@@ -59,10 +59,6 @@ public class TESTPaxosConfig {
 		}
 	}
 
-	static {
-		load();
-	}
-
 	/**
 	 * 
 	 */

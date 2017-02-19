@@ -35,7 +35,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.paxospackets.FailureDetectionPacket;
-import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig;
 import edu.umass.cs.nio.interfaces.InterfaceNIOTransport;
 import edu.umass.cs.utils.Config;
 
@@ -188,8 +187,6 @@ public class FailureDetection<NodeIDType> {
 	}
 
 	public void sendKeepAlive(Set<NodeIDType> nodes) {
-		if (TESTPaxosConfig.isCrashed(this.myID))
-			return; // testing
 		for (NodeIDType id : nodes) {
 			sendKeepAlive(id);
 		}
@@ -298,9 +295,7 @@ public class FailureDetection<NodeIDType> {
 
 		public void run() {
 			try {
-				// only to simulate crashes while testing
-				if (!TESTPaxosConfig.isCrashed(myID))
-					nioTransport.sendToID(destID, pingJson);
+				nioTransport.sendToID(destID, pingJson);
 			} catch (IOException e) {
 				try {
 					log.log(Level.INFO,
