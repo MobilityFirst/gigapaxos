@@ -13,15 +13,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.json.JSONException;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
@@ -47,7 +43,9 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ServerReconfiguration
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.reconfiguration.testing.TESTReconfigurationConfig.TRC;
 import edu.umass.cs.utils.Config;
+import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.DelayProfiler;
+import edu.umass.cs.utils.Repeat;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -57,9 +55,10 @@ import edu.umass.cs.utils.Util;
  *         creation, deletion, request actives, and app requests to names.
  */
 @FixMethodOrder(org.junit.runners.MethodSorters.NAME_ASCENDING)
-public class TESTReconfigurationClient {
+public class TESTReconfigurationClient extends DefaultTest {
 
-	private static Logger log = ReconfigurationConfig.getLogger();
+	private static final Logger log = ReconfigurationConfig.getLogger();
+	private static final int REPEAT = 10;
 
 	private static enum ProfilerKeys {
 		reconfiguration_rate, request_actives, app_request, create, delete
@@ -659,37 +658,6 @@ public class TESTReconfigurationClient {
 		return names;
 	}
 
-	/**
-	 * 
-	 */
-	@Rule
-	public TestName testName = new TestName();
-
-	private static TestName prevTestName = null;
-
-	/**
-	 * 
-	 */
-	@Before
-	public void beforeTestMethod() {
-		System.out.print((prevTestName != null
-				&& !testCategory(prevTestName.getMethodName()).equals(
-						testCategory(testName.getMethodName())) ? "\n" : "")
-				+ testName.getMethodName() + " ");
-	}
-
-	private static String testCategory(String methodName) {
-		return methodName.split("_")[0].replace("test", "").substring(0, 1);
-	}
-
-	/**
-	 * 
-	 */
-	@After
-	public void afterTestMethod() {
-		System.out.println(succeeded() ? "succeeded" : "FAILED");
-		prevTestName = testName;
-	}
 
 	private static final long DEFAULT_TIMEOUT = 1000;
 	protected static final long DEFAULT_RTX_TIMEOUT = 2000;
@@ -707,7 +675,6 @@ public class TESTReconfigurationClient {
 			NumberFormatException, InterruptedException {
 		boolean test = testAppRequests(generateRandomNames(1), 1, false);
 		Assert.assertEquals(test, false);
-		success();
 	}
 
 	/**
@@ -722,7 +689,6 @@ public class TESTReconfigurationClient {
 			NumberFormatException, InterruptedException {
 		boolean test = testNotExists(generateRandomNames(10));
 		Assert.assertEquals(test, true);
-		success();
 	}
 
 	/**
@@ -732,7 +698,7 @@ public class TESTReconfigurationClient {
 	public void test00_RequestRandomActive() throws IOException {
 		boolean test = testExists(Config.getGlobalString(RC.SPECIAL_NAME), true);
 		Assert.assertEquals(test, true); // should pass
-		success();
+		;
 	}
 
 	/**
@@ -743,7 +709,7 @@ public class TESTReconfigurationClient {
 		boolean test = testAppRequest(generateRandomName(), null,
 				DEFAULT_TIMEOUT);
 		Assert.assertEquals(test, false); // should fail
-		success();
+		;
 	}
 
 	/**
@@ -760,7 +726,7 @@ public class TESTReconfigurationClient {
 		boolean test = testNotExists(names) && testCreates(names)
 				&& testDeletes(names);
 		Assert.assertEquals(test, true);
-		success();
+		;
 	}
 
 	/**
@@ -775,7 +741,7 @@ public class TESTReconfigurationClient {
 			NumberFormatException, InterruptedException {
 		boolean test = testDelete(generateRandomName(), DEFAULT_TIMEOUT);
 		Assert.assertEquals(test, false);
-		success();
+		;
 	}
 
 	/**
@@ -807,7 +773,7 @@ public class TESTReconfigurationClient {
 								.arrayOfObjectsToStringSet(ProfilerKeys
 										.values()))) });
 		Assert.assertEquals(true, test);
-		success();
+		;
 	}
 
 	private boolean wrapReplicableClientRequest = false;
@@ -839,7 +805,7 @@ public class TESTReconfigurationClient {
 								.arrayOfObjectsToStringSet(ProfilerKeys
 										.values()))) });
 		Assert.assertEquals(test, true);
-		success();
+		;
 	}
 
 	/**
@@ -860,7 +826,7 @@ public class TESTReconfigurationClient {
 						AppRequest.PacketType.APP_REQUEST3)
 				&& testDeletes(names) && testNotExists(names);
 		Assert.assertEquals(true, test);
-		success();
+		;
 	}
 
 	/**
@@ -869,6 +835,7 @@ public class TESTReconfigurationClient {
 	 * @throws InterruptedException
 	 */
 	@Test
+	@Repeat(times = REPEAT)
 	public void test02_MutualAuthRequest() throws IOException,
 			NumberFormatException, InterruptedException {
 		String name = generateRandomName();
@@ -879,7 +846,7 @@ public class TESTReconfigurationClient {
 						AppRequest.PacketType.ADMIN_APP_REQUEST))
 				&& testDelete(name) && testNotExists(name);
 		Assert.assertEquals(true, test);
-		success();
+		;
 	}
 
 	/**
@@ -905,9 +872,10 @@ public class TESTReconfigurationClient {
 	private boolean testAppRequest(AppRequest request, int retries)
 			throws IOException {
 		Request response = null;
-		for (int i = 0; i <= retries; i++)
+		for (int i = 0; i <= retries && response==null; i++) {
 			response = this.getRandomClient().sendRequest(request,
 					Config.getGlobalLong(TRC.TEST_APP_REQUEST_TIMEOUT));
+		}
 		return response != null;
 	}
 
@@ -934,7 +902,7 @@ public class TESTReconfigurationClient {
 		log.log(Level.INFO, "{0}: {1}", new Object[] {
 				testName.getMethodName(), DelayProfiler.getStats() });
 		Assert.assertEquals(test, true);
-		success();
+		;
 	}
 
 	/**
@@ -976,7 +944,7 @@ public class TESTReconfigurationClient {
 		// some sleep needed to ensure reconfigurations settle down
 		Thread.sleep(1000);
 		Assert.assertEquals(testDeletes(names) && testNotExists(names), true);
-		success();
+		;
 	}
 
 	/**
@@ -995,7 +963,7 @@ public class TESTReconfigurationClient {
 								.asList(generateRandomName(Config
 										.getGlobalString(TRC.AR_PREFIX)))),
 						null), true);
-		success();
+		;
 	}
 
 	/**
@@ -1016,7 +984,7 @@ public class TESTReconfigurationClient {
 		Assert.assertEquals(testReconfigureActives(null, adds.keySet(), null),
 				true);
 
-		success();
+		;
 	}
 
 	/**
@@ -1042,7 +1010,7 @@ public class TESTReconfigurationClient {
 			// store this for subsequent addition
 			justDeletedActives.putAll(deletes);
 		Assert.assertEquals(true, true); // no-op
-		success();
+		;
 	}
 
 	/**
@@ -1066,7 +1034,7 @@ public class TESTReconfigurationClient {
 		} else
 			log.log(Level.INFO,
 					"No active replicas added as none deleted in previous test step");
-		success();
+		;
 	}
 
 	/**
@@ -1091,7 +1059,7 @@ public class TESTReconfigurationClient {
 		if (test)
 			justAddedRCs.putAll(newlyAddedRCs);
 		Assert.assertEquals(true, true); // no-op
-		success();
+		;
 	}
 
 	/**
@@ -1109,17 +1077,7 @@ public class TESTReconfigurationClient {
 		} else
 			log.log(Level.INFO,
 					"No reconfigurators deleted as none added in previous test step");
-		success();
-	}
-
-	private boolean testSuccess = false;
-
-	private void success() {
-		this.testSuccess = true;
-	}
-
-	private boolean succeeded() {
-		return this.testSuccess;
+		;
 	}
 
 	private static Map<String, InetSocketAddress> justAddedRCs = new HashMap<String, InetSocketAddress>();
@@ -1142,6 +1100,7 @@ public class TESTReconfigurationClient {
 	 */
 	@AfterClass
 	public static void closeServers() throws IOException, InterruptedException {
+		Thread.sleep(1000);
 		for (TESTReconfigurationClient client : allInstances)
 			client.close();
 		TESTReconfigurationMain.closeServers();
