@@ -31,13 +31,16 @@ public class SessionKeysTest extends DefaultTest {
 	 * @throws SignatureException
 	 * @throws InvalidKeyException
 	 */
+
+
+
 	@Test
 	public void test_SignVerifySecretKey() throws NoSuchAlgorithmException,
 			InvalidKeyException, SignatureException,
 			UnsupportedEncodingException, IllegalBlockSizeException,
 			BadPaddingException, NoSuchPaddingException {
 		Util.assertAssertionsEnabled();
-		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.pkPair)
+		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.keyPairAlgorithm)
 				.genKeyPair();
 		SecretKey sk = SessionKeys.getOrGenerateSecretKey(keyPair.getPublic(),
 				keyPair.getPrivate());
@@ -64,7 +67,7 @@ public class SessionKeysTest extends DefaultTest {
 			InvalidKeyException, SignatureException,
 			UnsupportedEncodingException, IllegalBlockSizeException,
 			BadPaddingException, NoSuchPaddingException {
-		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.pkPair)
+		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.keyPairAlgorithm)
 				.genKeyPair();
 		SecretKey sk = SessionKeys.getOrGenerateSecretKey(keyPair.getPublic(),
 				keyPair.getPrivate());
@@ -87,7 +90,7 @@ public class SessionKeysTest extends DefaultTest {
 			UnsupportedEncodingException, IllegalBlockSizeException,
 			BadPaddingException, NoSuchPaddingException,
 			InvalidKeySpecException {
-		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.pkPair)
+		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.keyPairAlgorithm)
 				.genKeyPair();
 		SecretKey secretKey = SessionKeys.getOrGenerateSecretKey(
 				keyPair.getPublic(), keyPair.getPrivate());
@@ -120,7 +123,7 @@ public class SessionKeysTest extends DefaultTest {
 			UnsupportedEncodingException, IllegalBlockSizeException,
 			BadPaddingException, NoSuchPaddingException,
 			InvalidKeySpecException {
-		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.pkPair)
+		KeyPair keyPair = KeyPairGenerator.getInstance(SessionKeys.keyPairAlgorithm)
 				.genKeyPair();
 		SecretKey secretKey = SessionKeys.getOrGenerateSecretKey(
 				keyPair.getPublic(), keyPair.getPrivate());

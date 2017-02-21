@@ -101,6 +101,8 @@ public class SessionKeys {
 	 */
 	protected static final String pkPair = "RSA/ECB/PKCS1Padding";
 
+	protected static final String keyPairAlgorithm = "RSA";
+
 	/**
 	 * A secret key certificate consists of a [secretKey, timestamp] 2-tuple
 	 * signed by the corresponding public key, and all three of these together
@@ -206,7 +208,7 @@ public class SessionKeys {
 			if (bbuf.hasRemaining()) {
 				byte[] encodedPublicKey = new byte[bbuf.getShort()];
 				bbuf.get(encodedPublicKey);
-				publicKey = KeyFactory.getInstance(pkPair).generatePublic(
+				publicKey = KeyFactory.getInstance(keyPairAlgorithm).generatePublic(
 						new X509EncodedKeySpec(encodedPublicKey));
 			} else
 				throw new RuntimeException(
