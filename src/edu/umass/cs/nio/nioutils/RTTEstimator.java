@@ -209,47 +209,6 @@ public class RTTEstimator {
 		return addrToInt(address) >>> 8; // logical, not artihmetic, shift
 	}
 
-	/**
-	 * RTTEstimator test class.
-	 */
-	static public class RTTEstimatorTest extends DefaultTest {
-		/**
-		 * @throws UnknownHostException
-		 */
-		@Test
-		public void testToInt() throws UnknownHostException {
-			InetAddress addr = InetAddress.getByName("128.119.245.38");
-			System.out.print((addr) + ": toInt=" + addrToInt(addr)
-					+ " ; toPrefixInt=" + addrToPrefixInt(addr));
-
-		}
-
-		/**
-		 * @throws UnknownHostException
-		 */
-		@Test
-		public void testRecord() throws UnknownHostException {
-			InetAddress addr = InetAddress.getByName("128.119.245.38");
-			record(addr, 2);
-			Assert.assertEquals(2, getRTT(addr));
-			record(addr, 4);
-			Assert.assertEquals(2, getRTT(addr));
-			record(addr, 10);
-			Assert.assertEquals(4, getRTT(addr));
-			System.out.print(getRTT(addr) + " ");
-
-			record(addr, 10);
-			System.out.print(getRTT(addr) + " ");
-
-			record(addr, 10);
-			System.out.print(getRTT(addr) + " ");
-
-			record(addr, 10);
-			System.out.print(getRTT(addr) + " ");
-			Assert.assertEquals(7, getRTT(addr));
-		}
-	}
-
 	private static LinkedHashMap<InetAddress, Long> testMap = new LinkedHashMap<InetAddress, Long>() {
 		/**
 		 * 
