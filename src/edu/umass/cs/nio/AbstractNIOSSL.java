@@ -28,7 +28,6 @@ import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
 
 import sun.misc.Cleaner;
-import sun.nio.ch.DirectBuffer;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Util;
 
@@ -435,9 +434,11 @@ public abstract class AbstractNIOSSL implements Runnable {
 		Cleaner cleaner = null;
 		/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
 		 * just comment the line below. The code will default to using the
-		 * reflective approach below. */
+		 * reflective approach below. NOTE: Code commented now.*/
+		/*
 		if (bbuf instanceof DirectBuffer)
 			cleaner = ((DirectBuffer) bbuf).cleaner();
+		*/
 		if (cleaner == null)
 			try {
 				Field cleanerField = bbuf.getClass()
