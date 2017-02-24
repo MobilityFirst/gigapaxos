@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.umass.cs.utils.UtilServer;
 import org.json.JSONException;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -317,12 +318,12 @@ public abstract class AbstractPaxosLogger {
 			if (lock == null)
 				throw new IOException("Unable to start node " + strID
 						+ " likely because node " + strID + " from "
-						+ Util.readFileAsString(filename).split("\n")[0].trim().replaceAll("#", "")
+						+ UtilServer.readFileAsString(filename).split("\n")[0].trim().replaceAll("#", "")
 						+ " is already running");
 			// lock!=null
 			if (created && PaxosConfig.getPropertiesFile() != null) {
 				raf.write(("#" + PaxosConfig.getPropertiesFile()+"\n").getBytes());
-				raf.write(Util
+				raf.write(UtilServer
 						.readFileAsString(PaxosConfig.getPropertiesFile())
 						.getBytes());
 			}
