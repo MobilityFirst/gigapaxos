@@ -271,9 +271,9 @@ public abstract class AbstractNIOSSL implements Runnable {
 					new Object[] { this });
 			int biggerSize = engine.getSession().getApplicationBufferSize()
 					+ wrapDst.capacity();
-			if (biggerSize > MAX_DST_BUFFER_SIZE)
+			//if (biggerSize > MAX_DST_BUFFER_SIZE)
 				// throw new IllegalStateException("failed to wrap")
-				;
+				//;
 			// try increasing buffer size up to maximum limit
 			if (biggerSize < MAX_DST_BUFFER_SIZE) {
 				wrapDst = getBiggerBuffer(wrapDst, biggerSize);
@@ -372,9 +372,9 @@ public abstract class AbstractNIOSSL implements Runnable {
 					new Object[] { this });
 			int biggerSize = engine.getSession().getApplicationBufferSize()
 					+ unwrapDst.capacity();
-			if (biggerSize > MAX_BUFFER_SIZE)
+			//if (biggerSize > MAX_BUFFER_SIZE)
 				// throw new IllegalStateException("failed to unwrap")
-				;
+				//;
 			// try increasing size first
 			if (biggerSize < MAX_BUFFER_SIZE) {
 				unwrapDst = getBiggerBuffer(unwrapDst, biggerSize);
