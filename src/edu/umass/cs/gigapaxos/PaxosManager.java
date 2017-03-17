@@ -45,7 +45,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
+import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptReplyPacket;
 import edu.umass.cs.gigapaxos.paxospackets.BatchedPaxosPacket;
@@ -1614,7 +1614,7 @@ public class PaxosManager<NodeIDType> {
 		this.ppBatcher.stop();
 		this.largeCheckpointer.close();
 		this.executor.shutdownNow();
-		if(this.myApp instanceof Shutdownable) ((Shutdownable)this.myApp).shutdown();
+		if(this.myApp instanceof GigapaxosShutdownable) ((GigapaxosShutdownable)this.myApp).shutdown();
 
 		for (Iterator<PaxosInstanceStateMachine> pismIter = this.pinstances
 				.concurrentIterator(); pismIter.hasNext();)
