@@ -127,9 +127,10 @@ public class ReconfigurationConfig {
 				edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp.class
 						.getName()),
 		/**
-		 * Demand profile class name.
+		 * Demand profile class name. iOS client requires that this name be specified as a string
+		 * as opposed to using class.getName()
 		 */
-		DEMAND_PROFILE_TYPE(DemandProfile.class.getName()),
+		DEMAND_PROFILE_TYPE("edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile"),
 
 		/**
 		 * Directory where reconfiguration DB is maintained when an embedded DB

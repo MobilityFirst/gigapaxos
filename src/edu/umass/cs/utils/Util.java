@@ -826,13 +826,34 @@ public class Util {
 		return list;
 	}
 
+	/**
+	 * Get an array of field names from a JSONObject.
+	 * COPIED from org.json - Android's moving this method to util to preserve
+	 * Android and iOS compatibility.
+	 * @return An array of field names, or null if there are no names.
+	 */
+	public static String[] getNames(JSONObject jo) {
+		int length = jo.length();
+		if (length == 0) {
+			return null;
+		}
+		Iterator iterator = jo.keys();
+		String[] names = new String[length];
+		int i = 0;
+		while (iterator.hasNext()) {
+			names[i] = (String) iterator.next();
+			i += 1;
+		}
+		return names;
+	}
+
 	/* This method converts a JSONObject to a Map<String,?> while recursively
 	 * converting the values to JSONObject or JSONArray as needed. */
 	public static Map<String, ?> JSONObjectToMap(JSONObject json)
 			throws JSONException {
 		if (json == null)
 			return null;
-		String[] keys = JSONObject.getNames(json);
+		String[] keys = getNames(json);
 		if (keys != null) {
 			Map<String, Object> map = new HashMap<String, Object>();
 			for (String key : keys)

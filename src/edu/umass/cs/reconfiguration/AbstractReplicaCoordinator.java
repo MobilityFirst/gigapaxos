@@ -32,7 +32,7 @@ import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
+import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.GenericMessagingTask;
@@ -466,8 +466,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	public void stop() {
 		this.messenger.stop();
-		if(this.app instanceof Shutdownable)
-			((Shutdownable)this.app).shutdown();
+		if(this.app instanceof GigapaxosShutdownable)
+			((GigapaxosShutdownable)this.app).shutdown();
 	}
 
 	/********************** Request propagation helper methods ******************/
