@@ -24,7 +24,6 @@ def nioBuildVersion = "${nioBuildMajorNumber}.${nioBuildMinorNumber}.${nioBuildR
 
 
 // Change the locations of the srcs - gradle jar plugin has different standard locations
-// The convention is that test class names start with TEST
 sourceSets {
   main {
     java {
@@ -38,9 +37,9 @@ sourceSets {
   }
 }
 
-// define where we get our libs from
+// Define where we get our libs from
 repositories {
-  mavenLocal()
+  mavenLocal() // Local things end up in ~/.m2/repository
   mavenCentral()
 }
 
@@ -54,7 +53,7 @@ dependencies {
   compile group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.9'
   compile group: 'org.msgpack', name: 'msgpack-core', version: '0.8.8'
   compile group: 'io.netty', name: 'netty-all', version: '4.1.4.Final'
-  // used a newere zookeeper because of problems with the log4j dependency
+  // Using a newer version of zookeeper because of problems with the log4j dependency
   compile group: 'org.apache.zookeeper', name: 'zookeeper', version: '3.4.9'
   
   // Use these jars for unit testing
@@ -62,14 +61,14 @@ dependencies {
   compile group: 'junit', name: 'junit', version: '4.12'
 }
 
-// Updates the build.number whenever a jar is created.
+// Updates the build.number. Used below whenever a jar is created.
 task incrementBuildNumber {
   doLast {
     ant.buildnumber(file: 'build.number')
   }
 }
 
-// redefine the default jar task to produce our 3 jars
+// Redefine the default jar task to produce our 3 jars
 task jar(type: Jar, overwrite: true, 
   // Note that we enforce an explicit ordering for these below with
   // "createJars.mustRunAfter incrementBuildNumber"
@@ -77,7 +76,7 @@ task jar(type: Jar, overwrite: true,
 }
 
 // Note that copying the jars to the 'jars' folder will probably go away once we're fully integrated
-task createJars(type: Jar, overwrite: true, 
+task createJars(type: Jar, 
   dependsOn: ['copyGigapaxosFatJar', 'copyNioFatJar', 'copyGigapaxosNioSrcJar']) {
 }
 
@@ -87,9 +86,9 @@ createJars.mustRunAfter incrementBuildNumber
 task gigapaxosFatJar(type: Jar, dependsOn: [':compileJava', ':processResources']) {
   baseName = 'gigapaxos'
   version = gigapaxosBuildVersion
-  // all the source classes
+  // All the source classes
   from files(sourceSets.main.output.classesDir)
-  // all the libs
+  // All the libs
   from configurations.runtime.asFileTree.files.collect {  
     zipTree(it) 
   }
@@ -119,18 +118,18 @@ task copyGigapaxosFatJar(type: Copy) {
 task nioFatJar(type: Jar, dependsOn: [':compileJava', ':processResources']) {
   baseName = 'nio'
   version = nioBuildVersion
-  // all the nio source classes
+  // All the nio source classes
   from files(sourceSets.main.output.classesDir) {
     include 'edu/umass/cs/nio/**'
     include 'edu/umass/cs/utils*'
     include 'org/json/*'
-    // interesting special cases here added because of one use of ReconfigurableClient in NIOInstrumenter 
-    // TODO: check to see if this is still needed
-    include 'edu/umass/cs/reconfiguration/**'
-    include 'edu/umass/cs/gigapaxos/**'
-    include 'edu/umass/cs/protocoltask/**'
+    // Copied from build.xml, but maybe not needed now.
+    // Interesting special cases here added because of one use of ReconfigurableClient in NIOInstrumenter 
+    //include 'edu/umass/cs/reconfiguration/**'
+    //include 'edu/umass/cs/gigapaxos/**'
+    //include 'edu/umass/cs/protocoltask/**'
   }
-  // all the libs
+  // All the libs
   from configurations.runtime.asFileTree.files.collect {  
     zipTree(it) 
   }
@@ -211,21 +210,21 @@ test {
   jvmArgs '-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks'
   jvmArgs '-Djavax.net.ssl.keyStorePassword=qwerty'
   jvmArgs '-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks'
-  // always run the tests - otherwise default is only runs when something changes
+  // Always run the tests - otherwise default is only runs when something changes
   outputs.upToDateWhen { false }
   filter { 
     includeTestsMatching 'edu.umass.cs.reconfiguration.testing.TESTReconfigurationClient'
   }
-  // the rest of this below isn't necessary, it just changes the output
+  // The rest of this below isn't necessary, it just changes the output
   testLogging {
-    // set options for log level LIFECYCLE
+    // Set options for log level LIFECYCLE
     events "passed", "skipped", "failed", "standardOut"
     showExceptions true
     exceptionFormat "full"
     showCauses true
     showStackTraces true
 
-    // set options for log level DEBUG and INFO
+    // Set options for log level DEBUG and INFO
     debug {
       events "started", "passed", "skipped", "failed", "standardOut", "standardError"
       exceptionFormat "full"
