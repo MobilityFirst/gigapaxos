@@ -63,9 +63,7 @@ dependencies {
 
 // Updates the build.number. Used below whenever a jar is created.
 task incrementBuildNumber {
-  doLast {
     ant.buildnumber(file: 'build.number')
-  }
 }
 
 // Redefine the default jar task to produce our 3 jars
