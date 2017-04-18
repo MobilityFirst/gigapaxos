@@ -290,7 +290,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset,
 			boolean checkConnectivity) throws IOException {
 		this.sslMode = sslMode;
-                
+		
 		// set up transport
 		(this.niot = (new MessageNIOTransport<String, Object>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
