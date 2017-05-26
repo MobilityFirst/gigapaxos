@@ -28,7 +28,6 @@ import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
 
 import sun.misc.Cleaner;
-import sun.nio.ch.DirectBuffer;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Util;
 
@@ -272,9 +271,9 @@ public abstract class AbstractNIOSSL implements Runnable {
 					new Object[] { this });
 			int biggerSize = engine.getSession().getApplicationBufferSize()
 					+ wrapDst.capacity();
-			if (biggerSize > MAX_DST_BUFFER_SIZE)
+			//if (biggerSize > MAX_DST_BUFFER_SIZE)
 				// throw new IllegalStateException("failed to wrap")
-				;
+			//	;
 			// try increasing buffer size up to maximum limit
 			if (biggerSize < MAX_DST_BUFFER_SIZE) {
 				wrapDst = getBiggerBuffer(wrapDst, biggerSize);
@@ -373,9 +372,10 @@ public abstract class AbstractNIOSSL implements Runnable {
 					new Object[] { this });
 			int biggerSize = engine.getSession().getApplicationBufferSize()
 					+ unwrapDst.capacity();
-			if (biggerSize > MAX_BUFFER_SIZE)
+			//iOS translation does not allow empty body "if" statements
+			//if (biggerSize > MAX_BUFFER_SIZE)
 				// throw new IllegalStateException("failed to unwrap")
-				;
+			//	;
 			// try increasing size first
 			if (biggerSize < MAX_BUFFER_SIZE) {
 				unwrapDst = getBiggerBuffer(unwrapDst, biggerSize);
@@ -435,9 +435,11 @@ public abstract class AbstractNIOSSL implements Runnable {
 		Cleaner cleaner = null;
 		/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
 		 * just comment the line below. The code will default to using the
-		 * reflective approach below. */
+		 * reflective approach below. NOTE: Code commented now.*/
+		/*
 		if (bbuf instanceof DirectBuffer)
 			cleaner = ((DirectBuffer) bbuf).cleaner();
+		*/
 		if (cleaner == null)
 			try {
 				Field cleanerField = bbuf.getClass()

@@ -27,7 +27,7 @@ import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.Shutdownable;
+import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
 import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -317,7 +317,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		this.messenger.stop();
 		this.paxosManager.close();
 
-		if(this.app instanceof Shutdownable)
-			((Shutdownable)this.app).shutdown();
+		if(this.app instanceof GigapaxosShutdownable)
+			((GigapaxosShutdownable)this.app).shutdown();
 	}
 }

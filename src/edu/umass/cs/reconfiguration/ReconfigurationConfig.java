@@ -127,9 +127,10 @@ public class ReconfigurationConfig {
 				edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp.class
 						.getName()),
 		/**
-		 * Demand profile class name.
+		 * Demand profile class name. iOS client requires that this name be specified as a string
+		 * as opposed to using class.getName()
 		 */
-		DEMAND_PROFILE_TYPE(DemandProfile.class.getName()),
+		DEMAND_PROFILE_TYPE("edu.umass.cs.reconfiguration.reconfigurationutils.DemandProfile"),
 
 		/**
 		 * Directory where reconfiguration DB is maintained when an embedded DB
@@ -922,31 +923,6 @@ public class ReconfigurationConfig {
 		}
 	}
 
-	/**
-	 * @param gpServerScriptFile
-	 *            Absolute or relative path of gpServer.sh
-	 * @param gigapaxosPropertiesFile
-	 *            Absolute or relative path of gigapaxos properties file
-	 * @param otherSystemProperties
-	 *            "-Dprop1=val1 -Dprop2=val2 ..."
-	 * @param command
-	 *            "start|stop|clear|forceclear all|server_names"
-	 * @return True if there are no script errors, but it doesn't necessarily
-	 *         mean that all the servers started up fine.
-	 */
-	public static final boolean gpServer(String gpServerScriptFile,
-			String gigapaxosPropertiesFile, String otherSystemProperties,
-			String command) {
-		String fullCommand = getFullCommand(gpServerScriptFile,
-				gigapaxosPropertiesFile, otherSystemProperties, command);
-		try {
-			int exit = Runtime.getRuntime().exec(fullCommand).waitFor();
-			return exit == 0;
-		} catch (Exception e) {
-			e.printStackTrace();
-			return false;
-		}
-	}
 
 	private static String getFullCommand(String gpServerScriptFile,
 			String gigapaxosPropertiesFile, String otherSystemProperties,

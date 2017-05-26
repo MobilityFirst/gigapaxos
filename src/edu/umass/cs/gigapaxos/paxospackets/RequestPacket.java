@@ -1504,16 +1504,6 @@ public class RequestPacket extends PaxosPacket implements Request,
 		checkMyFields();
 	}
 
-	public static class RequestPacketTest extends DefaultTest {
-		public RequestPacketTest() {
-		}
-
-		@Test
-		public void testCheckFields() {
-			doubleCheckFields();
-		}
-	}
-
 	static {
 		if (Config.getGlobalBoolean(PC.ENABLE_STATIC_CHECKS))
 			doubleCheckFields();

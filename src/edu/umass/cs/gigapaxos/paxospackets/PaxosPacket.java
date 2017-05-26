@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.utils.Util;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -480,7 +481,7 @@ public abstract class PaxosPacket extends JSONPacket implements Summarizable {
 
 		// copy over child fields
 		JSONObject child = toJSONObjectImpl();
-		for (String name : JSONObject.getNames(child))
+		for (String name : Util.getNames(child))
 			json.put(name, child.get(name));
 
 		return json;

@@ -31,6 +31,7 @@ import java.util.logging.Level;
 
 import javax.net.ssl.SSLException;
 
+import edu.umass.cs.utils.UtilServer;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -2466,13 +2467,13 @@ public class Reconfigurator<NodeIDType> implements
 		if (PaxosConfig.getPropertiesFile() != null)
 			try {
 				for (NodeIDType node : rcRecReq.startEpoch.getNewlyAddedNodes())
-					Util.writeProperty(prefix + node, this.consistentNodeConfig
+					UtilServer.writeProperty(prefix + node, this.consistentNodeConfig
 							.getNodeAddress(node).getHostAddress()
 							+ ":"
 							+ this.consistentNodeConfig.getNodePort(node),
 							PaxosConfig.getPropertiesFile(), prefix);
 				for (NodeIDType node : rcRecReq.startEpoch.getDeletedNodes())
-					Util.writeProperty(prefix + node, null,
+					UtilServer.writeProperty(prefix + node, null,
 							PaxosConfig.getPropertiesFile(), prefix);
 			} catch (IOException ioe) {
 				ReconfigurationConfig.log.severe(this

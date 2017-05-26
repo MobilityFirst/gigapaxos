@@ -21,8 +21,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,7 +42,6 @@ import java.util.stream.Stream;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.junit.Test;
 
 /**
  * @author arun
@@ -735,50 +732,6 @@ public class Util {
 		return new HashSet<InetAddress>(Arrays.asList(IPs));
 	}
 
-	public static String readFileAsString(String filename) throws IOException {
-		return new String(Files.readAllBytes(Paths.get(filename)));
-	}
-
-	public static void writeProperty(String key, String value, String filename,
-			String prefix) throws IOException {
-		String props = readFileAsString(filename);
-		String modified = "";
-		String comment = "\n# automatically modified property\n";
-		// append if no prefix
-		if (prefix == null
-				|| prefix.equals("")
-				|| !Pattern
-						.compile(".*\n[\\s]*" + prefix + "[^\n]*=[^\n]*\n.*",
-								Pattern.DOTALL).matcher(props).matches())
-			modified = props + comment + key + "=" + value;
-		// replace if property exists
-		else if (Pattern
-				.compile(".*\n[\\s]*" + key + "[^\n]*=[^\n]*\n.*",
-						Pattern.DOTALL).matcher(props).matches()) {
-			if (value != null) // replace
-				modified = props
-						.replaceAll("\n[\\s]*" + key + "[^\n]*=[^\n]*\n",
-								comment + key + "=" + value + "\n");
-			else
-				// comment out
-				modified = props.replaceAll("\n[\\s]*" + key
-						+ "[^\n]*=[^\n]*\n", comment + "#" + key + "=" + value
-						+ "\n");
-		}
-		// add as new property after last prefix match
-		else {
-			String[] tokens = props.split("\n");
-			boolean oneTime = false;
-			for (int i = tokens.length - 1; i > 0; i--)
-				modified = tokens[i]
-						+ "\n"
-						+ (tokens[i].trim().startsWith(prefix)
-								&& (!oneTime && (oneTime = true)) ? comment
-								+ key + "=" + value + "\n" : "") + modified;
-		}
-		Files.write(Paths.get(filename), modified.getBytes());
-	}
-
 	public static Object printThisLine() {
 		return printThisLine(true);
 
@@ -873,13 +826,34 @@ public class Util {
 		return list;
 	}
 
+	/**
+	 * Get an array of field names from a JSONObject.
+	 * COPIED from org.json - Android's moving this method to util to preserve
+	 * Android and iOS compatibility.
+	 * @return An array of field names, or null if there are no names.
+	 */
+	public static String[] getNames(JSONObject jo) {
+		int length = jo.length();
+		if (length == 0) {
+			return null;
+		}
+		Iterator iterator = jo.keys();
+		String[] names = new String[length];
+		int i = 0;
+		while (iterator.hasNext()) {
+			names[i] = (String) iterator.next();
+			i += 1;
+		}
+		return names;
+	}
+
 	/* This method converts a JSONObject to a Map<String,?> while recursively
 	 * converting the values to JSONObject or JSONArray as needed. */
 	public static Map<String, ?> JSONObjectToMap(JSONObject json)
 			throws JSONException {
 		if (json == null)
 			return null;
-		String[] keys = JSONObject.getNames(json);
+		String[] keys = getNames(json);
 		if (keys != null) {
 			Map<String, Object> map = new HashMap<String, Object>();
 			for (String key : keys)
@@ -896,44 +870,4 @@ public class Util {
 		return null;
 	}
 
-	public static class UtilTest extends DefaultTest {
-		/**
-		 * @throws JSONException
-		 */
-		@SuppressWarnings("unchecked")
-		@Test
-		public void test_01_JSONObjectToMap() throws JSONException {
-			Util.assertAssertionsEnabled();
-			Map<String, ?> map = (JSONObjectToMap(new JSONObject()
-					.put("hello", "world")
-					.put("collField", Arrays.asList("hello", "world", 123))
-					.put("jsonField", new JSONObject().put("foo", true))));
-			System.out.println(map);
-			org.junit.Assert.assertTrue(map.get("jsonField") instanceof Map
-					&& (Boolean) ((Map<String, ?>) map.get("jsonField"))
-							.get("foo"));
-
-		}
-
-		/**
-		 * @throws JSONException
-		 */
-		@SuppressWarnings("unchecked")
-		@Test
-		public void test_01_JSONArrayToMap() throws JSONException {
-			Util.assertAssertionsEnabled();
-			List<?> list = (JSONArrayToList(new JSONArray()
-
-			.put("hello") // 0
-
-					.put(Arrays.asList("hello", "world", 123)) // 1
-
-					.put(new JSONObject().put("foo", true)))); // 2
-
-			System.out.println(list);
-			org.junit.Assert.assertTrue(list.get(2) instanceof Map
-					&& (Boolean) ((Map<String, ?>) list.get(2)).get("foo"));
-
-		}
-	}
 }
