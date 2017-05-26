@@ -22,7 +22,6 @@ import java.util.Set;
 
 import edu.umass.cs.gigapaxos.interfaces.Callback;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.protocoltask.ProtocolTask;
@@ -142,7 +141,7 @@ public class ReconfiguratorProtocolTask<NodeIDType> implements
 									+ ReconfigurationPacket
 											.getPacketTypeClassName(type),
 							ReconfigurationPacket.getPacketTypeClass(type),
-							ProtocolTask[].class, RequestCallback.class)
+							ProtocolTask[].class, Callback.class)
 					.invoke(this.reconfigurator,
 							(BasicReconfigurationPacket<?>) event, ptasks,
 							callback));

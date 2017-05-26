@@ -3,7 +3,6 @@ package edu.umass.cs.reconfiguration.http;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
-
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -64,6 +63,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationP
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
 
 /**
  * @author arun
@@ -98,6 +98,11 @@ public class HttpReconfigurator {
 		 * The initial state used in name creation requests.
 		 */
 		INITIAL_STATE(ClientReconfigurationPacket.Keys.INITIAL_STATE.toString()),
+		
+		/**
+		 * Request ID.
+		 */
+		QID(RequestActiveReplicas.Keys.QID.toString()),
 
 		;
 		/**
@@ -368,6 +373,9 @@ public class HttpReconfigurator {
 				|| type == ReconfigurationPacket.PacketType.RECONFIGURE_RC_NODE_CONFIG)
 			return toServerReconfigurationRequest(json, channel, type, name);
 
+		long requestID = (type == ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS ? json
+				.getLong(RequestActiveReplicas.Keys.QID.toString()) : 0);
+					
 		// else must be ClientReconfigurationPacket; insert necessary fields
 		json.put(HTTPKeys.TYPE.label, type.getInt())
 				.put(HTTPKeys.NAME.label, name)
@@ -381,6 +389,8 @@ public class HttpReconfigurator {
 				// myReceiver probably not necessary
 				.put(ClientReconfigurationPacket.Keys.MY_RECEIVER.toString(),
 						channel.localAddress())
+						// request ID
+						.put(RequestActiveReplicas.Keys.QID.toString(), requestID)
 
 		;
 
@@ -430,6 +440,9 @@ public class HttpReconfigurator {
 					JSONObject json = toJSONObject(new QueryStringDecoder(
 							request.uri()).parameters());
 					crp = toReconfiguratorRequest(json, ctx.channel());
+					
+					System.out.println(crp);
+					
 					crp = (ReconfiguratorRequest) this.rcFunctions
 							.sendRequest(crp);
 					buf.append(crp.toString());

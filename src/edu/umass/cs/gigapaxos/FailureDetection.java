@@ -295,7 +295,8 @@ public class FailureDetection<NodeIDType> {
 
 		public void run() {
 			try {
-				nioTransport.sendToID(destID, pingJson);
+				if(!FailureDetection.this.execpool.isShutdown())
+					nioTransport.sendToID(destID, pingJson);
 			} catch (IOException e) {
 				try {
 					log.log(Level.INFO,

@@ -99,7 +99,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 		}
 	}
 
-	private final RCClient[] clients;
+	private static RCClient[] clients;
 	private final Set<String> reconfigurators;
 
 	private static boolean loopbackMode = true;
@@ -119,7 +119,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 	protected TESTReconfigurationClient(
 			Map<String, InetSocketAddress> reconfigurators) throws IOException {
 		allInstances.add(this);
-		clients = new RCClient[Config.getGlobalInt(TRC.NUM_CLIENTS)];
+		if(clients==null) clients = new RCClient[Config.getGlobalInt(TRC.NUM_CLIENTS)];
 		for (int i = 0; i < clients.length; i++)
 			clients[i] = new RCClient(new HashSet<InetSocketAddress>(
 					reconfigurators.values()));
@@ -635,8 +635,9 @@ public class TESTReconfigurationClient extends DefaultTest {
 	 * 
 	 */
 	public void close() {
-		for (int i = 0; i < this.clients.length; i++)
-			this.clients[i].close();
+		if (clients != null)
+			for (int i = 0; i < clients.length; i++)
+				clients[i].close();
 	}
 
 	private static String generateRandomState() {
@@ -839,13 +840,14 @@ public class TESTReconfigurationClient extends DefaultTest {
 	public void test02_MutualAuthRequest() throws IOException,
 			NumberFormatException, InterruptedException {
 		String name = generateRandomName();
+		boolean testAppReq=false;
 		boolean test = testNotExists(name)
 				&& testCreate(name)
 				&& testExists(name)
-				&& testAppRequest(getAppRequest(name,
-						AppRequest.PacketType.ADMIN_APP_REQUEST))
+				&& (testAppReq=testAppRequest(getAppRequest(name,
+						AppRequest.PacketType.ADMIN_APP_REQUEST)))
 				&& testDelete(name) && testNotExists(name);
-		Assert.assertEquals(true, test);
+		Assert.assertEquals("testAppReq="+testAppReq, true, test);
 		;
 	}
 
