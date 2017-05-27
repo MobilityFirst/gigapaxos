@@ -7,9 +7,15 @@ import org.junit.Test;
  * Created by kanantharamu on 2/20/17.
  */
 public class RequestPacketTest extends DefaultTest {
+    /**
+     * 
+     */
     public RequestPacketTest() {
     }
 
+    /**
+     * 
+     */
     @Test
     public void testCheckFields() {
         RequestPacket.doubleCheckFields();

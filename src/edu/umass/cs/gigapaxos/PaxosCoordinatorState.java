@@ -387,7 +387,7 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 	 * "proposals*pmax(pvals)" step. The pmax() was already being done as
 	 * pvalues were being received.
 	 */
-	protected synchronized void combinePValuesOntoProposals(int[] members) {
+	protected synchronized void combinePValuesOntoProposals(int[] members, String paxosID, int version) {
 		if (this.carryoverProposals.isEmpty())
 			return; // no need to process stop requests either
 
@@ -409,7 +409,7 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 															// received nor
 															// pre-active
 				this.myProposals.put(curSlot, new ProposalStateAtCoordinator(
-						members, makeNoopPValue(curSlot, null)));
+						members, makeNoopPValue(curSlot, null, paxosID, version)));
 			} else if (preActives.containsKey(curSlot)) { // stick with
 															// pre-active
 				this.myProposals.put(curSlot, preActives.get(curSlot));
@@ -864,21 +864,21 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 		return true;
 	}
 
-	private PValuePacket makeNoopPValue(int curSlot, PValuePacket pvalue) {
+	private PValuePacket makeNoopPValue(int curSlot, PValuePacket pvalue, String paxosID, int version) {
 		ProposalPacket proposalPacket = null;
 		if (pvalue != null)
 			proposalPacket = new ProposalPacket(curSlot, pvalue.makeNoop());
 		else
 			// actual noop (as opposed to RequestPacket converted noop)
-			proposalPacket = new ProposalPacket(curSlot, new RequestPacket(
-					0, NO_OP, false).setEntryReplica(this.myBallotCoord));
+			proposalPacket = (ProposalPacket)new ProposalPacket(curSlot, new RequestPacket(
+					0, NO_OP, false).setEntryReplica(this.myBallotCoord)).putPaxosID(paxosID, version);
 		PValuePacket noop = new PValuePacket(new Ballot(this.myBallotNum,
 				this.myBallotCoord), proposalPacket);
 		return noop.makeDecision(this.getMajorityCommittedSlot());
 	}
 
 	private PValuePacket makeNoopPValue(PValuePacket pvalue) {
-		return this.makeNoopPValue(pvalue.slot, pvalue);
+		return this.makeNoopPValue(pvalue.slot, pvalue, pvalue.getPaxosID(), pvalue.getVersion());
 	}
 
 	private int getMaxPValueSlot(NullIfEmptyMap<Integer, PValuePacket> pvalues) {
@@ -1134,7 +1134,7 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 		assert (!pcs.carryoverProposals.isEmpty());
 		System.out.println(pcs.printState());
 
-		pcs.combinePValuesOntoProposals(members);
+		pcs.combinePValuesOntoProposals(members, preply.getPaxosID(), preply.getVersion());
 		pcs.setCoordinatorActive();
 		System.out.println(pcs.printState());
 

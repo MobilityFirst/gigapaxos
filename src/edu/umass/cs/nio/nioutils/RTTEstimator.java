@@ -18,10 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.junit.Assert;
-import org.junit.Test;
 
-import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.Util;
 
 /**

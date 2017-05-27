@@ -2833,6 +2833,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 							this.logfiles[this.logfileIndex].toString(),
 							msgOffset, msgLength);
 
+				assert(pp.getPaxosID()!=null) : "paxosID is null for " + pp;
 				if (this.messageLog.getLogIndex(pp.getPaxosID()) == null)
 					this.unpauseLogIndex(pp.getPaxosID());
 

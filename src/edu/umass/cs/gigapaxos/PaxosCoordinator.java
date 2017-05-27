@@ -269,7 +269,7 @@ public abstract class PaxosCoordinator {
 			// ******ensures this block is called exactly once
 			assert (!this.getPCS().isActive());
 			// okay even for multiple threads to call in parallel
-			this.getPCS().combinePValuesOntoProposals(members);
+			this.getPCS().combinePValuesOntoProposals(members, prepareReply.getPaxosID(), prepareReply.getVersion());
 			// should be called only once, o/w conflicts possible
 			acceptPacketList = this.getPCS().spawnCommandersForProposals();
 			this.getPCS().setCoordinatorActive();
@@ -282,7 +282,7 @@ public abstract class PaxosCoordinator {
 	protected abstract void setCoordinatorActive();
 
 	protected abstract ArrayList<AcceptPacket> spawnCommandersForProposals() ;
-	protected abstract void combinePValuesOntoProposals(int[] members);
+	protected abstract void combinePValuesOntoProposals(int[] members, String paxosID, int version);
 
 	protected abstract boolean isPrepareAcceptedByMajority(
 			PrepareReplyPacket prepareReply, int[] members);

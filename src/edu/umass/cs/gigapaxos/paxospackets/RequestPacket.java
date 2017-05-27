@@ -29,12 +29,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.logging.Level;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.junit.Test;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.RequestBatcher;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
@@ -47,7 +46,6 @@ import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.utils.Config;
-import edu.umass.cs.utils.DefaultTest;
 import edu.umass.cs.utils.Util;
 
 /**

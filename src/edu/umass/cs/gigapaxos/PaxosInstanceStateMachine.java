@@ -1283,15 +1283,15 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 			if (mtask != null)
 				// preempted noop
-				if (((PValuePacket) mtask.msgs[0]).getType().equals(
+				if (((PaxosPacket) mtask.msgs[0]).getType().equals(
 						PaxosPacket.PaxosPacketType.REQUEST))
 					preempts.add(mtask);
 			// good case
-				else if (((PValuePacket) mtask.msgs[0]).getType().equals(
+				else if (((PaxosPacket) mtask.msgs[0]).getType().equals(
 						PaxosPacket.PaxosPacketType.DECISION))
 					decisions.add(mtask);
 			// undigested accept
-				else if (((PValuePacket) mtask.msgs[0]).getType().equals(
+				else if (((PaxosPacket) mtask.msgs[0]).getType().equals(
 						PaxosPacket.PaxosPacketType.ACCEPT))
 					 undigestedAccepts.add(mtask);
 				else

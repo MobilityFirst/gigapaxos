@@ -2791,6 +2791,8 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	private void printPauseLog(Collection<String> paused) {
+		if(this.isClosed() || !this.isPauseEnabled() || paused==null) return;
+		
 		// can not call synchronized methods inside log statements
 		long totalCreated = this.getNumCreated();
 		long totalCurrent = this.getNumInstancesAndResetChanged();

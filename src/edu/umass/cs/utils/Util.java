@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.json.JSONArray;
@@ -837,7 +836,7 @@ public class Util {
 		if (length == 0) {
 			return null;
 		}
-		Iterator iterator = jo.keys();
+		Iterator<?> iterator = jo.keys();
 		String[] names = new String[length];
 		int i = 0;
 		while (iterator.hasNext()) {

@@ -9,10 +9,22 @@ import java.util.regex.Pattern;
  * Created by kanantharamu on 2/21/17.
  */
 public class UtilServer {
+    /**
+     * @param filename
+     * @return Contents of filename as String
+     * @throws IOException
+     */
     public static String readFileAsString(String filename) throws IOException {
         return new String(Files.readAllBytes(Paths.get(filename)));
     }
 
+    /**
+     * @param key
+     * @param value
+     * @param filename
+     * @param prefix
+     * @throws IOException
+     */
     public static void writeProperty(String key, String value, String filename,
             String prefix) throws IOException {
         String props = readFileAsString(filename);
