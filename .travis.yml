@@ -3,6 +3,9 @@ language: java
 sudo: required
 jdk:
 - oraclejdk8
+before_install:
+- sudo apt-get update -qq
+- sudo apt-get install -qq ant-optional
 notifications:
   email:
     on_success: always
