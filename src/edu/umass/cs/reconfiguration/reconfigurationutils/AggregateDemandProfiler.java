@@ -18,7 +18,6 @@
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -26,6 +25,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 
 /**
  * @author V. Arun
@@ -37,13 +37,13 @@ public class AggregateDemandProfiler {
 	private static final int DEFAULT_MAX_SIZE = 100000;
 	private static final int DEFAULT_PLUCK_SIZE = 100;
 
-	private InterfaceGetActiveIPs nodeConfig;
+	private ReconfigurableAppInfo nodeConfig;
 	private final HashMap<String, AbstractDemandProfile> map = new HashMap<String, AbstractDemandProfile>();
 
 	/**
 	 * @param nodeConfig
 	 */
-	public AggregateDemandProfiler(InterfaceGetActiveIPs nodeConfig) {
+	public AggregateDemandProfiler(ReconfigurableAppInfo nodeConfig) {
 		this.nodeConfig = nodeConfig;
 	}
 
@@ -59,15 +59,15 @@ public class AggregateDemandProfiler {
 	 * @param sender
 	 * @return AbstractDemandProfile after registering {@code request}.
 	 */
-	public synchronized AbstractDemandProfile register(
+	public synchronized boolean shouldSendDemandReport(
 			Request request, InetAddress sender) {
 		String name = request.getServiceName();
 		AbstractDemandProfile demand = this.getDemandProfile(name);
 		if (demand == null)
 			demand = AbstractDemandProfile.createDemandProfile(name); // reflection
-		demand.register(request, sender, nodeConfig);
+		boolean shouldReport = demand.shouldReportDemandStats(request, sender, nodeConfig);
 		this.map.put(name, demand);
-		return demand;
+		return shouldReport;
 	}
 
 	private synchronized AbstractDemandProfile getDemandProfile(String name) {
@@ -97,27 +97,28 @@ public class AggregateDemandProfiler {
 	 * @return True if Reconfigurator should initiate a reconfiguration to the
 	 *         IP addresses returned.
 	 */
-	public synchronized ArrayList<InetAddress> shouldReconfigure(String name,
-			ArrayList<InetAddress> curActives) {
+	public synchronized Set<String> reconfigure(String name,
+			Set<String> curActives) {
 		AbstractDemandProfile demand = this.getDemandProfile(name);
 		if (demand == null)
 			return null;
-		return demand.shouldReconfigure(curActives, nodeConfig);
+		return demand.reconfigure(curActives, nodeConfig);
 	}
 
 	/**
 	 * @param name
 	 * @param curActives
+	 * @param appInfo 
 	 * @return List of IP addresses to which the replicas have been
 	 *         reconfigured. The testAndSet ensures atomicity.
 	 */
-	public synchronized ArrayList<InetAddress> testAndSetReconfigured(
-			String name, ArrayList<InetAddress> curActives) {
+	public synchronized Set<String> testAndSetReconfigured(
+			String name, Set<String> curActives, ReconfigurableAppInfo appInfo) {
 		AbstractDemandProfile demand = this.getDemandProfile(name);
-		ArrayList<InetAddress> newActives = null;
+		Set<String> newActives = null;
 		if (demand == null
-				|| (newActives = demand.shouldReconfigure(curActives,
-						nodeConfig)) == null)
+				|| (newActives = demand.reconfigure(curActives,
+						appInfo)) == null)
 			return curActives;
 		// else should reconfigure
 		demand.justReconfigured();
@@ -157,7 +158,7 @@ public class AggregateDemandProfiler {
 		AbstractDemandProfile demand = this.map.get(name);
 		// replaced clone() with un-stringification instead
 		AbstractDemandProfile copy = AbstractDemandProfile
-				.createDemandProfile(demand.getStats()); // demand.clone();
+				.createDemandProfile(demand.getDemandStats()); // demand.clone();
 		//demand.reset();
 		// replaced reset() with reflective call instead
 		this.map.put(name, AbstractDemandProfile.createDemandProfile(name));

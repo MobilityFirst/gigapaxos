@@ -86,7 +86,7 @@ public class ReconfigurableClient {
 	}
 
 	private CreateServiceName makeCreateNameRequest(String name, String state) {
-		return new CreateServiceName(null, name, 0, state);
+		return new CreateServiceName(name, state);
 	}
 
 	private DeleteServiceName makeDeleteNameRequest(String name) {

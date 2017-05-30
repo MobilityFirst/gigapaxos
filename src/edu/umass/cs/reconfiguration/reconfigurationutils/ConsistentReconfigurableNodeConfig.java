@@ -26,11 +26,11 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import org.json.JSONArray;
 import org.json.JSONException;
 
 import edu.umass.cs.nio.nioutils.RTTEstimator;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
@@ -51,8 +51,7 @@ import edu.umass.cs.utils.Config;
  */
 public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		ConsistentNodeConfig<NodeIDType> implements
-		ModifiableActiveConfig<NodeIDType>, ModifiableRCConfig<NodeIDType>,
-		InterfaceGetActiveIPs {
+		ModifiableActiveConfig<NodeIDType>, ModifiableRCConfig<NodeIDType> {
 	private final SimpleReconfiguratorNodeConfig<NodeIDType> nodeConfig;
 	private Set<NodeIDType> activeReplicas; // most recent cached copy
 	private Set<NodeIDType> reconfigurators; // most recent cached copy
@@ -185,11 +184,6 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		}
 		assert (addresses != null);
 		return addresses;
-	}
-
-	@Override
-	public ArrayList<InetAddress> getActiveIPs() {
-		return getNodeIPs(getActiveReplicas());
 	}
 
 	// refresh before returning
@@ -394,12 +388,12 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	public InetSocketAddress getNodeSocketAddress(NodeIDType id) {
 		InetAddress ip = this.nodeConfig.getNodeAddress(id);
 		int port = this.nodeConfig.getNodePort(id);
-		if (port == -1 && !this.isSlatedForRemoval(id))
+		if (port == -1 && !this.isSlatedForRemoval(id)) 
 			ReconfigurationConfig.getLogger()
 					.warning("No port found for nodeID " + id);
 		return (ip != null ? new InetSocketAddress(ip, port) : null);
 	}
-
+	
 	/**
 	 * Returns the bindable socket address of the public host corresponding to
 	 * this id. This code be a private address in the case of where we are
@@ -553,5 +547,23 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		}
 
 		return s;
+	}
+
+	/**
+	 * @return Map of all active replica names and addresses.
+	 */
+	public Map<String, InetSocketAddress> getAllActiveReplicas() {
+		return this.nodeConfig.getActiveReplicasMap();
+	}
+
+	/**
+	 * @param newActives
+	 * @return Set of node IDs from a string set.
+	 */
+	public Set<NodeIDType> getNodeIDs(Set<String> newActives) {
+		Set<NodeIDType> nodes = new HashSet<NodeIDType>();
+		for(String newActive : newActives)
+			nodes.add(this.valueOf(newActive));
+		return nodes;
 	}
 }

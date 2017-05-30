@@ -141,6 +141,7 @@ public class JSONMessenger<NodeIDType> implements
 	 * messages when asked to send but the channel is congested. We use the
 	 * return value of NIO send to decide whether to retransmit.
 	 */
+	@SuppressWarnings("unchecked")
 	protected void send(GenericMessagingTask<NodeIDType, ?> mtask,
 			boolean useWorkers) throws IOException, JSONException {
 		if (mtask == null || mtask.recipients == null || mtask.msgs == null) {
@@ -208,9 +209,14 @@ public class JSONMessenger<NodeIDType> implements
 					execpool.schedule(rtxTask, RTX_DELAY, TimeUnit.MILLISECONDS);
 				} else {
 					assert (sent == -1) : sent;
-					log.warning( this.nioTransport.getMyID()
-							+ " failed to send message to node "
-							+ mtask.recipients[r] + ": " + msg);
+					log.log(Level.WARNING,
+							"{0} failed to send message to node {1} [connected={2}]: {3}",
+							new Object[] {
+									this.nioTransport.getMyID(),
+									mtask.recipients[r],
+									this.nioTransport
+											.isDisconnected((NodeIDType) mtask.recipients[r]),
+									msg });
 				}
 			}
 		}

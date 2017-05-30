@@ -84,16 +84,29 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 	public static enum RecordNames {
 		/**
 		 * The record key for the RC record holding the set of all
-		 * reconfigurators. This is used to reconfigure the set of all
-		 * reconfigurators just like a typical RC record is used to reconfigure
-		 * service names.
+		 * reconfigurators. This name is replicated at all reconfigurators and
+		 * is reconfigured when reconfigurators are added or removed.
 		 */
 		RC_NODES,
 
 		/**
-		 * 
+		 * The record key for the RC record holding the set of all active
+		 * replicas. This name is replicated at all reconfigurators and is
+		 * updated (but not reconfigured) when active replicas are added or
+		 * removed, and is reconfigured when reconfigurators are added or
+		 * removed.
 		 */
-		AR_NODES
+		AR_NODES, 
+		
+		/**
+		 * The record key for a special name replicated at all current active replicas
+		 * that simply contains a map of all current active replicas. This name is
+		 * reconfigured when active replicas are added or removed. It is analogous to
+		 * AR_NODES replicated at all reconfigurators in that its reconfiguration record
+		 * is replicated at all reconfigurators, but differs in that the name itself
+		 * is replicated at active replicas.
+		 */
+		AR_AR_NODES
 	};
 
 	protected final NodeIDType myID;
@@ -124,12 +137,6 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		return record != null && record.getEpoch() == epoch ? record : null;
 	}
 
-	protected ReconfigurationRecord<NodeIDType> createRecord(String name) {
-		ReconfigurationRecord<NodeIDType> record = null;
-		record = new ReconfigurationRecord<NodeIDType>(name, 0,
-				this.consistentNodeConfig.getReplicatedActives(name));
-		return record;
-	}
 
 	/***************** Paxos related methods below ***********/
 	@Override
@@ -230,10 +237,10 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 				this.createReconfigurationRecord(new ReconfigurationRecord<NodeIDType>(
 						rcRecReq.getServiceName(), rcRecReq.startEpoch
 								.getEpochNumber() - 1,
-						rcRecReq.startEpoch.curEpochGroup));
+						rcRecReq.startEpoch.curEpochGroup, rcRecReq.startEpoch.getReconfigureUponActivesChangePolicy()));
 			else if (!this.createReconfigurationRecords(
 					rcRecReq.startEpoch.getNameStates(),
-					rcRecReq.startEpoch.getCurEpochGroup()))
+					rcRecReq.startEpoch.getCurEpochGroup(), rcRecReq.startEpoch.getReconfigureUponActivesChangePolicy()))
 				return false;
 
 		ReconfigurationRecord<NodeIDType> record = this

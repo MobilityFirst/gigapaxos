@@ -31,11 +31,24 @@ import edu.umass.cs.gigapaxos.interfaces.Request;
 public interface ReconfiguratorCallback extends ExecutedCallback {
 	/**
 	 * @param request
-	 * @param handled
+	 * @return True if execution complete.
 	 */
-	//public void executed(Request request, boolean handled);
+	public boolean preExecuted(Request request);
+	
 	/**
-	 * @param request
+	 * @param name
+	 * @param state
+	 * @return True if app's restore method doesn't have to be called.
 	 */
-	public void preExecuted(Request request);
+	default boolean preRestore(String name, String state) {
+		return false;
+	}
+
+	/**
+	 * @param name
+	 * @return Checkpoint state.
+	 */
+	default String preCheckpoint(String name) {
+		return null;
+	}
 }

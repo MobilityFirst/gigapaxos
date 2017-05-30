@@ -40,6 +40,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -141,9 +142,53 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	private static final int THREAD_POOL_SIZE = Config
 			.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS);
-
+	
+	/* These column names and types are independent of the table in which they
+	 * are used */
 	private static enum Columns {
-		SERVICE_NAME, EPOCH, RC_GROUP_NAME, ACTIVES, NEW_ACTIVES, RC_STATE, STRINGIFIED_RECORD, DEMAND_PROFILE, INET_ADDRESS, PORT, NODE_CONFIG_VERSION, RC_NODE_ID, AR_NODE_ID, IS_RECONFIGURATOR
+		SERVICE_NAME("varchar(" + MAX_NAME_SIZE + ") not null"),
+
+		RC_GROUP_NAME("varchar(" + MAX_NAME_SIZE + ") not null"),
+		
+		RECONFIGURE_UPON_ACTIVES_CHANGE("int default 0"),
+
+		STRINGIFIED_RECORD(RC_RECORD_CLOB_OPTION ? SQL.getBlobString(
+				MAX_RC_RECORD_SIZE, SQL_TYPE) : "varchar("
+				+ MAX_RC_RECORD_SIZE + ")"),
+
+		DEMAND_PROFILE(DEMAND_PROFILE_CLOB_OPTION ? SQL.getBlobString(
+				MAX_DEMAND_PROFILE_SIZE, SQL_TYPE) : "varchar("
+				+ MAX_DEMAND_PROFILE_SIZE + ")"),
+
+		INET_ADDRESS("varchar(256)"),
+
+		PORT("int"),
+
+		NODE_CONFIG_VERSION("int"),
+		
+		RC_NODE_ID("varchar(" + MAX_NAME_SIZE + ") not null"),
+
+		IS_RECONFIGURATOR("int");
+
+		final String type;
+
+		Columns() {
+			this.type = null;
+		}
+
+		Columns(String type) {
+			this.type = type;
+		}
+		
+		String getType() {
+			return this.type;
+		}
+		public String toString() {
+			return canonicalize(this.name());
+		}
+		static final String canonicalize(String name) {
+			return name!=null ? name.toUpperCase() : null;
+		}
 	};
 
 	private static enum Keys {
@@ -660,13 +705,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			rs = pstmt.executeQuery();
 			String s = "[";
 			while (rs.next()) {
-				s += "\n  " + rs.getString(Columns.SERVICE_NAME.toString())
-						+ " " + rs.getString(Columns.RC_GROUP_NAME.toString())
-						+ " "
-						+ rs.getString(Columns.STRINGIFIED_RECORD.toString());
+				s += "\n  ";
+				for (Columns column : RCRecordTableColumns)
+					s += rs.getObject(column.toString()) + " ";
 			}
-			log.info(this + " RC table " + this.getRCRecordTable() + " :\n" + s
-					+ "\n]");
+			log.log(Level.INFO, "{0} RC table {1}:\n{2}\n]", new Object[] {
+					this, this.getRCRecordTable(), s });
 		} catch (SQLException e) {
 			log.severe("SQLException while print RC records table " + cmd);
 			e.printStackTrace();
@@ -1610,6 +1654,33 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					.toString());
 		return groups;
 	}
+	
+	private static final Columns[] RCRecordTableColumns = {
+			Columns.SERVICE_NAME, Columns.RC_GROUP_NAME, 
+			Columns.RECONFIGURE_UPON_ACTIVES_CHANGE,
+			Columns.STRINGIFIED_RECORD };
+	private static final Columns[] PendingTableColumns = { Columns.SERVICE_NAME};
+	private static final Columns[] DemandTableColumns = { Columns.SERVICE_NAME,
+			Columns.DEMAND_PROFILE };
+	private static final Columns[] NodeConfigTableColumns = {
+			Columns.RC_NODE_ID, Columns.INET_ADDRESS, Columns.PORT,
+			Columns.NODE_CONFIG_VERSION, Columns.IS_RECONFIGURATOR,
+			};
+
+	// by default, service_name is primary key
+	private static final String getTableSchema(Columns[] columns) {
+		return getTableSchema(columns, Columns.SERVICE_NAME);
+	}
+
+	// explicitly specified primary keys
+	private static final String getTableSchema(Columns[] columns,
+			Columns... primaryKeys) {
+		String schema = " (";
+		for (Columns column : columns)
+			schema += column.toString() + " " + column.getType() + ", ";
+		return schema + " primary key ("
+				+ Util.getCommaSeparated(Arrays.asList(primaryKeys)) + "))";
+	}
 
 	/* A reconfigurator needs two tables: one for all records and one for all
 	 * records with ongoing reconfigurations. A record contains the serviceName,
@@ -1619,83 +1690,64 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private boolean createTables() {
 		boolean createdRCRecordTable = false, createdPendingTable = false, createdDemandTable = false, createdNodeConfigTable = false;
 		// simply store everything in stringified form and pull all when needed
-		String cmdRCR = "create table "
-				+ getRCRecordTable()
-				+ " ("
-				+ Columns.SERVICE_NAME.toString()
-				+ " varchar("
-				+ MAX_NAME_SIZE
-				+ ") not null, "
-				+ Columns.RC_GROUP_NAME.toString()
-				+ " varchar("
-				+ MAX_NAME_SIZE
-				+ ") not null,  "
-				+ Columns.STRINGIFIED_RECORD.toString()
-				+ (RC_RECORD_CLOB_OPTION ? SQL.getBlobString(
-						MAX_RC_RECORD_SIZE, SQL_TYPE) : " varchar("
-						+ MAX_RC_RECORD_SIZE + ")") + ", primary key ("
-				+ Columns.SERVICE_NAME + "))";
-		// index based on rc group name for optimizing checkpointing
+		String cmdRCR = "create table " + getRCRecordTable()
+				+ getTableSchema(RCRecordTableColumns);
+
+		/* Index based on rc group name for optimizing checkpointing. Derby
+		 * doesn't seem to allow creating an index while creating the table, so
+		 * index creation is a separate command. */
 		String cmdRCRCI = "create index rc_group_index on "
 				+ getRCRecordTable() + "(" + Columns.RC_GROUP_NAME.toString()
 				+ ")";
+
 		// records with ongoing reconfigurations
-		String cmdP = "create table " + getPendingTable() + " ("
-				+ Columns.SERVICE_NAME.toString() + " varchar(" + MAX_NAME_SIZE
-				+ ") not null, primary key(" + Columns.SERVICE_NAME.toString()
-				+ "))";
+		String cmdP = "create table " + getPendingTable()
+				+ getTableSchema(PendingTableColumns);
+
 		// demand profiles of records, need not be fault-tolerant or precise
-		String cmdDP = "create table "
-				+ getDemandTable()
-				+ " ("
-				+ Columns.SERVICE_NAME.toString()
-				+ " varchar("
-				+ MAX_NAME_SIZE
-				+ ") not null, "
-				+ Columns.DEMAND_PROFILE.toString()
-				+ (DEMAND_PROFILE_CLOB_OPTION ? SQL.getBlobString(
-						MAX_DEMAND_PROFILE_SIZE, SQL_TYPE) : " varchar("
-						+ MAX_DEMAND_PROFILE_SIZE + ")") + ", primary key("
-				+ Columns.SERVICE_NAME.toString() + "))";
+		String cmdDP = "create table " + getDemandTable()
+				+ getTableSchema(DemandTableColumns);
+
 		// node config information, needs to be correct under faults
-		String cmdNC = "create table " + getNodeConfigTable() + " ("
-				+ Columns.RC_NODE_ID.toString() + " varchar(" + MAX_NAME_SIZE
-				+ ") not null, " + Columns.INET_ADDRESS.toString()
-				+ " varchar(256), " + Columns.PORT.toString() + " int, "
-				+ Columns.NODE_CONFIG_VERSION.toString() + " int, "
-				+ Columns.IS_RECONFIGURATOR.toString() + " int, primary key("
-				+ Columns.RC_NODE_ID.toString() + ", "
-				+ Columns.NODE_CONFIG_VERSION + "))";
+		String cmdNC = "create table " + getNodeConfigTable()
+				+ getTableSchema(NodeConfigTableColumns,
+				// primary key
+						Columns.RC_NODE_ID, Columns.NODE_CONFIG_VERSION);
 
 		Statement stmt = null;
 		Connection conn = null;
 		try {
 			conn = this.getDefaultConn();
 			stmt = conn.createStatement();
-			createdRCRecordTable = createTable(stmt, cmdRCR, getRCRecordTable())
+			createdRCRecordTable = createTable(stmt, cmdRCR, getRCRecordTable(), RCRecordTableColumns)
 					&& createIndex(stmt, cmdRCRCI, getRCRecordTable());
 			createdPendingTable = createTable(stmt, cmdP, getRCRecordTable());
 			createdDemandTable = createTable(stmt, cmdDP, getDemandTable());
 			createdNodeConfigTable = createTable(stmt, cmdNC,
 					getNodeConfigTable());
-			log.log(Level.INFO, "{0}{1}{2}{3}", new Object[] {
-					"Created tables ", getRCRecordTable(), " and ",
-					getPendingTable() });
+			log.log(Level.INFO, "{0} created (or exists) tables [{1}, {2}, {3}, {4}]",
+					new Object[] { this, getRCRecordTable(), getPendingTable(),
+							getDemandTable(), getNodeConfigTable() });
 		} catch (SQLException sqle) {
-			log.severe("Could not create table(s): "
+			sqle.printStackTrace();
+			Util.suicide("Could not create table(s): "
 					+ (createdRCRecordTable ? "" : getRCRecordTable()) + " "
-					+ (createdPendingTable ? "" : getPendingTable())
+					+ (createdPendingTable ? "" : getPendingTable()) + " "
 					+ (createdDemandTable ? "" : getDemandTable()) + " "
 					+ (createdNodeConfigTable ? "" : getNodeConfigTable()));
-			sqle.printStackTrace();
 		} finally {
 			cleanup(stmt);
 			cleanup(conn);
 		}
-		return createdRCRecordTable && createdPendingTable;
+		return createdRCRecordTable && createdPendingTable && createdDemandTable && createdNodeConfigTable;
 	}
 
-	private boolean createTable(Statement stmt, String cmd, String table) {
+	private boolean createTable(Statement stmt, String cmd, String table) throws SQLException {
+		return createTable(stmt, cmd, table, null);
+	}
+	
+	private boolean createTable(Statement stmt, String cmd, String table,
+			Columns[] schema) throws SQLException {
 		boolean created = false;
 		try {
 			stmt.execute(cmd);
@@ -1704,14 +1756,100 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			if (SQL.DUPLICATE_TABLE.contains(sqle.getSQLState())) {
 				log.log(Level.INFO, "{0}{1}{2}", new Object[] { "Table ",
 						table, " already exists" });
+				if(schema!=null) reconcileTable(stmt, cmd, table, schema);
 				created = true;
 			} else {
-				log.severe("Could not create table: " + table);
-				sqle.printStackTrace();
+				log.severe("Could not create " + table + " using command "
+						+ cmd);
+				throw sqle;
 			}
 		}
+		log.log(Level.FINE, "{0}: {1}", new Object[] { this, cmd });
 		return created;
 	}
+
+	private void reconcileTable(Statement stmt, String cmd, String table,
+			Columns[] schema) throws SQLException {
+		String descCommand = SQL.getSchemaString(table, SQL_TYPE);
+		ResultSet rset = null;
+		HashMap<String, String> existingSchema = new HashMap<String, String>();
+		try {
+			rset = stmt.executeQuery(descCommand);
+			while (rset.next()) {
+				existingSchema.put(Columns.canonicalize(rset.getString(1)), rset
+						.getString(2));
+			}
+		} finally {
+			cleanup(rset);
+		}
+
+		ArrayList<Columns> adds = new ArrayList<Columns>();
+		ArrayList<String> deletes = new ArrayList<String>();
+		ArrayList<Columns> alters = new ArrayList<Columns>();
+		
+		for (Columns column : schema) {
+			if(!existingSchema.containsKey(column.toString())) {
+				// add column to existing
+				adds.add(column);
+			}
+			else if (!columnTypeMatches(column.getType(), existingSchema.get(column.toString()))) {
+				// change column tpe
+				log.log(Level.INFO, "{0}: Column {1} type in existing table \""
+						+ existingSchema.get(column.toString())
+						+ "\" different from " + "creation intent \""
+						+ column.getType() + "\"", new Object[] {
+						this, column });
+				alters.add(column);
+			}
+			else {
+				// match, do nothing
+				log.log(Level.FINE, "{0}: Column {1} type in existing table \""
+						+ existingSchema.get(column.toString()) + "\" matches "
+						+ "creation intent \"" + column.getType() + "\"",
+						new Object[] { this, column });
+			}
+		}
+		for (String existing : existingSchema.keySet()) {
+			boolean present = false;
+			for(Columns column : schema)
+				if(column.toString().equals(existing))
+					present = true;
+			if(!present) 
+				// delete column from existing
+				deletes.add(existing);
+		}
+		
+		// no cleanup upon exceptions needed below
+		for (Columns column : adds) {
+			log.log(Level.INFO, "{0} adding column {1} {2}", new Object[] {
+					this, column, column.getType() });
+			stmt.execute("alter table " + table + " add " + column + " "
+					+ column.getType());
+		}
+		for (String column : deletes) {
+			log.log(Level.INFO, "{0} dropping column {1} {2}", new Object[] {
+					this, column, existingSchema.get(column) });
+			stmt.execute("alter table " + table + " drop column " +column);
+		}
+		for (Columns column : alters) {
+			log.log(Level.INFO, "{0} modifying column {1} {2}", new Object[] {
+					this, column, existingSchema.get(column) });
+			stmt.execute("alter table " + table
+					+ SQL.getAlterString(column.toString(), SQL_TYPE)
+					+ column.getType());
+		}
+	}
+	
+	private static boolean columnTypeMatches(String type1, String type2) {
+		return canonicalColumnType(type1).equals(canonicalColumnType(type2));
+	}
+
+	private static final String canonicalColumnType(String type) {
+		return type != null ? type.toUpperCase().replace(" NOT NULL", "")
+				.replace("VARCHAR ", "VARCHAR").replaceFirst(" DEFAULT.*", "")
+				.replace("INTEGER", "INT") : null;
+	}
+
 
 	private boolean dropTable(String table) {
 		boolean dropped = false;
@@ -1736,7 +1874,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		return dropped;
 	}
 
-	private boolean createIndex(Statement stmt, String cmd, String table) {
+	private boolean createIndex(Statement stmt, String cmd, String table) throws SQLException {
 		return createTable(stmt, cmd, table);
 	}
 
@@ -2031,7 +2169,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		// fake random request demand
 		for (int i = 0; i < numRequests; i++) {
 			try {
-				demandProfile.register(getRandomInterfaceRequest(name),
+				demandProfile.shouldReportDemandStats(getRandomInterfaceRequest(name),
 						getRandomIPAddress(), null);
 			} catch (UnknownHostException e) {
 				e.printStackTrace();
@@ -2050,7 +2188,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		AbstractDemandProfile updateProfile = AbstractDemandProfile
 				.createDemandProfile(update);
 		historicProfile.combine(updateProfile);
-		return historicProfile.getStats();
+		return historicProfile.getDemandStats();
 	}
 
 	private boolean createCheckpointFile(String filename) {
@@ -2445,7 +2583,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	@Override
 	public synchronized boolean createReconfigurationRecords(
-			Map<String, String> nameStates, Set<NodeIDType> newActives) {
+			Map<String, String> nameStates, Set<NodeIDType> newActives, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		if (USE_DISK_MAP) {
 			boolean insertedAll = true;
 			Set<String> inserted = new HashSet<String>();
@@ -2456,7 +2594,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				if (insertedAll = insertedAll
 						&& (this.rcRecords.put(name,
 								new ReconfigurationRecord<NodeIDType>(name, -1,
-										newActives).setState(name, -1,
+										newActives, policy).setState(name, -1,
 										RCStates.WAIT_ACK_STOP)) == null))
 					inserted.add(name);
 
@@ -2662,7 +2800,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 								+ Columns.SERVICE_NAME.toString()
 								+ " != '"
 								+ AbstractReconfiguratorDB.RecordNames.AR_NODES
-										.toString() + "'");
+										.toString() + "' and "
+										+ Columns.SERVICE_NAME.toString()
+										+ " != '"
+										+ AbstractReconfiguratorDB.RecordNames.RC_NODES
+												.toString() + "'");
 			}
 			cursorRS = this.cursorPsmt.executeQuery();
 			assert (cursorRS != null && cursorRS.next());
@@ -2678,7 +2820,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	// reads the next record for the cursor initiated above.
 	@Override
-	public ReconfigurationRecord<NodeIDType> readNextActiveRecord() {
+	public ReconfigurationRecord<NodeIDType> readNextActiveRecord(boolean add) {
 		ReconfigurationRecord<NodeIDType> record = null;
 		try {
 			while (this.cursorRS.next())
@@ -2688,8 +2830,15 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 										.getString(Columns.STRINGIFIED_RECORD
 												.toString())),
 						this.consistentNodeConfig)).getActiveReplicas() != null
-						&& record.getActiveReplicas().contains(
-								this.cursorActive)
+
+						/* For adds, we need to ensure that the record is not an
+						 * RC record for an RC group name. */
+						&& ((add && !this.isRCGroupName(record.getName()))
+						/* For deletes, the record need be returned only if the
+						 * replica group contains the active (cursorActive)
+						 * being deleted. */
+						|| record.getActiveReplicas().contains(
+								this.cursorActive))
 						&& record.isReconfigurationReady())
 					return record;
 				else

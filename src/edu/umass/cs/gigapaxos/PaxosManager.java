@@ -726,6 +726,7 @@ public class PaxosManager<NodeIDType> {
 					this.integerMap.put(gms), app != null ? app : this.myApp,
 					initialState, this, hri, missedBirthing);
 		} catch (Exception e) {
+			e.printStackTrace();
 			throw new PaxosInstanceCreationException(e.getMessage());
 		}
 

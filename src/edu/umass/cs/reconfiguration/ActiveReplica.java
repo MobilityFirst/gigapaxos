@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -35,6 +37,7 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
+import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
@@ -60,6 +63,7 @@ import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
@@ -157,7 +161,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						(ReconfiguratorCallback) this));
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nodeConfig);
-		this.demandProfiler = new AggregateDemandProfiler(this.nodeConfig);
+		this.demandProfiler = new AggregateDemandProfiler(getReconfigurableAppInfo());
 		this.messenger = messenger;
 		this.protocolExecutor = new ProtocolExecutor<NodeIDType, ReconfigurationPacket.PacketType, String>(
 				messenger);
@@ -174,6 +178,74 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
 		// initInstrumenter();
+	}
+	
+	/**
+	 * @param name
+	 * @return Refer {@link Replicable#checkpoint(String)}.
+	 */
+	@Override
+	public String preCheckpoint(String name) {
+		return name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+				.toString()) ? this.nodeConfig.getActiveReplicasReadOnly()
+				.toString() : null;
+	}
+
+	@Override
+	public boolean preRestore(String name, String state) {
+		if (name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+				.toString())) {
+			if (state == null)
+				return false;
+			HashMap<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
+			for (String entry : state.replaceAll("\\{", "")
+					.replaceAll("\\}", "").split(",")) {
+				String[] pieces = entry.split("=");
+				assert (pieces.length == 2);
+				map.put(pieces[0].trim(),
+						Util.getInetSocketAddressFromString(pieces[1].trim()));
+			}
+			for (String strNode : map.keySet())
+				if (!this.nodeConfig.nodeExists(this.nodeConfig
+						.valueOf(strNode))) {
+					this.nodeConfig.addActiveReplica(
+							this.nodeConfig.valueOf(strNode), map.get(strNode));
+					log.log(Level.INFO, "{0} adding active replica {1}:{2}",
+							new Object[] { this, strNode, map.get(strNode) });
+				}
+			for (NodeIDType node : this.nodeConfig.getActiveReplicas())
+				if (!map.containsKey(node.toString())) {
+					this.nodeConfig.removeActiveReplica(node);
+					log.log(Level.INFO, "{0} removing active replica {1}",
+							new Object[] { this, node });
+				}
+			return true;
+		}
+		return false;
+	}
+
+	private  ReconfigurableAppInfo getReconfigurableAppInfo() {
+		return new ReconfigurableAppInfo() {
+
+			@Override
+			public Set<String> getReplicaGroup(String serviceName) {
+				Set<String> group = new HashSet<String>();
+				for (NodeIDType node : ActiveReplica.this.appCoordinator
+						.getReplicaGroup(serviceName))
+					group.add(node.toString());
+				return group;
+			}
+
+			@Override
+			public String snapshot(String serviceName) {
+				return ActiveReplica.this.appCoordinator.checkpoint(serviceName);
+			}
+
+			@Override
+			public Map<String, InetSocketAddress> getAllActiveReplicas() {
+				return ActiveReplica.this.nodeConfig.getAllActiveReplicas();
+			}
+		};
 	}
 
 	/* This should be false because the outstanding requests queue does not
@@ -634,7 +706,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				e.printStackTrace();
 			}
 			// the creation above will throw an exception if it fails
-			assert (created && startEpoch.getCurEpochGroup().equals(
+			assert (!created || startEpoch.getCurEpochGroup().equals(
 					this.appCoordinator.getReplicaGroup(startEpoch
 							.getServiceName()))) : this
 					+ " unable to get replica group right after creation for startEpoch "
@@ -649,7 +721,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			log.log(Level.FINE, "{0} sending to {1}: {2}", new Object[] { this,
 					startEpoch.getSender(), ackStart.getSummary() });
 
-			return mtasks; // and also send positive ack
+			return created ? mtasks : null; // and also send positive ack
 		}
 
 		/* Else request previous epoch state using a threshold protocoltask. We
@@ -1066,7 +1138,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		if (request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop())
 			return; // no reporting on stop
-		if (this.demandProfiler.register(request, sender).shouldReport())
+		if (this.demandProfiler.shouldSendDemandReport(request, sender))
 			report(this.demandProfiler.pluckDemandProfile(name));
 		else
 			report(this.demandProfiler.trim());
@@ -1291,8 +1363,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	}
 
 	@Override
-	public void preExecuted(Request request) {
-		// throw new
-		// RuntimeException("This method should not have gotten called");
+	public boolean preExecuted(Request request) {
+		return request.getServiceName().equals(
+				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) ? true
+				: false;
 	}
 }

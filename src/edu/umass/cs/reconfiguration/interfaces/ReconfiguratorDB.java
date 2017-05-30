@@ -23,6 +23,7 @@ import java.util.Set;
 
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
 
 /**
  * @author arun
@@ -49,10 +50,11 @@ public interface ReconfiguratorDB<NodeIDType> {
 	/**
 	 * @param newActives
 	 * @param nameStates
+	 * @param reconfigureUponActivesChange 
 	 * @return True if created successfully.
 	 */
 	public boolean createReconfigurationRecords(
-			Map<String,String> nameStates, Set<NodeIDType> newActives);
+			Map<String,String> nameStates, Set<NodeIDType> newActives, ReconfigureUponActivesChange reconfigureUponActivesChange);
 
 	/**
 	 * @param name
@@ -244,9 +246,10 @@ public interface ReconfiguratorDB<NodeIDType> {
 	 */
 	public boolean initiateReadActiveRecords(NodeIDType active);
 	/**
+	 * @param add 
 	 * @return Next name
 	 */
-	public ReconfigurationRecord<NodeIDType> readNextActiveRecord();
+	public ReconfigurationRecord<NodeIDType> readNextActiveRecord(boolean add);
 	/**
 	 * @return Whether successfully closed.
 	 */

@@ -98,6 +98,7 @@ public class ReconfigurableClientCreateTester {
 	 * @param batchSize
 	 * @return Array of batched CreateServiceName requests.
 	 */
+	@Deprecated
 	public CreateServiceName[] makeCreateNameRequest(String name,
 			String state, int batchSize) {
 		Set<String> names = new HashSet<String>();
@@ -115,7 +116,7 @@ public class ReconfigurableClientCreateTester {
 				nameStates.put(bname, state);
 			}
 			// a single batched create
-			creates.add(new CreateServiceName(null, nameStates));
+			creates.add(new CreateServiceName(nameStates));
 		}
 		return creates.toArray(new CreateServiceName[0]);
 	}

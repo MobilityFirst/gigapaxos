@@ -41,6 +41,8 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
@@ -97,6 +99,12 @@ public class ReconfigurationConfig {
 	public static final Class<?> application = getClassSuppressExceptions(Config
 			.getGlobalString(RC.APPLICATION));
 
+	/**
+	 * @return Default service name that is replicated at all active replicas.
+	 */
+	public static final String getDefaultServiceName() {
+		return application.getSimpleName() + "0";
+	}
     /**
      * @return Logger used by all of the reconfiguration package.
      */
@@ -494,6 +502,15 @@ public class ReconfigurationConfig {
 	public static boolean shouldReconfigureInPlace() {
 		return reconfigureInPlace;
 	}
+	
+	/**
+	 * @return Default ReconfigureUponActivesChange policy.
+	 */
+	public static ReconfigureUponActivesChange getDefaultReconfigureUponActivesChangePolicy() {
+		return 
+				Config.getGlobalBoolean(RC.REPLICATE_ALL) ? ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL: 
+					ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT;
+	}
 
 	/**
 	 * @param sslMode
@@ -776,7 +793,7 @@ public class ReconfigurationConfig {
 				// reached batchSize or last element of set
 				if (nameStatesCur.size() == batchSize || !nameIter.hasNext()) {
 					// make a single batched create
-					creates.add(new CreateServiceName(null, nameStatesCur));
+					creates.add(new CreateServiceName(nameStatesCur));
 					nameStatesCur = new HashMap<String, String>();
 				}
 			}

@@ -423,6 +423,10 @@ public class Util {
 	public static Object suicide(String error) {
 		return suicide(log, error);
 	}
+	
+	public static String getCommaSeparated(List<?> list) {
+		return list.toString().replaceAll("^\\[", "").replaceAll("\\]$", "");
+	}
 
 	/**
 	 * Transfer from src to dst without throwing exception if src.remaining() >

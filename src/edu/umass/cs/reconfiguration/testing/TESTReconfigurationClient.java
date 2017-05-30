@@ -450,7 +450,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 
 	private boolean testBatchCreateSimple(Map<String, String> nameStates,
 			int batchSize) throws IOException {
-		return testCreate(new CreateServiceName(null, nameStates));
+		return testCreate(new CreateServiceName(nameStates));
 	}
 
 	private boolean testCreate(String name, String state) throws IOException {

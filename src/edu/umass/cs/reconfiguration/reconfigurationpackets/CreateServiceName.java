@@ -33,6 +33,8 @@ import edu.umass.cs.nio.nioutils.StringifiableDefault;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.BatchedCreateServiceName.BatchKeys;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -69,6 +71,11 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		 * Initial active replica group.
 		 */
 		INIT_GROUP,
+		
+		/**
+		 * Reconfiguration behavior when active replicas are added or deleted.
+		 */
+		RECONFIGURE_UPON_ACTIVES_CHANGE
 	};
 
 	/**
@@ -93,6 +100,8 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	/* To specify a set of active replicas for the initial group. The initial
 	 * group is by default chosen randomly. */
 	private final Set<InetSocketAddress> initGroup;
+	
+	private final ReconfigurationRecord.ReconfigureUponActivesChange policy;
 
 	/**
 	 * @param name
@@ -116,12 +125,36 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		this(null, name, 0, state, null, null, initGroup);
 	}
 
+	/**
+	 * @param name
+	 * @param state
+	 * @param policy
+	 */
+	public CreateServiceName(String name, String state,
+			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+		this(null, name, 0, state, null, null, null, policy);
+	}
+	
+	/**
+	 * A constructor to specify both an initial group and a policy for
+	 * reconfiguration upon addition or deletion of active replicas.
+	 * 
+	 * @param name
+	 * @param state
+	 * @param initGroup
+	 * @param policy
+	 */
+	public CreateServiceName(String name, String state,
+			Set<InetSocketAddress> initGroup,
+			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+		this(null, name, 0, state, null, null, initGroup, policy);
+	}
+
 	private CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state, Map<String, String> nameStates,
 			InetSocketAddress myReceiver) {
 		this(initiator, name, epochNumber, state, nameStates, myReceiver, null);
 	}
-
 	/**
 	 * @param initiator
 	 * @param name
@@ -132,12 +165,30 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	private CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state, Map<String, String> nameStates,
 			InetSocketAddress myReceiver, Set<InetSocketAddress> initGroup) {
+		this(initiator, name, epochNumber, state, nameStates, myReceiver, initGroup, null);
+		
+	}
+	
+	/**
+	 * @param initiator
+	 * @param name
+	 * @param epochNumber
+	 * @param state
+	 * @param nameStates
+	 */
+	private CreateServiceName(InetSocketAddress initiator, String name,
+			int epochNumber, String state, Map<String, String> nameStates,
+			InetSocketAddress myReceiver, Set<InetSocketAddress> initGroup,
+			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		super(initiator, ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME,
 				name, epochNumber, myReceiver);
 		this.initialState = state;
 		this.nameStates = nameStates;
 		this.failedCreates = null;
 		this.initGroup = initGroup;
+		
+		this.policy = policy != null ? policy
+				: ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy();
 	}
 
 	private CreateServiceName(InetSocketAddress initiator, String name,
@@ -151,12 +202,14 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 * @param epochNumber
 	 * @param state
 	 */
-	public CreateServiceName(InetSocketAddress initiator, String name,
+	protected CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state) {
 		this(initiator, name, epochNumber, state, null, null);
 	}
 
 	/**
+	 * For internal use only.
+	 * 
 	 * @param initiator
 	 * @param name
 	 * @param epochNumber
@@ -169,13 +222,21 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	}
 
 	/**
-	 * @param initiator
 	 * @param nameStates
 	 */
-	public CreateServiceName(InetSocketAddress initiator,
-			Map<String, String> nameStates) {
-		this(initiator, nameStates.keySet().iterator().next(), 0, nameStates
+	public CreateServiceName(Map<String, String> nameStates) {
+		this(null, nameStates.keySet().iterator().next(), 0, nameStates
 				.values().iterator().next(), nameStates);
+	}
+
+	/**
+	 * @param nameStates
+	 * @param policy
+	 */
+	public CreateServiceName(Map<String, String> nameStates,
+			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+		this(null, nameStates.keySet().iterator().next(), 0, nameStates
+				.values().iterator().next(), nameStates, null, null, policy);
 	}
 
 	/**
@@ -204,6 +265,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				.next());
 		this.failedCreates = failedCreates;
 		this.initGroup = null;
+		this.policy = create.policy;
 	}
 
 	/**
@@ -238,6 +300,9 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		this.initGroup = json.has(Keys.INIT_GROUP.toString()) ? Util
 				.getSocketAddresses(json.getJSONArray(Keys.INIT_GROUP
 						.toString())) : null;
+		this.policy = ReconfigurationRecord.ReconfigureUponActivesChange
+				.valueOf(json.getString(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE
+						.toString()));
 	}
 
 	/**
@@ -262,6 +327,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		if (this.initGroup != null)
 			json.put(Keys.INIT_GROUP.toString(),
 					Util.getJSONArray(this.initGroup));
+		json.put(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE.toString(), this.policy);
 		return json;
 	}
 
@@ -354,6 +420,13 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 			Set<String> reconfigurators) {
 		return ReconfigurationConfig.makeCreateNameRequest(nameStates,
 				batchSize, reconfigurators);
+	}
+	
+	/**
+	 * @return {@link ReconfigureUponActivesChange} policy
+	 */
+	public ReconfigurationRecord.ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
+		return this.policy;
 	}
 
 	public static void main(String[] args) {

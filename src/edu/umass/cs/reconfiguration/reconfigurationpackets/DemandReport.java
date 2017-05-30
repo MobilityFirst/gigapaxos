@@ -65,7 +65,7 @@ public class DemandReport<NodeIDType> extends
 			AbstractDemandProfile demand) {
 		super(initiator, ReconfigurationPacket.PacketType.DEMAND_REPORT, name,
 				epochNumber);
-		this.stats = demand.getStats();
+		this.stats = demand.getDemandStats();
 		this.requestID = (long)(Math.random()*Long.MAX_VALUE);
 	}
 

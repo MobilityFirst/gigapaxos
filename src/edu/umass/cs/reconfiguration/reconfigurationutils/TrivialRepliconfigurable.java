@@ -22,9 +22,9 @@ import java.util.Set;
 
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.Application;
+import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;

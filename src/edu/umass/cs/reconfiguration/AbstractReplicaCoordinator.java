@@ -30,9 +30,9 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParser;
 import edu.umass.cs.gigapaxos.interfaces.AppRequestParserBytes;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
+import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.interfaces.GigapaxosShutdownable;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.GenericMessagingTask;
@@ -190,6 +190,12 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return this.callback;
 	}
 
+	/**
+	 * Used only at active replicas.
+	 * 
+	 * @param callback
+	 * @return {@code this}
+	 */
 	protected final AbstractReplicaCoordinator<NodeIDType> setStopCallback(
 			ReconfiguratorCallback callback) {
 		this.stopCallback = callback;
@@ -276,8 +282,10 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public boolean execute(Request request, boolean noReplyToClient,
 			ExecutedCallback requestCallback) {
 
-		if (this.callback != null)
-			this.callback.preExecuted(request);
+		if (this.callback != null && this.callback.preExecuted(request))
+			// no further execution
+			return true;
+		
 		boolean handled = request.getRequestType()==ReconfigurationPacket.PacketType.NO_TYPE ||
 				(((this.app instanceof Replicable) ? ((Replicable) (this.app))
 				.execute(request, noReplyToClient) : this.app.execute(request)));
@@ -377,12 +385,16 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	@Override
 	public String checkpoint(String name) {
-		return app.checkpoint(name);
+		String state = null;
+		return this.stopCallback != null
+				&& (state = this.stopCallback.preCheckpoint(name)) != null ? state
+				: app.checkpoint(name);
 	}
 
 	@Override
 	public boolean restore(String name, String state) {
-		return app.restore(name, state);
+		return this.stopCallback!=null && this.stopCallback.preRestore(name, state) ? true : app.restore(
+				name, state);
 	}
 
 	/* Call back active replica for stop requests, else call default callback.

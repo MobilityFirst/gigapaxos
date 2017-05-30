@@ -86,7 +86,6 @@ public class SQL {
 		switch (type) {
 		case EMBEDDED_DERBY:
 		case EMBEDDED_H2:
-			//return " clob(" + size + ")";
 			return " blob(" + size + ")";
 		case MYSQL:
 			if (size < 65536)
@@ -97,6 +96,44 @@ public class SQL {
 				return " LONGTEXT ";
 		}
 		return "";
+	}
+	
+	/**
+	 * @param table
+	 * @param type
+	 * @return String to get column schema of table.
+	 */
+	public static String getSchemaString(String table, SQLType type) {
+		switch (type) {
+		case EMBEDDED_DERBY:
+		case EMBEDDED_H2:
+			return "select columnname, columndatatype from sys.syscolumns where referenceid in "
+					+ "("
+					+ "select tableid from sys.systables where tablename='"
+					+ table.toUpperCase() + "'" + ")";
+		case MYSQL:
+			return "select column_name, column_type, column_default from information_schema.columns "
+					+ "where table_schema=database() and table_name='"
+					+ table.toUpperCase() + "'";
+		default:
+			return "";
+		}
+	}
+	/**
+	 * @param column
+	 * @param type
+	 * @return Alter column command as String
+	 */
+	public static String getAlterString(String column, SQLType type) {
+		switch (type) {
+		case EMBEDDED_DERBY:
+		case EMBEDDED_H2:
+			return "alter column " + column + " set data type ";
+		case MYSQL:
+			return "modify column " + column;
+		default:
+			return "";
+		}
 	}
 
 	/**

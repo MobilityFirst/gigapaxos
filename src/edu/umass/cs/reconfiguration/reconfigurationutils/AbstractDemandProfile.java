@@ -17,14 +17,15 @@ package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 
 /**
  * @author V. Arun
@@ -53,8 +54,8 @@ import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
  *         reflection.
  * 
  *         Refer to reconfiguration.reconfigurationutils.DemandProfile for an
- *         example implementation. 
- *         
+ *         example implementation.
+ * 
  *         Use {@link ReconfigurationPolicyTest#testPolicyImplementation(Class)}
  *         to test an implementation of this class.
  */
@@ -80,39 +81,38 @@ public abstract class AbstractDemandProfile {
 	/*********************** Start of abstract methods ***************/
 
 	/**
-	 * Incorporate this new request information, i.e., {@code request} was
-	 * received from {@code sender}. The list of all active replica IP addresses
-	 * can be obtained from {@link InterfaceGetActiveIPs#getActiveIPs()}; this
-	 * may be useful to determine whether other active replicas might be better
-	 * suited to service requests from this sender.
+	 * This method incorporates new information about client requests, i.e.,
+	 * {@code request} was received from {@code sender}. The list of all active
+	 * replicas can be obtained from
+	 * {@link ReconfigurableAppInfo#getAllActiveReplicas()} ; this may be useful
+	 * to determine whether other active replicas might be better suited to
+	 * service requests from this sender.
+	 * 
+	 * This method must implement a policy that tells whether it is time to
+	 * report from an active replica to a reconfigurator. Active replicas in
+	 * general should not report upon every request, but at some coarser
+	 * frequency to limit overhead.
+	 * 
+	 * @return Whether the active replica should send a demand report to the
+	 *         reconfigurator.
 	 * 
 	 * @param request
 	 * @param sender
 	 * @param nodeConfig
 	 */
-	public abstract void register(Request request, InetAddress sender,
-			InterfaceGetActiveIPs nodeConfig);
+	public abstract boolean shouldReportDemandStats(Request request,
+			InetAddress sender, ReconfigurableAppInfo nodeConfig);
 
 	/**
-	 * A policy that tells whether it is time to report from an active replica
-	 * to a reconfigurator. Actives in general should not report upon every
-	 * request, but at some coarser frequency to limit overhead.
-	 * 
-	 * @return Whether the active replica should send a demand report to the
-	 *         reconfigurator.
-	 */
-	public abstract boolean shouldReport();
-
-	/**
-	 * All relevant stats must be serializable into JSON. Any information not
-	 * included in the returned JSONObject will not be available for use in the
-	 * reconfiguration policy in
-	 * {@link #shouldReconfigure(ArrayList, InterfaceGetActiveIPs)}.
+	 * All relevant stats must be serializable into JSONObject. Any information
+	 * not included in the returned JSONObject will not be available for use in
+	 * the reconfiguration policy in
+	 * {@link AbstractDemandProfile#reconfigure(Set, ReconfigurableAppInfo)}
+	 * that is invoked at reconfigurators (not active replicas).
 	 * 
 	 * @return Demand statistics as JSON.
 	 */
-	public abstract JSONObject getStats();
-
+	public abstract JSONObject getDemandStats();
 
 	/**
 	 * Combine the new information in {@code update} into {@code this}. This
@@ -124,28 +124,27 @@ public abstract class AbstractDemandProfile {
 	public abstract void combine(AbstractDemandProfile update);
 
 	/**
-	 * The main reconfiguration policy
+	 * The main reconfiguration policy invoked at reconfigurators (not active
+	 * replicas).
 	 * 
 	 * @param curActives
 	 * @param nodeConfig
 	 * 
-	 * @return The list of new IP addresses for the new placement. Returning
-	 *         null means no reconfiguration will happen. Returning a list that
-	 *         is the same as curActives means that a trivial reconfiguration
-	 *         will happen unless {@link RC#RECONFIGURE_IN_PLACE} is set to
-	 *         false. If the returned list is different from {@code curActives},
-	 *         a new list must be created within this method; the supplied
-	 *         {@code curActives} must not be modified.
+	 * @return The list of reconfigured actives for the new placement. Simply
+	 *         returning null means no reconfiguration will happen. Returning a
+	 *         list that is the same as curActives means that a trivial
+	 *         reconfiguration will happen unless
+	 *         {@link RC#RECONFIGURE_IN_PLACE} is set to false.
 	 */
-	public abstract ArrayList<InetAddress> shouldReconfigure(
-			ArrayList<InetAddress> curActives, InterfaceGetActiveIPs nodeConfig);
+	public abstract Set<String> reconfigure(Set<String> curActives,
+			ReconfigurableAppInfo appInfo);
 
 	/**
-	 * Tells us that the current demand profile was just used to perform
-	 * reconfiguration. This is useful for implementing policies based on the
-	 * difference between the current demand profile and the one at the time of
-	 * the most recent reconfiguration, e.g., reconfigure only if the demand
-	 * from some region has changed by more than 10%.
+	 * Tells {@code this} that the current demand profile was just used to
+	 * perform reconfiguration. This information is useful for implementing
+	 * policies based on the difference between the current demand profile and
+	 * the one at the time of the most recent reconfiguration, e.g., reconfigure
+	 * only if the demand from some region has changed by more than 10%.
 	 */
 	public abstract void justReconfigured();
 
@@ -157,7 +156,7 @@ public abstract class AbstractDemandProfile {
 	public final String getName() {
 		return this.name;
 	}
-	
+
 	/**
 	 * Creates a deep copy of this object. So, it must be the case that the
 	 * return value != this, but the return value.equals(this). You may also
@@ -170,6 +169,7 @@ public abstract class AbstractDemandProfile {
 	public AbstractDemandProfile clone() {
 		return this;
 	}
+
 	/**
 	 * Clear all info, i.e., forget all previous stats.
 	 */
@@ -180,7 +180,9 @@ public abstract class AbstractDemandProfile {
 	protected static AbstractDemandProfile createDemandProfile(String name) {
 		return createDemandProfile(C, name);
 	}
-	protected static AbstractDemandProfile createDemandProfile(Class<?> clazz, String name) {
+
+	protected static AbstractDemandProfile createDemandProfile(Class<?> clazz,
+			String name) {
 		try {
 			assert (clazz != null);
 			return (AbstractDemandProfile) clazz.getConstructor(String.class)
@@ -200,14 +202,18 @@ public abstract class AbstractDemandProfile {
 	public static AbstractDemandProfile createDemandProfile(JSONObject json) {
 		return createDemandProfile(C, json);
 	}
-	static AbstractDemandProfile createDemandProfile(Class<?> clazz, JSONObject json) {
+
+	static AbstractDemandProfile createDemandProfile(Class<?> clazz,
+			JSONObject json) {
 		try {
-			return (AbstractDemandProfile) clazz.getConstructor(JSONObject.class)
-					.newInstance(json);
+			return (AbstractDemandProfile) clazz.getConstructor(
+					JSONObject.class).newInstance(json);
 		} catch (InstantiationException | IllegalAccessException
 				| IllegalArgumentException | InvocationTargetException
 				| NoSuchMethodException | SecurityException e) {
-			ReconfigurationConfig.getLogger().severe(e.getClass().getSimpleName() + " while creating " + clazz + " with JSONObject " + json);
+			ReconfigurationConfig.getLogger().severe(
+					e.getClass().getSimpleName() + " while creating " + clazz
+							+ " with JSONObject " + json);
 			e.printStackTrace();
 		}
 		return null;

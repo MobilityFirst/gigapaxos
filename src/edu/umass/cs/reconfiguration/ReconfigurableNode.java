@@ -132,20 +132,34 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								+ " responses back to clients or rely on alternate means for messaging.");
 			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(
 					app, myID, nodeConfig, messenger).setOutOfOrderLimit(Config.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));;
-			
-			ReconfigurationConfig.getLogger().info(
-					"Creating default group with "
-							+ nodeConfig.getActiveReplicas());
-			prc.createDefaultGroupNodes(app.getClass().getSimpleName() + "0",
-			/* FIXME: (1) This nodeConfig may have gotten changed since
-			 * bootstrap at this point; if so, newly added active replicas will
-			 * create this group with a membership that will be inconsistent
-			 * with those of the original set of actives; (2) This group will
-			 * not get correctly reconfigured upon adding an active
-			 * replica as reconfigurators don't reconfigure app records upon
-			 * the addition of an active replica. */
+
+			// default service name created at all actives
+			ReconfigurationConfig
+					.getLogger()
+					.log(Level.INFO,
+							"{0} creating default service name {1} with replica group {2}",
+							new Object[] {
+									this,
+									ReconfigurationConfig
+											.getDefaultServiceName(),
+									nodeConfig.getActiveReplicas() });
+			prc.createDefaultGroupNodes(ReconfigurationConfig.getDefaultServiceName(),
 					nodeConfig.getActiveReplicas(), 
 					nodeConfig);
+
+			// special record at actives containing a map of all current actives
+			ReconfigurationConfig.getLogger().log(
+					Level.INFO,
+					"{0} creating {1} with replica group {2}",
+					new Object[] { this,
+							AbstractReconfiguratorDB.RecordNames.AR_AR_NODES,
+							nodeConfig.getActiveReplicas() });
+			prc.createDefaultGroupNodes(
+					AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString(),
+					nodeConfig.getActiveReplicas(),
+					// state is just the stringified map of active replicas
+					nodeConfig.getActiveReplicasReadOnly().toString());
+
 			return prc;
 		} else {
 			AbstractReplicaCoordinator<NodeIDType> appCoordinator = this

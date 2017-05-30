@@ -16,10 +16,8 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -31,7 +29,6 @@ import java.util.logging.Level;
 
 import javax.net.ssl.SSLException;
 
-import edu.umass.cs.utils.UtilServer;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -57,6 +54,7 @@ import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ProtocolTaskCreationException;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.http.HttpReconfigurator;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorFunctions;
@@ -87,12 +85,14 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurabl
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.RCStates;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.GCConcurrentHashMap;
 import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 import edu.umass.cs.utils.MyLogger;
 import edu.umass.cs.utils.Util;
+import edu.umass.cs.utils.UtilServer;
 
 /**
  * @author V. Arun
@@ -322,7 +322,7 @@ public class Reconfigurator<NodeIDType> implements
 			// coordinate and commit reconfiguration intent
 			this.initiateReconfiguration(report.getServiceName(), record,
 					shouldReconfigure(report.getServiceName()), null, null,
-					null, null, null, null); // coordinated
+					null, null, null, null, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT); // coordinated
 		trimAggregateDemandProfile();
 		return null; // never any messaging or ptasks
 	}
@@ -608,7 +608,7 @@ public class Reconfigurator<NodeIDType> implements
 					.getReplicatedActives(create.getServiceName()), create
 					.getCreator(), create.getMyReceiver(),
 					create.getForwader(), create.getInitialState(), create
-							.getNameStates(), null);
+							.getNameStates(), null, create.getReconfigureUponActivesChangePolicy());
 		}
 		else if(!record.isReady()) {
 			// drop silently so sender can time out
@@ -1014,7 +1014,7 @@ public class Reconfigurator<NodeIDType> implements
 					ncRecord,
 					newRCs, // this.consistentNodeConfig.getNodeSocketAddress
 					(changeRC.getIssuer()), changeRC.getMyReceiver(), null,
-					null, null, changeRC.newlyAddedNodes);
+					null, null, changeRC.newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
 		return null;
 	}
 
@@ -1081,7 +1081,7 @@ public class Reconfigurator<NodeIDType> implements
 					activeNCRecord,
 					newActives, // this.consistentNodeConfig.getNodeSocketAddress
 					(changeActives.getIssuer()), changeActives.getMyReceiver(),
-					null, null, null, changeActives.newlyAddedNodes);
+					null, null, null, changeActives.newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
 
 		return null;
 	}
@@ -1277,9 +1277,9 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	@Override
-	public void preExecuted(Request request) {
+	public boolean preExecuted(Request request) {
 		if (this.isRecovering())
-			return;
+			return false;
 		// checked right above
 		RCRecordRequest<NodeIDType> rcRecReq = this
 				.requestToRCRecordRequest(request);
@@ -1287,13 +1287,15 @@ public class Reconfigurator<NodeIDType> implements
 		// this method is currently used for NC record completions
 		if (rcRecReq == null || !this.DB.isNCRecord(rcRecReq.getServiceName())
 				|| !rcRecReq.isReconfigurationComplete())
-			return;
+			return false;
 
 		/* Only newly added nodes need to do this as they received a
 		 * reconfiguration complete out of the blue and may not even know the
 		 * socket addresses of other newly added nodes. */
 		if (rcRecReq.startEpoch.getNewlyAddedNodes().contains(this.getMyID()))
 			this.executeNodeConfigChange(rcRecReq);
+		
+		return false;
 	}
 
 	/****************************** End of protocol task handler methods *********************/
@@ -1547,6 +1549,14 @@ public class Reconfigurator<NodeIDType> implements
 		return sockAddrs;
 	}
 
+	private static Set<String> getStringSet(Set<?> nodes) {
+		if(nodes==null) return null;
+		Set<String> strNodes = new HashSet<String>();
+		for (Object node : nodes)
+			strNodes.add(node.toString());
+		return strNodes;
+	}
+
 	/**
 	 * Initiates clear or SSL client messenger based on {@code ssl}.
 	 * 
@@ -1663,16 +1673,41 @@ public class Reconfigurator<NodeIDType> implements
 		if (oldActives == null || oldActives.isEmpty())
 			return null;
 		// get new IP addresses (via consistent hashing if no oldActives
-		ArrayList<InetAddress> newActiveIPs = this.demandProfiler
-				.testAndSetReconfigured(name,
-						this.consistentNodeConfig.getNodeIPs(oldActives));
+		Set<String> newActiveIPs = this.demandProfiler
+				.testAndSetReconfigured(name, 
+						getStringSet(oldActives), this.getReconfigurableAppInfo());
 		if (newActiveIPs == null)
 			return null;
 		// get new actives based on new IP addresses
 		Set<NodeIDType> newActives = this.consistentNodeConfig
-				.getIPToActiveReplicaIDs(newActiveIPs, oldActives);
+				.getNodeIDs(newActiveIPs);
 		return (!newActives.equals(oldActives) || ReconfigurationConfig
 				.shouldReconfigureInPlace()) ? newActives : null;
+	}
+	
+	private ReconfigurableAppInfo getReconfigurableAppInfo() {
+		return new ReconfigurableAppInfo() {
+
+			@Override
+			public Set<String> getReplicaGroup(String serviceName) {
+				ReconfigurationRecord<NodeIDType> record = Reconfigurator.this.DB
+						.getReconfigurationRecord(serviceName);
+				return record != null ? getStringSet(record.getActiveReplicas())
+						: null;
+			}
+
+			@Override
+			public String snapshot(String serviceName) {
+				throw new UnsupportedOperationException(
+						"Can not obtain application state at reconfigurator");
+			}
+
+			@Override
+			public Map<String, InetSocketAddress> getAllActiveReplicas() {
+				return Reconfigurator.this.consistentNodeConfig
+						.getAllActiveReplicas();
+			}
+		};
 	}
 
 	// combine json stats from report into existing demand profile
@@ -1714,14 +1749,14 @@ public class Reconfigurator<NodeIDType> implements
 			Set<NodeIDType> newActives, InetSocketAddress sender,
 			InetSocketAddress receiver, InetSocketAddress forwarder,
 			String initialState, Map<String, String> nameStates,
-			Map<NodeIDType, InetSocketAddress> newlyAddedNodes) {
+			Map<NodeIDType, InetSocketAddress> newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		if (newActives == null)
 			return false;
 		// request to persistently log the intent to reconfigure
 		RCRecordRequest<NodeIDType> rcRecReq = new RCRecordRequest<NodeIDType>(
 				this.getMyID(), formStartEpoch(name, record, newActives,
 						sender, receiver, forwarder, initialState, nameStates,
-						newlyAddedNodes), RequestTypes.RECONFIGURATION_INTENT);
+						newlyAddedNodes, policy), RequestTypes.RECONFIGURATION_INTENT);
 
 		// coordinate intent with replicas
 		if (this.isReadyForReconfiguration(rcRecReq, record)) {
@@ -1776,6 +1811,17 @@ public class Reconfigurator<NodeIDType> implements
 	Stringifiable<NodeIDType> getUnstringer() {
 		return this.consistentNodeConfig;
 	}
+	
+	private ReconfigurationRecord.ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy(
+			String name) {
+		return this.DB.isRCGroupName(name)
+				|| AbstractReconfiguratorDB.RecordNames.RC_NODES.toString()
+						.equals(name)
+				|| AbstractReconfiguratorDB.RecordNames.AR_NODES.toString()
+						.equals(name) ? ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT
+				: ReconfigurationConfig
+						.getDefaultReconfigureUponActivesChangePolicy();
+	}
 
 	private StartEpoch<NodeIDType> formStartEpoch(String name,
 			ReconfigurationRecord<NodeIDType> record,
@@ -1783,16 +1829,26 @@ public class Reconfigurator<NodeIDType> implements
 			InetSocketAddress receiver, InetSocketAddress forwarder,
 			String initialState, Map<String, String> nameStates,
 			Map<NodeIDType, InetSocketAddress> newlyAddedNodes) {
+		return formStartEpoch(name, record, newActives, sender, receiver, forwarder,
+				initialState, nameStates, newlyAddedNodes,
+				getReconfigureUponActivesChangePolicy(name));
+	}
+	private StartEpoch<NodeIDType> formStartEpoch(String name,
+			ReconfigurationRecord<NodeIDType> record,
+			Set<NodeIDType> newActives, InetSocketAddress sender,
+			InetSocketAddress receiver, InetSocketAddress forwarder,
+			String initialState, Map<String, String> nameStates,
+			Map<NodeIDType, InetSocketAddress> newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		StartEpoch<NodeIDType> startEpoch = (record != null) ?
 		// typical reconfiguration
 		new StartEpoch<NodeIDType>(getMyID(), name, record.getEpoch() + 1,
 				newActives, record.getActiveReplicas(record.getName(),
 						record.getEpoch()), sender, receiver, forwarder,
-				initialState, nameStates, newlyAddedNodes)
+				initialState, nameStates, newlyAddedNodes, policy)
 		// creation reconfiguration
 				: new StartEpoch<NodeIDType>(getMyID(), name, 0, newActives,
 						null, sender, receiver, forwarder, initialState,
-						nameStates, newlyAddedNodes);
+						nameStates, newlyAddedNodes, policy);
 		return startEpoch;
 	}
 
@@ -2269,7 +2325,12 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	/*************** Reconfigurator reconfiguration related methods ***************/
-	// return s1 - s2
+	/**
+	 * 
+	 * @param s1
+	 * @param s2
+	 * @return s1 - s2
+	 */
 	private Set<NodeIDType> diff(Set<NodeIDType> s1, Set<NodeIDType> s2) {
 		Set<NodeIDType> diff = new HashSet<NodeIDType>();
 		for (NodeIDType node : s1)
@@ -2424,6 +2485,7 @@ public class Reconfigurator<NodeIDType> implements
 		boolean ancChanged = this.DB
 				.changeActiveDBNodeConfig(rcRecReq.startEpoch.getEpochNumber());
 
+		// handle deleted active replicas
 		Set<NodeIDType> deletedNodes = this.diff(record.getActiveReplicas(),
 				record.getNewActives());
 		for (NodeIDType active : deletedNodes)
@@ -2441,8 +2503,30 @@ public class Reconfigurator<NodeIDType> implements
 				record.getNewActives())) {
 			assert (!this.consistentNodeConfig.nodeExists(active));
 		}
+		
+		// handle newly added active replicas
+		if (rcRecReq.startEpoch.newlyAddedNodes != null) {
+			Set<NodeIDType> addedNodes = rcRecReq.startEpoch.newlyAddedNodes
+					.keySet();
+			for (NodeIDType active : addedNodes)
+				this.addActiveReplica(active, rcRecReq.startEpoch.creator);
 
-		// uncoordinated change
+			try {
+				this.DB.waitOutstanding(1);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+				return false;
+			}
+		}
+
+//		// update actives at actives
+//		this.initiateReconfiguration(record.getName(), record,
+//				rcRecReq.startEpoch.curEpochGroup, rcRecReq.startEpoch.creator,
+//				null, null, this.consistentNodeConfig.getActiveReplicasMap()
+//						.toString(), null, null, record
+//						.getReconfigureUponActivesChangePolicy());
+
+		// uncoordinated change locally
 		boolean executed = this.DB.execute(new RCRecordRequest<NodeIDType>(
 				rcRecReq.getInitiator(), rcRecReq.startEpoch,
 				RCRecordRequest.RequestTypes.RECONFIGURATION_COMPLETE));
@@ -3194,7 +3278,7 @@ public class Reconfigurator<NodeIDType> implements
 		// this.setOutstanding(active);
 		this.consistentNodeConfig.slateForRemovalActive(active);
 		ReconfigurationRecord<NodeIDType> record = null;
-		while ((record = this.DB.app.readNextActiveRecord()) != null) {
+		while ((record = this.DB.app.readNextActiveRecord(false)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
 					"{0} reconfiguring {1} in order to delete active {1}",
 					new Object[] { this, record.getName(), active });
@@ -3213,8 +3297,10 @@ public class Reconfigurator<NodeIDType> implements
 			if (newActive != null)
 				newActives.add(newActive);
 			newActives.remove(active);
-			if (this.initiateReconfiguration(record.getName(), record,
-					newActives, creator, null, null, null, null, null)) {
+			if (
+					//!record.getName().equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) && 
+					this.initiateReconfiguration(record.getName(), record,
+					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;
 				this.DB.addToOutstanding(record.getName());
 				record = this.DB.getReconfigurationRecord(record.getName());
@@ -3230,6 +3316,57 @@ public class Reconfigurator<NodeIDType> implements
 				new Object[] { this, rcCount, active });
 		boolean closed = this.DB.app.closeReadActiveRecords();
 		// this.setNoOutstanding();
+		return initiated && closed;
+	}
+
+	private boolean addActiveReplica(NodeIDType active,
+			InetSocketAddress creator) {
+		boolean initiated = this.DB.app.initiateReadActiveRecords(active);
+		if (!initiated) {
+			ReconfigurationConfig.log.log(Level.WARNING,
+					"{0} addActiveReplica {1} unable to initiate read active records",
+					new Object[] { this, active });
+			return false;
+		}
+		int rcCount = 0;
+		ReconfigurationRecord<NodeIDType> record = null;
+		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
+			ReconfigurationConfig.log.log(Level.FINEST,
+					"{0} reconfiguring {1} in order to add active {1}",
+					new Object[] { this, record.getName(), active });
+			try {
+				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+				return false;
+			}
+			Set<NodeIDType> newActives = null;
+
+			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
+				newActives = this.consistentNodeConfig.getActiveReplicas();
+			}
+			else if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.CUSTOM) {
+				newActives = this.shouldReconfigure(record.getName());
+			}
+
+			if (newActives!=null 
+//					&& !record.getName().equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString())
+					&& this.initiateReconfiguration(record.getName(), record,
+					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
+				rcCount++;
+				this.DB.addToOutstanding(record.getName());
+				record = this.DB.getReconfigurationRecord(record.getName());
+				if (record != null && record.getActiveReplicas() != null
+						&& record.getActiveReplicas().contains(active))
+					// inelegant redundant check to handle concurrency
+					this.DB.notifyOutstanding(record.getName());
+			}
+		}
+		ReconfigurationConfig.log.log(Level.INFO,
+				"{0} closing read active records cursor after initiating "
+						+ "{1} reconfigurations in order to add active {2}",
+				new Object[] { this, rcCount, active });
+		boolean closed = this.DB.app.closeReadActiveRecords();
 		return initiated && closed;
 	}
 

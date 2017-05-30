@@ -1,8 +1,10 @@
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -13,6 +15,7 @@ import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.utils.DefaultTest;
 
 /**
@@ -84,30 +87,34 @@ public class ReconfigurationPolicyTest extends DefaultTest {
 		AbstractDemandProfile profile = AbstractDemandProfile
 				.createDemandProfile(C, name1);
 		for (int i = 0; i < numRequests; i++)
-			profile.register(getRequest(name1),
-					InetAddress.getByName("64.46.77." + i), getActives());
-		Assert.assertEquals(profile.getStats().toString(),
+			profile.shouldReportDemandStats(getRequest(name1),
+					InetAddress.getByName("64.46.77." + i), getAppInfo());
+		Assert.assertEquals(profile.getDemandStats().toString(),
 				AbstractDemandProfile
-						.createDemandProfile(C, profile.getStats()).getStats()
+						.createDemandProfile(C, profile.getDemandStats()).getDemandStats()
 						.toString());
 	}
 
-	private static int numAddrs = 10;
+	private static ReconfigurableAppInfo getAppInfo() {
 
-	private static InterfaceGetActiveIPs getActives() {
+		return new ReconfigurableAppInfo() {
 
-		return new InterfaceGetActiveIPs() {
 			@Override
-			public ArrayList<InetAddress> getActiveIPs() {
-				ArrayList<InetAddress> list = new ArrayList<InetAddress>();
-				for (int i = 0; i < numAddrs; i++)
-					try {
-						list.add(InetAddress.getByName("43.22.67." + i));
-					} catch (UnknownHostException e) {
-						e.printStackTrace();
-					}
-				return list;
+			public Set<String> getReplicaGroup(
+					String serviceName) {
+				// TODO Auto-generated method stub
+				return null;
+			}
 
+			@Override
+			public String snapshot(String serviceName) {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public Map<String, InetSocketAddress> getAllActiveReplicas() {
+				return null;
 			}
 		};
 	}

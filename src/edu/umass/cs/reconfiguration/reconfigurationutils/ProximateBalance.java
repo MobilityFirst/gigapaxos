@@ -1,10 +1,12 @@
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,6 +16,7 @@ import org.json.JSONObject;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
@@ -26,7 +29,7 @@ public class ProximateBalance extends DemandProfile {
 
 	/* A map of the number of requests such that the InetAddress key is the
 	 * closest active replica to the origin of that request. */
-	private HashMap<InetAddress, Integer> demandDistribution = new HashMap<InetAddress, Integer>();
+	private HashMap<InetSocketAddress, Integer> demandDistribution = new HashMap<InetSocketAddress, Integer>();
 
 	private static enum PPKeys {
 		DEM_DIST, NREADS, NTOTREADS,
@@ -83,9 +86,9 @@ public class ProximateBalance extends DemandProfile {
 	 * in general is needed to determine the geo-distribution of demand.
 	 */
 	@Override
-	public void register(Request request, InetAddress sender,
-			InterfaceGetActiveIPs nodeConfig) {
-		super.register(request, sender, nodeConfig);
+	public boolean shouldReportDemandStats(Request request, InetAddress sender,
+			ReconfigurableAppInfo nodeConfig) {
+		super.shouldReportDemandStats(request, sender, nodeConfig);
 
 		// isRead really means uncoordinated
 		boolean isRead = !(request instanceof ReplicableRequest && ((ReplicableRequest) request)
@@ -100,10 +103,24 @@ public class ProximateBalance extends DemandProfile {
 			Set<InetAddress> closest = RTTEstimator.getClosest(sender);
 			if (closest != null)
 				for (InetAddress active : closest)
-					this.demandDistribution.put(active,
-							!this.demandDistribution.containsKey(active) ? 0
-									: this.demandDistribution.get(active) + 1);
+					for (InetSocketAddress isa : nodeConfig
+							.getAllActiveReplicas().values())
+						if (isa.getAddress().equals(active))
+							this.demandDistribution
+									.put(isa,
+											!this.demandDistribution
+													.containsKey(isa) ? 0
+													: this.demandDistribution
+															.get(isa) + 1);
 		}
+
+		// determine whether to send demand report
+		if (DISABLE_RECONFIGURATION)
+			return false;
+		if (getNumRequests() >= minRequestsBeforeDemandReport)
+			return true;
+		return false;
+
 	}
 
 	/**
@@ -133,17 +150,8 @@ public class ProximateBalance extends DemandProfile {
 			.getGlobalBoolean(RC.DISABLE_RECONFIGURATION);
 
 	@Override
-	public boolean shouldReport() {
-		if (DISABLE_RECONFIGURATION)
-			return false;
-		if (getNumRequests() >= minRequestsBeforeDemandReport)
-			return true;
-		return false;
-	}
-
-	@Override
-	public JSONObject getStats() {
-		JSONObject json = super.getStats();
+	public JSONObject getDemandStats() {
+		JSONObject json = super.getDemandStats();
 		try {
 
 			// demand distribution map
@@ -202,8 +210,8 @@ public class ProximateBalance extends DemandProfile {
 	}
 
 	@Override
-	public ArrayList<InetAddress> shouldReconfigure(
-			ArrayList<InetAddress> curActives, InterfaceGetActiveIPs nodeConfig) {
+	public Set<String> reconfigure(Set<String> curActives,
+			ReconfigurableAppInfo nodeConfig) {
 		if (this.lastReconfiguredProfile != null) {
 			if (System.nanoTime()
 					- this.lastReconfiguredProfile.lastRequestTime < minReconfigurationInterval)
@@ -236,10 +244,12 @@ public class ProximateBalance extends DemandProfile {
 	 * factor accordingly. That is, this policy will replicate aggressively
 	 * enough so as to try to ensure that the average load per server is at
 	 * least that much. */
-	private ArrayList<InetAddress> auspice(ArrayList<InetAddress> curActives,
-			InterfaceGetActiveIPs nodeConfig) {
+	private Set<String> auspice(Set<String> curActives,
+			ReconfigurableAppInfo nodeConfig) {
 
-		ArrayList<InetAddress> actives = nodeConfig.getActiveIPs();
+		Map<String, InetSocketAddress> activesMap = nodeConfig
+				.getAllActiveReplicas();
+		Collection<InetSocketAddress> actives = (activesMap.values());
 		// ensure minimum utilization
 		int avgNumReplicas = (int) Math.max(
 				Config.getGlobalInt(RC.DEFAULT_NUM_REPLICAS),
@@ -257,8 +267,8 @@ public class ProximateBalance extends DemandProfile {
 						* this.getRWRatio() / getAggregateRWRatio());
 
 		// sort by increasing demand
-		ArrayList<InetAddress> newActives = new ArrayList<InetAddress>(Util
-				.sortByValue(this.demandDistribution).keySet());
+		ArrayList<InetSocketAddress> newActives = new ArrayList<InetSocketAddress>(
+				Util.sortByValue(this.demandDistribution).keySet());
 		/* The block below picks as many actives as are needed to cover 75% of
 		 * the total demand seen by this node. */
 		{
@@ -279,10 +289,21 @@ public class ProximateBalance extends DemandProfile {
 		// trim down to numReplicas
 		for (int j = 0; j < newActives.size() - numReplicas; j++)
 			newActives.remove(0);
+		// have at least minimum number of replicas
+		if (newActives.size() < Config.getGlobalInt(RC.DEFAULT_NUM_REPLICAS))
+			for (String curActive : curActives)
+				if (newActives.size() < Config
+						.getGlobalInt(RC.DEFAULT_NUM_REPLICAS)
+						&& !newActives.contains(curActive))
+					newActives.add(activesMap.get(curActive));
 
 		// reverse so that closest is first
 		Collections.reverse(newActives);
-		return newActives;
+		Set<String> retval = new HashSet<String>();
+		for (String active : activesMap.keySet())
+			if (newActives.contains(activesMap.get(active)))
+				retval.add(active);
+		return retval;
 	}
 
 	private static double getAggregateRequestRate() {
@@ -311,27 +332,23 @@ public class ProximateBalance extends DemandProfile {
 		this.lastReconfiguredProfile = this.clone();
 	}
 
-	private static JSONObject jsonify(Map<InetAddress, Integer> map)
+	private static JSONObject jsonify(Map<InetSocketAddress, Integer> map)
 			throws JSONException {
 		JSONObject json = new JSONObject();
-		for (InetAddress addr : map.keySet())
-			json.put(addr.getHostAddress(), map.get(addr));
+		for (InetSocketAddress addr : map.keySet())
+			json.put(addr.getAddress().getHostAddress() + ":" + addr.getPort(),
+					map.get(addr));
 		return json;
 	}
 
-	private static HashMap<InetAddress, Integer> unjsonify(JSONObject json)
+	private static HashMap<InetSocketAddress, Integer> unjsonify(JSONObject json)
 			throws JSONException {
 		String[] keys = JSONObject.getNames(json);
-		HashMap<InetAddress, Integer> map = new HashMap<InetAddress, Integer>();
+		HashMap<InetSocketAddress, Integer> map = new HashMap<InetSocketAddress, Integer>();
 		if (keys != null)
 			for (String addrStr : keys)
-				try {
-					map.put(InetAddress.getByName(addrStr),
-							json.getInt(addrStr));
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-					// continue with rest
-				}
+				map.put(Util.getInetSocketAddressFromString(addrStr),
+						json.getInt(addrStr));
 		return map;
 	}
 

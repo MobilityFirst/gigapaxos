@@ -16,13 +16,14 @@
 package edu.umass.cs.reconfiguration.reconfigurationutils;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
+import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
@@ -123,10 +124,11 @@ public class DemandProfile extends AbstractDemandProfile {
 	 * in general is needed to determine the geo-distribution of demand.
 	 */
 	@Override
-	public void register(Request request, InetAddress sender,
-			InterfaceGetActiveIPs nodeConfig) {
+	public boolean shouldReportDemandStats(Request request, InetAddress sender,
+			ReconfigurableAppInfo nodeConfig) {
+		// incorporate request
 		if (!request.getServiceName().equals(this.name))
-			return;
+			return false;
 		this.numRequests++;
 		this.numTotalRequests++;
 		long iaTime = 0;
@@ -136,6 +138,14 @@ public class DemandProfile extends AbstractDemandProfile {
 					.movingAverage(iaTime, interArrivalTime);
 		} else
 			lastRequestTime = System.nanoTime(); // initialization
+
+		// determine whether to send demand report
+		if (DISABLE_RECONFIGURATION)
+			return false;
+		if (getNumRequests() >= minRequestsBeforeDemandReport)
+			return true;
+		return false;
+
 	}
 
 	/**
@@ -143,7 +153,7 @@ public class DemandProfile extends AbstractDemandProfile {
 	 */
 	public double getRequestRate() {
 		return this.interArrivalTime > 0 ? 1.0 / this.interArrivalTime
-				: 1.0 / (1000*1000*1000);
+				: 1.0 / (1000 * 1000 * 1000);
 	}
 
 	/**
@@ -165,16 +175,7 @@ public class DemandProfile extends AbstractDemandProfile {
 			.getGlobalBoolean(RC.DISABLE_RECONFIGURATION);
 
 	@Override
-	public boolean shouldReport() {
-		if (DISABLE_RECONFIGURATION)
-			return false;
-		if (getNumRequests() >= minRequestsBeforeDemandReport)
-			return true;
-		return false;
-	}
-
-	@Override
-	public JSONObject getStats() {
+	public JSONObject getDemandStats() {
 		JSONObject json = new JSONObject();
 		try {
 			json.put(Keys.NAME.toString(), this.name);
@@ -199,8 +200,8 @@ public class DemandProfile extends AbstractDemandProfile {
 	}
 
 	@Override
-	public ArrayList<InetAddress> shouldReconfigure(
-			ArrayList<InetAddress> curActives, InterfaceGetActiveIPs nodeConfig) {
+	public Set<String> reconfigure(Set<String> curActives,
+			ReconfigurableAppInfo nodeConfig) {
 		if (this.lastReconfiguredProfile != null) {
 			if (System.nanoTime()
 					- this.lastReconfiguredProfile.lastRequestTime < minReconfigurationInterval)

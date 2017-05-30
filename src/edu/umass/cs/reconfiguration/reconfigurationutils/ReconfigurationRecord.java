@@ -44,7 +44,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	protected static enum Keys {
 		NAME, EPOCH, RC_STATE, ACTIVES, NEW_ACTIVES, MERGED, // already merged
 		RC_NODE, RC_EPOCH, RC_EPOCH_MAP, STOPPED, MERGE_TASKS, // merge todos
-		DELETE_TIME, NUM_UNCLEAN
+		DELETE_TIME, NUM_UNCLEAN, RECONFIGURE_UPON_ACTIVES_CHANGE
 	};
 
 	/**
@@ -90,6 +90,34 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		 */
 		WAIT_DELETE
 	};
+	
+	/**
+	 * This enum specifies the reconfiguration behavior when active replicas are
+	 * added or removed. 
+	 */
+	public static enum ReconfigureUponActivesChange {
+		/**
+		 * Do nothing when the set of active replicas changes.
+		 */
+		DEFAULT(0),
+
+		/**
+		 * Reconfigure to the current set of all active replicas.
+		 */
+		REPLICATE_ALL(1),
+
+		/**
+		 * Invoke app policy that specifies whether/how to reconfigure.
+		 */
+		CUSTOM(2);
+
+		final int number;
+
+		ReconfigureUponActivesChange(int n) {
+			this.number = n;
+		}
+	}
+
 
 	private final String name;
 	private int epoch = 0;
@@ -109,6 +137,8 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	private int numPossiblyUncleanReconfigurations = 0;
 
 	private String rcGroupName = null;
+	
+	private ReconfigureUponActivesChange policy = ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy();
 
 	/**
 	 * @param name
@@ -117,17 +147,28 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	 */
 	public ReconfigurationRecord(String name, int epoch,
 			Set<NodeIDType> newActives) {
-		this(name, epoch, null, newActives);
+		this(name, epoch, null, newActives, ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy());
 	}
-
+	/**
+	 * @param name
+	 * @param epoch
+	 * @param newActives
+	 * @param policy
+	 */
+	public ReconfigurationRecord(String name, int epoch,
+			Set<NodeIDType> newActives, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+		this(name, epoch, null, newActives, policy);
+	}
+	
 	/**
 	 * @param name
 	 * @param epoch
 	 * @param actives
 	 * @param newActives
+	 * @param policy 
 	 */
 	public ReconfigurationRecord(String name, int epoch,
-			Set<NodeIDType> actives, Set<NodeIDType> newActives) {
+			Set<NodeIDType> actives, Set<NodeIDType> newActives, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		this.name = name;
 		this.epoch = epoch;
 		this.actives = actives;
@@ -136,6 +177,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 				.toString()))
 			for (NodeIDType node : newActives)
 				this.rcEpochs.put(node, 0);
+		this.policy = policy;
 	}
 
 	/**
@@ -156,6 +198,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		json.putOpt(Keys.DELETE_TIME.toString(), this.deleteTime);
 		json.put(Keys.NUM_UNCLEAN.toString(),
 				this.numPossiblyUncleanReconfigurations);
+		json.put(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE.toString(), this.policy);
 		return json;
 	}
 
@@ -182,6 +225,10 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 				.getLong(Keys.DELETE_TIME.toString()) : null);
 		this.numPossiblyUncleanReconfigurations = json.getInt(Keys.NUM_UNCLEAN
 				.toString());
+		this.policy = ReconfigureUponActivesChange.valueOf(json.optString(
+				Keys.RECONFIGURE_UPON_ACTIVES_CHANGE.toString(),
+				ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy()
+						.toString()));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -662,6 +709,13 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 						+ this.toMerge + "]"
 						: !this.isToMergeNull() && !this.toMerge.isEmpty()  ? " merged[" + this.merged
 								+ "==" + this.toMerge + "]" : "");
+	}
+	
+	/**
+	 * @return ReconfigureUponActivesChange policy.
+	 */
+	public ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
+		return this.policy;
 	}
 
 	static void main(String[] args) {

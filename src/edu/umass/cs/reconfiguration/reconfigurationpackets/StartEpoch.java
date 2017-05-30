@@ -31,6 +31,9 @@ import org.json.JSONObject;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.nio.nioutils.StringifiableDefault;
 import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
+import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
 import edu.umass.cs.utils.Util;
 
 /**
@@ -52,7 +55,9 @@ public class StartEpoch<NodeIDType> extends
 		//
 		PREV_GROUP_NAME, NEWLY_ADDED_NODES, NODE_ID, SOCKET_ADDRESS, PREV_EPOCH,
 		//
-		IS_MERGE, INIT_TIME, MERGEES, FIRST_PREV_EPOCH_CANDIDATE, NAME_STATE_ARRAY, PASSIVE
+		IS_MERGE, INIT_TIME, MERGEES, FIRST_PREV_EPOCH_CANDIDATE, NAME_STATE_ARRAY, PASSIVE,
+		//
+		RECONFIGURE_UPON_ACTIVES_CHANGE
 	};
 
 	/**
@@ -121,6 +126,8 @@ public class StartEpoch<NodeIDType> extends
 	// will just wait till replia group is created anyway
 	private final boolean passiveReplicaGroupCreation;
 
+	private final ReconfigurationRecord.ReconfigureUponActivesChange policy;
+
 	/**
 	 * @param initiator
 	 * @param serviceName
@@ -132,7 +139,7 @@ public class StartEpoch<NodeIDType> extends
 			int epochNumber, Set<NodeIDType> curNodes, boolean passive) {
 		this(initiator, serviceName, epochNumber, curNodes, null, null, false,
 				-1, null, null, null, null, null, null, null, true, System
-						.currentTimeMillis());
+						.currentTimeMillis(), ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
 	}
 
 	/**
@@ -147,7 +154,8 @@ public class StartEpoch<NodeIDType> extends
 			int epochNumber, Set<NodeIDType> curNodes,
 			Set<NodeIDType> prevNodes, Set<String> mergees) {
 		this(initiator, serviceName, epochNumber, curNodes, prevNodes, null,
-				false, -1, null, null, null, null, null, null, mergees);
+				false, -1, null, null, null, null, null, null, mergees, false, System.currentTimeMillis(),
+				ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
 	}
 
 	/**
@@ -169,8 +177,9 @@ public class StartEpoch<NodeIDType> extends
 				null, null);
 	}
 
+
 	/**
-	 * @param initiator
+	 * @param myID
 	 * @param serviceName
 	 * @param epochNumber
 	 * @param curNodes
@@ -181,16 +190,17 @@ public class StartEpoch<NodeIDType> extends
 	 * @param initialState
 	 * @param nameStates
 	 * @param newlyAddedNodes
+	 * @param policy
 	 */
-	public StartEpoch(NodeIDType initiator, String serviceName,
-			int epochNumber, Set<NodeIDType> curNodes,
-			Set<NodeIDType> prevNodes, InetSocketAddress creator,
-			InetSocketAddress receiver, InetSocketAddress forwarder,
-			String initialState, Map<String, String> nameStates,
-			Map<NodeIDType, InetSocketAddress> newlyAddedNodes) {
-		this(initiator, serviceName, epochNumber, curNodes, prevNodes, null,
-				false, -1, creator, receiver, forwarder, initialState,
-				nameStates, newlyAddedNodes);
+	public StartEpoch(NodeIDType myID, String serviceName, int epochNumber,
+			Set<NodeIDType> curNodes, Set<NodeIDType> prevNodes,
+			InetSocketAddress creator, InetSocketAddress receiver,
+			InetSocketAddress forwarder, String initialState,
+			Map<String, String> nameStates,
+			Map<NodeIDType, InetSocketAddress> newlyAddedNodes,
+			ReconfigureUponActivesChange policy) {
+		this(myID, serviceName, epochNumber, curNodes, prevNodes, null, false, -1, creator, receiver, forwarder, initialState, nameStates,
+				newlyAddedNodes, null, false, System.currentTimeMillis(), policy);
 	}
 
 	/**
@@ -206,7 +216,9 @@ public class StartEpoch<NodeIDType> extends
 				startEpoch.isMerge, startEpoch.prevEpoch, startEpoch.creator,
 				startEpoch.receiver, startEpoch.forwarder, initialState,
 				startEpoch.nameStates, startEpoch.newlyAddedNodes,
-				startEpoch.mergees, startEpoch.passiveReplicaGroupCreation, startEpoch.initTime);
+				startEpoch.mergees, startEpoch.passiveReplicaGroupCreation,
+				startEpoch.initTime, startEpoch
+						.getReconfigureUponActivesChangePolicy());
 		this.firstPrevEpochCandidate = startEpoch.firstPrevEpochCandidate;
 	}
 
@@ -224,7 +236,7 @@ public class StartEpoch<NodeIDType> extends
 				startEpoch.receiver, startEpoch.forwarder,
 				startEpoch.initialState, startEpoch.nameStates,
 				startEpoch.newlyAddedNodes, startEpoch.mergees,
-				startEpoch.passiveReplicaGroupCreation, startEpoch.initTime);
+				startEpoch.passiveReplicaGroupCreation, startEpoch.initTime, startEpoch.getReconfigureUponActivesChangePolicy());
 		this.firstPrevEpochCandidate = startEpoch.firstPrevEpochCandidate;
 	}
 
@@ -237,35 +249,8 @@ public class StartEpoch<NodeIDType> extends
 			Map<NodeIDType, InetSocketAddress> newlyAddedNodes) {
 		this(initiator, serviceName, epochNumber, curNodes, prevNodes,
 				prevGroupName, isMerge, prevEpoch, creator, receiver,
-				forwarder, initialState, nameStates, newlyAddedNodes, null);
-
-	}
-
-	/**
-	 * @param initiator
-	 * @param serviceName
-	 * @param epochNumber
-	 * @param curNodes
-	 * @param prevNodes
-	 * @param prevGroupName
-	 * @param isMerge
-	 * @param prevEpoch
-	 * @param creator
-	 * @param initialState
-	 * @param newlyAddedNodes
-	 */
-	private StartEpoch(NodeIDType initiator, String serviceName,
-			int epochNumber, Set<NodeIDType> curNodes,
-			Set<NodeIDType> prevNodes, String prevGroupName, boolean isMerge,
-			int prevEpoch, InetSocketAddress creator,
-			InetSocketAddress receiver, InetSocketAddress forwarder,
-			String initialState, Map<String, String> nameStates,
-			Map<NodeIDType, InetSocketAddress> newlyAddedNodes,
-			Set<String> mergees) {
-		this(initiator, serviceName, epochNumber, curNodes, prevNodes,
-				prevGroupName, isMerge, prevEpoch, creator, receiver,
-				forwarder, initialState, nameStates, newlyAddedNodes, mergees,
-				false, System.currentTimeMillis());
+				forwarder, initialState, nameStates, newlyAddedNodes, null, false, System.currentTimeMillis(),
+				ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
 	}
 
 	private StartEpoch(NodeIDType initiator, String serviceName,
@@ -275,7 +260,7 @@ public class StartEpoch<NodeIDType> extends
 			InetSocketAddress receiver, InetSocketAddress forwarder,
 			String initialState, Map<String, String> nameStates,
 			Map<NodeIDType, InetSocketAddress> newlyAddedNodes,
-			Set<String> mergees, boolean passive, long initTime) {
+			Set<String> mergees, boolean passive, long initTime, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		super(initiator, ReconfigurationPacket.PacketType.START_EPOCH,
 				serviceName, epochNumber);
 		this.prevEpochGroup = prevNodes;
@@ -295,6 +280,10 @@ public class StartEpoch<NodeIDType> extends
 		this.nameStates = nameStates;
 
 		this.newlyAddedNodes = newlyAddedNodes;
+		
+		assert(policy!=null);
+		this.policy = policy != null ? policy
+				: ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy();
 	}
 
 	/**
@@ -357,7 +346,14 @@ public class StartEpoch<NodeIDType> extends
 				
 		this.passiveReplicaGroupCreation = json.has(Keys.PASSIVE.toString()) ? json
 				.getBoolean(Keys.PASSIVE.toString()) : false;
+				
+		this.policy = ReconfigurationRecord.ReconfigureUponActivesChange
+				.valueOf(json.optString(
+						Keys.RECONFIGURE_UPON_ACTIVES_CHANGE.toString(),
+						ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy().toString()));
 	}
+
+
 
 	public JSONObject toJSONObjectImpl() throws JSONException {
 		JSONObject json = super.toJSONObjectImpl();
@@ -391,8 +387,16 @@ public class StartEpoch<NodeIDType> extends
 		json.putOpt(Keys.FIRST_PREV_EPOCH_CANDIDATE.toString(),
 				firstPrevEpochCandidate);
 		json.put(Keys.PASSIVE.toString(), this.passiveReplicaGroupCreation);
+		json.put(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE.toString(), this.policy);
 		
 		return json;
+	}
+
+	/**
+	 * @return ReconfigureUponActivesChange policy
+	 */
+	public ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
+		return this.policy;
 	}
 
 	private JSONArray toJSONArray(Set<NodeIDType> set) throws JSONException {
