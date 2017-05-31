@@ -5,6 +5,7 @@ import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
@@ -128,7 +129,7 @@ public class DefaultTest {
 	/**
 	 * 
 	 */
-	//@Test
+	@Test
 	public void test() {
 
 	}
