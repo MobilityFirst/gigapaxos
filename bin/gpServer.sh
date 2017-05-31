@@ -291,7 +291,7 @@ trim_file_list "$conf_transferrables"
 SSH="ssh -x -o StrictHostKeyChecking=no"
 
 RSYNC_PATH="mkdir -p $APP_SIMPLE $APP_SIMPLE/$CONF"
-RSYNC="rsync --force -a "
+RSYNC="rsync --force -aL "
 
 username=`grep "USERNAME=" $GP_PROPERTIES|grep -v "^[ \t]*#"|\
   sed s/"^[ \t]*USERNAME="//g`
@@ -316,9 +316,9 @@ function append_to_ln_cmd {
 
   if [[ -e $1 && $simple != $simple_default ]]; then
     if [[ -z $LINK_CMD ]]; then
-      LINK_CMD=$cur_link
+      LINK_CMD=";$cur_link"
     else
-      LINK_CMD="$LINK_CMD; $cur_link "
+      LINK_CMD=";$LINK_CMD; $cur_link "
     fi
   fi
 }
@@ -334,9 +334,10 @@ append_to_ln_cmd $APP_RESOURCES $DEFAULT_APP_RESOURCES true
 function rsync_symlink {
   address=$1
   print 1 "Transferring conf files to $address:$APP_SIMPLE"
-  print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH; $LINK_CMD && rsync\" \
+  LINK_CMD=`echo $LINK_CMD|sed s/"^;"//g`
+  print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH $LINK_CMD && rsync\" \
     $conf_transferrables $username@$address:$APP_SIMPLE/$CONF/"
-  $RSYNC --rsync-path="$RSYNC_PATH; $LINK_CMD && rsync" \
+  $RSYNC --rsync-path="$RSYNC_PATH $LINK_CMD && rsync" \
     $conf_transferrables $username@$address:$APP_SIMPLE/$CONF/
 }
 
