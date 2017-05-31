@@ -173,7 +173,12 @@ APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
     # default app
     APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
   fi
+
+INSTALL_PATH_PREFIX=/tmp
 APP_SIMPLE=`echo $APP|sed s/".*\."//g`
+if [[ ! -z $INSTALL_PATH_PREFIX ]]; then
+  INSTALL_PATH=$INSTALL_PATH_PREFIX/$APP_SIMPLE
+fi
 
 function get_simple_name {
   name=$1
@@ -290,7 +295,7 @@ trim_file_list "$conf_transferrables"
 # the first host that continues the installation.
 SSH="ssh -x -o StrictHostKeyChecking=no"
 
-RSYNC_PATH="mkdir -p $APP_SIMPLE $APP_SIMPLE/$CONF"
+RSYNC_PATH="mkdir -p $INSTALL_PATH $INSTALL_PATH/$CONF"
 RSYNC="rsync --force -aL "
 
 username=`grep "USERNAME=" $GP_PROPERTIES|grep -v "^[ \t]*#"|\
@@ -306,8 +311,8 @@ function append_to_ln_cmd {
   simple=`echo $1|sed s/".*\/"//g`
   simple_default=`echo $2|sed s/".*\/"//g`
 
-  link_target="$APP_SIMPLE/$(get_simple_name $default)"
-  link_src="~/$APP_SIMPLE/$CONF/$simple"
+  link_target="$INSTALL_PATH/$(get_simple_name $default)"
+  link_src="$INSTALL_PATH/$CONF/$simple"
   cur_link="ln -fs $link_src $link_target "
   if [[ ! -z $unlink_first ]]; then
     cur_link="if [[ -L $link_target ]]; then \
@@ -318,7 +323,7 @@ function append_to_ln_cmd {
     if [[ -z $LINK_CMD ]]; then
       LINK_CMD=";$cur_link"
     else
-      LINK_CMD=";$LINK_CMD; $cur_link "
+      LINK_CMD="$LINK_CMD; $cur_link "
     fi
   fi
 }
@@ -333,12 +338,12 @@ append_to_ln_cmd $APP_RESOURCES $DEFAULT_APP_RESOURCES true
 
 function rsync_symlink {
   address=$1
-  print 1 "Transferring conf files to $address:$APP_SIMPLE"
-  LINK_CMD=`echo $LINK_CMD|sed s/"^;"//g`
+  print 1 "Transferring conf files to $address:$INSTALL_PATH"
+
   print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH $LINK_CMD && rsync\" \
-    $conf_transferrables $username@$address:$APP_SIMPLE/$CONF/"
+    $conf_transferrables $username@$address:$INSTALL_PATH/$CONF/"
   $RSYNC --rsync-path="$RSYNC_PATH $LINK_CMD && rsync" \
-    $conf_transferrables $username@$address:$APP_SIMPLE/$CONF/
+    $conf_transferrables $username@$address:$INSTALL_PATH/$CONF/
 }
 
 LOCAL_SSL_KEYFILES="-Djavax.net.ssl.keyStore=$KEYSTORE \
@@ -408,21 +413,21 @@ function start_server {
     # first rsync files to remote server
     non_local="$server=$addressport $non_local"
     echo "Starting remote server $server"
-    print 1 "Transferring jar files $jar_files to $address:$APP_SIMPLE"
+    print 1 "Transferring jar files $jar_files to $address:$INSTALL_PATH"
     print 2 "$RSYNC --rsync-path=\"$RSYNC_PATH && rsync\" \
-      $jar_files $username@$address:$APP_SIMPLE/jars/ "
+      $jar_files $username@$address:$INSTALL_PATH/jars/ "
     $RSYNC --rsync-path="$RSYNC_PATH && rsync" \
-      $jar_files $username@$address:$APP_SIMPLE/jars/ 
+      $jar_files $username@$address:$INSTALL_PATH/jars/ 
     rsync_symlink $address
 
     # then start remote server
-    print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
+    print 2 "$SSH $username@$address \"cd $INSTALL_PATH; nohup \
       $JAVA $REMOTE_JVMARGS \
       -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server \""
     
-    $SSH $username@$address "cd $APP_SIMPLE; nohup \
+    $SSH $username@$address "cd $INSTALL_PATH; nohup \
       $JAVA $REMOTE_JVMARGS \
       -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
@@ -503,12 +508,12 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
             else
               # remote clear
               echo "Clearing state on remote server $server"
-              print 2 "$SSH $username@$address \"cd $APP_SIMPLE; nohup \
+              print 2 "$SSH $username@$address \"cd $INSTALL_PATH; nohup \
                 $JAVA $REMOTE_JVMARGS \
                 -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
                 clear $server \""
-              $SSH $username@$address "cd $APP_SIMPLE; nohup \
+              $SSH $username@$address "cd $INSTALL_PATH; nohup \
                 $JAVA $REMOTE_JVMARGS \
                 -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
