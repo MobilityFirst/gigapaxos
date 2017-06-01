@@ -3297,9 +3297,7 @@ public class Reconfigurator<NodeIDType> implements
 			if (newActive != null)
 				newActives.add(newActive);
 			newActives.remove(active);
-			if (
-					//!record.getName().equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) && 
-					this.initiateReconfiguration(record.getName(), record,
+			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;
 				this.DB.addToOutstanding(record.getName());
@@ -3350,7 +3348,6 @@ public class Reconfigurator<NodeIDType> implements
 			}
 
 			if (newActives!=null 
-//					&& !record.getName().equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString())
 					&& this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;

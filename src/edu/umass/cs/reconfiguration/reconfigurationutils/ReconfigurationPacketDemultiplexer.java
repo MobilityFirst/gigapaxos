@@ -52,7 +52,7 @@ public class ReconfigurationPacketDemultiplexer extends
 	 */
 	public ReconfigurationPacketDemultiplexer(Stringifiable<?> unstringer,
 			AppRequestParser arp) {
-		super();
+		super(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS));
 		this.unstringer = unstringer;
 		this.appRequestparser = arp;
 	}

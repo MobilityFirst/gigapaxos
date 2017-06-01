@@ -1302,8 +1302,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		return this.sendRequest(request, callback, this.e2eRedirector);
 	}
 
-	private static final String ANY_ACTIVE = Config
-			.getGlobalString(ReconfigurationConfig.RC.SPECIAL_NAME);
+	private static final String ALL_ACTIVES = Config
+			.getGlobalString(ReconfigurationConfig.RC.BROADCAST_NAME);
 
 	/**
 	 * @param request
@@ -1341,9 +1341,9 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 		Set<InetSocketAddress> actives = null;
 		ActivesInfo activesInfo = null;
 		synchronized (this.activeReplicas) {
-			if ((activesInfo = this.activeReplicas.get(ANY_ACTIVE)) != null
+			if ((activesInfo = this.activeReplicas.get(ALL_ACTIVES)) != null
 					&& (actives = activesInfo.actives) != null
-					&& this.queriedActivesRecently(ANY_ACTIVE))
+					&& this.queriedActivesRecently(ALL_ACTIVES))
 				return this.sendRequest(request, actives.iterator().next(),
 						callback);
 			// else
@@ -1419,7 +1419,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 	}
 
 	private boolean enqueue(RequestAndCallback rc, boolean anycast) {
-		String name = anycast ? ANY_ACTIVE : rc.request.getServiceName();
+		String name = anycast ? ALL_ACTIVES : rc.request.getServiceName();
 		// if(this.requestsPendingActives.contains(name))
 		this.requestsPendingActives.putIfAbsent(name,
 				new LinkedBlockingQueue<RequestAndCallback>());
@@ -1431,7 +1431,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	private void queryForActives(Request request, boolean forceRefresh,
 			boolean anycast) throws IOException {
-		String name = anycast ? ANY_ACTIVE : request.getServiceName();
+		String name = anycast ? ALL_ACTIVES : request.getServiceName();
 		if (forceRefresh || !this.queriedActivesRecently(name)) {
 			if (forceRefresh) {
 				this.activeReplicas.remove(name);
