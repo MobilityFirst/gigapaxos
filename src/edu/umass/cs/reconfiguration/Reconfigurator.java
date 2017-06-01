@@ -131,7 +131,7 @@ public class Reconfigurator<NodeIDType> implements
 	protected final ReconfiguratorProtocolTask<NodeIDType> protocolTask;
 	private final RepliconfigurableReconfiguratorDB<NodeIDType> DB;
 	private final ConsistentReconfigurableNodeConfig<NodeIDType> consistentNodeConfig;
-	private final AggregateDemandProfiler demandProfiler = new AggregateDemandProfiler();
+	private final AggregateDemandProfiler demandProfiler;
 	private final CommitWorker<NodeIDType> commitWorker;
 	private PendingBatchCreates pendingBatchCreations = new PendingBatchCreates();
 	private boolean recovering = true;
@@ -163,6 +163,7 @@ public class Reconfigurator<NodeIDType> implements
 		this.messenger = m;
 		this.consistentNodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
 				nc);
+		demandProfiler = new AggregateDemandProfiler(consistentNodeConfig);
 		this.DB = new RepliconfigurableReconfiguratorDB<NodeIDType>(
 				new SQLReconfiguratorDB<NodeIDType>(this.messenger.getMyID(),
 						this.consistentNodeConfig), getMyID(),
