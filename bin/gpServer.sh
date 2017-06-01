@@ -184,9 +184,6 @@ if [[ $INSTALL_PATH_PREFIX != "" ]]; then
   INSTALL_PATH=$INSTALL_PATH_PREFIX/$INSTALL_PATH
 fi
 
-echo $INSTALL_PATH
-exit
-
 function get_simple_name {
   name=$1
   echo $CONF/`echo $name|sed s/".*\/"//g`

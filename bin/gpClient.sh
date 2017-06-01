@@ -5,6 +5,8 @@ if [[ -z $BINFILE ]]; then
   BINFILE=$0
 fi
 BINDIR=`dirname $BINFILE`
+
+. "$BINDIR"/gpEnv.sh
 HEAD=`cd $BINDIR/..; pwd`
 
 VERBOSE=1
