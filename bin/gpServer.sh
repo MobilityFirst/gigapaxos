@@ -1,5 +1,6 @@
 #!/bin/bash 
 
+
 APP_ARGS_KEY="appArgs"
 APP_RESOURCES_KEY="appResourcePath"
 
@@ -33,6 +34,9 @@ if [[ -z $BINFILE ]]; then
   BINFILE=$0
 fi
 BINDIR=`dirname $BINFILE` 
+
+. "$BINDIR"/gpEnv.sh
+
 HEAD=`cd $BINDIR/..; pwd` 
 
 # use jars and classes from default location if available
@@ -174,11 +178,14 @@ APP=`grep "^[ \t]*APPLICATION[ \t]*=" $GP_PROPERTIES|sed s/^.*=//g`
     APP="edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
   fi
 
-INSTALL_PATH_PREFIX=/tmp
-APP_SIMPLE=`echo $APP|sed s/".*\."//g`
-if [[ ! -z $INSTALL_PATH_PREFIX ]]; then
-  INSTALL_PATH=$INSTALL_PATH_PREFIX/$APP_SIMPLE
+INSTALL_PATH=`echo $APP|sed s/".*\."//g`
+
+if [[ $INSTALL_PATH_PREFIX != "" ]]; then
+  INSTALL_PATH=$INSTALL_PATH_PREFIX/$INSTALL_PATH
 fi
+
+echo $INSTALL_PATH
+exit
 
 function get_simple_name {
   name=$1
@@ -312,7 +319,13 @@ function append_to_ln_cmd {
   simple_default=`echo $2|sed s/".*\/"//g`
 
   link_target="$INSTALL_PATH/$(get_simple_name $default)"
+  if [[ $link_target != /* ]]; then
+    link_target="~/$link_target"
+  fi
   link_src="$INSTALL_PATH/$CONF/$simple"
+  if [[ $link_src != /* ]]; then
+    link_src="~/$link_src"
+  fi
   cur_link="ln -fs $link_src $link_target "
   if [[ ! -z $unlink_first ]]; then
     cur_link="if [[ -L $link_target ]]; then \
