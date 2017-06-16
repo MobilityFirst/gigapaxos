@@ -145,6 +145,15 @@ public class PaxosManager<NodeIDType> {
 	private final Outstanding outstanding = new Outstanding();
 	private final LargeCheckpointer largeCheckpointer;
 	private PendingDigests pendingDigests;
+	
+	/**
+	 *  aditya:
+	 *  The thread pool is for executing app.execute() 
+	 *  in the single node case. Otherwise, 
+	 *  in the single node case the app.execute() 
+	 *  method would get called from AbstractPaxosLogger thread.
+	 */
+	private final ScheduledExecutorService appExecuteThreadPool;
 
 	private static final boolean USE_GC_MAP = Config
 			.getGlobalBoolean(PC.USE_GC_MAP);
@@ -367,6 +376,24 @@ public class PaxosManager<NodeIDType> {
 						return thread;
 					}
 				});
+		
+		// TODO: aditya: Need to check if we can just increase the
+		// number of threads in this.executor thread pool, instead
+		// of creating a separate appExecuteThreadPool.
+		appExecuteThreadPool = Executors.newScheduledThreadPool
+				(Config.getGlobalInt(PC.PACKET_DEMULTIPLEXER_THREADS),
+						new ThreadFactory() {
+			@Override
+			public Thread newThread(Runnable r) {
+				Thread thread = Executors.defaultThreadFactory()
+						.newThread(r);
+				thread.setName(PaxosManager.class.getSimpleName()
+						+ myID+"appExecuteThreadPool"+thread.getId());
+				return thread;
+			}
+		});
+		
+		
 		this.unstringer = unstringer;
 		this.largeCheckpointer = new LargeCheckpointer(paxosLogFolder,
 				this.myID + "");
@@ -1087,7 +1114,32 @@ public class PaxosManager<NodeIDType> {
 								request.getSummary(PaxosConfig.log.isLoggable(level)) });
 				if ((pism != null)
 						&& (pism.getVersion() == request.getVersion()))
-					pism.handlePaxosMessage(request);
+				{
+					PaxosPacket.PaxosPacketType msgType = request != null ? request.getType()
+							: PaxosPacket.PaxosPacketType.NO_TYPE;
+					
+					//In the single node case, on receiving an ACCEPT_REPLY message,
+					// we handle the ACCEPT_REPLY and the subsequent DECISION
+					// message in a separate thread pool, instead of AbstractPaxosLogger.
+					if(msgType.equals(PaxosPacket.PaxosPacketType.ACCEPT_REPLY) 
+								&& pism.getMembers().length == 1)
+					{
+						this.appExecuteThreadPool.execute(new Runnable() 
+							{ public void run() { try {
+								pism.handlePaxosMessage((request));
+									} catch (JSONException je) {
+										PaxosConfig.log.severe(myID + " received bad JSON message: "
+												+ request);
+										je.printStackTrace();
+										} 			
+									}
+								});
+					}
+					else
+					{
+						pism.handlePaxosMessage(request);
+					}
+				}
 				else
 					// for recovering group created while crashed
 					this.findPaxosInstance(request);
