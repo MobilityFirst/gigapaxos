@@ -79,7 +79,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 			try {
 				return NoopApp.staticGetRequest(stringified);
 			} catch (JSONException e) {
-				// e.printStackTrace();
+				 e.printStackTrace();
 			}
 			return null;
 		}
@@ -597,9 +597,9 @@ public class TESTReconfigurationClient extends DefaultTest {
 				});
 		monitorWait(success, timeout);
 		return success[0];
-
 	}
-
+	
+	
 	private boolean testReconfigureActives(
 			Map<String, InetSocketAddress> newlyAddedActives,
 			Set<String> deletes, Long timeout) throws IOException {
@@ -630,7 +630,8 @@ public class TESTReconfigurationClient extends DefaultTest {
 		monitorWait(success, timeout);
 		return success[0];
 	}
-
+	
+	
 	/**
 	 * 
 	 */
@@ -1038,7 +1039,8 @@ public class TESTReconfigurationClient extends DefaultTest {
 					"No active replicas added as none deleted in previous test step");
 		;
 	}
-
+	
+	
 	/**
 	 * @throws IOException
 	 */
@@ -1063,7 +1065,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 		Assert.assertEquals(true, true); // no-op
 		;
 	}
-
+	
 	/**
 	 * @throws IOException
 	 * 
@@ -1081,7 +1083,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 					"No reconfigurators deleted as none added in previous test step");
 		;
 	}
-
+	
 	private static Map<String, InetSocketAddress> justAddedRCs = new HashMap<String, InetSocketAddress>();
 	private static Map<String, InetSocketAddress> justDeletedActives = new HashMap<String, InetSocketAddress>();
 

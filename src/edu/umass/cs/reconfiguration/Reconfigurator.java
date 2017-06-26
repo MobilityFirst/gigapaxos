@@ -603,12 +603,14 @@ public class Reconfigurator<NodeIDType> implements
 		if ((record = this.DB.getReconfigurationRecord(create.getServiceName())) == null) {
 			if (callback != this.defaultCallback)
 				this.callbacksCRP.put(getCRPKey(create), callback);
+			//aditya: additon of all actives
 			this.initiateReconfiguration(create
 					.getServiceName(), record, this.consistentNodeConfig
 					.getReplicatedActives(create.getServiceName()), create
 					.getCreator(), create.getMyReceiver(),
 					create.getForwader(), create.getInitialState(), create
-							.getNameStates(), null, create.getReconfigureUponActivesChangePolicy());
+							.getNameStates(), this.consistentNodeConfig.getActiveReplicasReadOnly(), 
+							create.getReconfigureUponActivesChangePolicy());
 		}
 		else if(!record.isReady()) {
 			// drop silently so sender can time out
@@ -3330,7 +3332,7 @@ public class Reconfigurator<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = null;
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
-					"{0} reconfiguring {1} in order to add active {1}",
+					"{0} reconfiguring {1} in order to add active {2}",
 					new Object[] { this, record.getName(), active });
 			try {
 				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
@@ -3342,14 +3344,27 @@ public class Reconfigurator<NodeIDType> implements
 
 			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
 				newActives = this.consistentNodeConfig.getActiveReplicas();
+				ReconfigurationConfig.log.log(Level.FINEST, "addActiveReplica: new actives using "
+						+ "REPLICATE_ALL scheme {0}", new Object[]{newActives});
 			}
 			else if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.CUSTOM) {
 				newActives = this.shouldReconfigure(record.getName());
+				
+				ReconfigurationConfig.log.log(Level.FINEST, "addActiveReplica: new actives using "
+						+ "CUSTOM scheme name={0}, actives={1}", 
+						new Object[]{record.getName(), newActives});
 			}
-
+			
+			
+			//aditya: sending this.consistentNodeConfig.getActiveReplicasReadOnly() info in the startepoch
+			// so that on addition of actives, the new and old actives know about all
+			// actives. 
 			if (newActives!=null 
 					&& this.initiateReconfiguration(record.getName(), record,
-					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
+					newActives, creator, null, null, null, null, 
+					this.consistentNodeConfig.getActiveReplicasReadOnly(), 
+					record.getReconfigureUponActivesChangePolicy())) 
+			{
 				rcCount++;
 				this.DB.addToOutstanding(record.getName());
 				record = this.DB.getReconfigurationRecord(record.getName());

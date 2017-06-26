@@ -122,7 +122,7 @@ public class ReconfigurationConfig {
 	protected static final boolean isAggregatedMergeSplit() {
 		return IS_AGGREGATED_MERGE_SPLIT;
 	}
-
+	
 	/**
 	 * Reconfiguration config parameters.
 	 */
@@ -394,7 +394,11 @@ public class ReconfigurationConfig {
 		 * Used to set @link {@link PaxosManager#setOutOfOrderLimit(int)}.
 		 */
 		OUT_OF_ORDER_LIMIT(100),
-
+		
+		/**
+		 * Used to specify the reconfigure policy on actives change.
+		 */
+		RECONFIGURE_ON_ACTIVE_CHANGE_POLICY(ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT.toString())
 		;
 
 		final Object defaultValue;
@@ -508,8 +512,10 @@ public class ReconfigurationConfig {
 	 */
 	public static ReconfigureUponActivesChange getDefaultReconfigureUponActivesChangePolicy() {
 		return 
-				Config.getGlobalBoolean(RC.REPLICATE_ALL) ? ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL: 
-					ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT;
+				Config.getGlobalBoolean(RC.REPLICATE_ALL) ? 
+					ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL: 
+						ReconfigureUponActivesChange.valueOf(ReconfigureUponActivesChange.class, 
+								Config.getGlobalString(RC.RECONFIGURE_ON_ACTIVE_CHANGE_POLICY));
 	}
 
 	/**
