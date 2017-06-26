@@ -229,7 +229,7 @@ public class TESTPaxosNode {
 			int myID = processArgs(args);
 			TESTPaxosNode me = new TESTPaxosNode(myID,
 					TESTPaxosConfig.getFromPaxosConfig(), false);
-
+			
 			// Creating default groups
 			int numGroups = Config.getGlobalInt(TC.NUM_GROUPS);
 			System.out.println("Creating "

@@ -210,13 +210,19 @@ public class JSONMessenger<NodeIDType> implements
 				} else {
 					assert (sent == -1) : sent;
 					log.log(Level.WARNING,
-							"{0} failed to send message to node {1} [connected={2}]: {3}",
+							"{0} failed to send message to node {1} [connected={2}]: {3} nodeConfig {4}",
 							new Object[] {
 									this.nioTransport.getMyID(),
 									mtask.recipients[r],
 									this.nioTransport
 											.isDisconnected((NodeIDType) mtask.recipients[r]),
-									msg });
+									msg, this.nioTransport.getNodeConfig() });
+					int i=0;
+					for(StackTraceElement trace: Thread.currentThread().getStackTrace())
+					{
+						log.log(Level.WARNING, "{0}th stack trace {1} ", new Object[]{i, trace.toString()});
+						i++;
+					}
 				}
 			}
 		}

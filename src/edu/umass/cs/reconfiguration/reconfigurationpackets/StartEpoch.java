@@ -599,6 +599,15 @@ public class StartEpoch<NodeIDType> extends
 		return this.newlyAddedNodes == null ? new HashSet<NodeIDType>()
 				: new HashSet<NodeIDType>(this.newlyAddedNodes.keySet());
 	}
+	
+	/**
+	 * 
+	 * @return a map of newly added nodes
+	 */
+	public Map<NodeIDType, InetSocketAddress> getNewlyAddedNodesMap() {
+		return this.newlyAddedNodes == null ? new HashMap<NodeIDType, InetSocketAddress>()
+				: new HashMap<NodeIDType, InetSocketAddress>(this.newlyAddedNodes);
+	}
 
 	/**
 	 * @param node

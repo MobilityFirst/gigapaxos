@@ -26,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +36,7 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
@@ -56,6 +58,7 @@ import edu.umass.cs.nio.interfaces.AddressMessenger;
 import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
+import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
@@ -63,6 +66,7 @@ import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
@@ -91,6 +95,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.AggregateDemandProfiler
 import edu.umass.cs.reconfiguration.reconfigurationutils.AppInstrumenter;
 import edu.umass.cs.reconfiguration.reconfigurationutils.CallbackMap;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
+import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.Config;
@@ -149,7 +154,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 * (coordinated) execution. StopEpoch is the only example of such a request
 	 * in ActiveReplica. */
 	private final CallbackMap<NodeIDType> callbackMap = new CallbackMap<NodeIDType>();
-
+	
 	@SuppressWarnings("unchecked")
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
@@ -159,8 +164,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				// setting default callback is optional
 				// (ReconfiguratorCallback) this).setCallback(
 						(ReconfiguratorCallback) this));
+		
+//		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
+//				nodeConfig);
+		
 		this.nodeConfig = new ConsistentReconfigurableNodeConfig<NodeIDType>(
-				nodeConfig);
+				(ReconfigurableNodeConfig<NodeIDType>) new DefaultNodeConfig<String>(PaxosConfig.getActives(),
+						ReconfigurationConfig.getReconfigurators()));
+		
 		this.demandProfiler = new AggregateDemandProfiler(getReconfigurableAppInfo());
 		this.messenger = messenger;
 		this.protocolExecutor = new ProtocolExecutor<NodeIDType, ReconfigurationPacket.PacketType, String>(
@@ -171,6 +182,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				this.protocolTask);
 		this.appCoordinator.setMessenger(this.messenger);
 		this.noReporting = noReporting;
+				
 		initClientMessenger(false);
 		if (ReconfigurationConfig.getClientSSLMode() != SSL_MODES.CLEAR)
 			initClientMessenger(true);
@@ -195,8 +207,18 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	public boolean preRestore(String name, String state) {
 		if (name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
 				.toString())) {
+			
+			
 			if (state == null)
 				return false;
+			
+			int i=0;
+			for(StackTraceElement ste : Thread.currentThread().getStackTrace())
+			{
+				log.log(Level.FINE, "preRestore: {0}th stack trace element {1}", new Object[]{i, ste});
+				i++;
+			}
+				
 			HashMap<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
 			for (String entry : state.replaceAll("\\{", "")
 					.replaceAll("\\}", "").split(",")) {
@@ -413,8 +435,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	@Override
 	public boolean handleMessage(Request incoming, NIOHeader header) {
 
-		log.log(debug, "{0} handleMessage received {1}", new Object[] { this,
-				incoming.getSummary(log.isLoggable(debug)) });
+		log.log(debug, "{0} handleMessage received {1} messenger nodeconfig={2}", new Object[] { this,
+				incoming.getSummary(log.isLoggable(debug)), this.messenger.getNodeConfig() });
 
 		long entryTime = System.nanoTime();
 		@SuppressWarnings("unchecked")
@@ -665,7 +687,11 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			StartEpoch<NodeIDType> event,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 		StartEpoch<NodeIDType> startEpoch = ((StartEpoch<NodeIDType>) event);
+		
+		updateMessengerAboutNewActives(startEpoch);
+		
 		this.logEvent(event, Level.FINE);
+		log.log(Level.FINE, "\n new actives {0}\n", new Object[]{startEpoch.newlyAddedNodes});
 		AckStartEpoch<NodeIDType> ackStart = new AckStartEpoch<NodeIDType>(
 				startEpoch.getSender(), startEpoch.getServiceName(),
 				startEpoch.getEpochNumber(), getMyID());
@@ -730,6 +756,72 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		 * keys. */
 		this.spawnWaitEpochFinalState(startEpoch);
 		return null; // no messaging if asynchronously fetching state
+	}
+	
+	/**
+	 * This function updates the messenger about new actives.
+	 * This function checks if any of the new actives 
+	 * are not present in the messenger's nodeconfig. If some 
+	 * active is not present then this function reloads 
+	 * gigaPaxosConfig from disk, which we assume was updated 
+	 * by the local reconfigurator. This function requires a reconfigurator
+	 * to be running on each acive replica.
+	 * Other alternatives are that reconfigurator itself sends
+	 * new active name and IP addresses or the active replica
+	 * use ReconfigurableAppAsyncClient to request actives for 
+	 * ** name.
+	 */
+	private void updateMessengerAboutNewActives(StartEpoch<NodeIDType> startEpoch)
+	{
+		log.log(Level.FINE, "updateMessengerAboutNewActives {0} nodeConfig{1}", 
+							new Object[]{startEpoch.getCurEpochGroup()
+									, this.messenger.getNodeConfig()});
+		
+		Set<NodeIDType> currGroup = startEpoch.getCurEpochGroup();
+		NodeConfig<NodeIDType> messengerNC = this.messenger.getNodeConfig();
+		
+		Iterator<NodeIDType> currIter = currGroup.iterator();
+		boolean found = false;
+		while(currIter.hasNext())
+		{
+			NodeIDType nodeid = currIter.next();
+			if(!messengerNC.getNodeIDs().contains(nodeid))
+			{
+				log.log(Level.FINE, "{0} id not in the JSONMessenger nodeconfig "
+							, new Object[] {nodeid});
+				found = true;
+			}
+		}
+		
+		if(found)
+		{
+			if(messengerNC instanceof ModifiableActiveConfig 
+					&& startEpoch.getNewlyAddedNodesMap().size() > 0)
+			{
+				Map<NodeIDType, InetSocketAddress> currActives = startEpoch.getNewlyAddedNodesMap();
+				
+				Iterator<NodeIDType> diskIter = currActives.keySet().iterator();
+				while(diskIter.hasNext())
+				{
+					NodeIDType nodeid = diskIter.next();
+					if(!messengerNC.getNodeIDs().contains(nodeid))
+					{
+						log.log(Level.FINE, "addActiveReplica adding active={0}", 
+								new Object[]{nodeid});
+						
+						((ModifiableActiveConfig<NodeIDType>)messengerNC).addActiveReplica
+										(nodeid, currActives.get(nodeid));
+						
+					}
+				}
+			}
+			else
+			{
+				log.log(Level.FINE, "messengerNC class {0}", new Object[]{messengerNC.getClass().getName()});
+			}
+		}
+		log.log(Level.FINE, "updateMessengerAboutNewActives finish updated nodeConfig={0}",
+				new Object[]{messengerNC});
 	}
 
 	private static final boolean BATCH_CREATION = true;

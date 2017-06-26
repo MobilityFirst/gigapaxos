@@ -73,12 +73,12 @@ public class TESTPaxosClient {
 	private static int numRtxReqs = 0;
 	private static int rtxCount = 0;
 	private static long lastResponseReceivedTime = System.currentTimeMillis();
-
+	
 	private static synchronized void incrTotalLatency(long ms) {
 		totalLatency += ms;
 		numResponses++;
 	}
-
+	
 	private static synchronized void updateMovingAvgLatency(long ms) {
 		movingAvgLatency = Util.movingAverage(ms, movingAvgLatency);
 		movingAvgDeviation = Util.movingAverage(ms, movingAvgDeviation);

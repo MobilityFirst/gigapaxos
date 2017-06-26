@@ -153,8 +153,10 @@ public class MultiArrayMap<K, V extends Keyable<K>> implements Iterable<V>,
 	 * @return True if value present.
 	 */
 	public synchronized boolean containsValue(Object value) {
-		return (value != null && (value instanceof Keyable<?>) && get(
-				((Keyable<?>) value).getKey()).equals(value));
+		V key = null;
+		return ( value != null && (value instanceof Keyable<?>) 
+				&& (key=get(((Keyable<?>) value).getKey()) ) != null
+				&& key.equals(value) );
 	}
 
 	/**

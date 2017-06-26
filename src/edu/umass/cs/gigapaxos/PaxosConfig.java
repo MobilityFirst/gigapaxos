@@ -66,13 +66,13 @@ public class PaxosConfig {
 	 * -DgigapaxosConfig=<filename> as a JVM argument.
 	 */
 	public static final String GIGAPAXOS_CONFIG_FILE_KEY = "gigapaxosConfig";
-
+	
 	/**
 	 * 
 	 */
 	public static final String DEFAULT_SERVER_PREFIX = "active.";
     static final Logger log = Logger.getLogger(PaxosConfig.class.getName());
-
+    
     static {
 		load();
 	}
@@ -99,7 +99,7 @@ public class PaxosConfig {
 	public static void load() {
 		load(PC.class);
 	}
-
+	
 	/**
 	 * @return Properties in gigapaxos properties file.
 	 */
@@ -116,7 +116,7 @@ public class PaxosConfig {
 			config = Config.getConfig(PC.class);
 		return config;
 	}
-
+	
 	/**
 	 * @throws FileNotFoundException
 	 * @throws IOException
@@ -135,6 +135,8 @@ public class PaxosConfig {
 			new File(logFiles).mkdirs();
 		}
 	}
+	
+	
 	/** 
 	 * @return True if all parameters are sane.
 	 * @throws IOException 
