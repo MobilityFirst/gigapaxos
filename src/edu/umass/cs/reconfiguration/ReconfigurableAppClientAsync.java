@@ -1344,7 +1344,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			if ((activesInfo = this.activeReplicas.get(ALL_ACTIVES)) != null
 					&& (actives = activesInfo.actives) != null
 					&& this.queriedActivesRecently(ALL_ACTIVES))
-				return this.sendRequest(request, actives.iterator().next(),
+				return this.sendRequest(request, (InetSocketAddress)Util.selectRandom(actives),
 						callback);
 			// else
 			RequestCallbackFuture<V> future;
