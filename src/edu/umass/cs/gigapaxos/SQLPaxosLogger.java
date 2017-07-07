@@ -2808,13 +2808,14 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 				if (this.curRAF == null)
 					return null;
 
-				log.log(Level.FINEST,
-						"{0} reading from offset {1} from file {2}",
-						new Object[] { this, this.curRAF.getFilePointer(),
-								this.logfiles[this.logfileIndex] });
-
 				long msgOffset = this.curRAF.getFilePointer();
 				int msgLength = this.curRAF.readInt();
+
+				log.log(Level.FINEST,
+						"{0} reading from offset {1} of length {2} from file {3}",
+						new Object[] { this, msgOffset, msgLength,
+								this.logfiles[this.logfileIndex] });
+
 				byte[] msg = new byte[msgLength];
 				this.curRAF.readFully(msg);
 				// packetStr = new String(msg, CHARSET);
@@ -2844,6 +2845,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 			} catch (IOException | JSONException e) {
 				e.printStackTrace();
+				log.log(Level.WARNING,
+						"{0} incurred exception {1} while reading next logged message",
+						new Object[] { this, e });
 			}
 		}
 		return pp;

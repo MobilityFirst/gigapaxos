@@ -3349,7 +3349,12 @@ public class Reconfigurator<NodeIDType> implements
 
 			if (newActives!=null 
 					&& this.initiateReconfiguration(record.getName(), record,
-					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
+					newActives, creator, null, null, 
+					
+					null, // TODO: include new actives in initialState
+//					this.consistentNodeConfig.getActiveReplicasReadOnly().toString(),
+					
+					null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;
 				this.DB.addToOutstanding(record.getName());
 				record = this.DB.getReconfigurationRecord(record.getName());

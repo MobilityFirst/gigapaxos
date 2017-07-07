@@ -55,7 +55,8 @@ public class UtilServer {
         else {
             String[] tokens = props.split("\n");
             boolean oneTime = false;
-            for (int i = tokens.length - 1; i > 0; i--)
+            // Jul 9 2017: bug fix: i > 0 -> i >= 0 
+            for (int i = tokens.length - 1; i >= 0; i--)
                 modified = tokens[i]
                         + "\n"
                         + (tokens[i].trim().startsWith(prefix)

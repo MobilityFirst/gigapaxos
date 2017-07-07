@@ -689,7 +689,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			return null;
 		}
 		// if no previous group, create replica group with empty state
-		else if (startEpoch.noPrevEpochGroup()) {
+		else if (startEpoch.noPrevEpochGroup()
+//				|| AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString().equals(startEpoch.getServiceName())
+				) {
 			boolean created = false;
 			try {
 				// createReplicaGroup is a local operation (but may fail)
