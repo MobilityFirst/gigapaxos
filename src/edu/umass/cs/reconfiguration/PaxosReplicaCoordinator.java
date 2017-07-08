@@ -105,15 +105,6 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		return this;
 	}
 	
-	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
-			Stringifiable<NodeIDType> unstringer) {
-		this.paxosManager.createPaxosInstance(name, nodes, null);
-	}
-	protected void createDefaultGroupNodes(String name, Set<NodeIDType> nodes,
-			String initialState) {
-		this.paxosManager.createPaxosInstance(name, nodes, initialState);
-	}
-	
 	private static Set<IntegerPacketType> requestTypes = null;
 
 	@Override

@@ -307,11 +307,22 @@ public class Reconfigurator<NodeIDType> implements
 	 * @param ptasks
 	 * @return MessagingTask, typically null. No protocol tasks spawned.
 	 */
+	@SuppressWarnings("unchecked")
 	public GenericMessagingTask<NodeIDType, ?>[] handleDemandReport(
 			DemandReport<NodeIDType> report,
 			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 		ReconfigurationConfig.log.log(Level.FINEST, "{0} received {1} {2}", new Object[] { this,
 				report.getType(), report });
+		/* Forward if I am not responsible and return. Demand reports can be
+		 * misdirected if actives have an inconsistent view of the current set
+		 * of reconfigurators. */
+		if (!this.consistentNodeConfig.getReplicatedReconfigurators(
+				report.getServiceName()).contains(this.getMyID())) {
+			return new GenericMessagingTask<NodeIDType, DemandReport<NodeIDType>>(
+					(NodeIDType) (Util.selectRandom(this.consistentNodeConfig
+							.getReplicatedReconfigurators(report
+									.getServiceName()))), report).toArray();
+		}
 		if (report.needsCoordination())
 			this.DB.handleIncoming(report, null); // coordinated
 		else
@@ -659,7 +670,9 @@ public class Reconfigurator<NodeIDType> implements
 		if (rcRecReq.isReconfigurationPrevDropComplete()
 				&& rcRecReq.getServiceName().equals(
 						AbstractReconfiguratorDB.RecordNames.RC_NODES
-								.toString()))
+								.toString())
+				&& this.changeRCNodeConfigAtActives(rcRecReq)
+				)
 			this.sendReconfigureRCNodeConfigConfirmationToInitiator(rcRecReq);
 		else if (rcRecReq.isReconfigurationPrevDropComplete()
 				&& rcRecReq.getServiceName().equals(
@@ -2400,7 +2413,7 @@ public class Reconfigurator<NodeIDType> implements
 				&& this.DB.changeDBNodeConfig(rcRecReq.startEpoch
 						.getEpochNumber());
 		if (!ncChanged)
-			throw new RuntimeException("Unable to change node config");
+			throw new RuntimeException(this.getMyID() + " unable to change node config: " + rcRecReq.getSummary());
 		assert (!rcRecReq.startEpoch.getNewlyAddedNodes().isEmpty() || !diff(
 				rcRecReq.startEpoch.prevEpochGroup,
 				rcRecReq.startEpoch.curEpochGroup).isEmpty());
@@ -3297,6 +3310,7 @@ public class Reconfigurator<NodeIDType> implements
 			if (newActive != null)
 				newActives.add(newActive);
 			newActives.remove(active);
+			// Note: any REPLICATE_ALL record will be reconfigured
 			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;
@@ -3350,9 +3364,12 @@ public class Reconfigurator<NodeIDType> implements
 			if (newActives!=null 
 					&& this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, 
-					
-					null, // TODO: include new actives in initialState
-//					this.consistentNodeConfig.getActiveReplicasReadOnly().toString(),
+
+					// include initial state in StartEpoch for AR_AR_NODES
+					AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+					.toString().equals(record.getName()) ? this.consistentNodeConfig
+							.getActiveReplicasReadOnly().toString()
+							: null,
 					
 					null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;
@@ -3370,6 +3387,44 @@ public class Reconfigurator<NodeIDType> implements
 				new Object[] { this, rcCount, active });
 		boolean closed = this.DB.app.closeReadActiveRecords();
 		return initiated && closed;
+	}
+	
+	/**
+	 * This method reconfigures (in place) the AR_RC_NODES record at actives
+	 * that contains the map of current reconfigurators. The reconfiguration
+	 * is not strictly necessary but is the easiest way to update state at
+	 * actives without introducing new packet types and code.
+	 * 
+	 * Note: The change to the comparable AR_AR_NODES is simply done along
+	 * with all REPLICATE_ALL records when an active replica is added or
+	 * deleted.
+	 * 
+	 * @param rcRecReq
+	 * @return True if successfully changed reconfigurator map at actives.
+	 */
+	private boolean changeRCNodeConfigAtActives(
+			RCRecordRequest<NodeIDType> rcRecReq) {
+		ReconfigurationRecord<NodeIDType> record = this.DB
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
+						.toString());
+		if (record == null)
+			return true;
+		// else
+		this.DB.addToOutstanding(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
+				.toString());
+		this.initiateReconfiguration(
+				AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
+				record, record.getNewActives(), null, null, null,
+				this.consistentNodeConfig.getReconfiguratorsReadOnly()
+						.toString(), null, null,
+				ReconfigureUponActivesChange.REPLICATE_ALL);
+		try {
+			this.DB.waitOutstanding(1);
+		} catch (InterruptedException ie) {
+			ie.printStackTrace();
+			return false;
+		}
+		return true;
 	}
 
 	@Override

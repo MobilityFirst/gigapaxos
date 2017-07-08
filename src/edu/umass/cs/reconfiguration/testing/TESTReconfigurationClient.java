@@ -119,10 +119,12 @@ public class TESTReconfigurationClient extends DefaultTest {
 	protected TESTReconfigurationClient(
 			Map<String, InetSocketAddress> reconfigurators) throws IOException {
 		allInstances.add(this);
-		if(clients==null) clients = new RCClient[Config.getGlobalInt(TRC.NUM_CLIENTS)];
-		for (int i = 0; i < clients.length; i++)
-			clients[i] = new RCClient(new HashSet<InetSocketAddress>(
-					reconfigurators.values()));
+		if (clients == null) {
+			clients = new RCClient[Config.getGlobalInt(TRC.NUM_CLIENTS)];
+			for (int i = 0; i < clients.length; i++)
+				clients[i] = new RCClient(new HashSet<InetSocketAddress>(
+						reconfigurators.values()));
+		}
 		this.reconfigurators = reconfigurators.keySet();
 	}
 

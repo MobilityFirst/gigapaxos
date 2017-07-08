@@ -246,6 +246,24 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 					this.consistentNodeConfig
 							.getReplicatedReconfigurators(RecordNames.AR_AR_NODES
 									.toString()));
+
+		/* RC record for a special service name holding a map of current reconfigurators
+		 * replicated at all actives. This service name does not allow requests
+		 * from clients and can only be reconfigured by reconfigurators. */
+		if (this.consistentNodeConfig.getReplicatedReconfigurators(
+				RecordNames.AR_RC_NODES.toString()).contains(this.getMyID()))
+			this.createReplicaGroup(
+					RecordNames.AR_RC_NODES.toString(),
+					0,
+					this.getInitialRCGroupRecord(
+							RecordNames.AR_RC_NODES.toString(),
+							this.consistentNodeConfig.getActiveReplicas(),
+							ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL)
+							.toString(),
+					this.consistentNodeConfig
+							.getReplicatedReconfigurators(RecordNames.AR_RC_NODES
+									.toString()));
+
 		
 		// RC record for a default service name replicated at all actives
 		if (this.consistentNodeConfig.getReplicatedReconfigurators(

@@ -116,7 +116,11 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
 	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig) {
-		if (ReconfigurationConfig.application != null) {
+		AbstractReplicaCoordinator<NodeIDType> appCoordinator = null;
+		if (ReconfigurationConfig.application == null) 
+			throw new RuntimeException("Application name can not be null");
+		// else
+		{
 			Replicable app = ReconfigurationConfig.createApp(args);
 			if (app instanceof ClientMessenger)
 				((ClientMessenger) app).setClientMessenger(messenger);
@@ -130,8 +134,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
 								+ ClientRequest.class.getSimpleName()
 								+ " or not expect to send "
 								+ " responses back to clients or rely on alternate means for messaging.");
-			PaxosReplicaCoordinator<NodeIDType> prc = new PaxosReplicaCoordinator<NodeIDType>(
-					app, myID, nodeConfig, messenger).setOutOfOrderLimit(Config.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));;
+			appCoordinator = this.getAppCoordinator(
+					app, myID, nodeConfig, messenger);
 
 			// default service name created at all actives
 			ReconfigurationConfig
@@ -143,9 +147,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
 									ReconfigurationConfig
 											.getDefaultServiceName(),
 									nodeConfig.getActiveReplicas() });
-			prc.createDefaultGroupNodes(ReconfigurationConfig.getDefaultServiceName(),
-					nodeConfig.getActiveReplicas(), 
-					nodeConfig);
+			appCoordinator.createReplicaGroup(ReconfigurationConfig.getDefaultServiceName(), 0,
+					null,
+					nodeConfig.getActiveReplicas());
 
 			// special record at actives containing a map of all current actives
 			ReconfigurationConfig.getLogger().log(
@@ -154,26 +158,46 @@ public abstract class ReconfigurableNode<NodeIDType> {
 					new Object[] { this,
 							AbstractReconfiguratorDB.RecordNames.AR_AR_NODES,
 							nodeConfig.getActiveReplicas() });
-			prc.createDefaultGroupNodes(
-					AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString(),
-					nodeConfig.getActiveReplicas(),
+			appCoordinator.createReplicaGroup(
+					AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString(), 0,
 					// state is just the stringified map of active replicas
-					nodeConfig.getActiveReplicasReadOnly().toString());
+					nodeConfig.getActiveReplicasReadOnly().toString(), nodeConfig.getActiveReplicas());
 
-			return prc;
-		} else {
-			AbstractReplicaCoordinator<NodeIDType> appCoordinator = this
-					.createAppCoordinator();
-			if (appCoordinator instanceof PaxosReplicaCoordinator)
-				ReconfigurationConfig
-						.getLogger()
-						.warning(
-								"Using createAppCoordinator() is discouraged for "
-										+ "applications simply using paxos as the coordiantion protocol. Implement "
-										+ "Application.createApp(String[]) or Application.createApp() to construct "
-										+ "the application instance instead.");
+			// special record at actives containing a map of all current reconfigurators
+			ReconfigurationConfig.getLogger().log(
+					Level.INFO,
+					"{0} creating {1} with replica group {2}",
+					new Object[] { this,
+							AbstractReconfiguratorDB.RecordNames.AR_RC_NODES,
+							nodeConfig.getActiveReplicas() });
+			appCoordinator.createReplicaGroup(
+					AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
+					0,
+					// state is just the stringified map of active replicas
+					nodeConfig.getReconfiguratorsReadOnly().toString(),
+					nodeConfig.getActiveReplicas());
+
 			return appCoordinator;
-		}
+		} 
+	}
+
+	/**
+	 * 
+	 * TODO: Extend this method to enable support for other coordinators.
+	 * 
+	 * @param app
+	 * @param myID
+	 * @param nodeConfig
+	 * @param messenger
+	 * @return AbstractReplicaCoordinator: currently paxos by default
+	 */
+	private AbstractReplicaCoordinator<NodeIDType> getAppCoordinator(
+			Replicable app, NodeIDType myID,
+			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
+			JSONMessenger<NodeIDType> messenger) {
+		return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
+				messenger).setOutOfOrderLimit(Config
+				.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
 	}
 
 	/**

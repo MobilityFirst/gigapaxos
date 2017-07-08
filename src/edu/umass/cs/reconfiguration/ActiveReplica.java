@@ -35,6 +35,7 @@ import java.util.logging.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
@@ -98,6 +99,7 @@ import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.GCConcurrentHashMap;
 import edu.umass.cs.utils.GCConcurrentHashMapCallback;
 import edu.umass.cs.utils.Util;
+import edu.umass.cs.utils.UtilServer;
 
 /**
  * @author V. Arun
@@ -188,40 +190,124 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	public String preCheckpoint(String name) {
 		return name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
 				.toString()) ? this.nodeConfig.getActiveReplicasReadOnly()
-				.toString() : null;
+				.toString() : name
+				.equals(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
+						.toString()) ? this.nodeConfig
+				.getReconfiguratorsReadOnly().toString() : null;
+	}
+	
+	private static Map<String, InetSocketAddress> sockAddrMapFromStringified(String state) {
+		HashMap<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
+		for (String entry : state.replaceAll("\\{", "")
+				.replaceAll("\\}", "").split(",")) {
+			String[] pieces = entry.split("=");
+			assert (pieces.length == 2);
+			map.put(pieces[0].trim(),
+					Util.getInetSocketAddressFromString(pieces[1].trim()));
+		}
+		return map;
 	}
 
 	@Override
 	public boolean preRestore(String name, String state) {
-		if (name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
-				.toString())) {
-			if (state == null)
-				return false;
-			HashMap<String, InetSocketAddress> map = new HashMap<String, InetSocketAddress>();
-			for (String entry : state.replaceAll("\\{", "")
-					.replaceAll("\\}", "").split(",")) {
-				String[] pieces = entry.split("=");
-				assert (pieces.length == 2);
-				map.put(pieces[0].trim(),
-						Util.getInetSocketAddressFromString(pieces[1].trim()));
+		if (state == null)
+			return false;
+		try {
+			if (name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+					.toString())) {
+				this.reconcileARNodes(state);
+				return true;
+			} else if (name
+					.equals(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
+							.toString())) {
+				this.reconcileRCNodes(state);
+				return true;
 			}
-			for (String strNode : map.keySet())
-				if (!this.nodeConfig.nodeExists(this.nodeConfig
-						.valueOf(strNode))) {
-					this.nodeConfig.addActiveReplica(
-							this.nodeConfig.valueOf(strNode), map.get(strNode));
-					log.log(Level.INFO, "{0} adding active replica {1}:{2}",
-							new Object[] { this, strNode, map.get(strNode) });
-				}
-			for (NodeIDType node : this.nodeConfig.getActiveReplicas())
-				if (!map.containsKey(node.toString())) {
-					this.nodeConfig.removeActiveReplica(node);
-					log.log(Level.INFO, "{0} removing active replica {1}",
-							new Object[] { this, node });
-				}
-			return true;
+		} catch (IOException ioe) {
+			throw new RuntimeException(ioe);
 		}
 		return false;
+	}
+	
+	private void reconcileARNodes(String state) throws IOException {
+		Map<String, InetSocketAddress> map = sockAddrMapFromStringified(state);
+		this.addMissingToNodeConfig(map);
+		this.deleteFromNodeConfig(map);
+	}
+
+	private void reconcileRCNodes(String state) throws IOException {
+		Map<String, InetSocketAddress> map = sockAddrMapFromStringified(state);
+		this.addMissingToNodeConfig(map, true); // isReconfigurator true
+		this.deleteFromNodeConfig(map, true);
+	}
+
+	// default is active, i.e., isReconfigurator is false
+	private void addMissingToNodeConfig(Map<String, InetSocketAddress> map) throws IOException {
+		this.addMissingToNodeConfig(map, false);
+	}
+	private void addMissingToNodeConfig(Map<String, InetSocketAddress> map, boolean isReconfigurator) throws IOException {
+		for (String strNode : map.keySet())
+			if (!this.nodeConfig.nodeExists(this.nodeConfig
+					.valueOf(strNode))) {
+				if (isReconfigurator)
+					this.nodeConfig.addReconfigurator(
+							this.nodeConfig.valueOf(strNode), map.get(strNode));
+				else
+					this.nodeConfig.addActiveReplica(
+							this.nodeConfig.valueOf(strNode), map.get(strNode));
+
+				log.log(Level.INFO, "{0} adding {1} {2}:{3}", new Object[] {
+						this,
+						isReconfigurator ? "reconfigurator" : "active replica",
+						strNode, map.get(strNode) });
+				String propertiesFile = PaxosConfig.getPropertiesFile();
+				/* Writing to the properties file is needed for safety, not just
+				 * as an administrative convenience. Unlike reconfigurators,
+				 * actives have no persistent database for storing nodeConfig
+				 * information, so they simply use the file system and the 
+				 * existing properties file. */
+				if(propertiesFile!=null)
+				UtilServer
+						.writeProperty(
+								strNode,
+								map.get(strNode).getAddress()+":"+map.get(strNode).getPort(),
+								propertiesFile,
+								isReconfigurator ? ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX
+										.toString()
+										: PaxosConfig.DEFAULT_SERVER_PREFIX
+												.toString());
+			}
+	}
+
+	private void deleteFromNodeConfig(Map<String, InetSocketAddress> map)
+			throws IOException {
+		this.deleteFromNodeConfig(map, false);
+	}
+
+	private void deleteFromNodeConfig(Map<String, InetSocketAddress> map,
+			boolean isReconfigurator) throws IOException {
+		for (NodeIDType node : this.nodeConfig.getActiveReplicas())
+			if (!map.containsKey(node.toString())) {
+				if (isReconfigurator)
+					this.nodeConfig.removeReconfigurator(node);
+				else
+					this.nodeConfig.removeActiveReplica(node);
+				log.log(Level.INFO, "{0} removing {1} {2}", new Object[] {
+						this,
+						isReconfigurator ? "reconfigurator" : "active replica",
+						node });
+				String propertiesFile = PaxosConfig.getPropertiesFile();
+				if(propertiesFile!=null)
+				UtilServer
+						.writeProperty(
+								node.toString(),
+								null,
+								propertiesFile,
+								isReconfigurator ? ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX
+										.toString()
+										: PaxosConfig.DEFAULT_SERVER_PREFIX
+												.toString());
+			}
 	}
 
 	private  ReconfigurableAppInfo getReconfigurableAppInfo() {
@@ -690,7 +776,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		}
 		// if no previous group, create replica group with empty state
 		else if (startEpoch.noPrevEpochGroup()
-//				|| AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString().equals(startEpoch.getServiceName())
+				|| AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString().equals(startEpoch.getServiceName())
+				|| AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString().equals(startEpoch.getServiceName())
 				) {
 			boolean created = false;
 			try {
@@ -1367,7 +1454,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	@Override
 	public boolean preExecuted(Request request) {
 		return request.getServiceName().equals(
-				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) ? true
+				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) 
+				|| request.getServiceName().equals(
+						AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString())? true
 				: false;
 	}
 }

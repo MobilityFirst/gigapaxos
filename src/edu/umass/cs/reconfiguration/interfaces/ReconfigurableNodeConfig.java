@@ -50,4 +50,17 @@ public interface ReconfigurableNodeConfig<NodeIDType> extends
 		}
 		return map;
 	}
+	/**
+	 * @return Read-only version of reconfigurators.
+	 */
+	default Map<NodeIDType, InetSocketAddress> getReconfiguratorsReadOnly() {
+		Map<NodeIDType, InetSocketAddress> map = new HashMap<NodeIDType, InetSocketAddress>();
+		for (NodeIDType node : getActiveReplicas()) {
+			map.put(node,
+					new InetSocketAddress(this.getNodeAddress(node), this
+							.getNodePort(node)));
+		}
+		return map;
+	}
+
 }

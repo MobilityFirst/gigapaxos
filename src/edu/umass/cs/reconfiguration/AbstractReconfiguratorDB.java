@@ -106,7 +106,12 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		 * is replicated at all reconfigurators, but differs in that the name itself
 		 * is replicated at active replicas.
 		 */
-		AR_AR_NODES
+		AR_AR_NODES, 
+		
+		/**
+		 * Similar in spirit to {@link #AR_AR_NODES} but for reconfigurators.
+		 */
+		AR_RC_NODES
 	};
 
 	protected final NodeIDType myID;
