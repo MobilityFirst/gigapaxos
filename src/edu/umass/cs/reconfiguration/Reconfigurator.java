@@ -3500,5 +3500,5 @@ public class Reconfigurator<NodeIDType> implements
 	 * that gets it via {@link RepliconfigurableReconfiguratorDB} that in turn
 	 * gets it from {@link AbstractReplicaCoordinator}.
 	 * 
-	 */
+	 */ 
 }
