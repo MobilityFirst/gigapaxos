@@ -3293,7 +3293,7 @@ public class Reconfigurator<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = null;
 		while ((record = this.DB.app.readNextActiveRecord(false)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
-					"{0} reconfiguring {1} in order to delete active {1}",
+					"{0} reconfiguring {1} in order to delete active {2}",
 					new Object[] { this, record.getName(), active });
 			try {
 				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
@@ -3344,7 +3344,7 @@ public class Reconfigurator<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = null;
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
-					"{0} reconfiguring {1} in order to add active {1}",
+					"{0} reconfiguring {1} in order to add active {2}",
 					new Object[] { this, record.getName(), active });
 			try {
 				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
@@ -3407,17 +3407,18 @@ public class Reconfigurator<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 						.toString());
-		if (record == null)
+		if (record == null || !this.consistentNodeConfig.getReplicatedReconfigurators(record.getName()).contains(this.getMyID()))
 			return true;
 		// else
 		this.DB.addToOutstanding(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 				.toString());
-		this.initiateReconfiguration(
+		boolean initiated = this.initiateReconfiguration(
 				AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
 				record, record.getNewActives(), null, null, null,
 				this.consistentNodeConfig.getReconfiguratorsReadOnly()
 						.toString(), null, null,
 				ReconfigureUponActivesChange.REPLICATE_ALL);
+		assert(initiated) : Util.suicide("Unable to initiate reconfiguration for record " + record.getSummary());
 		try {
 			this.DB.waitOutstanding(1);
 		} catch (InterruptedException ie) {

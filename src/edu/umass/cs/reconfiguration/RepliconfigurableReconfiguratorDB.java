@@ -42,6 +42,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -192,12 +193,10 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 						new Object[] { this, this.app.getRCGroupName(node),
 								group });
 				try {
-					this.createReplicaGroup(
-							this.app.getRCGroupName(node),
-							0,
-							this.getInitialRCGroupRecord(
-									this.app.getRCGroupName(node), group)
-									.toString(), group);
+					// will fail as expected upon recovery if group already exists
+					this.createReplicaGroup(this.app.getRCGroupName(node), 0,
+							this.getInitialRCGroupAndDefaultNamesRecord((node),
+									group), group);
 				} catch (PaxosInstanceCreationException pice) {
 					// can happen during recovery
 					log.info(this
@@ -230,56 +229,6 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 						.toString(), this.consistentNodeConfig
 						.getReconfigurators());
 		
-		/* RC record for a special service name holding a map of current actives
-		 * replicated at all actives. This service name does not allow requests
-		 * from clients and can only be reconfigured by reconfigurators. */
-		if (this.consistentNodeConfig.getReplicatedReconfigurators(
-				RecordNames.AR_AR_NODES.toString()).contains(this.getMyID()))
-			this.createReplicaGroup(
-					RecordNames.AR_AR_NODES.toString(),
-					0,
-					this.getInitialRCGroupRecord(
-							RecordNames.AR_AR_NODES.toString(),
-							this.consistentNodeConfig.getActiveReplicas(),
-							ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL)
-							.toString(),
-					this.consistentNodeConfig
-							.getReplicatedReconfigurators(RecordNames.AR_AR_NODES
-									.toString()));
-
-		/* RC record for a special service name holding a map of current reconfigurators
-		 * replicated at all actives. This service name does not allow requests
-		 * from clients and can only be reconfigured by reconfigurators. */
-		if (this.consistentNodeConfig.getReplicatedReconfigurators(
-				RecordNames.AR_RC_NODES.toString()).contains(this.getMyID()))
-			this.createReplicaGroup(
-					RecordNames.AR_RC_NODES.toString(),
-					0,
-					this.getInitialRCGroupRecord(
-							RecordNames.AR_RC_NODES.toString(),
-							this.consistentNodeConfig.getActiveReplicas(),
-							ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL)
-							.toString(),
-					this.consistentNodeConfig
-							.getReplicatedReconfigurators(RecordNames.AR_RC_NODES
-									.toString()));
-
-		
-		// RC record for a default service name replicated at all actives
-		if (this.consistentNodeConfig.getReplicatedReconfigurators(
-				ReconfigurationConfig.getDefaultServiceName()).contains(
-				this.getMyID()))
-			this.createReplicaGroup(
-					ReconfigurationConfig.getDefaultServiceName(),
-					0,
-					this.getInitialRCGroupRecord(
-							this.getRCGroupName(ReconfigurationConfig
-									.getDefaultServiceName()),
-							this.consistentNodeConfig.getActiveReplicas(),
-							ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL)
-							.toString(), this.consistentNodeConfig
-							.getReconfigurators());
-
 		return false; // not used
 	}
 
@@ -307,6 +256,53 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	private ReconfigurationRecord<NodeIDType> getInitialRCGroupRecord(
 			String groupName, Set<NodeIDType> group, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
 		return new ReconfigurationRecord<NodeIDType>(groupName, 0, group, group, policy);
+	}
+
+	private String getInitialRCGroupAndDefaultNamesRecord(NodeIDType node,
+			Set<NodeIDType> group) {
+		ArrayList<ReconfigurationRecord<NodeIDType>> records = new ArrayList<ReconfigurationRecord<NodeIDType>>();
+
+		// self RC group
+		records.add(getInitialRCGroupRecord(this.getRCGroupName(node), group));
+
+		// create default name records
+
+		// RC record for a default service name replicated at all actives
+		this.appendToRCGroupRecordSelf(records,
+				ReconfigurationConfig.getDefaultServiceName(), node);
+
+		/* RC record for a special service name holding a map of current actives
+		 * replicated at all actives. This service name does not allow requests
+		 * from clients and can only be reconfigured by reconfigurators. */
+		this.appendToRCGroupRecordSelf(records,
+				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString(), node);
+		
+		/* RC record for a special service name holding a map of current reconfigurators
+		 * replicated at all actives. This service name does not allow requests
+		 * from clients and can only be reconfigured by reconfigurators. */
+
+		this.appendToRCGroupRecordSelf(records,
+				AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(), node);
+
+		String str = "";
+		for (int i = 0; i < records.size(); i++)
+			str += records.get(i).toString()
+					+ (i < (records.size() - 1) ? "\n" : "");
+		return str;
+	}
+	
+	private void appendToRCGroupRecordSelf(
+			ArrayList<ReconfigurationRecord<NodeIDType>> records, String name,
+			NodeIDType node) {
+		if (this.consistentNodeConfig.getReplicatedReconfigurators(name)
+				.contains(node))
+			records.add(new ReconfigurationRecord<NodeIDType>(
+					name,
+					0,
+					// full replication implicit
+					this.consistentNodeConfig.getActiveReplicas(),
+					this.consistentNodeConfig.getActiveReplicas(),
+					ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL));
 	}
 
 	// needed by Reconfigurator

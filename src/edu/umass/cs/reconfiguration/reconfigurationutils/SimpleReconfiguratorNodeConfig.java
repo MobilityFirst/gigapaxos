@@ -28,6 +28,7 @@ import org.json.JSONException;
 
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
+import edu.umass.cs.reconfiguration.interfaces.ModifiableReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 
 /**
@@ -46,8 +47,7 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
  *            called here.
  */
 public class SimpleReconfiguratorNodeConfig<NodeIDType> implements
-		ModifiableActiveConfig<NodeIDType>,
-		ModifiableRCConfig<NodeIDType> {
+		ModifiableReconfigurableNodeConfig<NodeIDType> {
 
 	private final ReconfigurableNodeConfig<NodeIDType> nodeConfig;
 	private int version = 0;
@@ -135,10 +135,10 @@ public class SimpleReconfiguratorNodeConfig<NodeIDType> implements
 	public synchronized InetSocketAddress addReconfigurator(NodeIDType id,
 			InetSocketAddress sockAddr) {
 		InetSocketAddress prevSockAddr = this.rcMap.put(id, sockAddr);
+		this.rcBindMap.put(id, sockAddr.getAddress());
 		if (this.nodeConfig instanceof ModifiableRCConfig)
 			((ModifiableRCConfig<NodeIDType>) this.nodeConfig)
 					.addReconfigurator(id, sockAddr);
-                // FIXME - need to add an entry in rcBindMap as well
 		return prevSockAddr;
 	}
 

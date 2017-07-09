@@ -45,6 +45,8 @@ public interface ModifiableActiveConfig<Node> extends
 	public InetSocketAddress removeActiveReplica(Node id);
 
 	/**
+	 * Unused. 
+	 * 
 	 * @return Version number of node config.
 	 */
 	public long getVersion();

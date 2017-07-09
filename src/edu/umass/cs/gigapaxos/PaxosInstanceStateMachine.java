@@ -232,7 +232,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						this.paxosState,
 						this.coordinator,
 						(initialState == null ? "{recovered_state=["
-								+ Util.prefix(this.getCheckpointState(), 64)
+								+ Util.truncate(this.getCheckpointState(), 64, 64)
 								: "{initial_state=[" + initialState)
 								+ "]}" });
 	}

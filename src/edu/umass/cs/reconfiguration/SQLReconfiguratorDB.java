@@ -607,7 +607,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				.getReconfigurationRecord(name);
 		assert (record != null && ((!TWO_PAXOS_RC && epoch - record.getEpoch() >= 0) || epoch
 				- record.getEpoch() == 0)) : epoch + "!=" + record.getEpoch()
-				+ " at " + myID;
+				+ " at " + myID + " for " + record.getSummary();
 		if (!record.isReady()) {
 			log.log(Level.WARNING,
 					"{0} {1}:{2} not ready for transition to {3}:{4}:{5}",
@@ -738,8 +738,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 		if (!record.isReady())
 			this.setPending(record.getName(), true, true);
 		log.log(Level.FINER,
-				"{0} inserted RC record named {1} to RC group {2}",
-				new Object[] { this, record.getName(), rcGroupName });
+				"{0} inserted RC record for {1} to RC group {2}: {3}",
+				new Object[] { this, record.getName(), rcGroupName, record.getSummary()});
 		return true;
 	}
 
@@ -935,6 +935,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 							new FileInputStream(state)));
 					String line = null;
 					while ((line = br.readLine()) != null) {
+						log.log(Level.FINEST, "{0} inserting (LARGE_CHECKPOINTS_OPTION) into RC group {1}:[{2}]", 
+								new Object[]{this, rcGroup, Util.truncate(line,32,32)});
 						this.putReconfigurationRecordIfNotName(
 								new ReconfigurationRecord<NodeIDType>(
 										new JSONObject(line),
@@ -944,6 +946,8 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				} else { // state is actually the state itself
 					String[] lines = state.split("\n");
 					for (String line : lines) {
+						log.log(Level.FINEST, "{0} inserting into RC group {1}:[{2}]", 
+								new Object[]{this, rcGroup, Util.truncate(line,32,32)});
 						this.putReconfigurationRecordIfNotName(
 								new ReconfigurationRecord<NodeIDType>(
 										new JSONObject(line),
