@@ -3304,7 +3304,6 @@ public class Reconfigurator<NodeIDType> implements
 			// reconfigure name so as to exclude active
 			Set<NodeIDType> newActives = new HashSet<NodeIDType>(
 					record.getActiveReplicas());
-			assert (newActives.contains(active));
 			NodeIDType newActive = (NodeIDType) Util.getRandomOtherThan(
 					this.consistentNodeConfig.getActiveReplicas(), newActives);
 			if (newActive != null)
@@ -3409,6 +3408,9 @@ public class Reconfigurator<NodeIDType> implements
 						.toString());
 		if (record == null || !this.consistentNodeConfig.getReplicatedReconfigurators(record.getName()).contains(this.getMyID()))
 			return true;
+		ReconfigurationConfig.log.log(Level.INFO,
+				"{0} reconfiguring RC map at actives upon adds/deletes {1}/{2}", new Object[] {
+						this, rcRecReq.startEpoch.getNewlyAddedNodes(), rcRecReq.startEpoch.getDeletedNodes() });
 		// else
 		this.DB.addToOutstanding(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 				.toString());
@@ -3418,7 +3420,11 @@ public class Reconfigurator<NodeIDType> implements
 				this.consistentNodeConfig.getReconfiguratorsReadOnly()
 						.toString(), null, null,
 				ReconfigureUponActivesChange.REPLICATE_ALL);
-		assert(initiated) : Util.suicide("Unable to initiate reconfiguration for record " + record.getSummary());
+		if (!initiated)
+			ReconfigurationConfig.log.log(Level.SEVERE,
+					"{0} unable to initiate reconfiguration for {1}",
+					new Object[] { this,
+							AbstractReconfiguratorDB.RecordNames.AR_RC_NODES });
 		try {
 			this.DB.waitOutstanding(1);
 		} catch (InterruptedException ie) {

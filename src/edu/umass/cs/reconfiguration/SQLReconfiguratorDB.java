@@ -2780,16 +2780,17 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	private Connection cursorConn = null;
 	private NodeIDType cursorActive = null;
 
-	// initiates a read of all records currently replicated at active.
+	/* Initiates (supposedly) a read of all records currently replicated at
+	 * active, but really just opens a cursor to read all records because we
+	 * currently have no way to efficiently index the RC record to project all
+	 * records with {@code active} in the replica group. */
 	@Override
 	public boolean initiateReadActiveRecords(NodeIDType active) {
 		if (this.cursorRS != null || this.closed)
 			return false;
 
-		log.info(this + " before rcRecords.commit");
 		// need to commit all before making a full pass
 		this.rcRecords.commit();
-		log.info(this + " after rcRecords.commit");
 
 		this.cursorActive = active;
 		Connection conn = null;
@@ -2841,9 +2842,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 						/* For deletes, the record need be returned only if the
 						 * replica group contains the active (cursorActive)
 						 * being deleted. */
-						|| record.getActiveReplicas().contains(
-								this.cursorActive))
-						&& record.isReconfigurationReady())
+						|| ((record.getActiveReplicas().contains(
+								this.cursorActive) || record
+								.getReconfigureUponActivesChangePolicy() == ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL)
+						&& record.isReconfigurationReady()))
+						)
 					return record;
 				else
 					log.log(Level.FINEST,

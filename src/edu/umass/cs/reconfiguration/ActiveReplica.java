@@ -286,7 +286,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private void deleteFromNodeConfig(Map<String, InetSocketAddress> map,
 			boolean isReconfigurator) throws IOException {
-		for (NodeIDType node : this.nodeConfig.getActiveReplicas())
+		for (NodeIDType node : (isReconfigurator ? this.nodeConfig.getReconfigurators() : this.nodeConfig.getActiveReplicas()))
 			if (!map.containsKey(node.toString())) {
 				if (isReconfigurator)
 					this.nodeConfig.removeReconfigurator(node);
