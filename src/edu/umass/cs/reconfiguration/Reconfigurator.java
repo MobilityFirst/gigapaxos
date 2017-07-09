@@ -3304,11 +3304,12 @@ public class Reconfigurator<NodeIDType> implements
 			// reconfigure name so as to exclude active
 			Set<NodeIDType> newActives = new HashSet<NodeIDType>(
 					record.getActiveReplicas());
+			if(!newActives.remove(active)) continue;
+			// else
 			NodeIDType newActive = (NodeIDType) Util.getRandomOtherThan(
 					this.consistentNodeConfig.getActiveReplicas(), newActives);
 			if (newActive != null)
 				newActives.add(newActive);
-			newActives.remove(active);
 			// Note: any REPLICATE_ALL record will be reconfigured
 			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
@@ -3355,6 +3356,10 @@ public class Reconfigurator<NodeIDType> implements
 
 			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
 				newActives = this.consistentNodeConfig.getActiveReplicas();
+				// means reconfiguration already complete or underway
+				if (record.getActiveReplicas().contains(active)
+						|| (record.getNewActives().contains(active)))
+					continue;
 			}
 			else if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.CUSTOM) {
 				newActives = this.shouldReconfigure(record.getName());

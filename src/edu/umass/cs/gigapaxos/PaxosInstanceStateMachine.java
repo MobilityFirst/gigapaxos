@@ -448,7 +448,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * packets) and can not change any disk state. */
 		if (this.paxosState.isStopped()) {
 			log.log(Level.INFO, "{0} stopped; dropping {1}; returning", new Object[] {
-					this, pp.getSummary() });
+					this, pp!=null ? pp.getSummary() : null });
 			return;
 		}
 
