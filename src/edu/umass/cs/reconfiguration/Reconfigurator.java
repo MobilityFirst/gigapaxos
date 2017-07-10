@@ -3393,6 +3393,7 @@ public class Reconfigurator<NodeIDType> implements
 		return initiated && closed;
 	}
 	
+	private static final boolean DISABLE_CHANGE_RC_NODECONFIG_AT_ACTIVES = true;
 	/**
 	 * This method reconfigures (in place) the AR_RC_NODES record at actives
 	 * that contains the map of current reconfigurators. The reconfiguration
@@ -3408,6 +3409,7 @@ public class Reconfigurator<NodeIDType> implements
 	 */
 	private boolean changeRCNodeConfigAtActives(
 			RCRecordRequest<NodeIDType> rcRecReq) {
+		if(DISABLE_CHANGE_RC_NODECONFIG_AT_ACTIVES) return true;
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 						.toString());
