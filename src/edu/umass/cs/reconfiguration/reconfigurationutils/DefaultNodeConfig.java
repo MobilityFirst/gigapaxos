@@ -13,8 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONArray;
 import org.json.JSONException;
 
-import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
-import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
+import edu.umass.cs.reconfiguration.interfaces.ModifiableReconfigurableNodeConfig;
 
 /**
  * @author arun
@@ -22,7 +21,7 @@ import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
  * @param <NodeIDType>
  */
 public class DefaultNodeConfig<NodeIDType> implements
-		ModifiableRCConfig<NodeIDType>, ModifiableActiveConfig<NodeIDType> {
+		ModifiableReconfigurableNodeConfig<NodeIDType> {
 
 	final ConcurrentHashMap<NodeIDType, InetSocketAddress> actives = new ConcurrentHashMap<NodeIDType, InetSocketAddress>();
 	final ConcurrentHashMap<NodeIDType, InetSocketAddress> reconfigurators = new ConcurrentHashMap<NodeIDType, InetSocketAddress>();

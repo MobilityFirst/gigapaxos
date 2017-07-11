@@ -594,7 +594,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	 * @return Whether {@code node} got disconnected.
 	 */
 	public boolean isDisconnected(NodeIDType node) {
-		return this.lastFailed.containsKey(node);
+		return this.lastFailed.containsKey(node) || !this.nodeConfig.nodeExists(node);
 	}
 
 	/* ********** Start of private methods ************************** */

@@ -232,7 +232,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						this.paxosState,
 						this.coordinator,
 						(initialState == null ? "{recovered_state=["
-								+ Util.prefix(this.getCheckpointState(), 64)
+								+ Util.truncate(this.getCheckpointState(), 64, 64)
 								: "{initial_state=[" + initialState)
 								+ "]}" });
 	}
@@ -448,7 +448,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * packets) and can not change any disk state. */
 		if (this.paxosState.isStopped()) {
 			log.log(Level.INFO, "{0} stopped; dropping {1}; returning", new Object[] {
-					this, pp.getSummary() });
+					this, pp!=null ? pp.getSummary() : null });
 			return;
 		}
 
@@ -497,6 +497,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		case DECISION:
 			mtask = handleCommittedRequest((PValuePacket) pp);
 			// send nothing, but log decision
+			break;
+		case PREEMPTED:
+			// do nothing
 			break;
 		case BATCHED_COMMIT:
 			mtask = handleBatchedCommit((BatchedCommit) pp);

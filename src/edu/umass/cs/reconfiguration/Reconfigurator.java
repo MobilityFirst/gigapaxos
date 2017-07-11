@@ -1806,12 +1806,13 @@ public class Reconfigurator<NodeIDType> implements
 				&& (recordServiceName == null || recordServiceName.isReady());
 		if (!ready)
 			ReconfigurationConfig.log.log(Level.FINE,
-					"{0} not ready to reconfigure {1}; record={2} and rcGroupRecord={3}",
+					"{0} not ready to reconfigure {1}; record={2} and rcGroupRecord({3})={4}",
 					new Object[] {
 							this,
 							rcPacket.getServiceName(),
 							recordServiceName != null ? recordServiceName
 									.getSummary() : "[null]",
+									this.DB.getRCGroupName(rcPacket.getServiceName()),
 							recordGroupName != null ? recordGroupName
 									.getSummary() : "[null]" });
 		return ready;
@@ -2531,13 +2532,6 @@ public class Reconfigurator<NodeIDType> implements
 				return false;
 			}
 		}
-
-//		// update actives at actives
-//		this.initiateReconfiguration(record.getName(), record,
-//				rcRecReq.startEpoch.curEpochGroup, rcRecReq.startEpoch.creator,
-//				null, null, this.consistentNodeConfig.getActiveReplicasMap()
-//						.toString(), null, null, record
-//						.getReconfigureUponActivesChangePolicy());
 
 		// uncoordinated change locally
 		boolean executed = this.DB.execute(new RCRecordRequest<NodeIDType>(
@@ -3293,7 +3287,7 @@ public class Reconfigurator<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = null;
 		while ((record = this.DB.app.readNextActiveRecord(false)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
-					"{0} reconfiguring {1} in order to delete active {1}",
+					"{0} reconfiguring {1} in order to delete active {2}",
 					new Object[] { this, record.getName(), active });
 			try {
 				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
@@ -3304,12 +3298,12 @@ public class Reconfigurator<NodeIDType> implements
 			// reconfigure name so as to exclude active
 			Set<NodeIDType> newActives = new HashSet<NodeIDType>(
 					record.getActiveReplicas());
-			assert (newActives.contains(active));
+			if(!newActives.remove(active)) continue;
+			// else
 			NodeIDType newActive = (NodeIDType) Util.getRandomOtherThan(
 					this.consistentNodeConfig.getActiveReplicas(), newActives);
 			if (newActive != null)
 				newActives.add(newActive);
-			newActives.remove(active);
 			// Note: any REPLICATE_ALL record will be reconfigured
 			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
@@ -3342,9 +3336,13 @@ public class Reconfigurator<NodeIDType> implements
 		}
 		int rcCount = 0;
 		ReconfigurationRecord<NodeIDType> record = null;
+		
+		// FIXME: reconfigure AR_AR_NODES first 
+		
+		
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
-					"{0} reconfiguring {1} in order to add active {1}",
+					"{0} reconfiguring {1} in order to add active {2}",
 					new Object[] { this, record.getName(), active });
 			try {
 				this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
@@ -3356,6 +3354,10 @@ public class Reconfigurator<NodeIDType> implements
 
 			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
 				newActives = this.consistentNodeConfig.getActiveReplicas();
+				// means reconfiguration already complete or underway
+				if (record.getActiveReplicas().contains(active)
+						|| (record.getNewActives().contains(active)))
+					continue;
 			}
 			else if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.CUSTOM) {
 				newActives = this.shouldReconfigure(record.getName());
@@ -3407,17 +3409,25 @@ public class Reconfigurator<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 						.toString());
-		if (record == null)
+		if (record == null || !this.consistentNodeConfig.getReplicatedReconfigurators(record.getName()).contains(this.getMyID()))
 			return true;
+		ReconfigurationConfig.log.log(Level.INFO,
+				"{0} reconfiguring RC map at actives upon adds/deletes {1}/{2}", new Object[] {
+						this, rcRecReq.startEpoch.getNewlyAddedNodes(), rcRecReq.startEpoch.getDeletedNodes() });
 		// else
 		this.DB.addToOutstanding(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 				.toString());
-		this.initiateReconfiguration(
+		boolean initiated = this.initiateReconfiguration(
 				AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
 				record, record.getNewActives(), null, null, null,
 				this.consistentNodeConfig.getReconfiguratorsReadOnly()
 						.toString(), null, null,
 				ReconfigureUponActivesChange.REPLICATE_ALL);
+		if (!initiated)
+			ReconfigurationConfig.log.log(Level.SEVERE,
+					"{0} unable to initiate reconfiguration for {1}",
+					new Object[] { this,
+							AbstractReconfiguratorDB.RecordNames.AR_RC_NODES });
 		try {
 			this.DB.waitOutstanding(1);
 		} catch (InterruptedException ie) {
@@ -3500,5 +3510,5 @@ public class Reconfigurator<NodeIDType> implements
 	 * that gets it via {@link RepliconfigurableReconfiguratorDB} that in turn
 	 * gets it from {@link AbstractReplicaCoordinator}.
 	 * 
-	 */
+	 */ 
 }

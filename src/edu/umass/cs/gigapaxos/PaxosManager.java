@@ -2642,14 +2642,14 @@ public class PaxosManager<NodeIDType> {
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
 			}
-		} else {
+		} else if(!this.corpses.containsKey(pp.getPaxosID())) {
 			PaxosConfig.log.log(pp instanceof RequestPacket ? Level.WARNING : Level.INFO,
 					"{0} cant find group member in {1} {2}",
 					new Object[] {
 							this,
 							pp.getSummary(),
 							pp instanceof RequestPacket ? ((((RequestPacket) pp)
-									.getEntryReplica() != this.myID ? "forwarded by entry node"
+									.getEntryReplica() != this.myID ? "forwarded by entry node "
 									+ node
 									: "received from client"
 											+ ((RequestPacket) pp)

@@ -74,6 +74,9 @@ public abstract class PaxosPacketDemultiplexer extends
 		case DECISION:
 			paxosPacket = (new PValuePacket(json));
 			break;
+		case PREEMPTED:
+			paxosPacket = (new PValuePacket(json));
+			break;
 		case BATCHED_COMMIT:
 			paxosPacket = (new BatchedCommit(json));
 			break;

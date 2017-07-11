@@ -34,6 +34,7 @@ import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableActiveConfig;
 import edu.umass.cs.reconfiguration.interfaces.ModifiableRCConfig;
+import edu.umass.cs.reconfiguration.interfaces.ModifiableReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.utils.Config;
 
@@ -52,7 +53,7 @@ import edu.umass.cs.utils.Config;
 public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 		ConsistentNodeConfig<NodeIDType> implements
 		ModifiableActiveConfig<NodeIDType>, ModifiableRCConfig<NodeIDType> {
-	private final SimpleReconfiguratorNodeConfig<NodeIDType> nodeConfig;
+	private final ModifiableReconfigurableNodeConfig<NodeIDType> nodeConfig;
 	private Set<NodeIDType> activeReplicas; // most recent cached copy
 	private Set<NodeIDType> reconfigurators; // most recent cached copy
 
@@ -77,7 +78,16 @@ public class ConsistentReconfigurableNodeConfig<NodeIDType> extends
 	public ConsistentReconfigurableNodeConfig(
 			ReconfigurableNodeConfig<NodeIDType> nc) {
 		super(nc);
-		this.nodeConfig = new SimpleReconfiguratorNodeConfig<NodeIDType>(nc);
+		this.nodeConfig = (
+		/* We create a new instance anyway to prevent apps with messenger access
+		 * from changing nodeConfig and violating safety. A better way is to
+		 * give the app a messenger that disables (by throwing a
+		 * RuntimeException) the ability to add or remove reconfigurators or
+		 * active replicas even if the nodeConfig is
+		 * ModifiableReconfigurableNodeConfig. */
+		// nc instanceof ModifiableReconfigurableNodeConfig<?> ?
+		// (ModifiableReconfigurableNodeConfig<NodeIDType>) nc :
+		new SimpleReconfiguratorNodeConfig<NodeIDType>(nc));
 		this.activeReplicas = this.nodeConfig.getActiveReplicas();
 		this.reconfigurators = this.nodeConfig.getReconfigurators();
 		this.CH_RC = new ConsistentHashing<NodeIDType>(this.reconfigurators);

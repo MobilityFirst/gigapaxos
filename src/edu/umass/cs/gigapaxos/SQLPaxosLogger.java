@@ -436,7 +436,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			LogIndex logIndex = this.get(paxosID);
 			if (logIndex != null && logIndex.version != version)
 				log.log(Level.INFO,
-						"{0} has conflicting logIndex {1}:{2}:{3} when looking for version {3}",
+						"{0} has conflicting logIndex {1}:{2}:{3} when looking for version {4}",
 						new Object[] { disk, paxosID, logIndex.version,
 								logIndex, version });
 			return logIndex != null && logIndex.version == version ? logIndex

@@ -148,7 +148,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 											.getDefaultServiceName(),
 									nodeConfig.getActiveReplicas() });
 			appCoordinator.createReplicaGroup(ReconfigurationConfig.getDefaultServiceName(), 0,
-					null,
+					"random_gibberish_initial_state",
 					nodeConfig.getActiveReplicas());
 
 			// special record at actives containing a map of all current actives

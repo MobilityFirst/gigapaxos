@@ -269,8 +269,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				if(propertiesFile!=null)
 				UtilServer
 						.writeProperty(
-								strNode,
-								map.get(strNode).getAddress()+":"+map.get(strNode).getPort(),
+									(isReconfigurator ? ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX
+											: PaxosConfig.DEFAULT_SERVER_PREFIX)
+											+ strNode,
+								map.get(strNode).getAddress().getHostAddress()+":"+map.get(strNode).getPort(),
 								propertiesFile,
 								isReconfigurator ? ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX
 										.toString()
@@ -286,7 +288,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 	private void deleteFromNodeConfig(Map<String, InetSocketAddress> map,
 			boolean isReconfigurator) throws IOException {
-		for (NodeIDType node : this.nodeConfig.getActiveReplicas())
+		for (NodeIDType node : (isReconfigurator ? this.nodeConfig.getReconfigurators() : this.nodeConfig.getActiveReplicas()))
 			if (!map.containsKey(node.toString())) {
 				if (isReconfigurator)
 					this.nodeConfig.removeReconfigurator(node);

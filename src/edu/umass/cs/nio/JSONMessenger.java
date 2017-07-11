@@ -209,14 +209,17 @@ public class JSONMessenger<NodeIDType> implements
 					execpool.schedule(rtxTask, RTX_DELAY, TimeUnit.MILLISECONDS);
 				} else {
 					assert (sent == -1) : sent;
-					log.log(Level.WARNING,
-							"{0} failed to send message to node {1} [connected={2}]: {3}",
+					boolean isPresent = this.getNodeConfig().nodeExists(
+							(NodeIDType) mtask.recipients[r]);
+					log.log(isPresent ? Level.WARNING : Level.INFO,
+							"{0} failed to send message to node {1} [isPresent={4}]:[connected={2}]: {3}",
 							new Object[] {
 									this.nioTransport.getMyID(),
 									mtask.recipients[r],
-									this.nioTransport
+									!this.nioTransport
 											.isDisconnected((NodeIDType) mtask.recipients[r]),
-									msg });
+									msg,
+									isPresent });
 				}
 			}
 		}
