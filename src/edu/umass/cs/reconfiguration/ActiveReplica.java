@@ -269,8 +269,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				if(propertiesFile!=null)
 				UtilServer
 						.writeProperty(
-								strNode,
-								map.get(strNode).getAddress()+":"+map.get(strNode).getPort(),
+									(isReconfigurator ? ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX
+											: PaxosConfig.DEFAULT_SERVER_PREFIX)
+											+ strNode,
+								map.get(strNode).getAddress().getHostAddress()+":"+map.get(strNode).getPort(),
 								propertiesFile,
 								isReconfigurator ? ReconfigurationConfig.DEFAULT_RECONFIGURATOR_PREFIX
 										.toString()

@@ -188,15 +188,16 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 					.getReplicatedReconfigurators(this.app.getRCGroupName(node));
 			// if I am present, create group
 			if (group.contains(this.getMyID())) {
-				log.log(Level.INFO,
-						"{0} creating reconfigurator group {1} with members {2}",
-						new Object[] { this, this.app.getRCGroupName(node),
-								group });
+				String initialState = null;
 				try {
 					// will fail as expected upon recovery if group already exists
 					this.createReplicaGroup(this.app.getRCGroupName(node), 0,
-							this.getInitialRCGroupAndDefaultNamesRecord((node),
+							initialState=this.getInitialRCGroupAndDefaultNamesRecord((node),
 									group), group);
+					log.log(Level.INFO,
+							"{0} created reconfigurator group {1} with members {2}: {3}",
+							new Object[] { this, this.app.getRCGroupName(node),
+									group, initialState });
 				} catch (PaxosInstanceCreationException pice) {
 					// can happen during recovery
 					log.info(this
@@ -294,8 +295,8 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	private void appendToRCGroupRecordSelf(
 			ArrayList<ReconfigurationRecord<NodeIDType>> records, String name,
 			NodeIDType node) {
-		if (this.consistentNodeConfig.getReplicatedReconfigurators(name)
-				.contains(node))
+		if (this.getRCGroupName(name)
+				.equals(this.getRCGroupName(node)))
 			records.add(new ReconfigurationRecord<NodeIDType>(
 					name,
 					0,

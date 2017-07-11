@@ -498,6 +498,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			mtask = handleCommittedRequest((PValuePacket) pp);
 			// send nothing, but log decision
 			break;
+		case PREEMPTED:
+			// do nothing
+			break;
 		case BATCHED_COMMIT:
 			mtask = handleBatchedCommit((BatchedCommit) pp);
 			// send nothing, but log decision

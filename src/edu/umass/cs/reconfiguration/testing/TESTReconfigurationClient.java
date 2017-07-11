@@ -969,7 +969,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 										.getGlobalString(TRC.AR_PREFIX)))),
 						null), true);
 		
-		System.out.print("[deleted " + name + "] ");
+		System.out.print("[-" + name + "] ");
 	}
 
 	/**
@@ -987,10 +987,10 @@ public class TESTReconfigurationClient extends DefaultTest {
 		adds.put(generateRandomName(Config.getGlobalString(TRC.AR_PREFIX)),
 				new InetSocketAddress(61001));
 		Assert.assertEquals(testReconfigureActives(adds, null, null), true);
-		System.out.print("[added " + adds.keySet().iterator().next() + "] ");
+		System.out.print("[+" + adds.keySet().iterator().next() + "] ");
 		Assert.assertEquals(testReconfigureActives(null, adds.keySet(), null),
 				true);
-		System.out.print("[deleted " + adds.keySet().iterator().next() + "] ");
+		System.out.print("[-" + adds.keySet().iterator().next() + "] ");
 		;
 	}
 
@@ -1017,7 +1017,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 			// store this for subsequent addition
 			justDeletedActives.putAll(deletes);
 		Assert.assertEquals(true, true); // no-op
-		System.out.print("[deleted " + Arrays.asList(deletes.keySet().iterator().next()) + "] ");		
+		System.out.print("[-" + Arrays.asList(deletes.keySet().iterator().next()) + "] ");		
 	}
 
 	/**
@@ -1037,7 +1037,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 			assert (test);
 			Assert.assertEquals(test, true);
 			justDeletedActives.clear();
-			System.out.print("[added " + newlyAddedActives.keySet().iterator().next() + "] ");		
+			System.out.print("[+" + newlyAddedActives.keySet().iterator().next() + "] ");		
 			Thread.sleep(1000);
 		} else
 			log.log(Level.INFO,

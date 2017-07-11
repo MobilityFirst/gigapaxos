@@ -341,16 +341,16 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 					for (int j = 0; j < executed.length; j++) {
 						if (executed[j] > 0) {
 							log.log(Level.FINE,
-									"{0} updated RC DB record to {1}",
+									"{0}:{1} updated RC DB record to {2}",
 									new Object[] {
-											this,
+											this, rcGroupName,
 											toCommit.get(batch.get(j))
 													.getSummary() });
 							committed.add(batch.get(j));
 						} else
 							log.log(Level.FINE,
-									"{0} unable to update RC record {1} (executed={2}), will try insert",
-									new Object[] { this, batch.get(j),
+									"{0}:{1} unable to update RC record {2} (executed={3}), will try insert",
+									new Object[] { this, rcGroupName, batch.get(j),
 											executed[j] });
 					}
 					batch.clear();

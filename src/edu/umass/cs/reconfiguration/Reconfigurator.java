@@ -1806,12 +1806,13 @@ public class Reconfigurator<NodeIDType> implements
 				&& (recordServiceName == null || recordServiceName.isReady());
 		if (!ready)
 			ReconfigurationConfig.log.log(Level.FINE,
-					"{0} not ready to reconfigure {1}; record={2} and rcGroupRecord={3}",
+					"{0} not ready to reconfigure {1}; record={2} and rcGroupRecord({3})={4}",
 					new Object[] {
 							this,
 							rcPacket.getServiceName(),
 							recordServiceName != null ? recordServiceName
 									.getSummary() : "[null]",
+									this.DB.getRCGroupName(rcPacket.getServiceName()),
 							recordGroupName != null ? recordGroupName
 									.getSummary() : "[null]" });
 		return ready;
@@ -2531,13 +2532,6 @@ public class Reconfigurator<NodeIDType> implements
 				return false;
 			}
 		}
-
-//		// update actives at actives
-//		this.initiateReconfiguration(record.getName(), record,
-//				rcRecReq.startEpoch.curEpochGroup, rcRecReq.startEpoch.creator,
-//				null, null, this.consistentNodeConfig.getActiveReplicasMap()
-//						.toString(), null, null, record
-//						.getReconfigureUponActivesChangePolicy());
 
 		// uncoordinated change locally
 		boolean executed = this.DB.execute(new RCRecordRequest<NodeIDType>(
@@ -3342,6 +3336,10 @@ public class Reconfigurator<NodeIDType> implements
 		}
 		int rcCount = 0;
 		ReconfigurationRecord<NodeIDType> record = null;
+		
+		// FIXME: reconfigure AR_AR_NODES first 
+		
+		
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
 			ReconfigurationConfig.log.log(Level.FINEST,
 					"{0} reconfiguring {1} in order to add active {2}",
@@ -3393,7 +3391,6 @@ public class Reconfigurator<NodeIDType> implements
 		return initiated && closed;
 	}
 	
-	private static final boolean DISABLE_CHANGE_RC_NODECONFIG_AT_ACTIVES = true;
 	/**
 	 * This method reconfigures (in place) the AR_RC_NODES record at actives
 	 * that contains the map of current reconfigurators. The reconfiguration
@@ -3409,7 +3406,6 @@ public class Reconfigurator<NodeIDType> implements
 	 */
 	private boolean changeRCNodeConfigAtActives(
 			RCRecordRequest<NodeIDType> rcRecReq) {
-		if(DISABLE_CHANGE_RC_NODECONFIG_AT_ACTIVES) return true;
 		ReconfigurationRecord<NodeIDType> record = this.DB
 				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 						.toString());
