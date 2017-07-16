@@ -2524,6 +2524,16 @@ public class Reconfigurator<NodeIDType> implements
 					.keySet();
 			
 			// reconfiguring AR_AR_NODES first in a blocking manner.
+			// FIXME: There is a bug in this approach. This code gets executed on 
+			// the RC that is responsible for AR_NODES, so it may not necessarily 
+			// be the RC for the AR_AR_NODES. So, when there are many reconfigurators,
+			// AR_NODES and AR_AR_NODES RC record may map to different RCs and 
+			// we may not get the property of reconfiguring AR_AR_NODES RC record
+			// before reconfiguring all other records, which is needed to 
+			// update nodeconfigs at actives so that the other reconfigurations 
+			// succeed. Another alternative is that, for a reconfiguration,  
+			// the new actives fetch state from old actives using a periodically 
+			// scheduled task, so that eventually the reconfigurations succeeds. 
 			reconfigureARARNodes(addedNodes, rcRecReq.startEpoch.creator);
 			
 			for (NodeIDType active : addedNodes)
