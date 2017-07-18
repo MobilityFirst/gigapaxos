@@ -28,6 +28,7 @@ import edu.umass.cs.protocoltask.ProtocolEvent;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.protocoltask.ThresholdProtocolTask;
+import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
 import edu.umass.cs.reconfiguration.Reconfigurator;
 import edu.umass.cs.reconfiguration.RepliconfigurableReconfiguratorDB;
@@ -81,8 +82,21 @@ public class WaitAckStartEpoch<NodeIDType>
 			RepliconfigurableReconfiguratorDB<NodeIDType> DB) {
 		super(
 				startEpoch.getCurEpochGroup(),
-				(!startEpoch.isMerge() ? startEpoch.getCurEpochGroup().size() / 2 + 1
-						: 1), !startEpoch.isMerge() ? false : true);
+				(!startEpoch.isMerge() ? (!(startEpoch.getServiceName().equals(
+						AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
+								.toString()) || startEpoch
+						.getServiceName()
+						.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+								.toString())) ?
+				// simple majority (common case)
+				(startEpoch.getCurEpochGroup().size() / 2 + 1)
+						// full group acknowledgment
+						: startEpoch.getCurEpochGroup().size())
+
+						// (aggregated) merge only requires single ack
+						: 1),
+
+				!startEpoch.isMerge() ? false : true);
 		// need to recreate start epoch just to set initiator to self
 		this.startEpoch = new StartEpoch<NodeIDType>(DB.getMyID(), startEpoch);
 		
