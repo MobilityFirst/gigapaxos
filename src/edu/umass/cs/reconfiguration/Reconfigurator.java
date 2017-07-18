@@ -2522,6 +2522,20 @@ public class Reconfigurator<NodeIDType> implements
 		if (rcRecReq.startEpoch.newlyAddedNodes != null) {
 			Set<NodeIDType> addedNodes = rcRecReq.startEpoch.newlyAddedNodes
 					.keySet();
+			
+			// reconfiguring AR_AR_NODES first in a blocking manner.
+			// FIXME: There is a bug in this approach. This code gets executed on 
+			// the RC that is responsible for AR_NODES, so it may not necessarily 
+			// be the RC for the AR_AR_NODES. So, when there are many reconfigurators,
+			// AR_NODES and AR_AR_NODES RC record may map to different RCs and 
+			// we may not get the property of reconfiguring AR_AR_NODES RC record
+			// before reconfiguring all other records, which is needed to 
+			// update nodeconfigs at actives so that the other reconfigurations 
+			// succeed. Another alternative is that, for a reconfiguration,  
+			// the new actives fetch state from old actives using a periodically 
+			// scheduled task, so that eventually the reconfigurations succeeds. 
+			reconfigureARARNodes(addedNodes, rcRecReq.startEpoch.creator);
+			
 			for (NodeIDType active : addedNodes)
 				this.addActiveReplica(active, rcRecReq.startEpoch.creator);
 
@@ -3337,10 +3351,15 @@ public class Reconfigurator<NodeIDType> implements
 		int rcCount = 0;
 		ReconfigurationRecord<NodeIDType> record = null;
 		
-		// FIXME: reconfigure AR_AR_NODES first 
-		
 		
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
+			
+			// AR_AR_NODES is already reconfigured before calling this function
+			// , so skipping here.
+			if(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+					.toString().equals(record.getName())) continue;	
+			
+			
 			ReconfigurationConfig.log.log(Level.FINEST,
 					"{0} reconfiguring {1} in order to add active {2}",
 					new Object[] { this, record.getName(), active });
@@ -3489,7 +3508,82 @@ public class Reconfigurator<NodeIDType> implements
 		return callbackFuture;
 
 	}
+	
+	
+	/**
+	 * This function is used to perform the reconfiguration
+	 * of {@link AbstractReconfiguratorDB.RecordNames#AR_AR_NODES}
+	 * RC record on addition of actives. This function will block until
+	 * the reconfiguration of {@link AbstractReconfiguratorDB.RecordNames#AR_AR_NODES}
+	 * is complete. A typical use of this function is to perform the 
+	 * reconfiguration of {@link AbstractReconfiguratorDB.RecordNames#AR_AR_NODES}
+	 * before reconfiguration of other records so that the active replicas have
+	 * up-to-date information of all actives and they have setup messenger 
+	 * connections between them.
+	 */
+	private void reconfigureARARNodes(Set<NodeIDType> addedActives, 
+			InetSocketAddress creator)
+	{
+		ReconfigurationRecord<NodeIDType> record = this.DB.app.getReconfigurationRecord
+							(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString());
+		
+		if(record == null)
+			return ;
+		
+		ReconfigurationConfig.log.log(Level.FINE,
+				"{0} reconfiguring {1} in order to add actives {2} ",
+				new Object[] { this, record.getName(), addedActives});
+		try {
+			this.DB.waitOutstanding(MAX_OUTSTANDING_RECONFIGURATIONS);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			return;
+		}
+		
+		Set<NodeIDType> newActives = null;
 
+		if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
+			newActives = this.consistentNodeConfig.getActiveReplicas();
+		}
+		else if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.CUSTOM) {
+			newActives = this.shouldReconfigure(record.getName());
+		}
+		
+		this.DB.addToOutstanding(record.getName());
+		
+		boolean returnVal = this.initiateReconfiguration(record.getName(), record,
+				newActives, creator, null, null, 
+				// include initial state in StartEpoch for AR_AR_NODES
+				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+				.toString().equals(record.getName()) ? this.consistentNodeConfig
+						.getActiveReplicasReadOnly().toString()
+						: null,
+				null, null, record.getReconfigureUponActivesChangePolicy());
+		
+		// reconfiguration initiation failed.
+		// so removing from addToOutstanding, as no reconfiguration 
+		// complete message will come to do the removal
+		if(!returnVal)
+		{
+			this.DB.notifyOutstanding(record.getName());
+		}
+		else
+		{
+			try 
+			{
+				this.DB.waitOutstanding(1);
+			} 
+			catch (InterruptedException e) 
+			{
+				e.printStackTrace();
+			}
+			ReconfigurationConfig.log.log(Level.FINE,
+					"{0} reconfiguration of {1} in order to add actives {2} is complete.",
+					new Object[] { this, record.getName(), addedActives});
+		}
+	}
+	
+	
 	/**
 	 * If only a subset of reconfigurators get a node config change intent, they
 	 * could end up never executing the intent and therefore never doing the
