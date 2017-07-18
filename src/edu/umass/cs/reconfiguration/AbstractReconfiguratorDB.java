@@ -205,22 +205,22 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		}
 		return false;
 	}
-
+	
 	/**
 	 * @param report
 	 * @return True if demand report is handled successfully. False means that
 	 *         it may not have been processed.
 	 */
-	public boolean handleDemandReport(DemandReport<NodeIDType> report) {
+	public boolean handleDemandReport(DemandReport<NodeIDType> report, boolean recovery) {
 		return this.updateDemandStats(report);
 	}
-
+	
 	private ReconfiguratorCallback callback = null;
-
+	
 	public void setCallback(ReconfiguratorCallback callback) {
 		this.callback = callback;
 	}
-
+	
 	/**
 	 * If a reconfiguration intent is being registered, a protocol task must be
 	 * started that ensures that the reconfiguration completes successfully.
