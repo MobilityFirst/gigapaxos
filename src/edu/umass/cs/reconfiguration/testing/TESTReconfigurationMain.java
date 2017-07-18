@@ -109,10 +109,8 @@ public class TESTReconfigurationMain {
 	// @AfterClass
 	public static void closeServers() throws IOException, InterruptedException {
 		// all tests should be complete at this point
-		if(reconfigurators!=null)
 		for (ReconfigurableNode<?> node : reconfigurators)
 			node.close();
-		if(actives!=null)
 		for (ReconfigurableNode<?> node : actives)
 			node.close();
 	}

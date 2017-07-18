@@ -180,8 +180,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		if (!createdOrExistsOrHigher)
 			throw new PaxosInstanceCreationException((this
 					+ " failed to create " + groupName + ":" + epoch
-					+ " with state [" + state + "]") + "; existing_version=" + 
-					this.paxosManager.getVersion(groupName));
+					+ " with state [" + state + "]"));
 		return createdOrExistsOrHigher;
 	}
 

@@ -3298,13 +3298,12 @@ public class Reconfigurator<NodeIDType> implements
 			// reconfigure name so as to exclude active
 			Set<NodeIDType> newActives = new HashSet<NodeIDType>(
 					record.getActiveReplicas());
-			if(!newActives.contains(active)) continue;
+			if(!newActives.remove(active)) continue;
 			// else
 			NodeIDType newActive = (NodeIDType) Util.getRandomOtherThan(
 					this.consistentNodeConfig.getActiveReplicas(), newActives);
 			if (newActive != null)
 				newActives.add(newActive);
-			newActives.remove(active);
 			// Note: any REPLICATE_ALL record will be reconfigured
 			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
@@ -3328,88 +3327,20 @@ public class Reconfigurator<NodeIDType> implements
 
 	private boolean addActiveReplica(NodeIDType active,
 			InetSocketAddress creator) {
-		ReconfigurationRecord<NodeIDType> record = null;
-
-		boolean initiatedCursor = this.DB.app.initiateReadActiveRecords(active);
-		if (!initiatedCursor) {
+		boolean initiated = this.DB.app.initiateReadActiveRecords(active);
+		if (!initiated) {
 			ReconfigurationConfig.log.log(Level.WARNING,
 					"{0} addActiveReplica {1} unable to initiate read active records",
 					new Object[] { this, active });
 			return false;
 		}
 		int rcCount = 0;
-		Set<NodeIDType> newActives = null;
-				
-		// reconfigure AR_AR_NODES first 
-		{
-			record = this.DB
-					.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
-							.toString());
-			if (record != null
-					&& (newActives = this.consistentNodeConfig
-							.getActiveReplicas()) != null
-							&& record.getActiveReplicas()!=null
-							&& !record.getActiveReplicas().contains(active)
-							&& !record.getNewActives().contains(active)
-					&& (this.initiateReconfiguration(record.getName(), record,
-							newActives, creator, null,
-							null,
-							// include initial state for AR_AR_NODES
-							this.consistentNodeConfig
-									.getActiveReplicasReadOnly().toString(),
-							null, null, record
-									.getReconfigureUponActivesChangePolicy()))) {
-				try {
-					ReconfigurationConfig.log
-							.log(Level.INFO,
-									"{0} initiated reconfiguration of {1}",
-									new Object[] {
-											this,
-											AbstractReconfiguratorDB.RecordNames.AR_AR_NODES });
-					this.DB.addToOutstanding(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
-							.toString());
-					record = this.DB
-							.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
-									.toString());
-					if (record != null && record.getActiveReplicas() != null
-							&& record.getActiveReplicas().contains(active))
-						// inelegant redundant check to handle concurrency
-						this.DB.notifyOutstanding(record.getName());
-					
-					this.DB.waitOutstanding(1);
-					ReconfigurationConfig.log
-					.log(Level.INFO,
-							"{0} completed reconfiguration of {1}",
-							new Object[] {
-									this,
-									AbstractReconfiguratorDB.RecordNames.AR_AR_NODES });
-
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-					ReconfigurationConfig.log
-							.log(Level.WARNING,
-									"{0} interrupted while waiting for {1} reconfiguration to complete",
-									new Object[] { this, record.getName() });
-					return false;
-				}
-			}
-			else {
-				ReconfigurationConfig.log
-						.log(Level.INFO,
-								"{0} unable to initiate reconfiguration for {1} record: [{2}]",
-								new Object[] {
-										this,
-										AbstractReconfiguratorDB.RecordNames.AR_AR_NODES,
-										record });
-			}
-		}
-		// AR_AR_NODES reconfigured if here (or !initiatedReconfiguration)
+		ReconfigurationRecord<NodeIDType> record = null;
+		
+		// FIXME: reconfigure AR_AR_NODES first 
+		
 		
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
-			// already addresses this as a special case above
-			if(record.getName().equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()))
-				continue;
-
 			ReconfigurationConfig.log.log(Level.FINEST,
 					"{0} reconfiguring {1} in order to add active {2}",
 					new Object[] { this, record.getName(), active });
@@ -3419,6 +3350,7 @@ public class Reconfigurator<NodeIDType> implements
 				e.printStackTrace();
 				return false;
 			}
+			Set<NodeIDType> newActives = null;
 
 			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
 				newActives = this.consistentNodeConfig.getActiveReplicas();
@@ -3431,16 +3363,17 @@ public class Reconfigurator<NodeIDType> implements
 				newActives = this.shouldReconfigure(record.getName());
 			}
 
-			if (newActives != null
+			if (newActives!=null 
 					&& this.initiateReconfiguration(record.getName(), record,
-							newActives, creator, null, null, null, null, null,
-							record.getReconfigureUponActivesChangePolicy())) {
-				ReconfigurationConfig.log
-				.log(Level.INFO,
-						"{0} initiated reconfiguration of {1}",
-						new Object[] {
-								this,
-								record.getName()});
+					newActives, creator, null, null, 
+
+					// include initial state in StartEpoch for AR_AR_NODES
+					AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+					.toString().equals(record.getName()) ? this.consistentNodeConfig
+							.getActiveReplicasReadOnly().toString()
+							: null,
+					
+					null, null, record.getReconfigureUponActivesChangePolicy())) {
 				rcCount++;
 				this.DB.addToOutstanding(record.getName());
 				record = this.DB.getReconfigurationRecord(record.getName());
@@ -3450,14 +3383,12 @@ public class Reconfigurator<NodeIDType> implements
 					this.DB.notifyOutstanding(record.getName());
 			}
 		}
-		
 		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} closing read active records cursor after initiating "
 						+ "{1} reconfigurations in order to add active {2}",
 				new Object[] { this, rcCount, active });
 		boolean closed = this.DB.app.closeReadActiveRecords();
-
-		return initiatedCursor && closed;
+		return initiated && closed;
 	}
 	
 	/**
