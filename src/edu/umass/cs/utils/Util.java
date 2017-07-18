@@ -795,6 +795,12 @@ public class Util {
 			jarray.put(isa.getAddress().getHostAddress() + ":" + isa.getPort());
 		return jarray;
 	}
+	
+	public static boolean containsNone(Collection<?> c1, Collection<?> c2) {
+		for(Object obj : c2)
+			if(c1.contains(obj)) return false;
+		return true;
+	}
 
 	/**
 	 * @param entryServer

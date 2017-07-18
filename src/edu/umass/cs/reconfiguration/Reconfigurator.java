@@ -2431,10 +2431,53 @@ public class Reconfigurator<NodeIDType> implements
 				diff(rcRecReq.startEpoch.prevEpochGroup,
 						rcRecReq.startEpoch.curEpochGroup));
 
+		//this.blockingReconfigureARNodeConfig(rcRecReq);
 		this.reconfigureNodeConfigRecord(rcRecReq);
 
 		// finally all done
 		return allDone;
+	}
+
+	/* Unused: Method that blocks until AR_NODES is reconfigured to a replica group
+	 * consisting of the new set of reconfigurators. */
+	protected void blockingReconfigureARNodeConfig(
+			RCRecordRequest<NodeIDType> rcRecReq) {
+		ReconfigurationRecord<NodeIDType> record = this.DB
+				.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
+						.toString());
+		if (record.getActiveReplicas().containsAll(
+				this.consistentNodeConfig.getReconfigurators())
+				&& Util.containsNone(record.getActiveReplicas(), 
+						rcRecReq.startEpoch.getDeletedNodes()))
+			return;
+
+		// else
+		boolean initiated = this.initiateReconfiguration(record.getName(),
+				record, this.diff(
+						this.consistentNodeConfig.getReconfigurators(),
+						rcRecReq.startEpoch.getDeletedNodes()), null, null,
+				null, null, null, rcRecReq.startEpoch.newlyAddedNodes,
+				ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
+		if (initiated)
+			synchronized (this.DB.app) {
+				while (!((record = this.DB
+						.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
+								.toString())).isReady()
+						&& record.getActiveReplicas().containsAll(
+								this.consistentNodeConfig.getReconfigurators()) && Util
+							.containsNone(record.getActiveReplicas(),
+									rcRecReq.startEpoch.getDeletedNodes())))
+					this.DB.app.selfWait();
+					;
+			}
+		else
+			assert (((record = this.DB
+					.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_NODES
+							.toString())).isReady()
+					&& record.getActiveReplicas().containsAll(
+							this.consistentNodeConfig.getReconfigurators()) && Util
+						.containsNone(record.getActiveReplicas(),
+								rcRecReq.startEpoch.getDeletedNodes())));
 	}
 
 	/* Starts in a separate thread as it is a blocking operation. It does not

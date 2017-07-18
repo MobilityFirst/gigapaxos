@@ -417,7 +417,15 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		if (handled
 				&& (rcRecReq.isReconfigurationComplete() || rcRecReq
 						.isReconfigurationMerge())
-				&& this.isRCGroupName(record.getName()))
+				&&
+
+				(this.isRCGroupName(record.getName()) ||
+				// to unblock Reconfigurator.blockingReconfigureARNodeConfig
+				rcRecReq.getServiceName().equals(
+						AbstractReconfiguratorDB.RecordNames.AR_NODES
+								.toString()))
+
+		)
 			// notify to wake up node config completion wait
 			selfNotify();
 		else if (handled && rcRecReq.isReconfigurationComplete()
@@ -819,6 +827,14 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 			this.handleRCRecordRequest(this.blockingRequest, false);
 		}
 		this.notifyAll();
+	}
+
+	protected synchronized void selfWait() {
+		try {
+			this.wait();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**
