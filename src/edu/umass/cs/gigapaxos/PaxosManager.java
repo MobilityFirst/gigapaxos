@@ -2629,7 +2629,7 @@ public class PaxosManager<NodeIDType> {
 		int nodeID = FindReplicaGroupPacket.getNodeID(pp);
 		NodeIDType node = nodeID > 0 ? this.integerMap.get(nodeID) : 
 				(pp instanceof RequestPacket ? 
-				this.integerMap.get(((RequestPacket) pp).getEntryReplica())
+				this.integerMap.get(nodeID=((RequestPacket) pp).getEntryReplica())
 				: null)
 				;
 		if (nodeID >= 0) {
