@@ -42,7 +42,6 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
-import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
@@ -666,8 +665,12 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 
 	protected void waitOutstanding(int max) throws InterruptedException {
 		synchronized (this.outstandingReconfigurations) {
-			while (this.outstandingReconfigurations.size() >= max)
+			while (this.outstandingReconfigurations.size() >= max) {
+				log.log(Level.INFO,
+						"{0} waiting on reconfiguration of RC records: {1}",
+						new Object[] { this, this.outstandingReconfigurations });
 				this.outstandingReconfigurations.wait();
+			}
 		}
 	}
 
