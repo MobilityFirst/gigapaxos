@@ -619,16 +619,25 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 					// remember reconfigurator that initiated confirmed creation
 					if (response instanceof CreateServiceName
 							&& !((CreateServiceName) response).isFailed()) {
+						InetSocketAddress isa = null;
 						ReconfigurableAppClientAsync.this.mostRecentlyCreatedMap
 								.put(response.getServiceName(),
+										isa = ((ClientReconfigurationPacket) response)
+												.getForwader() == null
+												|| !USE_FORWARDEE_INFO ?
+										// initiating reconfigurator
 										((ClientReconfigurationPacket) response)
-												.getForwader() == null ? ((ClientReconfigurationPacket) response)
-												.getSender()
-												: !USE_FORWARDEE_INFO ? ((ClientReconfigurationPacket) response)
-														.getSender()
-												// initiating reconfigurator
-														: ((CreateServiceName) response)
-																.getForwardee());
+												.getSender() :
+										// forwarder uses default port
+												Util.getOffsettedAddress(
+														((CreateServiceName) response)
+																.getForwardee(),
+														-getServerPortOffset()));
+						ReconfigurableAppClientAsync.log
+								.log(Level.FINER,
+										"{0} inserted {1}:{2} into mostRecentlyCreatedMap",
+										new Object[] { this,
+												response.getServiceName(), isa });
 					}
 				} else if (response instanceof ServerReconfigurationPacket<?>) {
 					if ((callbackCRP = ReconfigurableAppClientAsync.this.callbacksSRP
@@ -1170,6 +1179,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 						((TimeoutRequestCallback) callback).getTimeout(),
 						request);
 
+		log.log(Level.FINER, "{0} sending QQ request {1} to {2}", new Object[] {
+				this, request.getSummary(), reconfigurator });
 		this.sendRequest(request, reconfigurator != null ? reconfigurator
 				: this.e2eRedirector.getNearest(clientFacingReconfigurators));
 		return toRequestFutureCRP(future);
@@ -1177,6 +1188,8 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 
 	private boolean sendRequest(ClientReconfigurationPacket request,
 			InetSocketAddress reconfigurator) throws IOException {
+		log.log(Level.FINER, "{0} sending request {1} to {2}", new Object[] {
+				this, request.getSummary(), reconfigurator });
 		return this.getNIO(request).sendToAddress(reconfigurator, request) > 0;
 	}
 	
@@ -1570,7 +1583,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 										this.sendRequest(
 												new RequestActiveReplicas(
 														response.getServiceName()),
-												reconfigurator);
+												Util.offsetPort(reconfigurator, getServerPortOffset()));
 								} catch (IOException e) {
 									e.printStackTrace();
 									// do nothing
