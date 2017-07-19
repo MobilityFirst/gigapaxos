@@ -412,10 +412,10 @@ public class TESTReconfigurationClient extends DefaultTest {
 			monitorWait(success, timeout);
 
 		} while (!success[0]
-				&& (timeout == null || System.currentTimeMillis() - t < timeout));
+				&& (timeout == null || System.currentTimeMillis() - t < timeout*Config.getGlobalLong(TRC.TEST_RETRIES)));
 		if (!success[0])
-			log.log(Level.INFO, "testExists failed after {1}ms", new Object[] {
-					success[0], System.currentTimeMillis() - t });
+			log.log(Level.INFO, "testExists {0} failed after {1}ms", new Object[] {
+					name, System.currentTimeMillis() - t });
 		return success[0];
 	}
 
@@ -482,7 +482,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 											&& !create.nameStates.isEmpty() ? "("
 											+ create.nameStates.size() + ")"
 											: "",
-									(System.currentTimeMillis() - t), response });
+									(System.currentTimeMillis() - t), response.getSummary() });
 					success[0] = !((CreateServiceName) response).isFailed();
 					monitorNotify(success);
 				}
@@ -838,7 +838,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 	 * @throws InterruptedException
 	 */
 	@Test
-	@Repeat(times = REPEAT)
+	@Repeat(times = 100)
 	public void test02_MutualAuthRequest() throws IOException,
 			NumberFormatException, InterruptedException {
 		String name = generateRandomName();

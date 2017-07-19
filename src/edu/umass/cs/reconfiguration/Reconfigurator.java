@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
 import java.util.HashSet;
@@ -938,16 +939,16 @@ public class Reconfigurator<NodeIDType> implements
 			request.setResponseMessage(responseMessage
 					+ " probably because the name has not yet been created or is pending deletion");
 			// this.sendClientReconfigurationPacket
-			callback.processResponse(request
-					.setFailed(
-							ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
-					.makeResponse()
-					.setHashRCs(
-							modifyPortsForSSL(
-									this.getSocketAddresses(this.consistentNodeConfig
-											.getReplicatedReconfigurators(request
-													.getServiceName())),
-									receivedOnSSLPort(request))));
+			callback.processResponse(this
+					.amReceiver(request
+							.setFailed(
+									ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
+							.makeResponse()) ? (RequestActiveReplicas) request
+					.setHashRCs(modifyPortsForSSL(this
+							.getSocketAddresses(this.consistentNodeConfig
+									.getReplicatedReconfigurators(request
+											.getServiceName())),
+							receivedOnSSLPort(request))) : request);
 			return null;
 		}
 
@@ -971,6 +972,21 @@ public class Reconfigurator<NodeIDType> implements
 		 * returning a messaging task below because protocolExecutor's messenger
 		 * may not be usable for client facing requests. */
 		return null;
+	}
+
+	private boolean amReceiver(ClientReconfigurationPacket response) {
+		InetSocketAddress incoming = response.getMyReceiver();
+		InetSocketAddress me = this.consistentNodeConfig.getNodeSocketAddress(this.getMyID());
+		return me.equals(incoming) 
+				
+				||
+				me.getAddress().equals(incoming.getAddress()) &&  
+				ReconfigurationConfig.getClientFacingClearPort(me.getPort())==incoming.getPort() 
+				
+				||
+				me.getAddress().equals(incoming.getAddress()) &&  
+				ReconfigurationConfig.getClientFacingSSLPort(me.getPort())==incoming.getPort();
+
 	}
 
 	/**
@@ -1486,10 +1502,20 @@ public class Reconfigurator<NodeIDType> implements
 
 	private ClientReconfigurationPacket modifyPortsForSSLIfNeeded(
 			ClientReconfigurationPacket clientRCPacket) {
-		return clientRCPacket.getRequestType() == ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS ? ((RequestActiveReplicas) clientRCPacket)
-				.setActives(modifyPortsForSSL(
-						((RequestActiveReplicas) clientRCPacket).getActives(),
-						receivedOnSSLPort(clientRCPacket))) : clientRCPacket;
+		return clientRCPacket.getRequestType() == ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS
+				&& this.amReceiver(((RequestActiveReplicas) clientRCPacket)) ? (((RequestActiveReplicas) clientRCPacket)
+				.setActives(
+						modifyPortsForSSL(
+								((RequestActiveReplicas) clientRCPacket)
+										.getActives(),
+								receivedOnSSLPort(clientRCPacket))).isFailed() ? clientRCPacket
+				.setHashRCs(modifyPortsForSSL(this
+						.getSocketAddresses(this.consistentNodeConfig
+								.getReplicatedReconfigurators(clientRCPacket
+										.getServiceName())),
+						receivedOnSSLPort(clientRCPacket))) : clientRCPacket)
+
+				: clientRCPacket;
 	}
 
 	private static final Set<InetSocketAddress> modifyPortsForSSL(
@@ -1542,16 +1568,19 @@ public class Reconfigurator<NodeIDType> implements
 			this.forwardClientReconfigurationPacket(request);
 		else
 			// error with redirection hints
-			this.sendClientReconfigurationPacket(request
-					.setFailed()
-					.setHashRCs(
-							modifyPortsForSSL(
-									this.getSocketAddresses(this.consistentNodeConfig
-											.getReplicatedReconfigurators(request
-													.getServiceName())),
-									receivedOnSSLPort(request)))
-					.setResponseMessage(
-							" <Wrong number! I am not the reconfigurator responsible>"));
+			this.sendClientReconfigurationPacket(this
+					.amReceiver(request
+							.setFailed()
+							.setResponseMessage(
+									" <Wrong number! I am not the reconfigurator responsible>")) ?
+
+			request.setHashRCs(modifyPortsForSSL(this
+					.getSocketAddresses(this.consistentNodeConfig
+							.getReplicatedReconfigurators(request
+									.getServiceName())),
+					receivedOnSSLPort(request)))
+
+			: request);
 		return true;
 	}
 
