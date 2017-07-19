@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
 import java.util.HashSet;
@@ -938,16 +939,16 @@ public class Reconfigurator<NodeIDType> implements
 			request.setResponseMessage(responseMessage
 					+ " probably because the name has not yet been created or is pending deletion");
 			// this.sendClientReconfigurationPacket
-			callback.processResponse(request
-					.setFailed(
-							ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
-					.makeResponse()
-					.setHashRCs(
-							modifyPortsForSSL(
-									this.getSocketAddresses(this.consistentNodeConfig
-											.getReplicatedReconfigurators(request
-													.getServiceName())),
-									receivedOnSSLPort(request))));
+			callback.processResponse(this
+					.amReceiver(request
+							.setFailed(
+									ClientReconfigurationPacket.ResponseCodes.NONEXISTENT_NAME_ERROR)
+							.makeResponse()) ? (RequestActiveReplicas) request
+					.setHashRCs(modifyPortsForSSL(this
+							.getSocketAddresses(this.consistentNodeConfig
+									.getReplicatedReconfigurators(request
+											.getServiceName())),
+							receivedOnSSLPort(request))) : request);
 			return null;
 		}
 
@@ -971,6 +972,21 @@ public class Reconfigurator<NodeIDType> implements
 		 * returning a messaging task below because protocolExecutor's messenger
 		 * may not be usable for client facing requests. */
 		return null;
+	}
+
+	private boolean amReceiver(ClientReconfigurationPacket response) {
+		InetSocketAddress incoming = response.getMyReceiver();
+		InetSocketAddress me = this.consistentNodeConfig.getNodeSocketAddress(this.getMyID());
+		return me.equals(incoming) 
+				
+				||
+				me.getAddress().equals(incoming.getAddress()) &&  
+				ReconfigurationConfig.getClientFacingClearPort(me.getPort())==incoming.getPort() 
+				
+				||
+				me.getAddress().equals(incoming.getAddress()) &&  
+				ReconfigurationConfig.getClientFacingSSLPort(me.getPort())==incoming.getPort();
+
 	}
 
 	/**
@@ -1486,10 +1502,20 @@ public class Reconfigurator<NodeIDType> implements
 
 	private ClientReconfigurationPacket modifyPortsForSSLIfNeeded(
 			ClientReconfigurationPacket clientRCPacket) {
-		return clientRCPacket.getRequestType() == ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS ? ((RequestActiveReplicas) clientRCPacket)
-				.setActives(modifyPortsForSSL(
-						((RequestActiveReplicas) clientRCPacket).getActives(),
-						receivedOnSSLPort(clientRCPacket))) : clientRCPacket;
+		return clientRCPacket.getRequestType() == ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS
+				&& this.amReceiver(((RequestActiveReplicas) clientRCPacket)) ? (((RequestActiveReplicas) clientRCPacket)
+				.setActives(
+						modifyPortsForSSL(
+								((RequestActiveReplicas) clientRCPacket)
+										.getActives(),
+								receivedOnSSLPort(clientRCPacket))).isFailed() ? clientRCPacket
+				.setHashRCs(modifyPortsForSSL(this
+						.getSocketAddresses(this.consistentNodeConfig
+								.getReplicatedReconfigurators(clientRCPacket
+										.getServiceName())),
+						receivedOnSSLPort(clientRCPacket))) : clientRCPacket)
+
+				: clientRCPacket;
 	}
 
 	private static final Set<InetSocketAddress> modifyPortsForSSL(
@@ -1542,16 +1568,19 @@ public class Reconfigurator<NodeIDType> implements
 			this.forwardClientReconfigurationPacket(request);
 		else
 			// error with redirection hints
-			this.sendClientReconfigurationPacket(request
-					.setFailed()
-					.setHashRCs(
-							modifyPortsForSSL(
-									this.getSocketAddresses(this.consistentNodeConfig
-											.getReplicatedReconfigurators(request
-													.getServiceName())),
-									receivedOnSSLPort(request)))
-					.setResponseMessage(
-							" <Wrong number! I am not the reconfigurator responsible>"));
+			this.sendClientReconfigurationPacket(this
+					.amReceiver(request
+							.setFailed()
+							.setResponseMessage(
+									" <Wrong number! I am not the reconfigurator responsible>")) ?
+
+			request.setHashRCs(modifyPortsForSSL(this
+					.getSocketAddresses(this.consistentNodeConfig
+							.getReplicatedReconfigurators(request
+									.getServiceName())),
+					receivedOnSSLPort(request)))
+
+			: request);
 		return true;
 	}
 
@@ -3298,12 +3327,13 @@ public class Reconfigurator<NodeIDType> implements
 			// reconfigure name so as to exclude active
 			Set<NodeIDType> newActives = new HashSet<NodeIDType>(
 					record.getActiveReplicas());
-			if(!newActives.remove(active)) continue;
+			if(!newActives.contains(active)) continue;
 			// else
 			NodeIDType newActive = (NodeIDType) Util.getRandomOtherThan(
 					this.consistentNodeConfig.getActiveReplicas(), newActives);
 			if (newActive != null)
 				newActives.add(newActive);
+			newActives.remove(active);
 			// Note: any REPLICATE_ALL record will be reconfigured
 			if (this.initiateReconfiguration(record.getName(), record,
 					newActives, creator, null, null, null, null, null, record.getReconfigureUponActivesChangePolicy())) {
@@ -3327,20 +3357,88 @@ public class Reconfigurator<NodeIDType> implements
 
 	private boolean addActiveReplica(NodeIDType active,
 			InetSocketAddress creator) {
-		boolean initiated = this.DB.app.initiateReadActiveRecords(active);
-		if (!initiated) {
+		ReconfigurationRecord<NodeIDType> record = null;
+
+		boolean initiatedCursor = this.DB.app.initiateReadActiveRecords(active);
+		if (!initiatedCursor) {
 			ReconfigurationConfig.log.log(Level.WARNING,
 					"{0} addActiveReplica {1} unable to initiate read active records",
 					new Object[] { this, active });
 			return false;
 		}
 		int rcCount = 0;
-		ReconfigurationRecord<NodeIDType> record = null;
-		
-		// FIXME: reconfigure AR_AR_NODES first 
-		
+		Set<NodeIDType> newActives = null;
+				
+		// reconfigure AR_AR_NODES first 
+		{
+			record = this.DB
+					.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+							.toString());
+			if (record != null
+					&& (newActives = this.consistentNodeConfig
+							.getActiveReplicas()) != null
+							&& record.getActiveReplicas()!=null
+							&& !record.getActiveReplicas().contains(active)
+							&& !record.getNewActives().contains(active)
+					&& (this.initiateReconfiguration(record.getName(), record,
+							newActives, creator, null,
+							null,
+							// include initial state for AR_AR_NODES
+							this.consistentNodeConfig
+									.getActiveReplicasReadOnly().toString(),
+							null, null, record
+									.getReconfigureUponActivesChangePolicy()))) {
+				try {
+					ReconfigurationConfig.log
+							.log(Level.INFO,
+									"{0} initiated reconfiguration of {1}",
+									new Object[] {
+											this,
+											AbstractReconfiguratorDB.RecordNames.AR_AR_NODES });
+					this.DB.addToOutstanding(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+							.toString());
+					record = this.DB
+							.getReconfigurationRecord(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
+									.toString());
+					if (record != null && record.getActiveReplicas() != null
+							&& record.getActiveReplicas().contains(active))
+						// inelegant redundant check to handle concurrency
+						this.DB.notifyOutstanding(record.getName());
+					
+					this.DB.waitOutstanding(1);
+					ReconfigurationConfig.log
+					.log(Level.INFO,
+							"{0} completed reconfiguration of {1}",
+							new Object[] {
+									this,
+									AbstractReconfiguratorDB.RecordNames.AR_AR_NODES });
+
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					ReconfigurationConfig.log
+							.log(Level.WARNING,
+									"{0} interrupted while waiting for {1} reconfiguration to complete",
+									new Object[] { this, record.getName() });
+					return false;
+				}
+			}
+			else {
+				ReconfigurationConfig.log
+						.log(Level.INFO,
+								"{0} unable to initiate reconfiguration for {1} record: [{2}]",
+								new Object[] {
+										this,
+										AbstractReconfiguratorDB.RecordNames.AR_AR_NODES,
+										record });
+			}
+		}
+		// AR_AR_NODES reconfigured if here (or !initiatedReconfiguration)
 		
 		while ((record = this.DB.app.readNextActiveRecord(true)) != null) {
+			// already addresses this as a special case above
+			if(record.getName().equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()))
+				continue;
+
 			ReconfigurationConfig.log.log(Level.FINEST,
 					"{0} reconfiguring {1} in order to add active {2}",
 					new Object[] { this, record.getName(), active });
@@ -3350,7 +3448,6 @@ public class Reconfigurator<NodeIDType> implements
 				e.printStackTrace();
 				return false;
 			}
-			Set<NodeIDType> newActives = null;
 
 			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
 				newActives = this.consistentNodeConfig.getActiveReplicas();
@@ -3363,17 +3460,16 @@ public class Reconfigurator<NodeIDType> implements
 				newActives = this.shouldReconfigure(record.getName());
 			}
 
-			if (newActives!=null 
+			if (newActives != null
 					&& this.initiateReconfiguration(record.getName(), record,
-					newActives, creator, null, null, 
-
-					// include initial state in StartEpoch for AR_AR_NODES
-					AbstractReconfiguratorDB.RecordNames.AR_AR_NODES
-					.toString().equals(record.getName()) ? this.consistentNodeConfig
-							.getActiveReplicasReadOnly().toString()
-							: null,
-					
-					null, null, record.getReconfigureUponActivesChangePolicy())) {
+							newActives, creator, null, null, null, null, null,
+							record.getReconfigureUponActivesChangePolicy())) {
+				ReconfigurationConfig.log
+				.log(Level.INFO,
+						"{0} initiated reconfiguration of {1}",
+						new Object[] {
+								this,
+								record.getName()});
 				rcCount++;
 				this.DB.addToOutstanding(record.getName());
 				record = this.DB.getReconfigurationRecord(record.getName());
@@ -3383,12 +3479,14 @@ public class Reconfigurator<NodeIDType> implements
 					this.DB.notifyOutstanding(record.getName());
 			}
 		}
+		
 		ReconfigurationConfig.log.log(Level.INFO,
 				"{0} closing read active records cursor after initiating "
 						+ "{1} reconfigurations in order to add active {2}",
 				new Object[] { this, rcCount, active });
 		boolean closed = this.DB.app.closeReadActiveRecords();
-		return initiated && closed;
+
+		return initiatedCursor && closed;
 	}
 	
 	/**

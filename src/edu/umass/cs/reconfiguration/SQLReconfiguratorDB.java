@@ -343,14 +343,14 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 							log.log(Level.FINE,
 									"{0}:{1} updated RC DB record to {2}",
 									new Object[] {
-											this, rcGroupName,
+											this, toCommit.get(batch.get(j)).getRCGroupName(),
 											toCommit.get(batch.get(j))
 													.getSummary() });
 							committed.add(batch.get(j));
 						} else
 							log.log(Level.FINE,
 									"{0}:{1} unable to update RC record {2} (executed={3}), will try insert",
-									new Object[] { this, rcGroupName, batch.get(j),
+									new Object[] { this, toCommit.get(batch.get(j)).getRCGroupName(), batch.get(j),
 											executed[j] });
 					}
 					batch.clear();
@@ -695,6 +695,11 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	}
 
 	protected void printRCTable() {
+		log.log(Level.INFO, "{0} RC table {1}:\n{2}\n]", new Object[] { this,
+				this.getRCRecordTable(), this.getRCTableString() });
+	}
+
+	protected String getRCTableString() {
 		String cmd = "select * from " + this.getRCRecordTable();
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
@@ -709,8 +714,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 				for (Columns column : RCRecordTableColumns)
 					s += rs.getObject(column.toString()) + " ";
 			}
-			log.log(Level.INFO, "{0} RC table {1}:\n{2}\n]", new Object[] {
-					this, this.getRCRecordTable(), s });
+			return s+"\n]";
 		} catch (SQLException e) {
 			log.severe("SQLException while print RC records table " + cmd);
 			e.printStackTrace();
@@ -718,6 +722,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 			cleanup(pstmt, rs);
 			cleanup(conn);
 		}
+		return "";
 	}
 
 	/* Should put RC records only for non-RC group names. */
@@ -2788,10 +2793,12 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	public boolean initiateReadActiveRecords(NodeIDType active) {
 		if (this.cursorRS != null || this.closed)
 			return false;
+		
+		log.log(Level.INFO, "{0} committing rcRecords to initiate active-read cursor for {1}", new Object[]{this, active});
 
 		// need to commit all before making a full pass
 		this.rcRecords.commit();
-
+		
 		this.cursorActive = active;
 		Connection conn = null;
 		try {
@@ -2809,10 +2816,10 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 										+ Columns.SERVICE_NAME.toString()
 										+ " != '"
 										+ AbstractReconfiguratorDB.RecordNames.RC_NODES
-												.toString() + "'");
+												.toString() + "'"
+												);
 			}
 			cursorRS = this.cursorPsmt.executeQuery();
-			assert (cursorRS != null && cursorRS.next());
 			return true;
 		} catch (SQLException sqle) {
 			log.severe(this
@@ -2828,31 +2835,42 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 	public ReconfigurationRecord<NodeIDType> readNextActiveRecord(boolean add) {
 		ReconfigurationRecord<NodeIDType> record = null;
 		try {
-			while (this.cursorRS.next())
+			while (this.cursorRS.next()) {
 				if ((record = new ReconfigurationRecord<NodeIDType>(
 						new JSONObject(
 								this.cursorRS
 										.getString(Columns.STRINGIFIED_RECORD
 												.toString())),
-						this.consistentNodeConfig)).getActiveReplicas() != null
+						this.consistentNodeConfig))!=null && record.getActiveReplicas() != null
+						
+						&& !this.isRCGroupName(record.getName())
+						// deleted reconfigurators may not be in nodeconfig
+						&& this.consistentNodeConfig.getActiveReplicas()
+								.containsAll(record.getActiveReplicas())
 
-						/* For adds, we need to ensure that the record is not an
-						 * RC record for an RC group name. */
-						&& ((add && !this.isRCGroupName(record.getName()))
+						&& (add
 						/* For deletes, the record need be returned only if the
 						 * replica group contains the active (cursorActive)
 						 * being deleted. */
 						|| ((record.getActiveReplicas().contains(
 								this.cursorActive) || record
-								.getReconfigureUponActivesChangePolicy() == ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL)
-						&& record.isReconfigurationReady()))
-						)
+								.getReconfigureUponActivesChangePolicy() == ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL) && record
+								.isReconfigurationReady()))
+						
+						) {
+					log.log(Level.FINEST,
+							"{0} returning next active record {1} at {2} node {3}",
+							new Object[] { this, record.getName(),
+									add?"being-added":"being-deleted", this.cursorActive });
+
 					return record;
+				}
 				else
 					log.log(Level.FINEST,
-							"{0} read record {1} not replicated at {2}",
+							"{0} read record {1} not replicated at {2} node {3}",
 							new Object[] { this, record.getName(),
-									this.cursorActive });
+									add?"being-added":"being-deleted", this.cursorActive });
+			}
 		} catch (SQLException | JSONException sqle) {
 			log.severe(this
 					+ " encountered exception in readNextActiveRecord: "

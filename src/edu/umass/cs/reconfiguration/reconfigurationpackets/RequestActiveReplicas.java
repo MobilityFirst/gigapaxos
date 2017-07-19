@@ -198,4 +198,7 @@ public class RequestActiveReplicas extends ClientReconfigurationPacket implement
 		return this;
 	}
 
+	public String getSummary() {
+		return super.getSummary() + this.actives + ":" + this.getHashRCs();
+	}
 }
