@@ -290,7 +290,12 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 			SSLDataProcessingWorker.SSL_MODES sslMode, int clientPortOffset,
 			boolean checkConnectivity) throws IOException {
 		this.sslMode = sslMode;
-		
+           
+		// NEW CODE
+                Set<IntegerPacketType> allTypes = new HashSet<>();
+                allTypes.addAll(getRequestTypes());
+                allTypes.addAll(getMutualAuthTypes());
+                 
 		// set up transport
 		(this.niot = (new MessageNIOTransport<String, Object>(null, null,
 				(new ClientPacketDemultiplexer(getRequestTypes())), true,
@@ -299,7 +304,7 @@ public abstract class ReconfigurableAppClientAsync<V> implements
 				&& (!this.getMutualAuthTypes().isEmpty() || !Config
 						.getGlobalBoolean(RC.ALLOW_CLIENT_TO_CREATE_DELETE)))
 			(this.niotMA = (new MessageNIOTransport<String, Object>(null, null,
-					(new ClientPacketDemultiplexer(getMutualAuthTypes())),
+					(new ClientPacketDemultiplexer(allTypes)),
 					true, ReconfigurationConfig.getServerSSLMode())))
 					.setName(this.toString());
 		else
