@@ -131,7 +131,7 @@ public class PaxosConfig {
 		String logFiles = logProps
 				.getProperty("java.util.logging.FileHandler.pattern");
 		if (logFiles != null) {
-			logFiles = logFiles.replaceAll("%.*", "").trim();
+			logFiles = logFiles.replaceFirst("%.*", "").trim().replaceFirst("/[^/]*$", "");
 			new File(logFiles).mkdirs();
 		}
 	}

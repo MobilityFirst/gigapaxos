@@ -251,10 +251,17 @@ public abstract class AbstractReconfiguratorDB<NodeIDType> implements
 		ReconfigurationRecord<NodeIDType> record = this
 				.getReconfigurationRecord(rcRecReq.getServiceName());
 
-		assert (record != null || rcRecReq.isReconfigurationPrevDropComplete()) : this
-				.getMyID() + " : " + rcRecReq;
+		assert (record != null || rcRecReq.isReconfigurationPrevDropComplete() || (rcRecReq
+				.isReconfigurationComplete() && rcRecReq.startEpoch
+				.isDeleteRequest())) : this.getMyID() + " : " + rcRecReq;
 		if (record == null)
-			return false;
+			if ((rcRecReq.isReconfigurationComplete() && rcRecReq.startEpoch
+					.isDeleteRequest())) {
+				log.log(Level.INFO, "{0} found no record for request",
+						new Object[] { this, rcRecReq.getSummary() });
+				return true;
+			} else
+				return false;
 
 		log.log(Level.FINE,
 				"{0} received RCRecordRequest {1} while rcRecord = {2}",

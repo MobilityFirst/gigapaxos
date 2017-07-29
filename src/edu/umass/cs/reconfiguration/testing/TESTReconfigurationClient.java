@@ -838,7 +838,7 @@ public class TESTReconfigurationClient extends DefaultTest {
 	 * @throws InterruptedException
 	 */
 	@Test
-	@Repeat(times = 100)
+	@Repeat(times = REPEAT)
 	public void test02_MutualAuthRequest() throws IOException,
 			NumberFormatException, InterruptedException {
 		String name = generateRandomName();
