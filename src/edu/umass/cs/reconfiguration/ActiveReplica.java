@@ -194,8 +194,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				.equals(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES
 						.toString()) ? this.nodeConfig
 				.getReconfiguratorsReadOnly().toString() 
-					: name.equals(ReconfigurationConfig.getDefaultServiceName())? 
-							"random_gibberish_initial_state":null;
+//					: name.equals(ReconfigurationConfig.getDefaultServiceName())? 
+//							"random_gibberish_initial_state"
+							:null;
 	}
 	
 	private static Map<String, InetSocketAddress> sockAddrMapFromStringified(String state) {
@@ -225,8 +226,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				this.reconcileRCNodes(state);
 				return true;
 			}
-			else if(name.equals(ReconfigurationConfig.getDefaultServiceName()))
-				return true;
+//			else if(name.equals(ReconfigurationConfig.getDefaultServiceName()))
+//				return true;
 			
 		} catch (IOException ioe) {
 			throw new RuntimeException(ioe);
@@ -1464,7 +1465,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) 
 				|| request.getServiceName().equals(
 						AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString())
-				|| request.getServiceName().equals(ReconfigurationConfig.getDefaultServiceName())
+//				|| request.getServiceName().equals(ReconfigurationConfig.getDefaultServiceName())
 				? true: false;
 	}
 }

@@ -29,6 +29,9 @@ import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 import edu.umass.cs.gigapaxos.PaxosManager;
@@ -105,6 +108,22 @@ public class ReconfigurationConfig {
 	public static final String getDefaultServiceName() {
 		return application.getSimpleName() + "0";
 	}
+
+	/**
+	 * @return Initial state of default service name that is replicated at all
+	 *         active replicas.
+	 */
+	public static final String getDefaultServiceNameInitialState() {
+		try {
+			return new JSONObject().put(getDefaultServiceName(),
+					Config.getGlobalString(RC.DEFAULT_NAME_INITIAL_STATE))
+					.toString();
+		} catch (JSONException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
     /**
      * @return Logger used by all of the reconfiguration package.
      */
@@ -394,6 +413,12 @@ public class ReconfigurationConfig {
 		 * Used to set @link {@link PaxosManager#setOutOfOrderLimit(int)}.
 		 */
 		OUT_OF_ORDER_LIMIT(100),
+		
+		/**
+		 * Value of initial state used by the default service name (
+		 * {@link ReconfigurationConfig#getDefaultServiceName()}).
+		 */
+		DEFAULT_NAME_INITIAL_STATE("{}"),
 
 		;
 

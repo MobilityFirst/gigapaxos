@@ -140,6 +140,10 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	}
 	
 	private Set<IntegerPacketType> cachedAppCoordTypes = null;
+	
+	// temporary state holders during recovery
+	private String arar;
+	private String arrc;
 	/**
 	 * @return Request types for coordination requests. By default, it is 
 	 * the {@link #getRequestTypes()} - {@link #getAppRequestTypes()}. This
@@ -393,8 +397,14 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	@Override
 	public boolean restore(String name, String state) {
-		return this.stopCallback!=null && this.stopCallback.preRestore(name, state) ? true : app.restore(
-				name, state);
+		return this.stopCallback != null
+				&& this.stopCallback.preRestore(name, state) ? true
+
+		/* Will be a no-op except during recovery when stopCallback will be null
+		 * as it wouldn't yet have been set. */
+		: this.preRestore(name, state) ? true
+
+		: app.restore(name, state);
 	}
 
 	/* Call back active replica for stop requests, else call default callback.
@@ -504,5 +514,25 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	protected Set<IntegerPacketType> getMutualAuthAppRequestTypes() {
 		Set<IntegerPacketType> types = this.app.getMutualAuthRequestTypes();
 		return types != null ? types : new HashSet<IntegerPacketType>();
+	}
+	
+	protected String getARARNodesAsString() {
+		return this.arar;
+	}
+
+	protected String getARRCNodesAsString() {
+		return this.arrc;
+	}
+
+	private boolean preRestore(String name, String state) {
+		if(name.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString())) {
+			this.arar = state;
+			return true;
+		}
+		else if(name.equals(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString())) {
+			this.arrc = state;
+			return true;
+		}
+		return false;
 	}
 }
