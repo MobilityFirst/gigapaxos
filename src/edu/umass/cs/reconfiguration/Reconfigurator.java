@@ -614,12 +614,14 @@ public class Reconfigurator<NodeIDType> implements
 		if ((record = this.DB.getReconfigurationRecord(create.getServiceName())) == null) {
 			if (callback != this.defaultCallback)
 				this.callbacksCRP.put(getCRPKey(create), callback);
-			this.initiateReconfiguration(create
-					.getServiceName(), record, this.consistentNodeConfig
-					.getReplicatedActives(create.getServiceName()), create
-					.getCreator(), create.getMyReceiver(),
-					create.getForwader(), create.getInitialState(), create
-							.getNameStates(), null, create.getReconfigureUponActivesChangePolicy());
+			
+			
+			this.initiateReconfiguration(create.getServiceName(), record, 
+					create.getInitGroup()!=null?getNodeIDsFromSocketAddresses(create.getInitGroup()):
+						this.consistentNodeConfig.getReplicatedActives(create.getServiceName()), 
+						create.getCreator(), create.getMyReceiver(),
+						create.getForwader(), create.getInitialState(), 
+						create.getNameStates(), null, create.getReconfigureUponActivesChangePolicy());
 		}
 		else if(!record.isReady()) {
 			// drop silently so sender can time out
@@ -644,6 +646,25 @@ public class Reconfigurator<NodeIDType> implements
 													+ create.getServiceName()
 													+ ".")));
 		return null;
+	}
+	
+	private Set<NodeIDType> getNodeIDsFromSocketAddresses(Set<InetSocketAddress> socketAddresses)
+	{
+		Map<NodeIDType, InetSocketAddress> nodeidMap 
+							= this.consistentNodeConfig.getActiveReplicasReadOnly();
+		
+		Set<NodeIDType> nodeIdSet = new HashSet<NodeIDType>();
+		Iterator<NodeIDType> iter = nodeidMap.keySet().iterator();
+		
+		while(iter.hasNext())
+		{
+			NodeIDType id = iter.next();
+			if( socketAddresses.contains(nodeidMap.get(id)) )
+			{
+				nodeIdSet.add(id);
+			}
+		}
+		return nodeIdSet;
 	}
 
 	private static final boolean TWO_PAXOS_RC = Config
