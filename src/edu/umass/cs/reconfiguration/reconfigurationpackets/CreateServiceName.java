@@ -337,7 +337,17 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	public boolean isBatched() {
 		return this.nameStates != null && !this.nameStates.isEmpty();
 	}
-
+	
+	/**
+	 * Returns the initGroup specified in this message.
+	 * @return
+	 */
+	public Set<InetSocketAddress> getInitGroup()
+	{
+		return this.initGroup;
+	}
+	
+	
 	protected static JSONArray getNameStateJSONArray(
 			Map<String, String> nameStates) throws JSONException {
 		if (nameStates != null && !nameStates.isEmpty()) {
