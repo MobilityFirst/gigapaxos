@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.logging.Level;
 
-import edu.umass.cs.gigapaxos.paxosutil.PendingDigests;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
