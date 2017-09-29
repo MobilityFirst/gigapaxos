@@ -17,7 +17,6 @@ package edu.umass.cs.reconfiguration.interfaces;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestIdentifier;
-import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 
 /**
  * @author V. Arun
@@ -32,13 +31,13 @@ public interface ReplicableRequest extends Request, RequestIdentifier {
 	/**
 	 * After this method returns, {@link #needsCoordination()} should
 	 * subsequently return {@code b}. This method is invoked by
-	 * {@link AbstractReplicaCoordinator} with a {@code false} argument just
+	 * {@link edu.umass.cs.reconfiguration.AbstractReplicaCoordinator} with a {@code false} argument just
 	 * before coordinating the request so that coordinated packets are not
 	 * coordinated again infinitely. For example, if a replica coordinator's
 	 * coordination strategy is to simply flood the request to all replicas,
 	 * there needs to be a way for a recipient of a copy of this already once
 	 * coordinated request to know that it should not coordinate it again. This
-	 * method provides {@link AbstractReplicaCoordinator} a placeholder in the
+	 * method provides {@link edu.umass.cs.reconfiguration.AbstractReplicaCoordinator} a placeholder in the
 	 * application request to prevent such infinite coordination loops.
 	 * <p>
 	 *

@@ -2592,7 +2592,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 
 	@Override
 	public synchronized boolean createReconfigurationRecords(
-			Map<String, String> nameStates, Set<NodeIDType> newActives, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			Map<String, String> nameStates, Set<NodeIDType> newActives, ReconfigurationConfig.ReconfigureUponActivesChange policy) {
 		if (USE_DISK_MAP) {
 			boolean insertedAll = true;
 			Set<String> inserted = new HashSet<String>();
@@ -2854,7 +2854,7 @@ public class SQLReconfiguratorDB<NodeIDType> extends
 						 * being deleted. */
 						|| ((record.getActiveReplicas().contains(
 								this.cursorActive) || record
-								.getReconfigureUponActivesChangePolicy() == ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL) && record
+								.getReconfigureUponActivesChangePolicy() == ReconfigurationConfig.ReconfigureUponActivesChange.REPLICATE_ALL) && record
 								.isReconfigurationReady()))
 						
 						) {

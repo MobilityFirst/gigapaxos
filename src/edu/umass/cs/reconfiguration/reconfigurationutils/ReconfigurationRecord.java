@@ -90,33 +90,6 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 		 */
 		WAIT_DELETE
 	};
-	
-	/**
-	 * This enum specifies the reconfiguration behavior when active replicas are
-	 * added or removed. 
-	 */
-	public static enum ReconfigureUponActivesChange {
-		/**
-		 * Do nothing when the set of active replicas changes.
-		 */
-		DEFAULT(0),
-
-		/**
-		 * Reconfigure to the current set of all active replicas.
-		 */
-		REPLICATE_ALL(1),
-
-		/**
-		 * Invoke app policy that specifies whether/how to reconfigure.
-		 */
-		CUSTOM(2);
-
-		final int number;
-
-		ReconfigureUponActivesChange(int n) {
-			this.number = n;
-		}
-	}
 
 
 	private final String name;
@@ -138,7 +111,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 
 	private String rcGroupName = null;
 	
-	private ReconfigureUponActivesChange policy = ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy();
+	private ReconfigurationConfig.ReconfigureUponActivesChange policy = ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy();
 
 	/**
 	 * @param name
@@ -156,7 +129,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	 * @param policy
 	 */
 	public ReconfigurationRecord(String name, int epoch,
-			Set<NodeIDType> newActives, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			Set<NodeIDType> newActives, ReconfigurationConfig.ReconfigureUponActivesChange policy) {
 		this(name, epoch, null, newActives, policy);
 	}
 	
@@ -168,7 +141,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	 * @param policy 
 	 */
 	public ReconfigurationRecord(String name, int epoch,
-			Set<NodeIDType> actives, Set<NodeIDType> newActives, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			Set<NodeIDType> actives, Set<NodeIDType> newActives, ReconfigurationConfig.ReconfigureUponActivesChange policy) {
 		this.name = name;
 		this.epoch = epoch;
 		this.actives = actives;
@@ -225,7 +198,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 				.getLong(Keys.DELETE_TIME.toString()) : null);
 		this.numPossiblyUncleanReconfigurations = json.getInt(Keys.NUM_UNCLEAN
 				.toString());
-		this.policy = ReconfigureUponActivesChange.valueOf(json.optString(
+		this.policy = ReconfigurationConfig.ReconfigureUponActivesChange.valueOf(json.optString(
 				Keys.RECONFIGURE_UPON_ACTIVES_CHANGE.toString(),
 				ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy()
 						.toString()));
@@ -714,7 +687,7 @@ public class ReconfigurationRecord<NodeIDType> extends JSONObject {
 	/**
 	 * @return ReconfigureUponActivesChange policy.
 	 */
-	public ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
+	public ReconfigurationConfig.ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
 		return this.policy;
 	}
 

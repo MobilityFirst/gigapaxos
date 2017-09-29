@@ -23,7 +23,7 @@ import java.util.Set;
 
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.ReconfigureUponActivesChange;
 
 /**
  * @author arun

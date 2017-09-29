@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -29,18 +30,17 @@ import java.util.List;
 import java.util.Random;
 import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.paxosutil.PendingDigests;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.RequestBatcher;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.Ballot;
 import edu.umass.cs.gigapaxos.paxosutil.IntegerMap;
-import edu.umass.cs.gigapaxos.paxosutil.PendingDigests;
 import edu.umass.cs.gigapaxos.testing.TESTPaxosConfig.TC;
 import edu.umass.cs.nio.JSONNIOTransport;
 import edu.umass.cs.nio.interfaces.Byteable;
@@ -58,6 +58,23 @@ public class RequestPacket extends PaxosPacket implements Request,
 
 	private static final boolean DEBUG = Config.getGlobalBoolean(PC.DEBUG);
 	public static final String NO_OP = Request.NO_OP;
+
+	private static final MessageDigest[] mds = new MessageDigest[Config.getGlobalInt(PC.NUM_MESSAGE_DIGESTS)];
+	static {
+		for (int i = 0; i < mds.length; i++)
+			try {
+				mds[i] = MessageDigest.getInstance("MD5");
+			} catch (NoSuchAlgorithmException e) {
+				Util.suicide("Unable to initialize MessageDigest; exiting");
+			}
+	}
+
+	/**
+	 * @return MessageDigest.
+	 */
+	public static MessageDigest getMessageDigest() {
+		return mds[(int) (Math.random() * mds.length)];
+	}
 
 	/**
 	 * These JSON keys are rather specific to RequestPacket or for debugging, so
@@ -1323,7 +1340,7 @@ public class RequestPacket extends PaxosPacket implements Request,
 	}
 
 	/**
-	 * We need this estimate to use it in {@link RequestBatcher#dequeueImpl()}.
+	 * We need this estimate to use it in {@link edu.umass.cs.gigapaxos.RequestBatcher#dequeueImpl()}.
 	 * The value needs to be an upper bound on the sum total of all of the gunk
 	 * in PValuePacket other than the requestValue itself, i.e., the size of a
 	 * no-op decision.
@@ -1486,12 +1503,13 @@ public class RequestPacket extends PaxosPacket implements Request,
 				&& (!enforceRequestValueMatch || this.requestValue != null
 						&& this.requestValue.equals(req.requestValue)
 				// or digests match
-				|| (this.digestEquals(req, PendingDigests.getMessageDigest()) || logAnomaly(
+				|| (this.digestEquals(req, getMessageDigest()) || logAnomaly(
 						this, req))
 
 				);
 	}
-	
+
+
 	private static boolean logAnomaly(RequestPacket req1, RequestPacket req2) {
 		PaxosConfig.getLogger().log(Level.SEVERE, "Received two requests with identical ");
 		return true;

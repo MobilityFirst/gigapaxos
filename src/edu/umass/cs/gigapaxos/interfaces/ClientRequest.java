@@ -18,9 +18,6 @@ package edu.umass.cs.gigapaxos.interfaces;
 
 import java.net.InetSocketAddress;
 
-import edu.umass.cs.gigapaxos.PaxosManager;
-import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
-
 /**
  * @author arun
  *         <p>
@@ -34,7 +31,7 @@ public interface ClientRequest extends Request, RequestIdentifier {
 	 *         method is now deprecated and exists only for backwards
 	 *         compatibility, so it is okay for applications to not explicitly
 	 *         override the default implementation of this method (that simply
-	 *         returns null); {@link AbstractReplicaCoordinator
+	 *         returns null); {@link edu.umass.cs.reconfiguration.AbstractReplicaCoordinator
 	 *         AbstractReplicaCoordinator} already knows the sending client's
 	 *         address anyway.
 	 */
@@ -45,8 +42,8 @@ public interface ClientRequest extends Request, RequestIdentifier {
 
 	/**
 	 * @return The response to be sent back to the client that issued this
-	 *         request. {@link AbstractReplicaCoordinator}, e.g.,
-	 *         {@link PaxosManager}, will invoke this method immediately after
+	 *         request. {@link edu.umass.cs.reconfiguration.AbstractReplicaCoordinator}, e.g.,
+	 *         {@link edu.umass.cs.gigapaxos.PaxosManager}, will invoke this method immediately after
 	 *         {@link Replicable#execute(Request)} and, if the returned response
 	 *         is non-null, will send it back to the client that issued that
 	 *         request. Applications are expected to internally implement logic
