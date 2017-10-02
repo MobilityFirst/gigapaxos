@@ -3159,6 +3159,9 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	private void garbageCollectJournal(TreeSet<Filename> candidates) {
 		// long t = System.currentTimeMillis();
 		// first get file list, then live list
+		if(candidates == null || candidates.size() == 0)
+				return ;
+		
 		if (SQLPaxosLogger.this.journaler.numOngoingGCs++ > 0)
 			log.severe(this + " has "
 					+ SQLPaxosLogger.this.journaler.numOngoingGCs
