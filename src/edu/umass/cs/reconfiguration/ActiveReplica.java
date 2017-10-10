@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -156,8 +157,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
-		this.appCoordinator = (AbstractReplicaCoordinator<NodeIDType>) ReconfigurationConfig
-				.wrapCoordinator(appC.setStopCallback(
+		this.appCoordinator = (AbstractReplicaCoordinator<NodeIDType>)
+				wrapCoordinator(appC.setStopCallback(
 				// setting default callback is optional
 				// (ReconfiguratorCallback) this).setCallback(
 						(ReconfiguratorCallback) this));
@@ -181,7 +182,30 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this.recovering = false;
 		// initInstrumenter();
 	}
-	
+
+	protected static AbstractReplicaCoordinator<?> wrapCoordinator(
+			AbstractReplicaCoordinator<?> coordinator) {
+		Class<?> clazz = null;
+		try {
+			clazz = Class.forName(Config
+					.getGlobalString(RC.COORDINATOR_WRAPPER));
+		} catch (ClassNotFoundException e) {
+			// eat up exception, normal case
+		}
+		if (clazz == null)
+			return coordinator;
+		// reflectively instantiate
+		try {
+			return (AbstractReplicaCoordinator<?>) clazz.getConstructor(
+					AbstractReplicaCoordinator.class).newInstance(coordinator);
+		} catch (InstantiationException | IllegalAccessException
+				| IllegalArgumentException | InvocationTargetException
+				| NoSuchMethodException | SecurityException e) {
+			e.printStackTrace();
+		}
+		return coordinator;
+	}
+
 	/**
 	 * @param name
 	 * @return Refer {@link Replicable#checkpoint(String)}.

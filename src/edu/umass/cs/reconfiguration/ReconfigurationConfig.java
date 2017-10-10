@@ -34,7 +34,6 @@ import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.nio.NIOTransport;
@@ -44,8 +43,6 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentHashing;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.Util;
 
@@ -150,8 +147,7 @@ public class ReconfigurationConfig {
 		 * 
 		 */
 		APPLICATION(
-				edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp.class
-						.getName()),
+				"edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"),
 		/**
 		 * Demand profile class name. iOS client requires that this name be specified as a string
 		 * as opposed to using class.getName()
@@ -410,7 +406,7 @@ public class ReconfigurationConfig {
 		TX_GROUP_NAME("_TXGROUP_"),
 
 		/**
-		 * Used to set @link {@link PaxosManager#setOutOfOrderLimit(int)}.
+		 * Used to set @link {@link edu.umass.cs.gigapaxos.PaxosManager#setOutOfOrderLimit(int)}.
 		 */
 		OUT_OF_ORDER_LIMIT(100),
 		
@@ -533,8 +529,8 @@ public class ReconfigurationConfig {
 	 */
 	public static ReconfigureUponActivesChange getDefaultReconfigureUponActivesChangePolicy() {
 		return 
-				Config.getGlobalBoolean(RC.REPLICATE_ALL) ? ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL: 
-					ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT;
+				Config.getGlobalBoolean(RC.REPLICATE_ALL) ? ReconfigureUponActivesChange.REPLICATE_ALL:
+					ReconfigureUponActivesChange.DEFAULT;
 	}
 
 	/**
@@ -983,29 +979,6 @@ public class ReconfigurationConfig {
 	private static String homePath(String path) {
 		return System.getProperty("user.home") + "/" + path;
 	}
-	
-	protected static AbstractReplicaCoordinator<?> wrapCoordinator(
-			AbstractReplicaCoordinator<?> coordinator) {
-		Class<?> clazz = null;
-		try {
-			clazz = Class.forName(Config
-					.getGlobalString(RC.COORDINATOR_WRAPPER));
-		} catch (ClassNotFoundException e) {
-			// eat up exception, normal case
-		}
-		if (clazz == null)
-			return coordinator;
-		// reflectively instantiate
-		try {
-			return (AbstractReplicaCoordinator<?>) clazz.getConstructor(
-					AbstractReplicaCoordinator.class).newInstance(coordinator);
-		} catch (InstantiationException | IllegalAccessException
-				| IllegalArgumentException | InvocationTargetException
-				| NoSuchMethodException | SecurityException e) {
-			e.printStackTrace();
-		}
-		return coordinator;
-	}
 
 	/**
 	 * @param args
@@ -1016,5 +989,32 @@ public class ReconfigurationConfig {
 				homePath("gigapaxos/conf/gigapaxos.properties"), null,
 				"start all"));
 		System.out.println(ReconfigurationConfig.getReconfiguratorAddresses());
+	}
+
+	/**
+	 * This enum specifies the reconfiguration behavior when active replicas are
+	 * added or removed.
+	 */
+	public static enum ReconfigureUponActivesChange {
+		/**
+		 * Do nothing when the set of active replicas changes.
+		 */
+		DEFAULT(0),
+
+		/**
+		 * Reconfigure to the current set of all active replicas.
+		 */
+		REPLICATE_ALL(1),
+
+		/**
+		 * Invoke app policy that specifies whether/how to reconfigure.
+		 */
+		CUSTOM(2);
+
+		final int number;
+
+		ReconfigureUponActivesChange(int n) {
+			this.number = n;
+		}
 	}
 }

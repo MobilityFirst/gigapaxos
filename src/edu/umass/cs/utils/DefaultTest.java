@@ -14,7 +14,6 @@ import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.paxosutil.RequestInstrumenter;
 
 /**
  *
@@ -49,7 +48,7 @@ public class DefaultTest {
 					+ " FAILED!!!!!!!!!!!!! " + e);
 			e.printStackTrace();
 			if (Config.getGlobalBoolean(PC.DEBUG))
-				System.out.println(RequestInstrumenter.getLog());
+				//System.out.println(RequestInstrumenter.getLog());
 			System.exit(1);
 		}
 

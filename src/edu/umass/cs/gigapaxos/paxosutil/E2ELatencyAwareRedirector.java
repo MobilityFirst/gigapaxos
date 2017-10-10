@@ -8,10 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.runner.JUnitCore;
-import org.junit.runner.Result;
-import org.junit.runner.notification.Failure;
-
 import edu.umass.cs.gigapaxos.interfaces.NearestServerSelector;
 import edu.umass.cs.utils.Util;
 
@@ -154,10 +150,14 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 
 	/**
 	 * @return Test class for E2ELatencyAwareRedirector
+	 * @TODO Commented because of iOS refactoring. Will be moved to a test path.
 	 */
+	/*
 	public Class<?> getTestClass() {
+
 		return E2ELatencyAwareRedirectorTest.class;
 	}
+	*/
 
 	public String toString() {
 		return this.e2eLatencies.toString();
@@ -165,7 +165,10 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 
 	/**
 	 * @param args
+	 * @TODO Commented because of iOS refactoring. Test will be moved to a new test path
 	 */
+	/*
+
 	public static void main(String[] args) {
 		Util.assertAssertionsEnabled();
 		Result result = JUnitCore
@@ -173,4 +176,5 @@ public class E2ELatencyAwareRedirector implements NearestServerSelector {
 		for (Failure failure : result.getFailures())
 			System.out.println(failure.toString());
 	}
+	*/
 }

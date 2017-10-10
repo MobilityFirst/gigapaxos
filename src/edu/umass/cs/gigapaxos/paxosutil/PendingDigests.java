@@ -8,7 +8,7 @@ import java.util.logging.Level;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
-import edu.umass.cs.gigapaxos.PaxosConfig.RequestAndCallback;
+import edu.umass.cs.gigapaxos.PaxosManager.RequestAndCallback;
 import edu.umass.cs.gigapaxos.paxospackets.AcceptPacket;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.utils.Config;
@@ -149,13 +149,6 @@ public class PendingDigests {
 		PaxosConfig.getLogger().warning(
 				"Mismatched digests for matching requestIDs: "
 						+ request.getSummary() + " != " + accept.getSummary());
-	}
-
-	/**
-	 * @return MessageDigest.
-	 */
-	public static MessageDigest getMessageDigest() {
-		return mds[(int) (Math.random() * mds.length)];
 	}
 
 	private String truncatedSummary(int size) {
