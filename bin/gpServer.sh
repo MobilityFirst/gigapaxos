@@ -3,6 +3,7 @@
 
 APP_ARGS_KEY="appArgs"
 APP_RESOURCES_KEY="appResourcePath"
+DEBUG_KEY="debug"
 
 # Usage notes printing
 if [[ -z "$@" || -z `echo "$@"|grep \
@@ -11,6 +12,7 @@ then
   echo "Usage: "`dirname $0`/`basename $0`" [JVMARGS] \
 [-D$APP_RESOURCES_KEY=APP_RESOURCES_DIR] \
 [-D$APP_ARGS_KEY=\"APP_ARGS\"] \
+[-$DEBUG_KEY] \
 stop|start|restart|clear|forceclear all|server_names"
 echo "Examples:"
 echo "    `dirname $0`/`basename $0` start AR1"
@@ -25,7 +27,10 @@ echo "    `dirname $0`/`basename $0` -cp myjars1.jar:myjars2.jar \
 -D$APP_RESOURCES_KEY=/path/to/app/resources/dir/ \
 -D$APP_ARGS_KEY=\"-opt1=val1 -flag2 \
 -str3=\\""\"quoted arg example\\""\" -n 50\" \
- start all" 
+-$DEBUG_KEY\
+ start all
+
+ Note: -$DEBUG_KEY option is insecure and should only be used during testing and development." 
 exit
 fi
 
@@ -110,12 +115,15 @@ DEFAULT_APP_RESOURCES=app_resources
 DEFAULT_KEYSTORE_PASSWORD="qwerty"
 DEFAULT_TRUSTSTORE_PASSWORD="qwerty"
 
+DEBUG_MODE=false
+DEBUG_PORT=10000
 # remove classpath from args
-ARGS_EXCEPT_CLASSPATH=`echo "$@"|\
+ARGS_EXCEPT_CLASSPATH_DEBUG=`echo "$@"|\
+sed s/"\-$DEBUG_KEY"/""/g|\
 sed -E s/"\-(cp|classpath) [ ]*[^ ]* "/" "/g`
 
 # set JVM args except classpath, app args, options
-SUPPLIED_JVMARGS="`echo $ARGS_EXCEPT_CLASSPATH|\
+SUPPLIED_JVMARGS="`echo $ARGS_EXCEPT_CLASSPATH_DEBUG|\
 sed s/-$APP_ARGS_KEY.*$//g|\
 sed -E s/"[ ]*(start|stop|restart|clear|forceclear) .*$"//g`"
 
@@ -135,7 +143,7 @@ declare -a args
 index=1
 start_stop_found=0
 for arg in "$@"; do
-  if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
+  if [[ ! -z `echo $arg|grep "\-D.*?"` ]]; then
     # JVM args and gigapaxos properties file
     key=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/=.*//g`
     value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
@@ -151,6 +159,8 @@ for arg in "$@"; do
       APP_ARGS="`echo $arg|grep "\-D$APP_ARGS_KEY="|\
         sed s/\-D$APP_ARGS_KEY=//g`"
     fi
+  elif [[ $arg == "-$DEBUG_KEY" ]]; then
+    DEBUG_MODE=true
   elif [[ $arg == "start" || $arg == "stop" || $arg == "restart" \
     || $arg == "clear" || $arg == "forceclear" ]]; 
   then
@@ -412,12 +422,22 @@ function get_address_port {
 function start_server {
   server=$1
   get_address_port $server
+
+  DEBUG_ARGS=""
+  if [ "$DEBUG_MODE" = true ]; then
+    DEBUG_ARGS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$DEBUG_PORT"
+    if [[ $VERBOSE == 2 ]]; then
+      echo "Debug: $server at $address:$DEBUG_PORT"
+    fi
+    DEBUG_PORT=$((DEBUG_PORT+1))
+  fi
+
   if [[ $ifconfig_found != "" && `$ifconfig_cmd|grep $address` != "" ]]; then
     if [[ $VERBOSE == 2 ]]; then
-      echo "$JAVA $JVMARGS \
+      echo "$JAVA $DEBUG_ARGS $JVMARGS \
         edu.umass.cs.reconfiguration.ReconfigurableNode $server&"
     fi
-    $JAVA $JVMARGS \
+    $JAVA $DEBUG_ARGS $JVMARGS \
       edu.umass.cs.reconfiguration.ReconfigurableNode $server&
   else
     # first rsync files to remote server
@@ -432,13 +452,13 @@ function start_server {
 
     # then start remote server
     print 2 "$SSH $username@$address \"cd $INSTALL_PATH; nohup \
-      $JAVA $REMOTE_JVMARGS \
+      $JAVA $DEBUG_ARGS $REMOTE_JVMARGS \
       -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server \""
     
     $SSH $username@$address "cd $INSTALL_PATH; nohup \
-      $JAVA $REMOTE_JVMARGS \
+      $JAVA $DEBUG_ARGS $REMOTE_JVMARGS \
       -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server "&
