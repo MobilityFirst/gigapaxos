@@ -59,6 +59,8 @@ import edu.umass.cs.nio.nioutils.SampleNodeConfig;
 import edu.umass.cs.utils.Stringer;
 import edu.umass.cs.utils.Util;
 
+import javax.net.ssl.SSLException;
+
 /**
  * @author V. Arun
  * @param <NodeIDType>
@@ -222,6 +224,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	private final InetAddress listeningAddress;
 	private final int listeningPort;
 
+	// used by iOS translated code to use a different data processing worker
+	private static final boolean IS_IOS = System.getProperty("os.name").toString().toLowerCase().startsWith("ios");
 	/**
 	 * A flag to easily enable or disable SSL by default. CLEAR is not really a
 	 * legitimate SSL mode, i.e., it is not supported by
@@ -371,15 +375,27 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			if (sslMode.equals(SSLDataProcessingWorker.SSL_MODES.SERVER_AUTH)
 					|| sslMode
 							.equals(SSLDataProcessingWorker.SSL_MODES.MUTUAL_AUTH)) {
-				return (worker instanceof SSLDataProcessingWorker ? (SSLDataProcessingWorker) worker
-						: new SSLDataProcessingWorker(worker, sslMode, this.toString()))
-						.setHandshakeCallback(this);
+				return getSSLWorker(sslMode);
 				// CLEAR is not a legitimate SSLDataProcessingWorker type
 			}
 		} catch (NoSuchAlgorithmException e) {
 			throw new IOException(e.getMessage());
 		}
 		return worker;
+	}
+
+	private DataProcessingWorker getSSLWorker(SSLDataProcessingWorker.SSL_MODES sslMode)
+			throws NoSuchAlgorithmException, SSLException
+	{
+		if(IS_IOS) {
+			return (worker instanceof IOSSSLDataProcessingWorker ? (IOSSSLDataProcessingWorker) worker
+				: new IOSSSLDataProcessingWorker(worker, sslMode, this.toString()))
+					.setHandshakeCallback(this);
+		} else {
+			return (worker instanceof SSLDataProcessingWorker ? (SSLDataProcessingWorker) worker
+					: new SSLDataProcessingWorker(worker, sslMode, this.toString()))
+					.setHandshakeCallback(this);
+		}
 	}
 
 	/**
@@ -545,8 +561,12 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				this.senderTask.close();
 			this.selector.close();
 			this.serverChannel.close();
-			if (this.worker instanceof SSLDataProcessingWorker)
+
+			if (this.worker instanceof SSLDataProcessingWorker) {
 				((SSLDataProcessingWorker) this.worker).stop();
+			} else if (this.worker instanceof IOSSSLDataProcessingWorker) {
+				((IOSSSLDataProcessingWorker) this.worker).stop();
+			}
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 		}
@@ -1192,28 +1212,42 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 									&& !sneakyMode ? Thread.currentThread()
 									.getName() : "",
 							(sneakyMode ? " sneakily" : ""), socketChannel });
-		if (this.isSSL())
-			return ((SSLDataProcessingWorker) this.worker).wrap(socketChannel,
-					unencrypted);
-		else
+		if (this.isSSL()) {
+			if (IS_IOS) {
+				return ((IOSSSLDataProcessingWorker) this.worker).wrap(socketChannel,
+						unencrypted);
+			} else {
+				return ((SSLDataProcessingWorker) this.worker).wrap(socketChannel,
+						unencrypted);
+			}
+		} else
 			return socketChannel.write(unencrypted);
 	}
 
 	private boolean isSSL() {
-		return this.worker instanceof SSLDataProcessingWorker ? true : false;
+		return (this.worker instanceof SSLDataProcessingWorker
+				|| this.worker instanceof  IOSSSLDataProcessingWorker) ? true : false;
 	}
 
 	/**
 	 * @return SSL mode used by this NIO transport.
 	 */
 	public SSL_MODES getSSLMode() {
-		return this.worker instanceof SSLDataProcessingWorker ? ((SSLDataProcessingWorker) this.worker).sslMode
-				: SSL_MODES.CLEAR;
+
+		if (isSSL()) {
+
+			if (IS_IOS) {
+				return ((IOSSSLDataProcessingWorker) this.worker).sslMode;
+			} else {
+				return ((SSLDataProcessingWorker) this.worker).sslMode;
+			}
+
+		}
+		return SSL_MODES.CLEAR;
 	}
 
 	private boolean isHandshakeComplete(SocketChannel socketChannel) {
-		boolean isComplete = isSSL() ? ((SSLDataProcessingWorker) this.worker)
-				.isHandshakeComplete(socketChannel) : true;
+		boolean isComplete = isSSL() ? isHandshakeCompleteFromSSLWorker(socketChannel) : true;
 		if (!isComplete) {
 			/* Deregister write interest, but keep read interest coz we need it
 			 * for the handshake itself to complete. */
@@ -1222,6 +1256,17 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
 		}
 		return isComplete;
+	}
+
+	private boolean isHandshakeCompleteFromSSLWorker(SocketChannel socketChannel)
+	{
+		if (IS_IOS) {
+			return ((IOSSSLDataProcessingWorker) this.worker)
+					.isHandshakeComplete(socketChannel);
+		} else {
+			return ((SSLDataProcessingWorker) this.worker)
+					.isHandshakeComplete(socketChannel);
+		}
 	}
 
 	// for application threads to queue sends for selector thread
@@ -1372,9 +1417,14 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	
 	private void cleanupSSL(SelectionKey key) {
           if (key != null) {
-		cleanup(key);
-		if (isSSL())
-			((SSLDataProcessingWorker) this.worker).remove(key);
+				cleanup(key);
+				if (isSSL()){
+					if (IS_IOS) {
+						((IOSSSLDataProcessingWorker) this.worker).remove(key);
+					} else {
+						((SSLDataProcessingWorker) this.worker).remove(key);
+					}
+				}
           }
 	}
 
@@ -1636,10 +1686,18 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		log.log(Level.INFO, "{0} listening on channel {1} with ssl mode {2}",
 				new Object[] { this, serverChannel, this.getSSLMode() });
 
-		if (isSSL())
-			// only for logging purposes
-			((SSLDataProcessingWorker) this.worker).setMyID(myID != null ? myID
-					.toString() : isa.toString());
+		if (isSSL()){
+			if (IS_IOS)
+			{
+				// only for logging purposes
+				((IOSSSLDataProcessingWorker) this.worker).setMyID(myID != null ? myID
+						.toString() : isa.toString());
+			} else {
+				// only for logging purposes
+				((SSLDataProcessingWorker) this.worker).setMyID(myID != null ? myID
+						.toString() : isa.toString());
+			}
+		}
 
 		// Register the server socket channel, indicating an interest in
 		// accepting new connections
@@ -1804,8 +1862,18 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	private boolean registerSSL(SelectionKey key, boolean client)
 			throws IOException {
-		return (isSSL()) ? ((SSLDataProcessingWorker) this.worker).register(
-				key, client) : true;
+		if (isSSL())
+		{
+			if (IS_IOS) {
+				return ((IOSSSLDataProcessingWorker) this.worker).register(
+						key, client);
+			} else {
+				return ((SSLDataProcessingWorker) this.worker).register(
+						key, client);
+			}
+		} else {
+			return true;
+		}
 	}
 
 	public String toString() {
