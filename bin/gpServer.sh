@@ -143,7 +143,7 @@ declare -a args
 index=1
 start_stop_found=0
 for arg in "$@"; do
-  if [[ ! -z `echo $arg|grep "\-D.*?"` ]]; then
+  if [[ ! -z `echo $arg|grep "\-D.*="` ]]; then
     # JVM args and gigapaxos properties file
     key=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/=.*//g`
     value=`echo $arg|grep "\-D.*="|sed s/-D//g|sed s/.*=//g`
