@@ -223,9 +223,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 	private final InetSocketAddress listeningSocketAddress;
 	private final InetAddress listeningAddress;
 	private final int listeningPort;
-
 	// used by iOS translated code to use a different data processing worker
-	private static final boolean IS_IOS = System.getProperty("os.name").toString().toLowerCase().startsWith("ios");
+	private static final boolean IS_IOS = System.getProperty("os.name").toString().toLowerCase().startsWith("iphone");
 	/**
 	 * A flag to easily enable or disable SSL by default. CLEAR is not really a
 	 * legitimate SSL mode, i.e., it is not supported by
@@ -375,7 +374,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			if (sslMode.equals(SSLDataProcessingWorker.SSL_MODES.SERVER_AUTH)
 					|| sslMode
 							.equals(SSLDataProcessingWorker.SSL_MODES.MUTUAL_AUTH)) {
-				return getSSLWorker(sslMode);
+				return getSSLWorker(worker, sslMode);
 				// CLEAR is not a legitimate SSLDataProcessingWorker type
 			}
 		} catch (NoSuchAlgorithmException e) {
@@ -384,7 +383,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		return worker;
 	}
 
-	private DataProcessingWorker getSSLWorker(SSLDataProcessingWorker.SSL_MODES sslMode)
+	private DataProcessingWorker getSSLWorker(DataProcessingWorker worker,
+											  SSLDataProcessingWorker.SSL_MODES sslMode)
 			throws NoSuchAlgorithmException, SSLException
 	{
 		if(IS_IOS) {
@@ -438,7 +438,6 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			throw new IOException("Packet size of " + data.length
 					+ " exceeds maximum allowed payload size of "
 					+ MAX_PAYLOAD_SIZE);
-
 		testAndIntiateConnection(isa);
 		// we put length header in *all* messages
 		ByteBuffer bbuf = getHeaderedByteBuffer(data = this.deflate(data));
@@ -544,11 +543,15 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				// set ops to CONNECT for pending connect requests.
 				processPendingConnects();
 				// wait for an event one of the registered channels.
-				this.selector.select(SELECT_TIMEOUT);
+				int num = this.selector.select(SELECT_TIMEOUT);
 				// accept, connect, read, or write as needed.
 				processSelectedKeys();
 				// process data from pending buffers on congested channels
 				this.tryProcessCongested();
+
+				if (IS_IOS) {
+					tryIOSWrite();
+				}
 			} catch (Exception e) {
 				/* Can do little else here. Hopefully, the exceptions inside the
 				 * individual methods above have already been contained. */
@@ -569,6 +572,18 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			}
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
+		}
+	}
+
+	private void tryIOSWrite() throws IOException {
+		Collection<SelectionKey> keys =
+				(this.selector.keys());
+		Iterator<SelectionKey> keysItr = keys.iterator();
+		while (keysItr.hasNext()) {
+			SelectionKey key = keysItr.next();
+			if (key.isValid() && (key.interestOps() & SelectionKey.OP_WRITE) > 0) {
+				this.write(key);
+			}
 		}
 	}
 
@@ -631,11 +646,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		(this.selector.selectedKeys());
 		Iterator<SelectionKey> selectedKeys = selected.iterator();
 		//Collections.shuffle(selected); // to mix in reads and writes
-
 		while (selectedKeys.hasNext()) {
 			SelectionKey key = (SelectionKey) selectedKeys.next();
 			selectedKeys.remove();
-
 			if (!key.isValid()) {
 				//cleanup(key, (AbstractSelectableChannel) key.channel());
 				cleanupSSL(key);
@@ -811,9 +824,8 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	private void read(SelectionKey key) throws IOException {
 		SocketChannel socketChannel = (SocketChannel) key.channel();
-
 		// if SSL, simply pass any bytes to SSL worker
-		if (isSSL()) {
+		if (isSSL() && !IS_IOS) {
 			this.readBuffers.putIfAbsent(key,
 					ByteBuffer.allocate(READ_BUFFER_SIZE));
 			ByteBuffer bbuf = this.readBuffers.get(key); // this.readBuffer;
@@ -837,6 +849,10 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				}
 				bbuf.compact();
 			}
+			return;
+		} else if (isSSL() && IS_IOS) {
+			// iOS worker will handle reading from socketChannel and tracking of bytes
+			this.worker.processData(socketChannel, null);
 			return;
 		}
 
@@ -990,8 +1006,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				cleanupSSL(key);
 			} else {
 				// If all data written successfully, switch back to read mode.
-				if (this.writeAllPendingWrites(isa, socketChannel))
+				if (this.writeAllPendingWrites(isa, socketChannel)) {
 					key.interestOps(SelectionKey.OP_READ);
+				}
 			}
 		} catch (IOException e) {
 			// close socket channel and retry (but may still fail)
@@ -1298,9 +1315,10 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 			}
 		}
 
-		if (queuedBytes > 0 && data.remaining() > 0)
+		if (queuedBytes > 0 && data.remaining() > 0) {
 			// wake up selecting thread so it can push out the write
 			this.wakeupSelector(isa);
+		}
 
 		return queuedBytes;
 	}
@@ -1323,8 +1341,9 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				// set op to write if not already set
 				if ((key = sc.keyFor(this.selector)) != null && key.isValid()
 				// && (key.interestOps() & SelectionKey.OP_WRITE) == 0
-				)
+				) {
 					key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+				}
 			} catch (CancelledKeyException cke) {
 				// could have been cancelled upon a write attempt
 				cleanupRetry(key, sc, isa);

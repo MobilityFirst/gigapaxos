@@ -21,12 +21,10 @@ import edu.umass.cs.nio.interfaces.InterfaceMessageExtractor;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Util;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -38,6 +36,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+/*-[
+	#import <Security/SecureTransport.h>
+	#import <Security/Security.h>
+]-*/
 
 /**
  * @author arun
@@ -58,12 +61,78 @@ import java.util.logging.Logger;
 public class IOSSSLDataProcessingWorker implements InterfaceMessageExtractor {
 
 
+	/*-[
+	// SocketChannel to SSLContextRef dictionary
+	NSMapTable *sslDict = nil;
+
+// Put encrypted bytes in *data from socket
+OSStatus readEncrypted(SSLConnectionRef connection, void *data, size_t *dataLength)
+{
+  JavaNioChannelsSocketChannel *socketChannel = (JavaNioChannelsSocketChannel*) connection;
+
+  JavaNioByteBuffer *bbuf = JavaNioByteBuffer_allocateWithInt_((int)*dataLength);
+  jint numRead = [((JavaNioChannelsSocketChannel *) nil_chk(socketChannel)) readWithJavaNioByteBuffer:bbuf];
+
+  if (numRead == -1) {
+    // Conn. closed. TODO: Call cleanup, maybe if required
+    return errSSLClosedAbort;
+  } else if (numRead < (int) *dataLength)
+  {
+    *dataLength = numRead;
+    return errSSLWouldBlock;
+  }
+
+  *dataLength = numRead;
+  if (numRead > 0) {
+    [bbuf flip];
+    IOSByteArray *encrypted = [IOSByteArray arrayWithLength:[bbuf remaining]];
+    [bbuf getWithByteArray:encrypted];
+    NSData *nsd = [encrypted toNSData];
+    memcpy(data, nsd.bytes, [nsd length]);
+  }
+  return noErr;
+}
+
+// Put encrypted bytes from *data to socket
+OSStatus writeEncrypted(SSLConnectionRef connection, const void *data, size_t *dataLength)
+{
+  //TODO
+  // Copy data to encrypted byte buffer
+  if (data == NULL){
+    NSLog(@"NULL :(");
+  }
+
+  IOSByteArray *bytes = [IOSByteArray arrayWithLength:(unsigned int)*dataLength];
+  memcpy(bytes->buffer_, data, *dataLength);
+
+  JavaNioByteBuffer *encrypted = JavaNioByteBuffer_wrapWithByteArray_(bytes);
+  JavaNioChannelsSocketChannel *socketChannel = (JavaNioChannelsSocketChannel*) connection;
+  @try {
+    *dataLength = 0;
+    for (jint attempts = 0; (attempts < 1 && [encrypted hasRemaining]); attempts++)
+    {
+      int written = [((JavaNioChannelsSocketChannel *) nil_chk(socketChannel)) writeWithJavaNioByteBuffer:encrypted];
+      *dataLength = *dataLength + written;
+    }
+  }
+  @catch (JavaIoIOException *exc) {
+    NSLog(@"IOException :(");
+    @throw create_JavaLangIllegalStateException_initWithJavaLangThrowable_(exc);
+  }
+  @catch (JavaLangIllegalStateException *exc) {
+    @throw create_JavaLangIllegalStateException_initWithJavaLangThrowable_(exc);
+  }
+
+  return noErr;
+}
+	]-*/
+
 	// to handle incoming decrypted data
 	private final DataProcessingWorker decryptedWorker;
 
 	private final ExecutorService taskWorkers = Executors.newFixedThreadPool(4);
 
-	private ConcurrentHashMap<SelectableChannel, AbstractNIOSSL> sslMap = new ConcurrentHashMap<SelectableChannel, AbstractNIOSSL>();
+	private ConcurrentHashMap<SelectableChannel, NonBlockingSSLImpl> sslMap = new ConcurrentHashMap<SelectableChannel, NonBlockingSSLImpl>();
 
 	// to signal connection handshake completion to transport
 	private HandshakeCallback callbackTransport = null;
@@ -93,69 +162,124 @@ public class IOSSSLDataProcessingWorker implements InterfaceMessageExtractor {
 		return this;
 	}
 
+	/*-[
+	void processData(EduUmassCsNioIOSSSLDataProcessingWorker *self,
+					JavaNioChannelsSocketChannel *channel, JavaNioByteBuffer *encrypted){
+		jint length = 4096;
+
+		char buffer[length];;
+		size_t processed = 0;
+		NSValue *val = [sslDict objectForKey:channel];
+		SSLContextRef sslContext = [val pointerValue];
+		SSLRead(sslContext, buffer, length-1, &processed);
+		IOSByteArray *decrypted = [IOSByteArray arrayWithLength:(int)processed];
+
+		if (processed > 0)
+		{
+			memcpy(decrypted->buffer_, buffer, processed);
+			JavaNioByteBuffer *decryptedbb = JavaNioByteBuffer_wrapWithByteArray_(decrypted);
+    		[((EduUmassCsNioIOSSSLDataProcessingWorker_NonBlockingSSLImpl *) nil_chk([((JavaUtilConcurrentConcurrentHashMap *) nil_chk(self->sslMap_)) getWithId:channel])) onInboundDataWithJavaNioByteBuffer:decryptedbb];
+		}
+	}
+	]-*/
+
+	/* Read encrypted bytes from socketChannel and call extractMessages directly */
 	@Override
 	public void processData(SocketChannel channel, ByteBuffer encrypted) {
-		AbstractNIOSSL nioSSL = this.sslMap.get(channel);
-		assert (nioSSL != null);
-		log.log(Level.FINEST,
-				"{0} received encrypted data of length {1} bytes to send on channel {2}",
-				new Object[] { this, encrypted.remaining(),
-						channel });
-		// unwrap SSL
-		nioSSL.notifyReceived(encrypted);
-		assert (encrypted.remaining() == 0); // else buffer overflow exception
+
 	}
+
+	/*-[
+		int wrap(JavaNioChannelsSocketChannel *channel, JavaNioByteBuffer *unencrypted)
+		{
+			IOSByteArray *decryptedBytes = [IOSByteArray arrayWithLength:[((JavaNioByteBuffer *) nil_chk(unencrypted)) remaining]];
+			[unencrypted getWithByteArray:decryptedBytes withInt:0 withInt:decryptedBytes->size_];
+			NSData *nsData = [decryptedBytes toNSData];
+			NSValue *val = [sslDict objectForKey:channel];
+			SSLContextRef sslContext = (SSLContextRef) [val pointerValue];
+			size_t processed = 0;
+			SSLWrite(sslContext, (void*)nsData.bytes, [nsData length] , &processed);
+			return (int) processed;
+		}
+	]-*/
 
 	// invoke SSL wrap
 	protected int wrap(SocketChannel channel, ByteBuffer unencrypted) {
-		AbstractNIOSSL nioSSL = this.sslMap.get(channel);
-		assert (nioSSL != null);
-		log.log(Level.FINEST,
-				"{0} wrapping unencrypted data of length {1} bytes to send on channel {2}",
-				new Object[] { this, unencrypted.remaining(), channel });
-		int originalSize = unencrypted.remaining();
-		try {
-			nioSSL.nioSend(unencrypted);
-		} catch (BufferOverflowException | IllegalStateException e) {
-			// do nothing, sender will automatically slow down
-			e.printStackTrace();
-		}
-		return originalSize - unencrypted.remaining();
+		return 0;
 	}
 
 	protected boolean isHandshakeComplete(SocketChannel socketChannel) {
-		AbstractNIOSSL nioSSL = this.sslMap.get(socketChannel);
+		NonBlockingSSLImpl nioSSL = this.sslMap.get(socketChannel);
 		// socketChannel may be unmapped yet or under exception
 		return nioSSL != null ? ((NonBlockingSSLImpl) nioSSL)
 				.isHandshakeComplete() : false;
 	}
 
+	/*-[
+SSLContextRef setupSSL(JavaNioChannelsSocketChannel *socketChannel)
+{
+  if (!sslDict)
+  {
+    sslDict = [NSMapTable strongToStrongObjectsMapTable];
+  }
+
+  SSLContextRef sslContext = SSLCreateContext(kCFAllocatorDefault, kSSLClientSide, kSSLStreamType);
+  SSLSetIOFuncs(sslContext, readEncrypted, writeEncrypted);
+  SSLSetConnection(sslContext, (SSLConnectionRef) socketChannel);
+
+  NSData *p12Data = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"key-node100" ofType:@"p12"]];
+
+  CFStringRef password = CFSTR("qwerty");
+  const void *keys[] = { kSecImportExportPassphrase };
+  const void *values[] = { password };
+  CFDictionaryRef optionsDictionary = CFDictionaryCreate(NULL, keys, values, 1, NULL, NULL);
+  CFArrayRef p12Items;
+  OSStatus result = SecPKCS12Import((__bridge CFDataRef)p12Data, optionsDictionary, &p12Items);
+  CFDictionaryRef identityDict = CFArrayGetValueAtIndex(p12Items, 0);
+  SecIdentityRef identityApp =(SecIdentityRef)CFDictionaryGetValue(identityDict,kSecImportItemIdentity);
+  SecCertificateRef certRef;
+  SecIdentityCopyCertificate(identityApp, &certRef);
+  SecCertificateRef certArray[1] = { certRef };
+  CFArrayRef myCerts = CFArrayCreate(NULL, (void *)certArray, 1, NULL);
+
+  SSLSetCertificate(sslContext, myCerts );
+  SSLSetSessionOption(sslContext, kSSLSessionOptionBreakOnServerAuth, YES);
+  [sslDict setObject:[NSValue valueWithPointer:sslContext] forKey:socketChannel];
+  return sslContext;
+}
+]-*/
+
+/*-[
+bool registerInternal(EduUmassCsNioIOSSSLDataProcessingWorker *self,
+					  JavaNioChannelsSelectionKey *key, bool isClient)
+	{
+		  jboolean handshakeSuccess = false;
+  		  EduUmassCsNioIOSSSLDataProcessingWorker_NonBlockingSSLImpl *nioSSL = create_EduUmassCsNioIOSSSLDataProcessingWorker_NonBlockingSSLImpl_initWithEduUmassCsNioIOSSSLDataProcessingWorker_withJavaNioChannelsSelectionKey_(self, key);
+  		  [((JavaUtilConcurrentConcurrentHashMap *) nil_chk(self->sslMap_)) putWithId:[key channel] withId:nioSSL];
+  		  JavaNioChannelsSocketChannel *socketChannel = (JavaNioChannelsSocketChannel *) cast_chk([key channel], [JavaNioChannelsSocketChannel class]);
+  		  SSLContextRef context = setupSSL(socketChannel);
+
+  		  OSStatus status = errSSLWouldBlock;
+		  while (status == errSSLWouldBlock){
+			status= SSLHandshake(context);
+		  }
+
+		  status = errSSLWouldBlock;
+			while (status == errSSLWouldBlock){
+			status= SSLHandshake(context);
+		  }
+
+		  //TODO: If status is abnormal, call handshake failed callback
+
+  		  [((EduUmassCsNioAbstractNIOSSL *) nil_chk([((JavaUtilConcurrentConcurrentHashMap *) nil_chk(self->sslMap_)) getWithId:[key channel]])) onHandshakeSuccess];
+          [((JavaUtilLoggingLogger *) nil_chk(EduUmassCsNioIOSSSLDataProcessingWorker_log)) logWithJavaUtilLoggingLevel:JreLoadStatic(JavaUtilLoggingLevel, FINE) withNSString:@"{0} registered {1} socket channel {2}" withNSObjectArray:[IOSObjectArray arrayWithObjects:(id[]){ self, (isClient ? @"client" : @"server"), [key channel] } count:3 type:NSObject_class_()]];
+  		  return true;
+  	}
+	 ]-*/
+
 	protected boolean register(SelectionKey key, boolean isClient)
 			throws IOException {
-		assert (!this.sslMap.containsKey(key.channel()));
-		SSLEngine engine;
-		try {
-			engine = SSLContext.getDefault().createSSLEngine();
-		} catch (NoSuchAlgorithmException e) {
-			throw new IOException(e.getMessage());
-		}
-		engine.setUseClientMode(isClient);
-		if (this.sslMode.equals(SSLDataProcessingWorker.SSL_MODES.MUTUAL_AUTH))
-			engine.setNeedClientAuth(true);
-		engine.beginHandshake();
-		log.log(Level.FINE,
-				"{0} registered {1} socket channel {2}",
-				new Object[] { this, (isClient ? "client" : "server"),
-						key.channel() });
-		this.sslMap.put(key.channel(), new NonBlockingSSLImpl(key, engine,
-				 this.taskWorkers));
-		return true;
-	}
-
-	protected void poke() {
-		for (AbstractNIOSSL nioSSL : this.sslMap.values()) {
-			nioSSL.poke();
-		}
+		return false;
 	}
 
 	// remove entry from sslMap, no need to check containsKey
@@ -168,24 +292,21 @@ public class IOSSSLDataProcessingWorker implements InterfaceMessageExtractor {
 	protected void remove(SelectionKey key) {
 		SocketChannel socketChannel = (SocketChannel) key.channel();
 		if (socketChannel != null) {
-			AbstractNIOSSL nioSSL = this.sslMap.remove(socketChannel);
-			if(nioSSL!=null) nioSSL.clean(); // quicker GC of byte buffers
+			NonBlockingSSLImpl nioSSL = this.sslMap.remove(socketChannel);
+
 		}
 	}
 
 	// SSL NIO implementation
-	class NonBlockingSSLImpl extends AbstractNIOSSL {
-		final SSLEngine engine;
+	class NonBlockingSSLImpl {
+		private SelectionKey key;
 		private boolean handshakeComplete = false;
 
-		NonBlockingSSLImpl(SelectionKey key, SSLEngine engine,
-				 Executor taskWorkers) {
-			super(key, engine, taskWorkers, IOSSSLDataProcessingWorker.this.myID);
-			this.engine = engine;
+		NonBlockingSSLImpl(SelectionKey key) {
+			this.key = key;
 		}
 
 		// inbound decrypted data is simply handed over to worker
-		@Override
 		public void onInboundData(ByteBuffer decrypted) {
 			log.log(Level.FINEST,
 					"{0} received decrypted data of length {1} bytes on channel {2}",
@@ -193,7 +314,6 @@ public class IOSSSLDataProcessingWorker implements InterfaceMessageExtractor {
 			IOSSSLDataProcessingWorker.this.extractMessages(key, decrypted);
 		}
 
-		@Override
 		public void onHandshakeFailure(Exception cause) {
 			cause.printStackTrace();
 			log.log(Level.WARNING,
@@ -203,7 +323,6 @@ public class IOSSSLDataProcessingWorker implements InterfaceMessageExtractor {
 			cleanup(key);
 		}
 
-		@Override
 		public void onHandshakeSuccess() {
 			this.setHandshakeComplete();
 			log.log(Level.FINE,
@@ -211,14 +330,12 @@ public class IOSSSLDataProcessingWorker implements InterfaceMessageExtractor {
 					new Object[] { this, key.channel() });
 		}
 
-		@Override
 		public void onClosed() {
 			log.log(Level.FINE, "{0} cleaning up closed SSL channel {1}",
 					new Object[] { this, key.channel() });
 			cleanup(key);
 		}
 
-		@Override
 		public void onOutboundData(ByteBuffer encrypted) {
 			SocketChannel channel = ((SocketChannel) key.channel());
 			try {
