@@ -543,7 +543,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 				// set ops to CONNECT for pending connect requests.
 				processPendingConnects();
 				// wait for an event one of the registered channels.
-				int num = this.selector.select(SELECT_TIMEOUT);
+				this.selector.select(SELECT_TIMEOUT);
 				// accept, connect, read, or write as needed.
 				processSelectedKeys();
 				// process data from pending buffers on congested channels
@@ -646,9 +646,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		(this.selector.selectedKeys());
 		Iterator<SelectionKey> selectedKeys = selected.iterator();
 		//Collections.shuffle(selected); // to mix in reads and writes
+
 		while (selectedKeys.hasNext()) {
 			SelectionKey key = (SelectionKey) selectedKeys.next();
 			selectedKeys.remove();
+
 			if (!key.isValid()) {
 				//cleanup(key, (AbstractSelectableChannel) key.channel());
 				cleanupSSL(key);
@@ -824,6 +826,7 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	private void read(SelectionKey key) throws IOException {
 		SocketChannel socketChannel = (SocketChannel) key.channel();
+
 		// if SSL, simply pass any bytes to SSL worker
 		if (isSSL() && !IS_IOS) {
 			this.readBuffers.putIfAbsent(key,
