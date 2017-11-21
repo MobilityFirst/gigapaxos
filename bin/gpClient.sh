@@ -129,7 +129,7 @@ then
   DEFAULT_CLIENT="edu.umass.cs.reconfiguration.examples.NoopAppClient"
 fi
 
-if [[ -z "$@" || $@ == "-help" ]]; then
+if [[ -z $DEFAULT_CLIENT && (-z "$@" || $@ == "-help") ]]; then
   echo "Usage: gpClient.sh [JVMARGS] CLIENT_CLASS_NAME"
   echo "Example: gpClient.sh -cp jars/myclient.jar \
 edu.umass.cs.reconfiguration.examples.NoopAppClient" 
