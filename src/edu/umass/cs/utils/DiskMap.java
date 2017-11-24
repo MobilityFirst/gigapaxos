@@ -871,13 +871,4 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		close(false);
 	}
 
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		Util.assertAssertionsEnabled();
-		Result result = JUnitCore.runClasses(DiskMapTest.class);
-		for (Failure failure : result.getFailures())
-			System.out.println(failure.toString());
-	}
 }

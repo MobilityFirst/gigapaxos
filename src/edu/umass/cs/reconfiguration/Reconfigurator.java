@@ -85,7 +85,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurabl
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.RCStates;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.ReconfigureUponActivesChange;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.GCConcurrentHashMap;
@@ -333,7 +333,7 @@ public class Reconfigurator<NodeIDType> implements
 			// coordinate and commit reconfiguration intent
 			this.initiateReconfiguration(report.getServiceName(), record,
 					shouldReconfigure(report.getServiceName()), null, null,
-					null, null, null, null, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT); // coordinated
+					null, null, null, null, ReconfigurationConfig.ReconfigureUponActivesChange.DEFAULT); // coordinated
 		trimAggregateDemandProfile();
 		return null; // never any messaging or ptasks
 	}
@@ -1063,7 +1063,7 @@ public class Reconfigurator<NodeIDType> implements
 					ncRecord,
 					newRCs, // this.consistentNodeConfig.getNodeSocketAddress
 					(changeRC.getIssuer()), changeRC.getMyReceiver(), null,
-					null, null, changeRC.newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
+					null, null, changeRC.newlyAddedNodes, ReconfigurationConfig.ReconfigureUponActivesChange.DEFAULT);
 		return null;
 	}
 
@@ -1130,7 +1130,7 @@ public class Reconfigurator<NodeIDType> implements
 					activeNCRecord,
 					newActives, // this.consistentNodeConfig.getNodeSocketAddress
 					(changeActives.getIssuer()), changeActives.getMyReceiver(),
-					null, null, null, changeActives.newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
+					null, null, null, changeActives.newlyAddedNodes, ReconfigurationConfig.ReconfigureUponActivesChange.DEFAULT);
 
 		return null;
 	}
@@ -1811,7 +1811,7 @@ public class Reconfigurator<NodeIDType> implements
 			Set<NodeIDType> newActives, InetSocketAddress sender,
 			InetSocketAddress receiver, InetSocketAddress forwarder,
 			String initialState, Map<String, String> nameStates,
-			Map<NodeIDType, InetSocketAddress> newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			Map<NodeIDType, InetSocketAddress> newlyAddedNodes, ReconfigureUponActivesChange policy) {
 		if (newActives == null)
 			return false;
 		// request to persistently log the intent to reconfigure
@@ -1875,13 +1875,13 @@ public class Reconfigurator<NodeIDType> implements
 		return this.consistentNodeConfig;
 	}
 	
-	private ReconfigurationRecord.ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy(
+	private ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy(
 			String name) {
 		return this.DB.isRCGroupName(name)
 				|| AbstractReconfiguratorDB.RecordNames.RC_NODES.toString()
 						.equals(name)
 				|| AbstractReconfiguratorDB.RecordNames.AR_NODES.toString()
-						.equals(name) ? ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT
+						.equals(name) ? ReconfigurationConfig.ReconfigureUponActivesChange.DEFAULT
 				: ReconfigurationConfig
 						.getDefaultReconfigureUponActivesChangePolicy();
 	}
@@ -1901,7 +1901,7 @@ public class Reconfigurator<NodeIDType> implements
 			Set<NodeIDType> newActives, InetSocketAddress sender,
 			InetSocketAddress receiver, InetSocketAddress forwarder,
 			String initialState, Map<String, String> nameStates,
-			Map<NodeIDType, InetSocketAddress> newlyAddedNodes, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			Map<NodeIDType, InetSocketAddress> newlyAddedNodes, ReconfigureUponActivesChange policy) {
 		StartEpoch<NodeIDType> startEpoch = (record != null) ?
 		// typical reconfiguration
 		new StartEpoch<NodeIDType>(getMyID(), name, record.getEpoch() + 1,
@@ -3469,14 +3469,14 @@ public class Reconfigurator<NodeIDType> implements
 				return false;
 			}
 
-			if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.REPLICATE_ALL) {
+			if(record.getReconfigureUponActivesChangePolicy()== ReconfigurationConfig.ReconfigureUponActivesChange.REPLICATE_ALL) {
 				newActives = this.consistentNodeConfig.getActiveReplicas();
 				// means reconfiguration already complete or underway
 				if (record.getActiveReplicas().contains(active)
 						|| (record.getNewActives().contains(active)))
 					continue;
 			}
-			else if(record.getReconfigureUponActivesChangePolicy()== ReconfigureUponActivesChange.CUSTOM) {
+			else if(record.getReconfigureUponActivesChangePolicy()== ReconfigurationConfig.ReconfigureUponActivesChange.CUSTOM) {
 				newActives = this.shouldReconfigure(record.getName());
 			}
 
@@ -3540,7 +3540,7 @@ public class Reconfigurator<NodeIDType> implements
 				record, record.getNewActives(), null, null, null,
 				this.consistentNodeConfig.getReconfiguratorsReadOnly()
 						.toString(), null, null,
-				ReconfigureUponActivesChange.REPLICATE_ALL);
+				ReconfigurationConfig.ReconfigureUponActivesChange.REPLICATE_ALL);
 		if (!initiated)
 			ReconfigurationConfig.log.log(Level.SEVERE,
 					"{0} unable to initiate reconfiguration for {1}",

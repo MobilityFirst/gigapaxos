@@ -13,7 +13,8 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.notification.Failure;
 
-import edu.umass.cs.gigapaxos.paxosutil.RequestInstrumenter;
+//import edu.umass.cs.gigapaxos.paxosutil.RequestInstrumenter;
+//import edu.umass.cs.gigapaxos.PaxosConfig.PC;
 
 /**
  *

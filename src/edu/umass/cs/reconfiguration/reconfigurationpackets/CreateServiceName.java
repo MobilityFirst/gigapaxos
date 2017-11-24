@@ -15,27 +15,22 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration.reconfigurationpackets;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
+import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.nio.nioutils.StringifiableDefault;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig.ReconfigureUponActivesChange;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.BatchedCreateServiceName.BatchKeys;
+import edu.umass.cs.utils.Util;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import edu.umass.cs.nio.interfaces.Stringifiable;
-import edu.umass.cs.nio.nioutils.StringifiableDefault;
-import edu.umass.cs.reconfiguration.ReconfigurationConfig;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.BatchedCreateServiceName.BatchKeys;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ConsistentReconfigurableNodeConfig;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
-import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.ReconfigureUponActivesChange;
-import edu.umass.cs.utils.Util;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author V. Arun
@@ -101,7 +96,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 * group is by default chosen randomly. */
 	private final Set<InetSocketAddress> initGroup;
 	
-	private final ReconfigurationRecord.ReconfigureUponActivesChange policy;
+	private final ReconfigureUponActivesChange policy;
 
 	/**
 	 * @param name
@@ -131,7 +126,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 * @param policy
 	 */
 	public CreateServiceName(String name, String state,
-			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			ReconfigureUponActivesChange policy) {
 		this(null, name, 0, state, null, null, null, policy);
 	}
 	
@@ -146,7 +141,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 */
 	public CreateServiceName(String name, String state,
 			Set<InetSocketAddress> initGroup,
-			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			ReconfigureUponActivesChange policy) {
 		this(null, name, 0, state, null, null, initGroup, policy);
 	}
 
@@ -179,7 +174,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	private CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state, Map<String, String> nameStates,
 			InetSocketAddress myReceiver, Set<InetSocketAddress> initGroup,
-			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			ReconfigureUponActivesChange policy) {
 		super(initiator, ReconfigurationPacket.PacketType.CREATE_SERVICE_NAME,
 				name, epochNumber, myReceiver);
 		this.initialState = state;
@@ -191,7 +186,8 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 				: ReconfigurationConfig.getDefaultReconfigureUponActivesChangePolicy();
 	}
 
-	private CreateServiceName(InetSocketAddress initiator, String name,
+	// @TODO Change access to private after moving test to test source
+	public CreateServiceName(InetSocketAddress initiator, String name,
 			int epochNumber, String state, Map<String, String> nameStates) {
 		this(initiator, name, epochNumber, state, nameStates, null);
 	}
@@ -234,7 +230,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	 * @param policy
 	 */
 	public CreateServiceName(Map<String, String> nameStates,
-			ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			ReconfigureUponActivesChange policy) {
 		this(null, nameStates.keySet().iterator().next(), 0, nameStates
 				.values().iterator().next(), nameStates, null, null, policy);
 	}
@@ -300,7 +296,7 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		this.initGroup = json.has(Keys.INIT_GROUP.toString()) ? Util
 				.getSocketAddresses(json.getJSONArray(Keys.INIT_GROUP
 						.toString())) : null;
-		this.policy = ReconfigurationRecord.ReconfigureUponActivesChange
+		this.policy = ReconfigurationConfig.ReconfigureUponActivesChange
 				.valueOf(json.getString(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE
 						.toString()));
 	}
@@ -435,63 +431,9 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 	/**
 	 * @return {@link ReconfigureUponActivesChange} policy
 	 */
-	public ReconfigurationRecord.ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
+	public ReconfigureUponActivesChange getReconfigureUponActivesChangePolicy() {
 		return this.policy;
 	}
 
-	public static void main(String[] args) {
-		try {
-			Util.assertAssertionsEnabled();
-			InetSocketAddress isa = new InetSocketAddress(
-					InetAddress.getByName("localhost"), 2345);
-			int numNames = 1000;
-			String[] reconfigurators = { "RC43", "RC22", "RC78", "RC21",
-					"RC143" };
-			String namePrefix = "someName";
-			String defaultState = "default_initial_state";
-			String[] names = new String[numNames];
-			String[] states = new String[numNames];
-			for (int i = 0; i < numNames; i++) {
-				names[i] = namePrefix + i;
-				states[i] = defaultState + i;
-			}
-			CreateServiceName bcreate1 = new CreateServiceName(isa, "random0",
-					0, "hello");
-			HashMap<String, String> nameStates = new HashMap<String, String>();
-			for (int i = 0; i < names.length; i++)
-				nameStates.put(names[i], states[i]);
-			CreateServiceName bcreate2 = new CreateServiceName(isa, names[0],
-					0, states[0], nameStates);
-			System.out.println(bcreate1.toString());
-			System.out.println(bcreate2.toString());
-
-			// translate a batch into consistent constituent batches
-			Collection<Set<String>> batches = ConsistentReconfigurableNodeConfig
-					.splitIntoRCGroups(
-							new HashSet<String>(Arrays.asList(names)),
-							new HashSet<String>(Arrays.asList(reconfigurators)));
-			int totalSize = 0;
-			int numBatches = 0;
-			for (Set<String> batch : batches)
-				System.out.println("batch#" + numBatches++ + " of size "
-						+ batch.size() + " (totalSize = "
-						+ (totalSize += batch.size()) + ")" + " = " + batch);
-			assert (totalSize == numNames);
-			System.out.println(bcreate2.getSummary());
-
-			CreateServiceName c1 = new CreateServiceName("somename",
-					"somestate", new HashSet<InetSocketAddress>(Arrays.asList(
-							new InetSocketAddress(InetAddress
-									.getLoopbackAddress(), 1234),
-							new InetSocketAddress(InetAddress
-									.getLoopbackAddress(), 1235))));
-			assert (c1.toString().equals(new CreateServiceName(c1
-					.toJSONObject()).toString())) : "\n" + c1 + " != \n"
-					+ new CreateServiceName(c1.toJSONObject());
-			System.out.println(c1);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
 
 }

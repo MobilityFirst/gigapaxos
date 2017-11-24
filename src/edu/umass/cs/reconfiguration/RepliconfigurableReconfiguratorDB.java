@@ -251,10 +251,10 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 	 */
 	private ReconfigurationRecord<NodeIDType> getInitialRCGroupRecord(
 			String groupName, Set<NodeIDType> group) {
-		return getInitialRCGroupRecord(groupName, group, ReconfigurationRecord.ReconfigureUponActivesChange.DEFAULT);
+		return getInitialRCGroupRecord(groupName, group, ReconfigurationConfig.ReconfigureUponActivesChange.DEFAULT);
 	}
 	private ReconfigurationRecord<NodeIDType> getInitialRCGroupRecord(
-			String groupName, Set<NodeIDType> group, ReconfigurationRecord.ReconfigureUponActivesChange policy) {
+			String groupName, Set<NodeIDType> group, ReconfigurationConfig.ReconfigureUponActivesChange policy) {
 		return new ReconfigurationRecord<NodeIDType>(groupName, 0, group, group, policy);
 	}
 
@@ -302,7 +302,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 					// full replication implicit
 					this.consistentNodeConfig.getActiveReplicas(),
 					this.consistentNodeConfig.getActiveReplicas(),
-					ReconfigurationRecord.ReconfigureUponActivesChange.REPLICATE_ALL));
+					ReconfigurationConfig.ReconfigureUponActivesChange.REPLICATE_ALL));
 	}
 
 	// needed by Reconfigurator
