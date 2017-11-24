@@ -874,7 +874,8 @@ public class Util {
 	}
 
 	public static InetSocketAddress getOffsettedAddress(InetSocketAddress isa, int offset) {
-		return new InetSocketAddress(isa.getAddress(), isa.getPort()+offset);
+		return offset==0 ? isa : new InetSocketAddress(isa.getAddress(), isa
+				.getPort()+offset);
 	}
 
 }
