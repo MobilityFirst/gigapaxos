@@ -179,6 +179,14 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		assert (this.messenger.getClientMessenger() != null);
 		assert (this.appCoordinator.getMessenger() == this.messenger);
 		this.recovering = false;
+		
+		this.preRestore(
+				AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString(),
+				this.appCoordinator.getARARNodesAsString());
+		this.preRestore(
+				AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
+				this.appCoordinator.getARRCNodesAsString());
+
 		// initInstrumenter();
 	}
 	
@@ -802,7 +810,9 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						+ startEpoch);
 				e.printStackTrace();
 			}
-			// the creation above will throw an exception if it fails
+			/* FIXME: This assertion can fail if there is a reconfiguration
+			 * immmediately after creation. the creation above will throw an
+			 * exception if it fails */
 			assert (!created || startEpoch.getCurEpochGroup().equals(
 					this.appCoordinator.getReplicaGroup(startEpoch
 							.getServiceName()))) : this
