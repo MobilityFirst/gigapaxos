@@ -17,6 +17,7 @@
  */
 package edu.umass.cs.nio.interfaces;
 
+import java.util.HashSet;
 import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -45,19 +46,29 @@ public interface Stringifiable<ObjectType> {
 
 	/**
 	 * Converts a set of string node ids using valueOf.
-	 * 
+	 *
 	 * @param strNodes
 	 * @return Returns an ObjectType set constructed from a String set.
 	 */
-	public Set<ObjectType> getValuesFromStringSet(Set<String> strNodes);
+	default Set<ObjectType> getValuesFromStringSet(Set<String> strNodes) {
+		Set<ObjectType> set = new HashSet<ObjectType>();
+		for(String strNode: strNodes)
+			set.add(valueOf(strNode));
+		return set;
+	}
 
 	/**
-	 * 
+	 *
 	 * @param array
 	 * @return Returns an ObjectType set constructed from a JSONObject array.
 	 * @throws JSONException
 	 */
-	public Set<ObjectType> getValuesFromJSONArray(JSONArray array)
-			throws JSONException;
+	default Set<ObjectType> getValuesFromJSONArray(JSONArray array)
+			throws JSONException {
+		Set<ObjectType> set = new HashSet<ObjectType>();
+		for(int i=0; i<array.length(); i++)
+			set.add(valueOf(array.get(i).toString()));
+		return set;
+	}
 
 }

@@ -215,6 +215,26 @@ public class MessageNIOTransport<NodeIDType, MessageType> extends
 	}
 
 	/**
+	 * @param address
+	 * @param port
+	 * @param pd
+	 * @throws IOException
+	 */
+	public MessageNIOTransport(InetAddress address, int port,
+							   AbstractPacketDemultiplexer<?> pd) throws IOException {
+		super(address, port, new MessageExtractor(pd), SSLDataProcessingWorker.SSL_MODES.CLEAR);
+	}
+
+	/**
+	 * @param pd
+	 * @throws IOException
+	 */
+	public MessageNIOTransport(AbstractPacketDemultiplexer<?> pd) throws IOException {
+		super(null, 0, new MessageExtractor(pd), SSLDataProcessingWorker
+				.SSL_MODES.CLEAR);
+	}
+
+	/**
 	 * Used only for testing. The private nature of this method means that
 	 * external users can no longer explicitly specify the message extractor
 	 * that can now only be {@link edu.umass.cs.nio.MessageExtractor}.
