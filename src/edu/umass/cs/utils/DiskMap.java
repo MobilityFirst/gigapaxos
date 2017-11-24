@@ -128,6 +128,13 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	private long pauseThreadPeriod = 30000;
 	private long lastGCAttempt = 0;
 	private boolean ongoingGC = false;
+	
+	/**
+	 * True means that the in-memory map will always be consistent with the
+	 * underlying database, which is achieved by always committing an entry
+	 * upon a put.
+	 */
+	private boolean cleanCache = false;
 
 	/**
 	 * Minimum idle time in order to be pausable.
@@ -136,6 +143,17 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	 */
 	public void setIdleThreshold(long idleTime) {
 		this.idleThreshold = idleTime;
+	}
+	
+	/**
+	 * Set the cleanCache option to true, which means that puts will be
+	 * immediately committed, i.e., the in-memory cache is always consistent
+	 * with the disk.
+	 * 
+	 * @param set
+	 */
+	public synchronized void setCleanCache(boolean set) {
+		this.cleanCache = set;
 	}
 
 	/**
@@ -324,10 +342,28 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 		V prev = null;
 		// all mods need to be synchronized
 		synchronized (this) {
-			prev = this.map.put(key, value);
+			prev = this.getOrRestore(key);
+			this.map.put(key, value);
 			recordPut(key);
+			if (this.cleanCache)
+				this.putCommit(key, value);
 		}
 		return prev;
+	}
+	
+	private void putCommit(K key, V value) {
+		Set<K> committed = null;
+		try {
+			committed = this.commit(key);
+		} catch (IOException e) {
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		} finally {
+			if (committed == null || !committed.contains(key)
+					|| committed.size() != 1)
+				throw new RuntimeException("Failed to commit <" + key + ", "
+						+ value + ">" + "to disk");
+		}
 	}
 
 	boolean recordPuts = false, recordRemoves = false;
@@ -675,8 +711,14 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 				 * remove the corresponding key from this.map. For concurrent
 				 * removes not superceded by a subsequent put, we should
 				 * re-remove the key just in case the pause-commit unremoved the
-				 * remove from disk. */
-				committed = this.commit(this.pauseQ);
+				 * remove from disk. 
+				 * 
+				 * 
+				 * With the cleanCache option, everything in pause can be assumed
+				 * to have alredy been committed.
+				 * */
+				committed = this.cleanCache ? this.pauseQ.keySet() : this
+						.commit(this.pauseQ);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -718,10 +760,11 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 	}
 
 	@Override
-	public boolean remove(Object key, Object value) {
-		if (!this.get(key).equals(value))
+	public synchronized boolean remove(Object key, Object value) {
+		V existing = null;
+		if ((existing = this.get(key)) == null || !existing.equals(value))
 			return false;
-		this.map.remove(key, value);
+		this.remove(key);
 		return true;
 	}
 
@@ -759,7 +802,7 @@ public abstract class DiskMap<K, V> implements ConcurrentMap<K, V>,
 
 	// unused
 	protected synchronized Set<K> commit(K key) throws IOException {
-		Map<K, V> singleton = new ConcurrentHashMap<K, V>();
+		Map<K, V> singleton = new HashMap<K, V>();
 		if (this.map.containsKey(key))
 			singleton.put(key, this.map.get(key));
 		return this.commit(singleton);
