@@ -4,7 +4,6 @@ import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
-import edu.umass.cs.gigapaxos.paxosutil.LargeCheckpointer;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.examples.noop.NoopApp;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
@@ -47,7 +46,6 @@ public class StatefulAdderApp implements Replicable {
 
 	@Override
 	public String checkpoint(String name) {
-		LargeCheckpointer.
 		// should return entire state here
 		return this.total+"";
 	}
