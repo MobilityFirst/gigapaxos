@@ -1,31 +1,29 @@
-package edu.umass.cs.gigapaxos.examples;
-
-import java.net.InetSocketAddress;
-import java.util.HashMap;
-
-import org.json.JSONException;
-import org.json.JSONObject;
+package edu.umass.cs.reconfiguration.examples.linwrites;
 
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
-import edu.umass.cs.utils.Util;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.HashMap;
 
 /**
  * @author arun
  *
  *         A class like this is needed only if the app wants to use request
- *         types other than RequestPacket, which is generally useful only if the
- *         app wants to coordinate only some request types using consensus but
- *         process other requests locally at replicas. For using just gigapaxos
- *         to implement linearizability, i.e., coordinating all requests via
- *         consensus, this class is unnecessary. Applications can simply
- *         encapsulate requests as {@link RequestPacket}; doing so will also
- *         be slightly more efficient than using app-specific request types.
+ *         types other than {@link RequestPacket}, which is generally useful
+ *         only if the app wants to coordinate only some request types using
+ *         consensus but process other requests locally at replicas or
+ *         coordinate them using custom replica coordination protocols. For
+ *         using just gigapaxos to implement linearizability, i.e.,
+ *         coordinating all requests via consensus-based RSM, this class is
+ *         unnecessary as applications can simply encapsulate requests as
+ *         {@link RequestPacket}.
  */
-public class PaxosAppRequest extends JSONPacket implements
+public class SimpleAppRequest extends JSONPacket implements
 		ReplicableRequest, ClientRequest {
 
 	/**
@@ -82,7 +80,7 @@ public class PaxosAppRequest extends JSONPacket implements
 	 *
 	 */
 	public enum Keys {
-		SERVICE_NAME, EPOCH, REQUEST_ID, REQUEST_VALUE, STOP, IS_COORDINATION, CLIENT_ADDRESS, ACK, RESPONSE_VALUE
+		SERVICE_NAME, EPOCH, REQUEST_ID, REQUEST_VALUE, STOP, ACK, RESPONSE_VALUE
 	};
 
 	// name of the replicated state machine
@@ -101,20 +99,20 @@ public class PaxosAppRequest extends JSONPacket implements
 	// be used to delete the RSM entirely.
 	private final boolean stop;
 
-	// to return when getResponse is invoked
+	// used when getResponse is invoked
 	private String response = null;
 
 
 	/**
-	 * @param name
-	 * @param epoch
-	 * @param id
-	 * @param value
-	 * @param type
-	 * @param stop
+	 * @param name Name of RSM
+	 * @param epoch Number of time RSM has been reconfigured
+	 * @param id Request identifier
+	 * @param value Request value
+	 * @param type Request type
+	 * @param stop Whether the RSM should be stopped entirely
 	 */
-	public PaxosAppRequest(String name, int epoch, long id, String value,
-						   IntegerPacketType type, boolean stop) {
+	public SimpleAppRequest(String name, int epoch, long id, String value,
+							IntegerPacketType type, boolean stop) {
 		super(type);
 		this.name = name;
 		this.epoch = epoch;
@@ -128,7 +126,7 @@ public class PaxosAppRequest extends JSONPacket implements
 	 * @param value
 	 * @param type
 	 */
-	public PaxosAppRequest(String name, String value, IntegerPacketType type) {
+	public SimpleAppRequest(String name, String value, IntegerPacketType type) {
 		this(name,value, type,false);
 	}
 
@@ -138,8 +136,8 @@ public class PaxosAppRequest extends JSONPacket implements
 	 * @param type
 	 * @param stop
 	 */
-	public PaxosAppRequest(String name, String value, IntegerPacketType type,
-						   boolean stop) {
+	public SimpleAppRequest(String name, String value, IntegerPacketType type,
+							boolean stop) {
 		this(name, 0, (long) (Math.random() * Long.MAX_VALUE), value, type,
 				stop);
 	}
@@ -151,8 +149,8 @@ public class PaxosAppRequest extends JSONPacket implements
 	 * @param type
 	 * @param stop
 	 */
-	public PaxosAppRequest(String name, long id, String value,
-						   IntegerPacketType type, boolean stop) {
+	public SimpleAppRequest(String name, long id, String value,
+							IntegerPacketType type, boolean stop) {
 		this(name, 0, id, value, type, stop);
 	}
 
@@ -161,16 +159,13 @@ public class PaxosAppRequest extends JSONPacket implements
 	 * @param json
 	 * @throws JSONException
 	 */
-	public PaxosAppRequest(JSONObject json) throws JSONException {
+	public SimpleAppRequest(JSONObject json) throws JSONException {
 		super(json);
 		this.name = json.getString(Keys.SERVICE_NAME.toString());
 		this.epoch = json.getInt(Keys.EPOCH.toString());
 		this.requestID = json.getLong(Keys.REQUEST_ID.toString());
 		this.stop = json.getBoolean(Keys.STOP.toString());
 		this.value = json.getString(Keys.REQUEST_VALUE.toString());
-
-		this.response = json.has(Keys.RESPONSE_VALUE.toString()) ? json
-				.getString(Keys.REQUEST_VALUE.toString()) : null;
 	}
 
 	@Override
@@ -204,7 +199,6 @@ public class PaxosAppRequest extends JSONPacket implements
 		json.put(Keys.REQUEST_ID.toString(), this.requestID);
 		json.put(Keys.STOP.toString(), this.stop);
 		json.put(Keys.REQUEST_VALUE.toString(), this.value);
-		json.putOpt(Keys.RESPONSE_VALUE.toString(), this.response);
 		return json;
 	}
 
@@ -216,7 +210,7 @@ public class PaxosAppRequest extends JSONPacket implements
 
 	@Override
 	public ClientRequest getResponse() {
-		return new PaxosAppRequest(this.name, this.epoch, this.requestID,
+		return new SimpleAppRequest(this.name, this.epoch, this.requestID,
 				this.response==null ? Keys.ACK.toString() : this.response, PacketType
 				.getPacketType(type), this.stop);
 	}
@@ -224,7 +218,7 @@ public class PaxosAppRequest extends JSONPacket implements
 	/**
 	 * @param response
 	 */
-	public PaxosAppRequest setResponse(String response) {
+	public SimpleAppRequest setResponse(String response) {
 		this.response = response;
 		return this;
 	}
@@ -235,12 +229,12 @@ public class PaxosAppRequest extends JSONPacket implements
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		PaxosAppRequest request = new PaxosAppRequest("name1", 0, 0,
-				"request1", PaxosAppRequest.PacketType.COORDINATED_WRITE,
+		SimpleAppRequest request = new SimpleAppRequest("name1", 0, 0,
+				"request1", SimpleAppRequest.PacketType.COORDINATED_WRITE,
 				false);
 		System.out.println(request);
 		try {
-			PaxosAppRequest request2 = (new PaxosAppRequest(
+			SimpleAppRequest request2 = (new SimpleAppRequest(
 					request.toJSONObject()));
 			assert (request.toString().equals(request2.toString()));
 			System.out.println("SUCCESS");

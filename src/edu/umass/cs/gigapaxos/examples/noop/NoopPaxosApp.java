@@ -2,7 +2,6 @@ package edu.umass.cs.gigapaxos.examples.noop;
 
 import java.util.Set;
 
-import edu.umass.cs.gigapaxos.examples.PaxosAppRequest;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
@@ -18,19 +17,14 @@ public class NoopPaxosApp implements Replicable {
 
 	@Override
 	public boolean execute(Request request) {
-		// execute request here
+		// execute request here (no-op)
 
-		// set response if request instanceof InterfaceClientRequest
 		if (request instanceof RequestPacket) {
-			RequestPacket req = ((RequestPacket) request);
-			if(req.requestValue.matches("hello world"+1))
-				req.setResponse("hello world response"+1);
-			else 
-			((RequestPacket) request).setResponse("appropriate_response_value");
+			String requestValue = ((RequestPacket) request).requestValue;
+			((RequestPacket) request).setResponse("echoing [" +
+					requestValue + "]");
 		}
-		if (request instanceof PaxosAppRequest)
-			((PaxosAppRequest) request)
-					.setResponse("appropriate_response_value");
+		else System.err.println("Unknown packet type: " + request.getSummary());
 		return true;
 	}
 
@@ -72,7 +66,7 @@ public class NoopPaxosApp implements Replicable {
 	 */
 	@Override
 	public Set<IntegerPacketType> getRequestTypes() {
+		// TODO Auto-generated method stub
 		return null;
-		//new HashSet<IntegerPacketType>(Arrays.asList((IntegerPacketType)PaxosPacketType.REQUEST));
 	}
 }

@@ -456,7 +456,7 @@ public class PaxosManager<NodeIDType> {
 		niot.precedePacketDemultiplexer(Config.getGlobalString(PC.JSON_LIBRARY)
 				.equals("org.json") ? new JSONDemultiplexer()
 				: new FastDemultiplexer());
-		initiateRecovery();
+		initiateRecovery(id);
 		if (!Config.getGlobalBoolean(PC.DELAY_PROFILER))
 			DelayProfiler.disable();
 	}
@@ -1829,9 +1829,10 @@ public class PaxosManager<NodeIDType> {
 	 * Synchronized because this method invokes an incremental read on the
 	 * database that currently does not support parallelism. But the
 	 * "synchronized" qualifier here is not necessary for correctness. */
-	private synchronized void initiateRecovery() {
+	private synchronized void initiateRecovery(NodeIDType id) {
 		boolean found = false;
 		int groupCount = 0, freq = 1;
+		long initTime = System.currentTimeMillis();
 		PaxosConfig.log.log(Level.INFO, "{0} beginning to recover checkpoints",
 				new Object[] { this });
 		while (this.paxosLogger.initiateReadCheckpoints(true))
@@ -1862,7 +1863,7 @@ public class PaxosManager<NodeIDType> {
 				new Object[] { this, groupCount });
 		if (!found) {
 			PaxosConfig.log.warning("No checkpoint state found for node "
-					+ this.myID
+					+ id
 					+ ". This can only happen if\n"
 					+ "(1) the node is newly joining the system, or\n(2) the node previously crashed before "
 					+ "completing even a single checkpoint, or\n(3) the node's checkpoint was manually deleted.");
@@ -2010,8 +2011,14 @@ public class PaxosManager<NodeIDType> {
 			found = true;
 			assert (pri.getPaxosID() != null);
 			PaxosInstanceStateMachine pism = getInstance(pri.getPaxosID());
-			if (pism != null)
+			if (pism != null) {
 				pism.setActive();
+				// force sync upon reboot
+				if(System.currentTimeMillis()-initTime < Config.getGlobalLong
+						(PC.DEACTIVATION_PERIOD))
+					pism.poke(true)
+							;
+			}
 			Boolean isActive = pism != null ? pism.isActive() : null;
 			PaxosConfig.log.log(Level.INFO,
 					"{0} recovered paxos instance {1}; isActive = {2} ",

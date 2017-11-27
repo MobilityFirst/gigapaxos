@@ -100,20 +100,13 @@ public class ReconfigurationConfig {
 			.getGlobalString(RC.APPLICATION));
 
 	/**
-	 * @return Default service name that is replicated at all active replicas.
-	 */
-	public static final String getDefaultServiceName() {
-		return application.getSimpleName() + "0";
-	}
-
-	/**
 	 * @return Initial state of default service name that is replicated at all
 	 *         active replicas.
 	 */
 	public static final String getDefaultServiceNameInitialState() {
 		try {
-			return new JSONObject().put(getDefaultServiceName(),
-					Config.getGlobalString(RC.DEFAULT_NAME_INITIAL_STATE))
+			return new JSONObject().put(PaxosConfig.getDefaultServiceName(),
+					Config.getGlobalString(PC.DEFAULT_NAME_INITIAL_STATE))
 					.toString();
 		} catch (JSONException e) {
 			e.printStackTrace();
@@ -409,12 +402,6 @@ public class ReconfigurationConfig {
 		 * Used to set @link {@link edu.umass.cs.gigapaxos.PaxosManager#setOutOfOrderLimit(int)}.
 		 */
 		OUT_OF_ORDER_LIMIT(100),
-		
-		/**
-		 * Value of initial state used by the default service name (
-		 * {@link ReconfigurationConfig#getDefaultServiceName()}).
-		 */
-		DEFAULT_NAME_INITIAL_STATE("{}"),
 
 		;
 

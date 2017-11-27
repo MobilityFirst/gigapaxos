@@ -6,6 +6,8 @@ import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.Set;
 
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,12 +38,25 @@ public class ReconfigurationPolicyTest extends DefaultTest {
 		C = clazz;
 	}
 
+	/**
+	 *
+	 */
 	@Before
 	public void beforeMethod() {
-		super.beforeMethod();
-		System.out.print(C.getSimpleName());
+		if(!C.getName().equals(ReconfigurationConfig.RC.DEMAND_PROFILE_TYPE.getDefaultValue()
+				.toString())) {
+			System.out.print(C.getSimpleName() + ":");
+			super.beforeMethod();
+		}
 	}
-	
+
+	/**
+	 *
+	 */
+	@After
+	public void afterMethod() {
+		verbose=1;
+	}
 	/**
 	 */
 	@Test

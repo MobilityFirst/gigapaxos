@@ -20,6 +20,7 @@ import org.junit.runner.notification.Failure;
  *
  */
 public class DefaultTest {
+	protected int verbose = 0;
 	/**
 	 * 
 	 */
@@ -45,7 +46,7 @@ public class DefaultTest {
 	public TestWatcher watcher = new TestWatcher() {
 		@Override
 		protected void failed(Throwable e, Description description) {
-			System.out.println((repeatIndex != lastPrinted ? repeatIndex : "")
+			System.out.println(testName.getMethodName() + ":"+(repeatIndex)
 					+ " FAILED!!!!!!!!!!!!! " + e);
 			e.printStackTrace();
 //			if (Config.getGlobalBoolean(PC.DEBUG))
@@ -55,7 +56,7 @@ public class DefaultTest {
 
 		@Override
 		protected void succeeded(Description description) {
-			System.out.println(" succeeded");
+			if(verbose==0) System.out.println(" succeeded");
 		}
 	};
 
@@ -77,7 +78,7 @@ public class DefaultTest {
 
 							: (repeatIndex == lastPrinted * 2 && (lastPrinted *= 2) > 0) ? (repeatIndex + " ")
 									: "");
-		else
+		else if(verbose==0)
 			System.out.print(testName.getMethodName() + " ");
 	}
 

@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
@@ -269,7 +270,7 @@ public class RepliconfigurableReconfiguratorDB<NodeIDType> extends
 
 		// RC record for a default service name replicated at all actives
 		this.appendToRCGroupRecordSelf(records,
-				ReconfigurationConfig.getDefaultServiceName(), node);
+				PaxosConfig.getDefaultServiceName(), node);
 
 		/* RC record for a special service name holding a map of current actives
 		 * replicated at all actives. This service name does not allow requests

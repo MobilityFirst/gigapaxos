@@ -186,6 +186,13 @@ public class PaxosConfig {
 	public static final Class<?> application = getClassSuppressExceptions(Config
 			.getGlobalString(PC.APPLICATION));
 
+	/**
+	 * @return Default service name that is replicated at all active replicas.
+	 */
+	public static final String getDefaultServiceName() {
+		return application.getSimpleName() + "0";
+	}
+
     /**
      * @return Logger used by PaxosConfig.
      */
@@ -401,6 +408,12 @@ public class PaxosConfig {
 		 * also means less frequent IO or higher request throughput.
 		 */
 		CHECKPOINT_INTERVAL(400),
+
+		/**
+		 * Value of initial state used by the default service name (
+		 * {@link PaxosConfig#getDefaultServiceName()}).
+		 */
+		DEFAULT_NAME_INITIAL_STATE("{}"),
 
 		/**
 		 * Number of threads in packet demultiplexer. More than 0 means that we

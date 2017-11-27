@@ -1189,6 +1189,10 @@ public class RequestPacket extends PaxosPacket implements Request,
 		return reply;
 	}
 
+	public String getResponseValue() {
+		return this.responseValue;
+	}
+
 	public RequestPacket getNACK() {
 		RequestPacket req = this.getFirstOnly();
 		return new RequestPacket(req.requestID, ResponseCodes.NACK.toString(),

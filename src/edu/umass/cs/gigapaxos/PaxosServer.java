@@ -60,7 +60,7 @@ public class PaxosServer {
 						nodeConfig.getNodePort(myID)));
 
 		// create default paxos group with same name as app class
-		pm.createPaxosInstance(app.getClass().getSimpleName() + "0",
+		pm.createPaxosInstance(PaxosConfig.getDefaultServiceName(),
 				nodeConfig.getNodeIDs(), null);
 	}
 
