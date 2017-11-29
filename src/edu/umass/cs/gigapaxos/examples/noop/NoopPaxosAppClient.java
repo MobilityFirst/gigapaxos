@@ -39,7 +39,7 @@ public class NoopPaxosAppClient extends PaxosClientAsync {
 		NoopPaxosAppClient noopClient = new NoopPaxosAppClient();
 		for (int i = 0; i < 100; i++) {
 			final String requestValue = "hello world" + i;
-			noopClient.sendRequest(PaxosConfig.application.getSimpleName()+"0",
+			noopClient.sendRequest(PaxosConfig.getDefaultServiceName(),
 					requestValue, new RequestCallback() {
 				long createTime = System.currentTimeMillis();
 				@Override

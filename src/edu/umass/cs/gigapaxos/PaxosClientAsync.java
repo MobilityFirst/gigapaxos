@@ -113,9 +113,9 @@ public class PaxosClientAsync {
 	}
 
 	/**
-	 * @param paxosID
+	 * @param paxosID Name of the replicated state machine.
 	 * @param value
-	 * @param server
+	 * @param server Server to which the request is redirected.
 	 * @param callback
 	 * @return Request ID.
 	 * @throws IOException
@@ -136,7 +136,7 @@ public class PaxosClientAsync {
 	}
 
 	/**
-	 * @param paxosID
+	 * @param paxosID Name of the replicated state machine.
 	 * @param value
 	 * @param callback
 	 * @return Request ID.
@@ -156,7 +156,7 @@ public class PaxosClientAsync {
 
 	/**
 	 * @param request
-	 * @param server
+	 * @param server Server to which the request is redirected.
 	 * @param callback
 	 * @return Request ID.
 	 * @throws IOException
@@ -194,7 +194,7 @@ public class PaxosClientAsync {
 	}
 
 	/**
-	 * @param servers
+	 * @param servers Set of all servers.
 	 * @throws IOException
 	 */
 	public PaxosClientAsync(Set<InetSocketAddress> servers) throws IOException {
