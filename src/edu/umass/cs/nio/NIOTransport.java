@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -1401,7 +1402,13 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		if (this.sendQueues.isEmpty())
 			return;
 		synchronized (this.sendQueues) {
-			for (InetSocketAddress isa : this.sendQueues.keySet()) {
+
+			/*
+			 * Android doesn't currently recognize ConcurrentHashMap.keySet()
+			 * due to a Java 8 -> Java 7 translation issue. Therefore, cast
+			 * it to a Map<?, ?> explicitly.
+			 */
+			for (InetSocketAddress isa : ((Map<InetSocketAddress, LinkedBlockingQueue<ByteBuffer>>) this.sendQueues).keySet()) {
 				LinkedBlockingQueue<ByteBuffer> queue = this.sendQueues
 						.get(isa);
 				if (queue != null && !queue.isEmpty()) {
