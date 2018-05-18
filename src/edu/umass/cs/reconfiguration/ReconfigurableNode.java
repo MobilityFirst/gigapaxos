@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 
+import edu.umass.cs.reconfiguration.interfaces.CoordinatorCallback;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
@@ -183,6 +184,29 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		} 
 	}
 
+	@SuppressWarnings("unchecked")
+	private CoordinatorCallback<NodeIDType> getWrappingCoordinatorCallback(){
+		Class<?> clazz = null;
+		try {
+			clazz = Class.forName(Config
+					.getGlobalString(ReconfigurationConfig.RC.COORDINATOR_WRAPPER));
+		} catch (ClassNotFoundException e) {
+			// eat up exception, normal case
+		}
+		if (clazz == null) {
+			return null;
+		}
+		// reflectively instantiate
+		try {
+			return (CoordinatorCallback<NodeIDType>) clazz.newInstance();
+		} catch (InstantiationException | IllegalAccessException
+				| IllegalArgumentException | SecurityException e) {
+			e.printStackTrace();
+		}
+		return null;
+
+	}
+
 	/**
 	 * 
 	 * TODO: Extend this method to enable support for other coordinators.
@@ -198,7 +222,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			JSONMessenger<NodeIDType> messenger) {
 		return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
-				messenger).setOutOfOrderLimit(Config
+				messenger,getWrappingCoordinatorCallback()).setOutOfOrderLimit(Config
 				.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
 	}
 
