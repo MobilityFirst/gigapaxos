@@ -191,8 +191,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		 * Reconfigurator sets the callback before its
 		 * getReconfigurableReconfiguratorAsActiveReplica.
 		 */
-		if (this.callback == null)
-			this.callback = callback;
+		this.callback = callback;
 		return this;
 	}
 
@@ -431,11 +430,12 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		return this.stopCallback != null
 				&& this.stopCallback.preRestore(name, state) ? true
 
-		:this.callback!=null &&this.callback.preRestore(name,state) ? true
 
 		/* Will be a no-op except during recovery when stopCallback will be null
 		 * as it wouldn't yet have been set. */
 		: this.preRestore(name, state) ? true
+
+		:this.callback!=null &&this.callback.preRestore(name,state) ? true
 
 		: app.restore(name, state);
 	}
