@@ -187,6 +187,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	@SuppressWarnings("unchecked")
 	private CoordinatorCallback<NodeIDType> getWrappingCoordinatorCallback(){
 		Class<?> clazz = null;
+		if(!Config.getGlobalBoolean(ReconfigurationConfig.RC.ENABLE_TRANSACTIONS))return null;
 		try {
 			clazz = Class.forName(Config
 					.getGlobalString(ReconfigurationConfig.RC.COORDINATOR_WRAPPER));
