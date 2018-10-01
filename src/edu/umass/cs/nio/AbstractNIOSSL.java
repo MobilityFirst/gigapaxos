@@ -16,6 +16,8 @@
 package edu.umass.cs.nio;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -27,7 +29,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
 
-import sun.misc.Cleaner;
 import edu.umass.cs.nio.nioutils.NIOInstrumenter;
 import edu.umass.cs.utils.Util;
 
@@ -305,7 +306,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 	/**
 	 * Push once and spawn task if all outbound data is not fully pushed out.
 	 * 
-	 * @param sync
+	 * @param
 	 */
 	private void drainOutbound() {
 		if (wrapDst.position() > 0) {
@@ -432,26 +433,68 @@ public abstract class AbstractNIOSSL implements Runnable {
 	}
 
 	private static void clean(ByteBuffer bbuf) {
-		Cleaner cleaner = null;
-		/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
-		 * just comment the line below. The code will default to using the
-		 * reflective approach below. NOTE: Code commented now.*/
-		/*
-		if (bbuf instanceof DirectBuffer)
-			cleaner = ((DirectBuffer) bbuf).cleaner();
-		*/
-		if (cleaner == null)
+		// Solve Compatible problem by using reflection
+		Object cleaner = null;
+
+		String version = System.getProperty("java.version");
+		if (version.startsWith("1.8")) {
+			// Java 8
 			try {
-				Field cleanerField = bbuf.getClass()
-						.getDeclaredField("cleaner");
-				cleanerField.setAccessible(true);
-				cleaner = (Cleaner) cleanerField.get(bbuf);
-			} catch (NoSuchFieldException | SecurityException
-					| IllegalArgumentException | IllegalAccessException e) {
-				// best-effort GC purposes only, so ignore
+				Class c = Class.forName("sun.misc.Cleaner");
+
+				/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
+				 * just comment the line below. The code will default to using the
+				 * reflective approach below. NOTE: Code commented now.*/
+				/*
+				if (bbuf instanceof DirectBuffer)
+					cleaner = ((DirectBuffer) bbuf).cleaner();
+				*/
+
+				if (cleaner == null)
+					try {
+						Field cleanerField = bbuf.getClass()
+								.getDeclaredField("cleaner");
+						cleanerField.setAccessible(true);
+						cleaner = cleanerField.get(bbuf);
+						//cleaner = (Cleaner) cleanerField.get(bbuf);
+					} catch (NoSuchFieldException | SecurityException
+							| IllegalArgumentException | IllegalAccessException e) {
+						// best-effort GC purposes only, so ignore
+						e.printStackTrace();
+					}
+				if (cleaner != null) {
+					Method meth = c.getMethod("clean");
+					meth.invoke(cleaner);
+					//cleaner.clean();
+				}
+			} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
 				e.printStackTrace();
 			}
-		if (cleaner != null)
-			cleaner.clean();
+
+
+		} else {
+			// Java 9+
+			try {
+				Class c = Class.forName("java.lang.ref.Cleaner");
+
+				Method meth = c.getMethod("create");
+				// a static method to create a cleaner
+				cleaner = meth.invoke(null);
+				Class clazz = Class.forName("java.lang.ref.Cleaner.Cleanable");
+				meth = c.getMethod("register", Object.class, Runnable.class);
+				Object cleanable = meth.invoke(cleaner, bbuf, new Runnable(){
+					@Override
+					public void run() {
+					}
+				});
+
+				if (cleanable != null) {
+					meth = clazz.getMethod("clean");
+					meth.invoke(cleanable);
+				}
+			} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 }
