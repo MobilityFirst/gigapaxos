@@ -48,6 +48,7 @@ import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.PacketDemultiplexer;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
@@ -65,6 +66,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DeleteServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EchoRequest;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.HelloRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RCRecordRequest.RequestTypes;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
@@ -241,6 +243,7 @@ public class Reconfigurator<NodeIDType> implements
 
 	private static final Level debug = Level.FINE;
 
+	private ConcurrentHashMap<String, NIOHeader> headerMap = new ConcurrentHashMap<String, NIOHeader>();
 	@Override
 	public boolean handleMessage(Request incoming,
 			edu.umass.cs.nio.nioutils.NIOHeader header) {
@@ -258,6 +261,10 @@ public class Reconfigurator<NodeIDType> implements
 			@SuppressWarnings("unchecked")
 			// checked by assert above
 			BasicReconfigurationPacket<NodeIDType> rcPacket = (BasicReconfigurationPacket<NodeIDType>) incoming;
+			
+			if ( rcPacket instanceof HelloRequest ){
+				headerMap.put(rcPacket.getInitiator().toString(), header);
+			}
 			// all packets are handled through executor, nice and simple
 			if (!this.protocolExecutor.handleEvent(rcPacket))
 				// do nothing
@@ -2439,6 +2446,38 @@ public class Reconfigurator<NodeIDType> implements
 		return null;
 	}
 
+	
+	
+	/**
+	 * @param hello
+	 * @param ptasks
+	 * @return result
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleHelloRequest(
+			HelloRequest<NodeIDType> hello,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		ReconfigurationConfig.log.log(Level.FINE, "{0} received hello request {1}", new Object[] {
+				this, hello.getSummary() });
+		
+		NodeIDType nodeID = hello.getInitiator(); 
+		if (nodeID == null) {
+			ReconfigurationConfig.log.log(Level.FINE, "{0} has no initiator in it.", new Object[] {
+					 hello.getSummary() });
+			return null;
+		}
+		
+		InetSocketAddress address = headerMap.get(nodeID.toString()).sndr;
+		if (address != null) {
+			synchronized(consistentNodeConfig) {
+				consistentNodeConfig.removeActiveReplica(nodeID);
+				consistentNodeConfig.addActiveReplica(nodeID, address);
+			}
+		}
+		ReconfigurationConfig.log.log(Level.FINE, "NodeConfig gets updated to {0}", new Object[] {
+				consistentNodeConfig });
+		return null;
+	}
+	
 	/* This method conducts the actual reconfiguration assuming that the
 	 * "intent" has already been committed in the NC record. It (1) spawns each
 	 * constituent reconfiguration for its new reconfigurator groups and (2)

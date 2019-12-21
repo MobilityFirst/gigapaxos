@@ -137,6 +137,9 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 		// client <-> active
 		REPLICABLE_CLIENT_REQUEST (242),
 		
+		// active -> active, or active -> reconfigurator: initialize a connection behind NAT
+		HELLO_REQUEST(243),
+		
 		NO_TYPE (999),
 		
 		;
@@ -218,6 +221,8 @@ public abstract class ReconfigurationPacket<NodeIDType> extends
 				EchoRequest.class);
 		typeMap.put(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST,
 				ReplicableClientRequest.class);
+		typeMap.put(ReconfigurationPacket.PacketType.HELLO_REQUEST, 
+				HelloRequest.class);
 
 		for (ReconfigurationPacket.PacketType type : ReconfigurationPacket.PacketType.intToType
 				.values()) {

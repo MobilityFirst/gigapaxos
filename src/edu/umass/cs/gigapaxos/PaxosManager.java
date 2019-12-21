@@ -2663,8 +2663,8 @@ public class PaxosManager<NodeIDType> {
 				this.myID, pp); // paxosID and version should be within
 		int nodeID = FindReplicaGroupPacket.getNodeID(pp);
 		NodeIDType node = nodeID > 0 ? this.integerMap.get(nodeID) : 
-				(pp instanceof RequestPacket ? 
-				this.integerMap.get(nodeID=((RequestPacket) pp).getEntryReplica())
+				(pp instanceof RequestPacket && (nodeID=((RequestPacket) pp).getEntryReplica()) > 0 ? 
+				this.integerMap.get(nodeID)
 				: null)
 				;
 		if (nodeID >= 0) {
@@ -2678,7 +2678,7 @@ public class PaxosManager<NodeIDType> {
 				ioe.printStackTrace();
 			}
 		} else if(!this.corpses.containsKey(pp.getPaxosID())) {
-			PaxosConfig.log.log(pp instanceof RequestPacket ? Level.WARNING : Level.INFO,
+			PaxosConfig.log.log(pp instanceof RequestPacket ? Level.INFO : Level.INFO,
 					"{0} cant find group member in {1} {2}",
 					new Object[] {
 							this,
