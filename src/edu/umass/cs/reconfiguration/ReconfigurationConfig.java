@@ -388,6 +388,12 @@ public class ReconfigurationConfig {
 		ENABLE_TRANSACTIONS (false),
 		
 		/**
+		 * Enable {@HelloRequest} for an active running behind NAT
+		 * to be able to communicate to the other replicas
+		 */
+		ENABLE_NAT (false),
+		
+		/**
 		 * The name of the class used to wrap the application's default
 		 * coordinator.
 		 */
