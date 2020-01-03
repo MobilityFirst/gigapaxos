@@ -522,10 +522,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private static final String appName = ReconfigurationConfig.application
 			.getSimpleName();
 
-	
+
+	/**
+	 * The interval to send {@link HelloRequest} to update
+	 * the NIO socket address on the other replicas.
+	 */ 
+	private static final int helloRequestInterval = 10; // seconds	
 	protected void sendHelloRequest() {
 		this.protocolExecutor.scheduleWithFixedDelay(
-				new HelloRunnable(messenger, nodeConfig), 0, 10, TimeUnit.SECONDS);
+				new HelloRunnable(messenger, nodeConfig), 0, helloRequestInterval, TimeUnit.SECONDS);
 	}
 	
 	private class HelloRunnable implements Runnable {
