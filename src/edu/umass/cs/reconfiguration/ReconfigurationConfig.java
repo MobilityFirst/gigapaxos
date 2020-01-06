@@ -380,7 +380,12 @@ public class ReconfigurationConfig {
 		/**
 		 * Enable the HTTP server for reconfigurators.
 		 */
-		ENABLE_HTTP (true),
+		ENABLE_RECONFIGURATOR_HTTP (true),
+		
+		/**
+		 * Enable the HTTP server for active replicas
+		 */
+		ENABLE_ACTIVE_REPLICA_HTTP(false),
 		
 		/**
 		 * If true, transactions are enabled; else disabled.
