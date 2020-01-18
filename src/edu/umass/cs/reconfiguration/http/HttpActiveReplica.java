@@ -60,7 +60,19 @@ import io.netty.util.CharsetUtil;
  * 
  * A similar implementation to {@link HttpReconfigurator}
  * 
+ * Example command:
+ * curl -X POST localhost:12416 -d '{NAME:"XDNApp0", QID:0, COORD: true, QVAL: "1", type: 400}' -H "Content-Type: application/json"
  * 
+ * Start ActiveReplica with HttpActiveReplica:
+ * java -ea -cp jars/gigapaxos-1.0.08.jar -Djava.util.logging.config.file=conf/logging.properties \
+ * -Dlog4j.configuration=conf/log4j.properties -Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.trustStorePassword=qwerty \
+ * -Djavax.net.ssl.keyStore=conf/keyStore.jks -Djavax.net.ssl.trustStore=conf/trustStore.jks \
+ * -DgigapaxosConfig=conf/xdn.local.properties -DHTTPADDR=127.0.0.1 -Dcontainer=localhost:3000 \
+ * edu.umass.cs.reconfiguration.ReconfigurableNode AR0
+ * 
+ * Start HttpActiveReplica alone:
+ * java -ea -cp jars/gigapaxos-1.0.08.jar -DHTTPADDR=127.0.0.1 -Dcontainer=localhost:3000 \
+ * edu.umass.cs.reconfiguration.http.HttpActiveReplica
  * 
  * @author gaozy
  *
@@ -187,7 +199,7 @@ public class HttpActiveReplica {
 		@Override
 		protected void initChannel(SocketChannel channel) throws Exception {
 			ChannelPipeline p = channel.pipeline();
-			
+			// TODO: test performance
 			if (sslCtx != null) 
 				p.addLast(sslCtx.newHandler(channel.alloc()));
 			

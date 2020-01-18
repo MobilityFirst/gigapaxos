@@ -1,12 +1,9 @@
 package edu.umass.cs.reconfiguration.http;
 
-import edu.umass.cs.nio.interfaces.IntegerPacketType;
-
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
 
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
+import edu.umass.cs.nio.interfaces.IntegerPacketType;
 
 /**
  * @author gaozy

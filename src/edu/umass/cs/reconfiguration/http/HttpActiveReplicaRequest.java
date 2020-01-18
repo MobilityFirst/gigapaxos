@@ -56,12 +56,24 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 		 * Coordinated or not
 		 */
 		COORD,
+		
+		/**
+		 * 
+		 */
+		EPOCH,
+		
+		/**
+		 * 
+		 */
+		STOP
 	};
 	
 	private final String name;
 	private final long id;
 	private final String value;
 	private final boolean coord;
+	private final boolean stop;
+	private int epoch;
 	
 	/**
 	 * Response from underlying app
@@ -77,13 +89,17 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 	 * @param id 
 	 * @param value 
 	 * @param coord 
+	 * @param stop 
+	 * @param epoch 
 	 */
-	public HttpActiveReplicaRequest(IntegerPacketType t, String name, long id, String value, boolean coord) {
+	public HttpActiveReplicaRequest(IntegerPacketType t, String name, long id, String value, boolean coord, boolean stop, int epoch) {
 		super(t);
 		this.name = name;
 		this.id = id;
 		this.value = value;
 		this.coord = coord;
+		this.stop = stop;
+		this.epoch = epoch;
 	}
 	
 	
@@ -94,10 +110,13 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 	 * @param name
 	 * @param id
 	 * @param value
+	 * @param stop 
+	 * @param epoch 
 	 */
-	public HttpActiveReplicaRequest(IntegerPacketType t, String name, long id, String value){
-		this(t, name, id, value, true);
+	public HttpActiveReplicaRequest(IntegerPacketType t, String name, long id, String value, boolean stop, int epoch){
+		this(t, name, id, value, true, stop, epoch);
 	}
+	
 	
 	/**
 	 * If no ID presents, we may generate an ID for the request.
@@ -105,17 +124,27 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 	 * @param t
 	 * @param name
 	 * @param value
+	 * @param epoch 
 	 */
-	public HttpActiveReplicaRequest(IntegerPacketType t, String name, String value){
-		this(t, name, (int) (Math.random() * Integer.MAX_VALUE), value, true);
+	public HttpActiveReplicaRequest(IntegerPacketType t, String name, String value, int epoch){
+		this(t, name, (int) (Math.random() * Integer.MAX_VALUE), value, true, epoch);
 	}
-		
+	
+	/**
+	 * @param t
+	 * @param name
+	 * @param value
+	 */
+	public HttpActiveReplicaRequest(IntegerPacketType t, String name, String value) {
+		this(t, name, (int) (Math.random() * Integer.MAX_VALUE), value, true, 0);
+	}
+	
 	/**
 	 * @param value
 	 * @param req
 	 */
 	public HttpActiveReplicaRequest(String value, HttpActiveReplicaRequest req) {
-		this(HttpActiveReplicaPacketType.getPacketType(req.type), req.name, req.id, value, req.coord);
+		this(HttpActiveReplicaPacketType.getPacketType(req.type), req.name, req.id, value, req.coord, req.epoch);
 	}
 	
 	/**
@@ -140,6 +169,12 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 		
 		obj = getValueFromJSONCaseInsensitive(Keys.RVAL.toString(), json);
 		this.response = obj==null? null: (String) obj;
+		
+		obj = getValueFromJSONCaseInsensitive(Keys.STOP.toString(), json);
+		this.stop = obj==null? false: (Boolean) obj;
+		
+		obj = getValueFromJSONCaseInsensitive(Keys.EPOCH.toString(), json);
+		this.epoch = obj==null? 0: (Integer) obj;
 	}
 	
 	private Object getValueFromJSONCaseInsensitive(String key, JSONObject json) throws JSONException {
@@ -158,8 +193,8 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 		json.put(Keys.QVAL.toString(), this.value);
 		json.put(Keys.COORD.toString(), this.coord);
 		json.put(Keys.QID.toString(), this.id);
-		// json.put("STOP", false);
-		// json.put("EPOCH", 0);
+		json.put("STOP", this.stop);
+		json.put("EPOCH", this.epoch);
 		json.putOpt(Keys.RVAL.toString(), this.response);
 		return json;
 	}
@@ -191,18 +226,13 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 		// every HttpRequest needs coordination
 		return this.coord;
 	}
-	
-	@Override
-	public int getEpochNumber() {
-		return 0;
-	}
 
 	/**
 	 * Always not a stop request
 	 */
 	@Override
 	public boolean isStop() {
-		return false;
+		return this.stop;
 	}
 
 	/**
@@ -212,6 +242,16 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 		this.response = response;
 	}
 
+	
+	/**
+	 * @param epoch
+	 * @return HttpActiveReplicaRequest
+	 */
+	public HttpActiveReplicaRequest setEpoch(int epoch) {
+		this.epoch = epoch;
+		return this;
+	}
+	
 	@Override
 	public ClientRequest getResponse() {
 		if (this.response != null)
@@ -219,6 +259,10 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 		return null;
 	}
 	
+	@Override
+	public int getEpochNumber() {
+		return this.epoch;
+	}
 	
 	/**
 	 * Test request serialization.
