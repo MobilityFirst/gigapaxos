@@ -10,5 +10,6 @@ notifications:
   email:
     on_success: always
     on_failure: always
+install: true
 script:
 - ./travis_checks.sh

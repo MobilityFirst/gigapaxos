@@ -1,0 +1,244 @@
+
+// We want the standard java conventions for everything.
+apply plugin: 'java'
+// This is needed if want to publish artifacts
+apply plugin: 'maven-publish' 
+
+// TODO: translate more tests, javadoc, revision, major, minor
+
+// For info on the gradle java plugin see https://docs.gradle.org/current/userguide/tutorial_java_projects.html
+
+sourceCompatibility = 1.8
+
+// Load our numbers from the build.properties files.
+Properties properties = new Properties()
+properties.load(project.file('build.properties').newDataInputStream())
+def gigapaxosBuildMajorNumber = properties.getProperty('build.major.number')
+def gigapaxosBuildMinorNumber = properties.getProperty('build.minor.number')
+def gigapaxosBuildRevisionNumber = properties.getProperty('build.revision.number')
+def gigapaxosBuildVersion = "${gigapaxosBuildMajorNumber}.${gigapaxosBuildMinorNumber}.${gigapaxosBuildRevisionNumber}"
+def nioBuildMajorNumber = properties.getProperty('nio.build.major.number')
+def nioBuildMinorNumber = properties.getProperty('nio.build.minor.number')
+def nioBuildRevisionNumber = properties.getProperty('nio.build.revision.number')
+def nioBuildVersion = "${nioBuildMajorNumber}.${nioBuildMinorNumber}.${nioBuildRevisionNumber}"
+
+
+// Change the locations of the srcs - gradle jar plugin has different standard locations
+sourceSets {
+  main {
+    java {
+      srcDir 'src'
+    }
+  }
+  test {
+    java {
+      srcDir 'src'
+    }
+  }
+}
+
+// Define where we get our libs from
+repositories {
+  mavenLocal() // Local things end up in ~/.m2/repository
+  mavenCentral()
+}
+
+dependencies {
+
+  compile group: 'com.mchange', name: 'c3p0', version: '0.9.5'
+  compile group: 'org.apache.derby', name: 'derby', version: '10.11.1.1'
+  compile group: 'redis.clients', name: 'jedis', version: '2.8.1'
+  compile group: 'net.minidev', name: 'json-smart', version: '1.2'
+  compile group: 'org.mapdb', name: 'mapdb', version: '2.0-beta13'
+  compile group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.9'
+  compile group: 'org.msgpack', name: 'msgpack-core', version: '0.8.8'
+  compile group: 'io.netty', name: 'netty-all', version: '4.1.4.Final'
+  // Using a newer version of zookeeper because of problems with the log4j dependency
+  compile group: 'org.apache.zookeeper', name: 'zookeeper', version: '3.4.9'
+  
+  // Use these jars for unit testing
+  compile group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
+  compile group: 'junit', name: 'junit', version: '4.12'
+}
+
+// Updates the build.number. Used below whenever a jar is created.
+task incrementBuildNumber {
+    ant.buildnumber(file: 'build.number')
+}
+
+// Redefine the default jar task to produce our 3 jars
+task jar(type: Jar, overwrite: true, 
+  // Note that we enforce an explicit ordering for these below with
+  // "createJars.mustRunAfter incrementBuildNumber"
+  dependsOn: ['incrementBuildNumber', 'createJars']) {
+}
+
+// Note that copying the jars to the 'jars' folder will probably go away once we're fully integrated
+task createJars(type: Jar, 
+  dependsOn: ['copyGigapaxosFatJar', 'copyNioFatJar', 'copyGigapaxosNioSrcJar']) {
+}
+
+createJars.mustRunAfter incrementBuildNumber
+
+// Builds a fat jar for the gigapaxos with all jars included.
+task gigapaxosFatJar(type: Jar, dependsOn: [':compileJava', ':processResources']) {
+  baseName = 'gigapaxos'
+  version = gigapaxosBuildVersion
+  // All the source classes
+  from files(sourceSets.main.output.classesDir)
+  // All the libs
+  from configurations.runtime.asFileTree.files.collect {  
+    zipTree(it) 
+  }
+  // Handle the build number info
+  Properties props = new Properties()
+  props.load(project.file('build.number').newDataInputStream())
+  def buildNumber = props.getProperty('build.number')
+  def fullVersion = "${gigapaxosBuildVersion}_${buildNumber}"
+
+  manifest {
+    attributes 'Built-By': System.getProperty('user.name'),
+               'Built-Date': new Date(),
+               'Build-Version': "${fullVersion}",
+               'Class-Path': '.',
+               'Implementation-Vendor': 'University of Massachusetts',
+               'Implementation-Title': 'GigaPaxos',
+               'Implementation-Version': "$gigapaxosBuildVersion"
+  }
+}
+
+task copyGigapaxosFatJar(type: Copy) {
+  from gigapaxosFatJar
+  into 'jars'
+}
+
+// Builds a fat jar for the nio with all jars included.
+task nioFatJar(type: Jar, dependsOn: [':compileJava', ':processResources']) {
+  baseName = 'nio'
+  version = nioBuildVersion
+  // All the nio source classes
+  from files(sourceSets.main.output.classesDir) {
+    include 'edu/umass/cs/nio/**'
+    include 'edu/umass/cs/utils*'
+    include 'org/json/*'
+    // Copied from build.xml, but maybe not needed now.
+    // Interesting special cases here added because of one use of ReconfigurableClient in NIOInstrumenter 
+    //include 'edu/umass/cs/reconfiguration/**'
+    //include 'edu/umass/cs/gigapaxos/**'
+    //include 'edu/umass/cs/protocoltask/**'
+  }
+  // All the libs
+  from configurations.runtime.asFileTree.files.collect {  
+    zipTree(it) 
+  }
+  // Handle the build number info
+  Properties props = new Properties()
+  props.load(project.file('build.number').newDataInputStream())
+  def buildNumber = props.getProperty('build.number')
+  def fullVersion = "${nioBuildVersion}_${buildNumber}"
+
+  manifest {
+    attributes 'Built-By': System.getProperty('user.name'),
+               'Built-Date': new Date(),
+               'Build-Version': "${fullVersion}",
+               'Implementation-Vendor': 'University of Massachusetts',
+               'Implementation-Title': 'NIO',
+               'Implementation-Version': "$nioBuildVersion"
+  }
+}
+
+task copyNioFatJar(type: Copy) {
+  from nioFatJar
+  into 'jars'
+}
+
+// Builds a fat jar for the nio with all jars included.
+task gigapaxosNioSrcJar(type: Jar, dependsOn: [':compileJava', ':processResources']) {
+  baseName = 'gigapaxos-nio-src'
+  version = gigapaxosBuildVersion
+  // all the source jars
+  from files(sourceSets.main.java.srcDirs) 
+}
+
+task copyGigapaxosNioSrcJar(type: Copy) {
+  from gigapaxosNioSrcJar
+  into 'jars'
+}
+
+// Add to the clean task to remove the jars and dist directory
+clean.doLast {
+  file('jars').deleteDir()
+  file('dist').deleteDir()
+}
+
+artifacts { 
+  archives gigapaxosFatJar, nioFatJar, gigapaxosNioSrcJar
+} 
+
+publishing {
+  publications {
+    gigapaxos(MavenPublication) {
+      groupId 'edu.umass.cs'
+      artifactId 'gigapaxos'
+      version "$gigapaxosBuildVersion"
+      
+      artifact gigapaxosFatJar
+    }
+    nio(MavenPublication) {
+      groupId 'edu.umass.cs'
+      artifactId 'nio'
+      version "$nioBuildVersion"
+      
+      artifact nioFatJar
+    }
+    gigapaxosNioSrc(MavenPublication) {
+      groupId 'edu.umass.cs'
+      artifactId 'gigapaxos-nio-src'
+      version "$gigapaxosBuildVersion"
+      
+      artifact gigapaxosNioSrcJar
+    }
+  }
+}
+
+test {
+  jvmArgs '-ea'
+  jvmArgs '-Djava.util.logging.config.file=logging.properties'
+  jvmArgs '-Djavax.net.ssl.trustStorePassword=qwerty'
+  jvmArgs '-Djavax.net.ssl.trustStore=conf/keyStore/node100.jks'
+  jvmArgs '-Djavax.net.ssl.keyStorePassword=qwerty'
+  jvmArgs '-Djavax.net.ssl.keyStore=conf/keyStore/node100.jks'
+  // Always run the tests - otherwise default is only runs when something changes
+  outputs.upToDateWhen { false }
+  filter { 
+    includeTestsMatching 'edu.umass.cs.reconfiguration.testing.TESTReconfigurationClient'
+  }
+  // The rest of this below isn't necessary, it just changes the output
+  testLogging {
+    // Set options for log level LIFECYCLE
+    events "passed", "skipped", "failed", "standardOut"
+    showExceptions true
+    exceptionFormat "full"
+    showCauses true
+    showStackTraces true
+
+    // Set options for log level DEBUG and INFO
+    debug {
+      events "started", "passed", "skipped", "failed", "standardOut", "standardError"
+      exceptionFormat "full"
+    }
+    info.events = debug.events
+    info.exceptionFormat = debug.exceptionFormat
+    beforeTest { descriptor ->
+      logger.lifecycle("Running test: $descriptor")
+    }
+    afterSuite { desc, result ->
+      if (!desc.parent) { // will match the outermost suite
+        def output = "Results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} successes, ${result.failedTestCount} failures, ${result.skippedTestCount} skipped)"
+        def startItem = '|  ', endItem = '  |'
+        def repeatLength = startItem.length() + output.length() + endItem.length()
+        println('\n' + ('-' * repeatLength) + '\n' + startItem + output + endItem + '\n' + ('-' * repeatLength))
+      }
+    }
+  }
+}

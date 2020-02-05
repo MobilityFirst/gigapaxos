@@ -8,7 +8,6 @@
   <property file="build.properties" />
 
   <property name="src.dir" value="src"/>
-  <property name="testsrc.dir" location="test"/>
   <property name="build.dir" value="build"/>
   <property name="build.classes.dir" value="${build.dir}/classes"/>
   <property name="build.androidclasses.dir" value="${build.dir}/androidclasses"/>
@@ -173,6 +172,7 @@ destfile="${build.jar.dir}/gigapaxos-android-${build.major.number}.${build.minor
     </copy>  
   </target>
  
+  <!-- THIS IS EVERYTHING SO WHY DO WE NEED THIS? -->
   <path id="classpath.test">
     <pathelement location="${build.classes.dir}"/>
     <pathelement location="${lib.dir}/junit-4.12.jar"/>
@@ -186,7 +186,6 @@ destfile="${build.jar.dir}/gigapaxos-android-${build.major.number}.${build.minor
     <pathelement location="${lib.dir}/msgpack-core-0.8.8.jar"/>
     <pathelement location="${lib.dir}/jedis-2.8.1.jar"/>
     <pathelement location="${lib.dir}/netty-all-4.1.4.Final.jar"/>
-    <!--    <pathelement location="${conf.dir}"/>-->
   </path>
   
   <target name="ensure-test-name" unless="test">
@@ -379,34 +378,23 @@ value="${build.major.number}.${build.minor.number}.${build.revision.number}_buil
 
 <target name="niorevision">
     <propertyfile  file="build.properties">
-            <entry key="no.build.revision.number" type="int" operation="+" value="1" pattern="00"/>
+            <entry key="nio.build.revision.number" type="int" operation="+" value="1" pattern="00"/>
     </propertyfile>
 </target>
 
 <target name="niominor">
     <propertyfile  file="build.properties">
             <entry key="nio.build.minor.number" type="int" operation="+" value="1" pattern="00"/>
-            <entry key="build.revision.number" type="int" value="0" pattern="00"/>
+            <entry key="nio.build.revision.number" type="int" value="0" pattern="00"/>
     </propertyfile>
 </target>
 
 <target name="niomajor">
     <propertyfile  file="build.properties">
             <entry key="nio.build.major.number" type="int" operation="+" value="1" pattern="00"/>
-            <entry key="build.minor.number" type="int" value="0" pattern="00"/>
-            <entry key="build.revision.number" type="int" value="0" pattern="00"/>
+            <entry key="nio.build.minor.number" type="int" value="0" pattern="00"/>
+            <entry key="nio.build.revision.number" type="int" value="0" pattern="00"/>
     </propertyfile>
 </target>
-
-
-<!--
-<target name="all">
-    <propertyfile  file="build_info.properties">
-            <entry key="build.major.number" type="int" operation="+" value="1" pattern="00"/>
-            <entry key="build.minor.number" type="int" operation="+" value="1" pattern="00"/>
-            <entry key="build.revision.number" type="int" operation="+" value="1" pattern="00"/>
-    </propertyfile>
-</target>
--->
 
 </project>
