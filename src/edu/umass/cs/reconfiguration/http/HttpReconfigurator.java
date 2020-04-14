@@ -439,6 +439,7 @@ public class HttpReconfigurator {
 				try {
 					JSONObject json = toJSONObject(new QueryStringDecoder(
 							request.uri()).parameters());
+					log.log(Level.INFO, "JSON converted from uri is {0}", new Object[] { json });
 					crp = toReconfiguratorRequest(json, ctx.channel());
 					
 					System.out.println(crp);
