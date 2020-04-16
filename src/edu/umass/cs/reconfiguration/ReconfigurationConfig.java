@@ -388,6 +388,11 @@ public class ReconfigurationConfig {
 		ENABLE_ACTIVE_REPLICA_HTTP(false),
 		
 		/**
+		 * HTTP active replica name
+		 */
+		HTTP_ACTIVE_REPLICA_NAME("edu.umass.cs.reconfiguration.http.HttpActiveReplica"),
+		
+		/**
 		 * If true, transactions are enabled; else disabled.
 		 */
 		ENABLE_TRANSACTIONS (false),

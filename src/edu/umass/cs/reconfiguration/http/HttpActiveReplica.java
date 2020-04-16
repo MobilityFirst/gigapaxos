@@ -1,11 +1,16 @@
 package edu.umass.cs.reconfiguration.http;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONTINUE;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,7 +28,6 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
@@ -36,12 +40,19 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
@@ -56,12 +67,16 @@ import io.netty.util.CharsetUtil;
  * type {@link HttpActiveReplicaRequest} or a type that extends {@link HttpActiveReplicaRequest}.
  * 
  * Loosely based on the HTTP Snoop server example from netty
- * documentation pages.
+ * documentation page:
+ * https://github.com/netty/netty/blob/4.1/example/src/main/java/io/netty/example/http/snoop/HttpSnoopServerHandler.java
  * 
  * A similar implementation to {@link HttpReconfigurator}
  * 
  * Example command:
+ * 
  * curl -X POST localhost:12416 -d '{NAME:"XDNApp0", QID:0, COORD: true, QVAL: "1", type: 400}' -H "Content-Type: application/json"
+ * 
+ * Or open your browser to interact with this http front end directly 
  * 
  * Start ActiveReplica with HttpActiveReplica:
  * java -ea -cp jars/gigapaxos-1.0.08.jar -Djava.util.logging.config.file=conf/logging.properties \
@@ -83,25 +98,19 @@ public class HttpActiveReplica {
 	
 	private final static int NUM_BOSS_THREADS = 4;
 	
-	private final static int DEFAULT_HTTP_PORT = 12416;
+	private final static int DEFAULT_HTTP_PORT = 8080;
+	
 	private final static String DEFAULT_HTTP_ADDR = "localhost";
 	
 	private final static String HTTP_ADDR_ENV_KEY = "HTTPADDR";
-		
-	/**
-	 * Whether response needs to be sent back in a synchronized manner: 
-	 * true means response needs to be sent back after underlying app
-	 * has successfully executed the request, i.e., the response must
-	 * be sent back through {@link ExecutedCallback}; false means 
-	 * response can be sent back before the underlying app executes the
-	 * request.
-	 */
-	private final static String SYNC_KEY = "SYNC";
 	
 	private final EventLoopGroup bossGroup;
 	private final EventLoopGroup workerGroup;
 	
 	private final Channel channel;
+	
+	// FIXME: used to indicate whether a single outstanding request has been executed, might go wrong when there are multiple outstanding requests
+	static boolean finished;
 	
 	/**
 	 * @param arf
@@ -199,7 +208,7 @@ public class HttpActiveReplica {
 		@Override
 		protected void initChannel(SocketChannel channel) throws Exception {
 			ChannelPipeline p = channel.pipeline();
-			// TODO: test performance
+			
 			if (sslCtx != null) 
 				p.addLast(sslCtx.newHandler(channel.alloc()));
 			
@@ -223,7 +232,6 @@ public class HttpActiveReplica {
 	    	bytes = new byte[content.readableBytes()];
 	        content.readBytes(bytes);
 	        log.log(Level.FINE, "HttpContent: {0}", new Object[]{new String(bytes)});
-	        // System.out.println("Content:"+(new String(bytes)));
 	    } else {
 	    	return null;
 	    }
@@ -232,62 +240,82 @@ public class HttpActiveReplica {
 			return new JSONObject(new String(bytes));
 			
 		} catch (JSONException e) {
-			return null;
+			return new JSONObject();
 		}
 		
 	}
 	
-	private static void sendResponseAndCloseConnection(ChannelHandlerContext ctx) {		
-		FullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, BAD_REQUEST,
-				Unpooled.copiedBuffer("".toString(), CharsetUtil.UTF_8));			
-		ctx.writeAndFlush(httpResponse);
-		ctx.close();
-	}
 	
-	private static ChannelFuture sendResponse(ChannelHandlerContext ctx, HttpResponseStatus status) {
-		FullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, status,
-				Unpooled.copiedBuffer("".toString(), CharsetUtil.UTF_8));			
-		return ctx.writeAndFlush(httpResponse);    	
-	}
-	
-	
-	private static ChannelFuture sendResponseWithContent(ChannelHandlerContext ctx, String content, HttpResponseStatus status) {
-		FullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, status,
-				Unpooled.copiedBuffer(content.toString(), CharsetUtil.UTF_8));			
-		return ctx.writeAndFlush(httpResponse);    	
+	/**
+	 * The json object must contain the following keys to be a valid request:
+	 * {@link HttpActiveReplicaRequest.Keys} NAME, QVAL
+	 * 
+	 * The other fields can be filled in with default values.
+	 * 
+	 * @param json
+	 * @return
+	 * @throws HTTPException
+	 * @throws JSONException 
+	 */
+	private static HttpActiveReplicaRequest getRequestFromJSONObject(JSONObject json) throws HTTPException, JSONException {
+		if ( !json.has(HttpActiveReplicaRequest.Keys.NAME.toString()) ){
+			throw new JSONException("missing key NAME");
+		}
+		if ( !json.has(HttpActiveReplicaRequest.Keys.QVAL.toString()) ){
+			throw new JSONException("missing key QVAL");
+		}
+		
+		String name = json.getString(HttpActiveReplicaRequest.Keys.NAME.toString());
+		String qval = json.getString(HttpActiveReplicaRequest.Keys.QVAL.toString());		
+		
+		// needsCoordination: default true
+		boolean coord = json.has(HttpActiveReplicaRequest.Keys.COORD.toString())?
+				json.getBoolean(HttpActiveReplicaRequest.Keys.COORD.toString()) 
+				: true;
+				
+		int qid =  (json.has(HttpActiveReplicaRequest.Keys.QID.toString())?
+				json.getInt(HttpActiveReplicaRequest.Keys.QID.toString())
+				: (int) (Math.random() * Integer.MAX_VALUE));
+		
+		int epoch = (json.has(HttpActiveReplicaRequest.Keys.EPOCH.toString()))?
+				json.getInt(HttpActiveReplicaRequest.Keys.EPOCH.toString())
+				: 0;
+				
+		boolean stop = (json.has(HttpActiveReplicaRequest.Keys.STOP.toString()))?
+				json.getBoolean(HttpActiveReplicaRequest.Keys.STOP.toString())
+				: false;
+				
+		
+		return new HttpActiveReplicaRequest(HttpActiveReplicaPacketType.EXECUTE, 
+				name, qid, qval, coord, stop, epoch);
 	}
 	
 	private static class HttpExecutedCallback implements ExecutedCallback {
 
-		ChannelHandlerContext ctx;
+		StringBuilder buf;
+		Object lock;
+		// boolean finished;
 		
-		HttpExecutedCallback(ChannelHandlerContext ctx){
-			this.ctx = ctx;
+		HttpExecutedCallback(StringBuilder buf, Object lock){
+			this.buf = buf;
+			this.lock = lock;
 		}
 		
 		@Override
 		public void executed(Request response, boolean handled) {
-			// System.out.println("Handled: "+handled+", Response: "+response);
-			if (!handled) {
-				sendResponseAndCloseConnection(ctx);
+			
+			buf.append("RESPONSE:\n\r");
+			buf.append(response);
+			
+			synchronized(lock){
+				finished = true;
+				lock.notify();
 			}
-			ChannelFuture channelFuture = sendResponseWithContent(ctx, 
-					((HttpActiveReplicaRequest) response).response != null? ((HttpActiveReplicaRequest) response).response : response.toString(), 
-							OK);
-			channelFuture.addListener(ChannelFutureListener.CLOSE);
-		}
+		}	
 		
 	}
 	
-	@SuppressWarnings("unused")
-	private static Object getValueFromKey(JSONObject json, String key) throws JSONException {
-		if (json.has(key)) {
-			return json.get(key);
-		} else if (json.has(key.toLowerCase())) {
-			return json.get(key.toLowerCase());
-		} 
-		return null;
-	}
+	
 	
 	private static class HttpActiveReplicaHandler extends
 		SimpleChannelInboundHandler<Object> {
@@ -295,98 +323,193 @@ public class HttpActiveReplica {
 		ActiveReplicaFunctions arFunctions;
 		final InetSocketAddress senderAddr;
 		
+		private HttpRequest request;
+		/** Buffer that stores the response content */
+		private final StringBuilder buf = new StringBuilder();
+		
 		HttpActiveReplicaHandler(ActiveReplicaFunctions arFunctions, InetSocketAddress addr) {
 			this.arFunctions = arFunctions;
 			this.senderAddr = addr;
 		}
 		
 		@Override
+	    public void channelReadComplete(ChannelHandlerContext ctx) {
+	        ctx.flush();
+	    }
+		
+		@Override
 		protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-			if (!(msg instanceof HttpContent) || !(msg instanceof HttpRequest)) {
-				log.log(Level.FINE, "Unrecognized request: {0}", new Object[] { msg });
-			}
-			
-			HttpRequest httpRequest = (HttpRequest) msg;
-			
-			HttpMethod method = httpRequest.method();
-			
-			HttpContent httpContent = (HttpContent) msg;
-			
-			if (HttpMethod.GET.equals(method)) {
-				ChannelFuture channelFuture = sendResponse(ctx, OK);
-				channelFuture.addListener(ChannelFutureListener.CLOSE);
-			} else if (HttpMethod.POST.equals(method)) {
-				
-			} else {
-				log.log(Level.FINE, "Unsupported operation: {0}", new Object[]{ method });
-				return;
-			}
-			
-		    HttpResponseStatus status = OK;
-		    // If decoded unsuccessfully, return immediately
-		    if ( !httpContent.decoderResult().isSuccess() ) {
-		    	sendResponseAndCloseConnection(ctx);
-		    	return;
-		    }
-		    
-		    // Construct the request
-		    JSONObject json = getJSONObjectFromHttpContent(httpContent);
-		    if (json == null) {
-		    	// bad json request
-		    	sendResponseAndCloseConnection(ctx);
-		    	return;
-		    }
-		    
- 			/** 
- 			 * Packet type should not rely on 
- 			 * the underlying app for the http front end. It must be a general
- 			 * purpose request so that it can go through the whole GigaPaxos
- 			 * protocol stack.
- 			 */
-		    
-		    Request request = new HttpActiveReplicaRequest(json); 
-		    // System.out.println("<<<<<<<<<<<<<<<<<<<<<<< REQUEST:"+ReplicableClientRequest.wrap(request));				    
-		    		
-		    /*
-		     * If sync is false, callback is not necessary. 
-		     * Since request has been processed correctly until here, so we send back a 
-		     * OK response to let the client know.
-		     * Otherwise, we need to create a callback to send back a response to client.
+			/** 
+ 			 * Request for GigaPaxos to coordinate
+ 			 */		    
+		    Request gRequest = null;
+		    /**
+		     * JSONObject to extract keys and values from http request
 		     */
-		    boolean sync = json.has(SYNC_KEY)? json.getBoolean(SYNC_KEY): true;
+		    JSONObject json = new JSONObject();
 		    
-		    // System.out.println("SYNC key:"+ActiveReplicaHTTPKeys.SYNC.toString()+", sync:"+sync);
+		    /**
+		     * This boolean is used to indicate whether the request has been retrieved.
+		     * If request info is retrieved from HttpRequest, then don't bother to retrieve it from HttpContent.
+		     * Otherwise, retrieve the info from HttpContent.
+		     * If we still can't retrieve the info, then the request is a Malformed request.
+		     */
+		    boolean retrieved = false;
 		    
-		    ExecutedCallback callback = null;
-		    if (sync){
-		    	// callback to send back http response
-		    	callback = new HttpExecutedCallback(ctx);
-		    }
-		    
-		    boolean handled = false;
-		    			
-			// execute coordinated request here				
-			if (arFunctions != null) { 
-				log.log(Level.FINE, "App {0} executes request: {1}", new Object[]{ arFunctions, request });
-				handled = arFunctions.handRequestToAppForHttp(
-						ReplicableClientRequest.wrap(request), 
-						callback);
-			}							
+			if (msg instanceof HttpRequest) {
+				HttpRequest httpRequest = this.request = (HttpRequest) msg;
+				buf.setLength(0);
+				
+				if (HttpUtil.is100ContinueExpected(httpRequest)) {
+	                send100Continue(ctx);
+	            }
+				
+				log.log(Level.INFO, "Http server received a request with HttpRequest: {0}", new Object[]{ httpRequest });
+				
+	            Map<String, List<String>> params = (new QueryStringDecoder(httpRequest.uri())).parameters();
+	            if (!params.isEmpty()) {
+	                for (Entry<String, List<String>> p: params.entrySet()) {
+	                    String key = p.getKey();
+	                    List<String> vals = p.getValue();
+	                    for (String val : vals) {
+	                    	// put the key-value pair into json
+	                        json.put(key.toUpperCase(), val);
+	                    }
+	                }
+	            }
+	            
+	            if (json != null && json.length() > 0)
+		            try{
+		            	gRequest = getRequestFromJSONObject(json);
+		            	retrieved = true;
+		            } catch (Exception e) {
+		            	// ignore and do nothing if this is a malformed request
+		            	e.printStackTrace();
+		            }
+			} 
 			
-			if (!handled){
-				status = BAD_REQUEST;
-			} else {
-				arFunctions.updateDemandStatsFromHttp(request, senderAddr.getAddress() );
-			}
-			
-			if (!sync) {
-				// If not synchronized, send back response
-				ChannelFuture channelFuture = sendResponse(ctx, status);
-				channelFuture.addListener(ChannelFutureListener.CLOSE);
-			}
+			if (msg instanceof HttpContent) {
+				
+				if (!retrieved){
+					HttpContent httpContent = (HttpContent) msg;
+					log.log(Level.INFO, "Http server received a request with HttpContent: {0}", new Object[]{ httpContent });
+					if (httpContent != null){
+						json = getJSONObjectFromHttpContent(httpContent);
+						if (json != null && json.length() > 0)
+							try{
+				            	gRequest = getRequestFromJSONObject(json);
+				            	retrieved = true;
+				            } catch (Exception e) {
+				            	// TODO: A malformed request, we can send back the response here
+				            	e.printStackTrace();			            	
+				            }
+					}
+					
+				}				
+				
+				if (msg instanceof LastHttpContent) {
+					if (retrieved) {
+						log.log(Level.INFO, "About to execute request: {0}", new Object[]{ gRequest });
+						Object lock = new Object();
+						finished = false;
+		                ExecutedCallback callback = new HttpExecutedCallback(buf, lock);
+		                	                
+		                // execute GigaPaxos request here				
+		    			if (arFunctions != null) { 
+		    				log.log(Level.FINE, "App {0} executes request: {1}", new Object[]{ arFunctions, request });
+		    				boolean handled = arFunctions.handRequestToAppForHttp(
+		    						ReplicableClientRequest.wrap(gRequest), 
+		    						callback);
+		    				
+		    				synchronized(lock) {
+			    				while ( !finished ) {			    					
+			    					try {
+			    			            lock.wait(100);
+			    			        } catch (InterruptedException e) {}
+			    				}
+		    				}	
+		    				
+		    				/**
+		    				 *  If the request has been handled properly, then send demand profile to RC.
+		    				 *  This logic follows the design of (@link ActiveReplica}.
+		    				 */
+		    				if (handled)
+		    					arFunctions.updateDemandStatsFromHttp(gRequest, senderAddr.getAddress() );
+		    			}
+		    				    			
+					}
+	    			
+	    			LastHttpContent trailer = (LastHttpContent) msg;
+					if (!trailer.trailingHeaders().isEmpty()) {
+						buf.append("\r\n");
+						for (CharSequence name : trailer.trailingHeaders()
+								.names()) {
+							for (CharSequence value : trailer.trailingHeaders()
+									.getAll(name)) {
+								buf.append("TRAILING HEADER: ");
+								buf.append(name).append(" = ").append(value)
+										.append("\r\n");
+							}
+						}
+						buf.append("\r\n");
+					}
+	                if (!writeResponse(trailer, ctx)) {
+	                    // If keep-alive is off, close the connection once the content is fully written.
+	                    ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+	                }
+			    }
+				
+			}		    
 			
 		}
+		
+		private boolean writeResponse(HttpObject currentObj, ChannelHandlerContext ctx) {
+	        // Decide whether to close the connection or not.
+	        boolean keepAlive = HttpUtil.isKeepAlive(request);
+	        // Build the response object.
+	        FullHttpResponse response = new DefaultFullHttpResponse(
+	                HTTP_1_1, currentObj.decoderResult().isSuccess()? OK : BAD_REQUEST,
+	                Unpooled.copiedBuffer(buf.toString(), CharsetUtil.UTF_8));
+
+	        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+
+	        if (keepAlive) {
+	            // Add 'Content-Length' header only for a keep-alive connection.
+	            response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+	            // Add keep alive header as per:
+	            // - http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
+	            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+	        }
+
+	        // Encode the cookie.
+	        String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
+	        if (cookieString != null) {
+	            Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
+	            if (!cookies.isEmpty()) {
+	                // Reset the cookies if necessary.
+	                for (Cookie cookie: cookies) {
+	                    response.headers().add(HttpHeaderNames.SET_COOKIE, ServerCookieEncoder.STRICT.encode(cookie));
+	                }
+	            }
+	        } else {
+	            // Browser sent no cookie.  Add some.
+	            response.headers().add(HttpHeaderNames.SET_COOKIE, ServerCookieEncoder.STRICT.encode("key1", "value1"));
+	            response.headers().add(HttpHeaderNames.SET_COOKIE, ServerCookieEncoder.STRICT.encode("key2", "value2"));
+	        }
+
+	        // Write the response.
+	        ctx.write(response);
+
+	        return keepAlive;
+	    }
+		
+		private static void send100Continue(ChannelHandlerContext ctx) {
+	        FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, CONTINUE, Unpooled.EMPTY_BUFFER);
+	        ctx.write(response);
+	    }
 	}
+	
+	
 	
 	/**
 	 * @param args
@@ -395,7 +518,7 @@ public class HttpActiveReplica {
 	 * @throws InterruptedException
 	 */
 	public static void main(String[] args) throws CertificateException, SSLException, InterruptedException {
-		new HttpActiveReplica(null, new InetSocketAddress(12416), false); 
+		new HttpActiveReplica(null, new InetSocketAddress(8080), false); 
 	}
 	
 }

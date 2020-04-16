@@ -14,14 +14,6 @@ public enum HttpActiveReplicaPacketType implements IntegerPacketType {
 	 * For underlying app to execute
 	 */
 	EXECUTE(400),
-	/**
-	 * For underlying app to checkpoint a snapshot, not for the {@link Replicable} checkpoint
-	 */
-	SNAPSHOT(401),
-	/**
-	 * For underlying app to recover to the most recent state, not for the {@link Replicable} restore
-	 */
-	RECOVER(402),
 	;
 
 	/**

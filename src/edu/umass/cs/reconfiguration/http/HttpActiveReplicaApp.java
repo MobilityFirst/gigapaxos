@@ -63,19 +63,11 @@ public class HttpActiveReplicaApp extends AbstractReconfigurablePaxosApp<String>
 	public boolean execute(Request request, boolean doNotReplyToClient) {
 		if (request.toString().equals(Request.NO_OP))
 			return true;
-		switch ((AppRequest.PacketType) (request.getRequestType())) {
-		case DEFAULT_APP_REQUEST:
-		case APP_REQUEST3:
-		case ADMIN_APP_REQUEST:
-			return processRequest((AppRequest) request, doNotReplyToClient);
-		default:
-			// everything else is an absolute no-op
-			break;
-		}
-		return false;
+		
+		return processRequest((HttpActiveReplicaRequest) request, doNotReplyToClient);
 	}
 	
-	private boolean processRequest(AppRequest request,
+	private boolean processRequest(HttpActiveReplicaRequest request,
 			boolean doNotReplyToClient) {
 		if (request.getServiceName() == null)
 			return true; // no-op

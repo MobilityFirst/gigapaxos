@@ -24,7 +24,6 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,8 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.net.ssl.SSLException;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -203,7 +200,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		// ENABLE_ACTIVE_REPLICA_HTTP is true
 		if (Config.getGlobalBoolean(RC.ENABLE_ACTIVE_REPLICA_HTTP) 
 				// and this node is not a reconfigurator
-				&& !(nodeConfig.getReconfigurators().contains(this.getMyID()))) {
+				&& !(nodeConfig.getActiveReplicas().contains(this.getMyID()))) {
+			final InetSocketAddress addr = new InetSocketAddress(messenger.getListeningSocketAddress().getAddress(),
+					ReconfigurationConfig.getHTTPPort(port));
+			
 			this.protocolExecutor.submit(new Runnable() {
 				@Override
 				public void run() {
@@ -216,9 +216,15 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private void initHTTPServer(boolean ssl){
 		
 		try {
-			new HttpActiveReplica(this, ssl);
-
-		} catch (CertificateException | InterruptedException | SSLException e) {
+			// initialize HTTP server
+			String httpActiveReplicaName = Config.getGlobalString(RC.HTTP_ACTIVE_REPLICA_NAME);
+			
+			// new HttpActiveReplica(this, ssl);
+			
+			// initialize 			
+			Class<?> c = Class.forName(httpActiveReplicaName);
+			c.getConstructor(edu.umass.cs.reconfiguration.interfaces.ActiveReplicaFunctions.class, boolean.class).newInstance(this, ssl);
+		} catch (Exception e) {
 			if (!(e instanceof InterruptedException)) // close
 				e.printStackTrace();
 		}	
