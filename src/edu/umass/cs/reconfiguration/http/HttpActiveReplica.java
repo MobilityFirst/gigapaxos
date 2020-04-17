@@ -342,7 +342,7 @@ public class HttpActiveReplica {
 			/** 
  			 * Request for GigaPaxos to coordinate
  			 */		    
-		    Request gRequest = null;
+		    HttpActiveReplicaRequest gRequest = null;
 		    /**
 		     * JSONObject to extract keys and values from http request
 		     */
@@ -418,7 +418,7 @@ public class HttpActiveReplica {
 		    			if (arFunctions != null) { 
 		    				log.log(Level.FINE, "App {0} executes request: {1}", new Object[]{ arFunctions, request });
 		    				boolean handled = arFunctions.handRequestToAppForHttp(
-		    						ReplicableClientRequest.wrap(gRequest), 
+		    						(gRequest.needsCoordination())? ReplicableClientRequest.wrap(gRequest) : gRequest, 
 		    						callback);
 		    				
 		    				synchronized(lock) {

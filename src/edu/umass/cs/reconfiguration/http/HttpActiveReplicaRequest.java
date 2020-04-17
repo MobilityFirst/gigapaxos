@@ -8,6 +8,7 @@ import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 
 /**
  * HttpRequest is the type of request used by {@link HttpActiveReplica}.
@@ -145,6 +146,14 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 	 */
 	public HttpActiveReplicaRequest(String value, HttpActiveReplicaRequest req) {
 		this(HttpActiveReplicaPacketType.getPacketType(req.type), req.name, req.id, value, req.coord, req.epoch);
+	}
+	
+	/**
+	 * @param request
+	 * @throws JSONException
+	 */
+	public HttpActiveReplicaRequest(ReplicableClientRequest request) throws JSONException {
+		this(request.toJSONObject());
 	}
 	
 	/**

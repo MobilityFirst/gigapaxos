@@ -19,6 +19,7 @@ import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.examples.AbstractReconfigurablePaxosApp;
 import edu.umass.cs.reconfiguration.examples.AppRequest.ResponseCodes;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
 /**
@@ -62,7 +63,8 @@ public class HttpActiveReplicaTestApp extends AbstractReconfigurablePaxosApp<Str
 	public boolean execute(Request request, boolean doNotReplyToClient) {
 		if (request.toString().equals(Request.NO_OP))
 			return true;
-		
+		if (request instanceof ReplicableClientRequest)
+			return true;
 		return processRequest((HttpActiveReplicaRequest) request, doNotReplyToClient);
 	}
 	
