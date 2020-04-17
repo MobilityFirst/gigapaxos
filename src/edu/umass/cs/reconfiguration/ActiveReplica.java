@@ -200,9 +200,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		// ENABLE_ACTIVE_REPLICA_HTTP is true
 		if (Config.getGlobalBoolean(RC.ENABLE_ACTIVE_REPLICA_HTTP) 
 				// and this node is not a reconfigurator
-				&& !(nodeConfig.getActiveReplicas().contains(this.getMyID()))) {
-			final InetSocketAddress addr = new InetSocketAddress(messenger.getListeningSocketAddress().getAddress(),
-					ReconfigurationConfig.getHTTPPort( messenger.getListeningSocketAddress().getPort()) );
+				&& !(nodeConfig.getReconfigurators().contains(this.getMyID()))) {
+			InetSocketAddress me = this.messenger.getListeningSocketAddress();
+			final InetSocketAddress addr = new InetSocketAddress(me.getAddress(),
+					ReconfigurationConfig.getHTTPPort( me.getPort()) );
 			
 			this.protocolExecutor.submit(new Runnable() {
 				@Override
