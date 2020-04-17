@@ -202,18 +202,18 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				// and this node is not a reconfigurator
 				&& !(nodeConfig.getActiveReplicas().contains(this.getMyID()))) {
 			final InetSocketAddress addr = new InetSocketAddress(messenger.getListeningSocketAddress().getAddress(),
-					ReconfigurationConfig.getHTTPPort(port));
+					ReconfigurationConfig.getHTTPPort( messenger.getListeningSocketAddress().getPort()) );
 			
 			this.protocolExecutor.submit(new Runnable() {
 				@Override
 				public void run() {
-					initHTTPServer(false);
+					initHTTPServer(false, addr);
 				}
 			});
 		}
 	}
 
-	private void initHTTPServer(boolean ssl){
+	private void initHTTPServer(boolean ssl, InetSocketAddress addr){
 		
 		try {
 			// initialize HTTP server
@@ -223,7 +223,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 			
 			// initialize 			
 			Class<?> c = Class.forName(httpActiveReplicaName);
-			c.getConstructor(edu.umass.cs.reconfiguration.interfaces.ActiveReplicaFunctions.class, boolean.class).newInstance(this, ssl);
+			c.getConstructor(edu.umass.cs.reconfiguration.interfaces.ActiveReplicaFunctions.class,  InetSocketAddress.class, boolean.class)
+			.newInstance(this, addr, ssl);
 		} catch (Exception e) {
 			if (!(e instanceof InterruptedException)) // close
 				e.printStackTrace();
