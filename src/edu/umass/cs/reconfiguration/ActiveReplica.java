@@ -218,14 +218,8 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		
 		try {
 			// initialize HTTP server
-			String httpActiveReplicaName = Config.getGlobalString(RC.HTTP_ACTIVE_REPLICA_NAME);
+			new HttpActiveReplica(this, addr, ssl);
 			
-			// new HttpActiveReplica(this, ssl);
-			
-			// initialize 			
-			Class<?> c = Class.forName(httpActiveReplicaName);
-			c.getConstructor(edu.umass.cs.reconfiguration.interfaces.ActiveReplicaFunctions.class,  InetSocketAddress.class, boolean.class)
-			.newInstance(this, addr, ssl);
 		} catch (Exception e) {
 			if (!(e instanceof InterruptedException)) // close
 				e.printStackTrace();

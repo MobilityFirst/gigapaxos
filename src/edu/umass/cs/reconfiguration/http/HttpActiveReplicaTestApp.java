@@ -17,7 +17,6 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.SSLMessenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
 import edu.umass.cs.reconfiguration.examples.AbstractReconfigurablePaxosApp;
-import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.examples.AppRequest.ResponseCodes;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
@@ -27,7 +26,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
  *
  * A no-op example app for HttpActiveReplica
  */
-public class HttpActiveReplicaApp extends AbstractReconfigurablePaxosApp<String>
+public class HttpActiveReplicaTestApp extends AbstractReconfigurablePaxosApp<String>
 	implements Replicable, Reconfigurable, ClientMessenger, AppRequestParserBytes {
 	
 	private boolean verbose = false;
@@ -38,7 +37,7 @@ public class HttpActiveReplicaApp extends AbstractReconfigurablePaxosApp<String>
 	/**
 	 * 
 	 */
-	public HttpActiveReplicaApp(){		
+	public HttpActiveReplicaTestApp(){		
 	}
 	
 	private class AppData {
