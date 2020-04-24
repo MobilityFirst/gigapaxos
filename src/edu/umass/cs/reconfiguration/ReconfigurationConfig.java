@@ -288,7 +288,7 @@ public class ReconfigurationConfig {
 		 * that this parameter is irrelevant after name creation as the number
 		 * of replicas thereafter is controlled by the reconfiguration policy.
 		 */
-		REPLICATE_ALL(true),
+		REPLICATE_ALL(false),
 		/**
 		 * 
 		 */
@@ -397,7 +397,7 @@ public class ReconfigurationConfig {
 		 * The name of the class used to wrap the application's default
 		 * coordinator.
 		 */
-		COORDINATOR_WRAPPER("edu.umass.cs.txn.DistTransactor"),
+		COORDINATOR_WRAPPER("edu.umass.cs.transaction.DistTransactor"),
 		
 		/**
 		 * 
