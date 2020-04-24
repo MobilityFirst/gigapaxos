@@ -34,6 +34,7 @@ import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.reconfiguration.interfaces.CoordinatorCallback;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
@@ -61,8 +62,8 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	private PaxosReplicaCoordinator(Replicable app, NodeIDType myID,
 			Stringifiable<NodeIDType> unstringer,
 			Messenger<NodeIDType, ?> niot, String paxosLogFolder,
-			boolean enableNullCheckpoints) {
-		super(app, niot);
+			boolean enableNullCheckpoints,CoordinatorCallback callback) {
+		super(app, niot,callback);
 		assert (niot instanceof JSONMessenger);
 		this.paxosManager = new PaxosManager<NodeIDType>(myID, unstringer,
 				(JSONMessenger<NodeIDType>) niot, this, paxosLogFolder,
@@ -72,7 +73,11 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 						.getNodePort(myID)), niot);
 	}
 
-
+	public PaxosReplicaCoordinator(Replicable app, NodeIDType myID,
+								   Stringifiable<NodeIDType> unstringer, Messenger<NodeIDType, ?> niot,
+										CoordinatorCallback<NodeIDType> coordinatorCallback) {
+		this(app, myID, unstringer, niot, null, true,coordinatorCallback);
+	}
 	/**
 	 * @param app
 	 * @param myID
@@ -81,7 +86,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	 */
 	public PaxosReplicaCoordinator(Replicable app, NodeIDType myID,
 			Stringifiable<NodeIDType> unstringer, Messenger<NodeIDType, ?> niot) {
-		this(app, myID, unstringer, niot, null, true);
+		this(app, myID, unstringer, niot, null, true,null);
 	}
 
 	/**
@@ -95,7 +100,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	public PaxosReplicaCoordinator(Replicable app, NodeIDType myID,
 			Stringifiable<NodeIDType> unstringer,
 			Messenger<NodeIDType, ?> niot, int outOfOrderLimit) {
-		this(app, myID, unstringer, (JSONMessenger<NodeIDType>) niot);
+		this(app, myID, unstringer, (JSONMessenger<NodeIDType>) niot,null);
 		assert (niot instanceof JSONMessenger);
 		this.paxosManager.setOutOfOrderLimit(outOfOrderLimit);
 	}

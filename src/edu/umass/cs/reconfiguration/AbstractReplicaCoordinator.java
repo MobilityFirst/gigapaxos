@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import edu.umass.cs.reconfiguration.interfaces.*;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -40,11 +41,6 @@ import edu.umass.cs.nio.JSONPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.nioutils.NIOHeader;
-import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
-import edu.umass.cs.reconfiguration.interfaces.ReconfiguratorCallback;
-import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
-import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
-import edu.umass.cs.reconfiguration.interfaces.Repliconfigurable;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DefaultAppRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
@@ -128,7 +124,17 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		this.messenger = null;
 	}
 
-	
+	public AbstractReplicaCoordinator(Replicable app,
+		  Messenger<NodeIDType, ?> messenger,CoordinatorCallback<NodeIDType> callback) {
+		this(app,messenger);
+		if(callback!=null){
+			this.callback = callback;
+			this.parser = callback;
+			callback.setCoordinator(this,messenger);
+		}
+	}
+
+
 	/**
 	 * @param app
 	 * @param messenger
@@ -341,6 +347,11 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public final Request getRequest(byte[] bytes, NIOHeader header)
 			throws RequestParseException {
 		try {
+				Request request;
+				if((this.parser != null)&&((request = this.parser.getRequest(bytes, header))!=null)){
+					return request;
+				}
+
 			return ByteBuffer.wrap(bytes).getInt() == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
 					.getInt() ? (this.app instanceof AppRequestParserBytes ? new ReplicableClientRequest(
 					bytes, header, (AppRequestParserBytes) this.app)
@@ -374,7 +385,12 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * @return Set of request types that the app is designed to handle.
 	 */
 	public Set<IntegerPacketType> getAppRequestTypes() {
-		return this.app.getRequestTypes();
+		HashSet<IntegerPacketType> packetTypes = new HashSet<>();
+		packetTypes.addAll(this.app.getRequestTypes());
+		if(parser !=null){
+			packetTypes.addAll(parser.getRequestTypes());
+		}
+		return packetTypes;
 	}
 
 	@Override
@@ -414,6 +430,8 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public boolean restore(String name, String state) {
 		return this.stopCallback != null
 				&& this.stopCallback.preRestore(name, state) ? true
+
+		:this.callback!=null &&this.callback.preRestore(name,state) ? true
 
 		/* Will be a no-op except during recovery when stopCallback will be null
 		 * as it wouldn't yet have been set. */
