@@ -212,7 +212,7 @@ public class Reconfigurator<NodeIDType> implements
 	}
 
 	private void initHTTPServer(boolean ssl) {
-		if (!Config.getGlobalBoolean(RC.ENABLE_HTTP))
+		if (!Config.getGlobalBoolean(RC.ENABLE_RECONFIGURATOR_HTTP))
 			return;
 		InetSocketAddress me = this.messenger.getListeningSocketAddress();
 		try {
