@@ -74,7 +74,7 @@ import io.netty.util.CharsetUtil;
  * 
  * Example command:
  * 
- * curl -X POST localhost:12416 -d '{NAME:"XDNApp0", QID:0, COORD: true, QVAL: "1", type: 400}' -H "Content-Type: application/json"
+ * curl -X POST localhost -d '{NAME:"XDNApp0", QID:0, COORD: true, QVAL: "1", type: 400}' -H "Content-Type: application/json"
  * 
  * Or open your browser to interact with this http front end directly 
  * 
@@ -381,6 +381,7 @@ public class HttpActiveReplica {
 	            if (json != null && json.length() > 0)
 		            try{
 		            	gRequest = getRequestFromJSONObject(json);
+		            	log.log(Level.INFO, "Http server retrieved an HttpActiveReplicaRequest from HttpRequest: {0}", new Object[]{ gRequest });
 		            	retrieved = true;
 		            } catch (Exception e) {
 		            	// ignore and do nothing if this is a malformed request
