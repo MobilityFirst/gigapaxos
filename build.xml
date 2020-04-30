@@ -185,7 +185,7 @@ destfile="${build.jar.dir}/gigapaxos-android-${build.major.number}.${build.minor
     <pathelement location="${lib.dir}/zookeeper-3.3.6.jar"/>
     <pathelement location="${lib.dir}/msgpack-core-0.8.8.jar"/>
     <pathelement location="${lib.dir}/jedis-2.8.1.jar"/>
-    <pathelement location="${lib.dir}/netty-all-4.1.4.Final.jar"/>
+    <pathelement location="${lib.dir}/netty-all-4.1.46.Final.jar"/>
     <!--    <pathelement location="${conf.dir}"/>-->
   </path>
   
