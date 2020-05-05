@@ -378,6 +378,11 @@ public class ReconfigurationConfig {
 		HTTP_PORT_SSL_OFFSET(400),
 		
 		/**
+		 * Enable DnsReconfigurator, which needs admin priviledge to bind to port 53
+		 */
+		ENABLE_RECONFIGURATOR_DNS (false),
+		
+		/**
 		 * Enable the HTTP server for reconfigurators.
 		 */
 		ENABLE_RECONFIGURATOR_HTTP (true),
