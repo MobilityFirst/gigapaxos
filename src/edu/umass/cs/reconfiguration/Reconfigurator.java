@@ -88,6 +88,7 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDe
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationRecord.RCStates;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.ReconfigureUponActivesChange;
+import edu.umass.cs.reconfiguration.dns.DnsReconfigurator;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DelayProfiler;
 import edu.umass.cs.utils.GCConcurrentHashMap;
@@ -209,6 +210,13 @@ public class Reconfigurator<NodeIDType> implements
 				initHTTPServer(false);
 			}
 		});
+		
+		this.protocolExecutor.submit(new Runnable() {
+			@Override
+			public void run() {
+				initDnsServer();
+			}		
+		});
 	}
 
 	private void initHTTPServer(boolean ssl) {
@@ -229,6 +237,12 @@ public class Reconfigurator<NodeIDType> implements
 			// throw new IOException(e);
 			// eat up exceptions until HTTP server is stable
 		}
+	}
+	
+	private void initDnsServer() {
+		if (!Config.getGlobalBoolean(RC.ENABLE_RECONFIGURATOR_DNS))
+			return;
+		new DnsReconfigurator(this);
 	}
 
 	/**
