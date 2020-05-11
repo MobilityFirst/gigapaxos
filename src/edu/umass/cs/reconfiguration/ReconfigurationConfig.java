@@ -378,9 +378,19 @@ public class ReconfigurationConfig {
 		HTTP_PORT_SSL_OFFSET(400),
 		
 		/**
-		 * Enable DnsReconfigurator, which needs admin priviledge to bind to port 53
+		 * Enable DnsReconfigurator, which needs admin privilege to bind to port 53
 		 */
 		ENABLE_RECONFIGURATOR_DNS (false),
+		
+		/**
+		 * The default ttl value used by DnsReconfigurator
+		 */
+		DEFAULT_DNS_TTL(30),
+		
+		/**
+		 * The default traffic policy class used by DnsReconfigurator
+		 */
+		DEFAULT_DNS_TRAFFIC_POLICY_CLASS("edu.umass.cs.reconfiguration.dns.NoopDnsTrafficPolicy"),
 		
 		/**
 		 * Enable the HTTP server for reconfigurators.

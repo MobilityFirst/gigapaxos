@@ -1,6 +1,7 @@
 package edu.umass.cs.reconfiguration.dns;
 
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -20,6 +21,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.BasicReconfigurationP
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.RequestActiveReplicas;
+import edu.umass.cs.utils.Config;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -54,17 +56,34 @@ import io.netty.handler.codec.dns.DnsSection;
 public class DnsReconfigurator {
 
     // set default TTL to 30s
-    final static int TTL = 30;
+    static int defaultTTL = Config.getGlobalInt(ReconfigurationConfig.RC.DEFAULT_DNS_TTL);
     
     // the timeout for RequestActiveReplicas request
     // final static long timeout = 5; // seconds
 
     private static final Logger log = ReconfigurationConfig.getLogger();
     
+    final private String defaultTrafficPolicy;
+    
+    private static DnsTrafficPolicy policy;
+    
     /**
      * @param app
      */
     public DnsReconfigurator(ReconfiguratorFunctions app) {
+    	defaultTrafficPolicy = Config.getGlobalString(ReconfigurationConfig.RC.DEFAULT_DNS_TRAFFIC_POLICY_CLASS);
+    	
+    	Class<?> c;
+		try {
+			c = Class.forName(defaultTrafficPolicy);
+			policy = (DnsTrafficPolicy) c.getConstructor().newInstance();
+			log.log(Level.INFO, "{0} creates dns traffic policy with the class name {1}", new Object[]{this, defaultTrafficPolicy});
+		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
+			e.printStackTrace();
+			log.log(Level.WARNING, "{0} unable to create dns traffic policy with the class name {1}", new Object[]{this, defaultTrafficPolicy});
+		}
+
+    	
     	
         final NioEventLoopGroup group = new NioEventLoopGroup();
         try {
@@ -193,10 +212,10 @@ public class DnsReconfigurator {
                 	result.add(addr.getAddress());
                 }
                  
-                // TODO: add a configurable policy here
+                Set<InetAddress> r = policy.getAddresses(result, query.sender().getAddress());
                 
-                for(InetAddress address : result){
-                	DefaultDnsRawRecord queryAnswer = new DefaultDnsRawRecord(dnsQuestion.name(), DnsRecordType.A, TTL,
+                for(InetAddress address : r){
+                	DefaultDnsRawRecord queryAnswer = new DefaultDnsRawRecord(dnsQuestion.name(), DnsRecordType.A, defaultTTL,
                             Unpooled.wrappedBuffer(convertIpStringToByteArray(address.getHostAddress())));
                     response.addRecord(DnsSection.ANSWER, queryAnswer);
                 }
