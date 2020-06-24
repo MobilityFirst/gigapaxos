@@ -53,6 +53,8 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+import io.netty.handler.codec.http.cors.CorsConfig;
+import io.netty.handler.codec.http.cors.CorsHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
@@ -207,6 +209,8 @@ public class HttpActiveReplica {
 		
 		@Override
 		protected void initChannel(SocketChannel channel) throws Exception {
+			CorsConfig corsConfig = CorsConfig.withAnyOrigin().build();
+			
 			ChannelPipeline p = channel.pipeline();
 			
 			if (sslCtx != null) 
@@ -218,7 +222,9 @@ public class HttpActiveReplica {
 			p.addLast(new HttpObjectAggregator(1048576));
 
 			p.addLast(new HttpResponseEncoder());
-
+			
+			p.addLast(new CorsHandler(corsConfig));
+			
 			p.addLast(new HttpActiveReplicaHandler(arFunctions, channel.remoteAddress()));
 			
 		}
