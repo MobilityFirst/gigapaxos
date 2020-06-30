@@ -370,7 +370,7 @@ public class HttpActiveReplica {
 	                send100Continue(ctx);
 	            }
 				
-				log.log(Level.INFO, "Http server received a request with HttpRequest: {0}", new Object[]{ httpRequest });
+				log.log(Level.FINE, "Http server received a request with HttpRequest: {0}", new Object[]{ httpRequest });
 				
 	            Map<String, List<String>> params = (new QueryStringDecoder(httpRequest.uri())).parameters();
 	            if (!params.isEmpty()) {
