@@ -98,7 +98,7 @@ public class HttpActiveReplica {
 	
 	private static final Logger log = ReconfigurationConfig.getLogger();
 	
-	private final static int NUM_BOSS_THREADS = 4;
+	private final static int NUM_BOSS_THREADS = 10;
 	
 	private final static int DEFAULT_HTTP_PORT = 8080;
 	
