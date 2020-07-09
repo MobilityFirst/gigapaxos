@@ -335,21 +335,23 @@ public class LargeCheckpointer {
 	 */
 	private static String fetchRemoteCheckpoint(InetSocketAddress sockAddr,
 			String remoteFilename, long fileSize, String localFilename) {
-		log.finer("LargeCheckpointer.fetchRemoteCheckpoint: about to fetch from "+sockAddr+" to get "+remoteFilename+" and put at "+localFilename);
+		log.log(Level.FINE, "LargeCheckpointer.fetchRemoteCheckpoint: about to fetch from {0} to get {1} and put at {2}", 
+				new Object[]{sockAddr, remoteFilename, localFilename});
 		synchronized (stringLocker.get(localFilename)) {
 			String request = remoteFilename + "\n";
 			Socket sock = null;
 			FileOutputStream fos = null;
 			try {
 				sock = new Socket(sockAddr.getAddress(), sockAddr.getPort());
-				log.fine("LargeCheckpointer.fetchRemoteCheckpoint: connected "+sockAddr+" to get "+remoteFilename+" and put at "+localFilename);
+				log.log(Level.FINE, "LargeCheckpointer.fetchRemoteCheckpoint: connected {0} to get {1} and put at {2}",
+						new Object[]{sockAddr, remoteFilename, localFilename});
 				sock.getOutputStream().write(request.getBytes(CHARSET));
 				InputStream inStream = (sock.getInputStream());
 				if (!createCheckpointFile(localFilename)){
-					log.info("LargeCheckpointer.fetchRemoteCheckpoint: failed to create "+localFilename);
+					log.warning("LargeCheckpointer.fetchRemoteCheckpoint: failed to create "+localFilename);
 					return null;
 				}
-				log.fine("LargeCheckpointer.fetchRemoteCheckpoint: file created successfully:"+localFilename);
+				log.log(Level.FINE, "LargeCheckpointer.fetchRemoteCheckpoint: file created successfully {0}", new Object[]{localFilename});
 				fos = new FileOutputStream(new File(localFilename));
 				byte[] buf = new byte[1024];
 				int nread = 0;
@@ -365,7 +367,8 @@ public class LargeCheckpointer {
 				fos.flush();
 				// check exact expected file size
 				if (nTotalRead != fileSize) {
-					log.info("LargeCheckpointer.fetchRemoteCheckpoint: expect "+fileSize+" bytes, but read "+nTotalRead+" bytes, delete file "+localFilename);
+					log.log(Level.WARNING, "LargeCheckpointer.fetchRemoteCheckpoint: expect {0} bytes, but read {1} bytes, delete file {2}",
+							new Object[]{fileSize, nTotalRead, localFilename});
 					new File(localFilename).delete();
 					localFilename = null;
 				}
