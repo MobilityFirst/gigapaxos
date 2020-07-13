@@ -391,7 +391,7 @@ public class PaxosManager<NodeIDType> {
 	 */
 	public PaxosManager(NodeIDType id, Stringifiable<NodeIDType> unstringer,
 			InterfaceNIOTransport<NodeIDType, JSONObject> niot, Replicable pi,
-			String paxosLogFolder, boolean enableNullCheckpoints) {
+			String paxosLogFolder, boolean enableNullCheckpoints) {		
 		this.myID = this.integerMap.put(id);// id.hashCode();
 		this.executor = Executors.newScheduledThreadPool(1,
 				new ThreadFactory() {
@@ -423,8 +423,8 @@ public class PaxosManager<NodeIDType> {
 		
 		
 		this.unstringer = unstringer;
-		this.largeCheckpointer = new LargeCheckpointer(paxosLogFolder,
-				this.myID + "");
+		this.largeCheckpointer = new LargeCheckpointer(paxosLogFolder, 
+				id.toString());
 		this.myApp = LargeCheckpointer.wrap(pi, largeCheckpointer);
 		this.FD = new FailureDetection<NodeIDType>(id, niot, paxosLogFolder);
 		this.pinstances = new MultiArrayMap<String, PaxosInstanceStateMachine>(
