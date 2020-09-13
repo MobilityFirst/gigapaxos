@@ -437,7 +437,7 @@ public class LargeCheckpointer {
 		this.deleteOldCheckpoints(getCheckpointDir(), name, 4);
 
 		json.put(Keys.ISA3142.toString(),
-				myID != null?
+				myID != null && PaxosConfig.getActives().get(myID) != null?
 				new InetSocketAddress(PaxosConfig.getActives().get(myID).getAddress().getHostAddress(), this.serverSock.getLocalPort()):
 				this.serverSock.getLocalSocketAddress());
 		json.put(Keys.FNAME2178.toString(), newFilename);
