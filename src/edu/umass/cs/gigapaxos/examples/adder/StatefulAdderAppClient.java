@@ -23,8 +23,6 @@ public class StatefulAdderAppClient extends PaxosClientAsync {
 	public StatefulAdderAppClient() throws IOException {
 		super();
 	}
-	// the max randomly generated integer value.
-	private final static int MAX_VALUE = 100;
 
 	/**
 	 * A simple example of asynchronously sending a few requests with a callback
@@ -39,7 +37,7 @@ public class StatefulAdderAppClient extends PaxosClientAsync {
 	public static void main(String[] args) throws IOException, JSONException, InterruptedException {
 		StatefulAdderAppClient noopClient = new StatefulAdderAppClient();
 		for (int i = 0; i < 100; i++) {
-			final String requestValue = (int)(Math.random()*MAX_VALUE)+"";
+			final String requestValue = (int)(Math.random()*Integer.MAX_VALUE)+"";
 			final int j = i;
 			noopClient.sendRequest(PaxosConfig.getDefaultServiceName(),
 					requestValue, new RequestCallback() {
