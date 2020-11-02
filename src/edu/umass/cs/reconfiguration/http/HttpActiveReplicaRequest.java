@@ -1,14 +1,20 @@
 package edu.umass.cs.reconfiguration.http;
 
+import java.io.UnsupportedEncodingException;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.nio.JSONPacket;
+import edu.umass.cs.nio.interfaces.Byteable;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
+import edu.umass.cs.utils.Util;
 
 /**
  * HttpRequest is the type of request used by {@link HttpActiveReplica}.
@@ -26,7 +32,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientReque
  */
 
 public class HttpActiveReplicaRequest extends JSONPacket implements 
-	ReplicableRequest, ReconfigurableRequest, ClientRequest {
+	ReplicableRequest, ReconfigurableRequest, ClientRequest, Byteable {
 	
 	/**
 	 * Keys of HttpRequest
@@ -80,6 +86,8 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 	 * Response from underlying app
 	 */
 	public String response;
+	
+	protected static String CHARSET = "ISO-8859-1";
 	
 	/**
 	 * HttpRequest is request type agnostic, the underlying application needs 
@@ -274,12 +282,174 @@ public class HttpActiveReplicaRequest extends JSONPacket implements
 	}
 	
 	/**
+	 * We need this estimate to use it in {@link edu.umass.cs.gigapaxos.RequestBatcher#dequeueImpl()}.
+	 * The value needs to be an upper bound on the sum total of all of the gunk
+	 * in PValuePacket other than the requestValue itself, i.e., the size of a
+	 * no-op decision.
+	 */
+	public static final int SIZE_ESTIMATE = estimateSize();
+
+	private static int estimateSize() {
+		// type (int) | name (String) | id (long) | value (String) | coord (bool) | stop (bool) | epoch (int)
+		
+		int length  = Integer.BYTES * 2 // type + epoch
+				+ Long.BYTES // id
+				+ 2 // coord + stop
+				; 
+		// 100% extra for other miscellaneous additions
+		return (int) (length * 2);		
+	}
+	
+	/**
+	 * 
+	 */
+	private int lengthEstimate() {
+		int len = this.value.length() + this.name.length() 
+		+ (this.response == null? 0 : this.response.length()) + SIZE_ESTIMATE;
+		return len;
+	}
+	
+	// type (int) | name (String) | id (long) | value (String) | coord (bool) | stop (bool) | epoch (int) | response (String)
+	
+	@Override
+	public byte[] toBytes() {
+		int exactLength = 0;
+		byte[] array = new byte[this.lengthEstimate()];
+		ByteBuffer bbuf = ByteBuffer.wrap(array);
+		assert (bbuf.position() == 0);
+		
+		try{
+			bbuf.putInt(this.type);
+			exactLength += Integer.BYTES;
+			
+			assert(this.name != null);
+			
+			byte[] nameBytes = this.name.getBytes(CHARSET);
+			bbuf.putInt(nameBytes.length);
+			bbuf.put(nameBytes);
+			exactLength += (Integer.BYTES+nameBytes.length);
+			
+			bbuf.putLong(this.id);
+			exactLength += Long.BYTES;
+			
+			byte[] valueBytes = this.value != null ? 
+					this.value.getBytes(CHARSET) : new byte[0];
+			bbuf.putInt(valueBytes.length);
+			bbuf.put(valueBytes);
+			exactLength += (Integer.BYTES+valueBytes.length);
+			
+			bbuf.put(this.coord ? (byte) 1 : (byte) 0);
+			bbuf.put(this.stop ? (byte) 1 : (byte) 0);
+			bbuf.putInt(this.epoch);
+			exactLength += (Integer.BYTES + 2);
+			
+			byte[] responseBytes = this.response != null? 
+					this.response.getBytes(CHARSET) : new byte[0];
+			bbuf.putInt(responseBytes != null ? responseBytes.length : 0);
+			bbuf.put(responseBytes);
+			exactLength += (Integer.BYTES + responseBytes.length);
+			
+			byte[] exactBytes = new byte[exactLength];
+			bbuf.flip();
+			
+			bbuf.get(exactBytes);
+			
+			return exactBytes;
+			
+		} catch (UnsupportedEncodingException e) {
+			
+		}
+		
+		return null;
+	}
+	
+	/**
+	 * @param bytes
+	 * @throws UnsupportedEncodingException
+	 * @throws UnknownHostException
+	 */
+	public HttpActiveReplicaRequest(byte[] bytes) throws UnsupportedEncodingException, 
+	UnknownHostException{
+		this(ByteBuffer.wrap(bytes));
+	}
+
+	/**
+	 * @param bbuf
+	 * @throws UnsupportedEncodingException
+	 * @throws UnknownHostException
+	 */
+	public HttpActiveReplicaRequest(ByteBuffer bbuf) throws UnsupportedEncodingException,
+	UnknownHostException {
+		// the only request type used for HttpActiveReplicaRequest
+		super(HttpActiveReplicaPacketType.EXECUTE);
+		this.type = bbuf.getInt();
+		
+		int nameLen = bbuf.getInt();
+		byte[] nameBytes = new byte[nameLen];
+		bbuf.get(nameBytes);
+		this.name = nameBytes.length > 0 ? new String(nameBytes,CHARSET) 
+				: null;
+		
+		this.id = bbuf.getLong();
+		
+		int valLen = bbuf.getInt();
+		byte[] valBytes = new byte[valLen];
+		bbuf.get(valBytes);
+		this.value = valBytes.length > 0 ? new String(valBytes,
+				CHARSET) : null;
+		
+		this.coord = bbuf.get() == (byte) 1;
+		this.stop = bbuf.get() == (byte) 1;
+		
+		this.epoch = bbuf.getInt();
+		
+		int respLen = bbuf.getInt();
+		byte[] respBytes = new byte[respLen];
+		bbuf.get(respBytes);
+		this.response = respBytes.length > 0 ? new String(respBytes,
+				CHARSET) : null;
+	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		HttpActiveReplicaRequest request = null;
+		
+		return (obj instanceof HttpActiveReplicaRequest)
+				&& ((request = (HttpActiveReplicaRequest) obj) != null)
+				&& (this.name == request.name)
+				&& (this.id == request.id)
+				&& (this.value.equals(request.value));
+	}
+	
+	/**
 	 * Test request serialization.
 	 * 
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		Util.assertAssertionsEnabled();
 		
+		String serviceName = "test";
+		String value = "OK";
+		
+		HttpActiveReplicaRequest req1 = new HttpActiveReplicaRequest(HttpActiveReplicaPacketType.EXECUTE,
+				serviceName, value);
+		HttpActiveReplicaRequest req2 = new HttpActiveReplicaRequest(value, req1);
+		HttpActiveReplicaRequest req3 = new HttpActiveReplicaRequest(value, req1);
+		
+		// Reflexive
+		assert(req1.equals(req1));
+		
+		// Symmetry: if(x.equals(y)==true)
+		assert(req1.equals(req2) && req2.equals(req1));
+		
+		// Transitive: if x.equals(y) and y.equals(z); then x.equals(z)
+		assert(req2.equals(req3));
+		
+		// Consistent: if x.equals(y)==true and no value is modified, then it's always true for every call.
+		
+		// For any non-null object x, x.equals(null)==false.
+		assert(req1.equals(null) == false);
 	}
 
 }
