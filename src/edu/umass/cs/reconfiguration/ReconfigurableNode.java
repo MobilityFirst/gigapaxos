@@ -16,6 +16,7 @@
 package edu.umass.cs.reconfiguration;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Set;
@@ -23,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 
+import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
@@ -115,9 +118,12 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	}
 
 	private AbstractReplicaCoordinator<NodeIDType> createApp(String[] args,
+	// private ReplicaCoordinator<NodeIDType> createApp(String[] args,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig) {
 		AbstractReplicaCoordinator<NodeIDType> appCoordinator = null;
-		if (ReconfigurationConfig.application == null) 
+		// ReplicaCoordinator<NodeIDType> appCoordinator = null;
+
+		if (ReconfigurationConfig.application == null)
 			throw new RuntimeException("Application name can not be null");
 		// else
 		{
@@ -197,9 +203,27 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			Replicable app, NodeIDType myID,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			JSONMessenger<NodeIDType> messenger) {
-		return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
-				messenger).setOutOfOrderLimit(Config
-				.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
+
+		String coordinatorClassName = Config.getGlobalString(
+				ReconfigurationConfig.RC.REPLICA_COORDINATOR_CLASS);
+
+		if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PaxosReplicaCoordinator"))
+			return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
+					messenger).setOutOfOrderLimit(Config
+					.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
+
+		Class<?> c;
+		ReplicaCoordinator coordinator = null;
+		try {
+			c = Class.forName(coordinatorClassName);
+			coordinator = (ReplicaCoordinator) c.getDeclaredConstructor(
+					Replicable.class, myID.getClass(), Stringifiable.class, JSONMessenger.class)
+					.newInstance(app, myID, nodeConfig, messenger);
+		} catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+			e.printStackTrace();
+		}
+		// FIXME: typecast ReplicaCoordinator to AbstractReplicaCoordinator
+		return (AbstractReplicaCoordinator) coordinator;
 	}
 
 	/**
