@@ -26,6 +26,7 @@ import java.util.logging.Level;
 
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
+import jdk.nashorn.internal.runtime.regexp.joni.constants.NodeType;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
@@ -203,27 +204,38 @@ public abstract class ReconfigurableNode<NodeIDType> {
 			Replicable app, NodeIDType myID,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			JSONMessenger<NodeIDType> messenger) {
-
 		String coordinatorClassName = Config.getGlobalString(
 				ReconfigurationConfig.RC.REPLICA_COORDINATOR_CLASS);
-
 		if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PaxosReplicaCoordinator"))
 			return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
 					messenger).setOutOfOrderLimit(Config
 					.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
+		else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.ChainAndPaxosReplicaCoordinator"))
+			return null;
+		else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.ChainReplicaCoordinator"))
+			return new ChainReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
+					messenger);
 
+		return null;
+
+		// FIXME: instantiating {@link ReplicaCoordinator} with Generic type
+		// 		  parameters is  not possible as the Generic type information
+		// 		  is erased in the JVM runtime even though the code compiles.
+
+		/*
 		Class<?> c;
-		ReplicaCoordinator coordinator = null;
+		ReplicaCoordinator<?> coordinator = null;
 		try {
 			c = Class.forName(coordinatorClassName);
-			coordinator = (ReplicaCoordinator) c.getDeclaredConstructor(
-					Replicable.class, myID.getClass(), Stringifiable.class, JSONMessenger.class)
+			coordinator = (ReplicaCoordinator<?>) c.getDeclaredConstructor(
+					Replicable.class, Object.class, Stringifiable.class, JSONMessenger.class)
 					.newInstance(app, myID, nodeConfig, messenger);
 		} catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
 			e.printStackTrace();
 		}
-		// FIXME: typecast ReplicaCoordinator to AbstractReplicaCoordinator
+		// typecast ReplicaCoordinator to AbstractReplicaCoordinator
 		return (AbstractReplicaCoordinator) coordinator;
+		*/
 	}
 
 	/**

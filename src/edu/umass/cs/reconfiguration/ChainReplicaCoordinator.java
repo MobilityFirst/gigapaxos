@@ -16,18 +16,22 @@
 
 package edu.umass.cs.reconfiguration;
 
-import edu.umass.cs.gigachain.ChainManager;
+import edu.umass.cs.chainreplication.ChainManager;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -42,7 +46,9 @@ public class ChainReplicaCoordinator<NodeIDType>
         super(app, niot);
         assert (niot instanceof JSONMessenger);
         // TODO: chain replication manager
-        this.chainManager = null;
+        this.chainManager = new ChainManager<>(myID, unstringer,
+                (JSONMessenger<NodeIDType>) niot, this, null,
+                true);
     }
 
     private static Set<IntegerPacketType> requestTypes = null;
@@ -52,20 +58,27 @@ public class ChainReplicaCoordinator<NodeIDType>
         if(requestTypes!=null) return requestTypes;
         // FIXME: get request types from a proper app
         Set<IntegerPacketType> types = this.app.getRequestTypes();
+
         if (types==null) types= new HashSet<IntegerPacketType>();
+        /* Need to add this separately because paxos won't initClientMessenger
+         * automatically with ReconfigurableNode unlike PaxosServer.
+         */
         types.add(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST);
         return requestTypes = types;
     }
 
     @Override
     public boolean coordinateRequest(Request request, ExecutedCallback callback) throws IOException, RequestParseException {
-        // TODO: coordinate the request by forwarding to the next node in the chain
+        // coordinate the request by forwarding to the next node in the chain
+        System.out.println(">>>>> Coordinate: "+request);
         return true;
+        // return this.chainManager.propose(request.getServiceName(), request, callback)!= null;
     }
 
     @Override
     public boolean createReplicaGroup(String serviceName, int epoch, String state, Set<NodeIDType> nodes) {
-        return false;
+        return this.chainManager.createReplicatedChainForcibly(
+                serviceName, epoch, nodes, this, state);
     }
 
     @Override
@@ -75,7 +88,38 @@ public class ChainReplicaCoordinator<NodeIDType>
 
     @Override
     public Set<NodeIDType> getReplicaGroup(String serviceName) {
+        return this.chainManager.getReplicaGroup(serviceName);
+    }
+
+    @Override
+    public Integer getEpoch(String name) {
+        return this.chainManager.getVersion(name);
+    }
+
+    @Override
+    public String getFinalState(String name, int epoch) {
         return null;
+    }
+
+    public static void main(String[] args){
+        String coordinatorClassName = "edu.umass.cs.reconfiguration.PaxosReplicaCoordinator";
+        Class<?> c;
+        ReplicaCoordinator<?> coordinator = null;
+        try {
+            c = Class.forName(coordinatorClassName);
+            // System.out.println(c.getConstructors());
+            Constructor<?>[] cons = c.getConstructors();
+            for (int i=0; i<cons.length; i++){
+                System.out.println(cons[i]);
+            }
+            ;
+            coordinator = (ReplicaCoordinator<?>) c.getDeclaredConstructor(
+                    Replicable.class, Object.class, Stringifiable.class, JSONMessenger.class)
+                    .newInstance(null, new Object(), null, null);
+        } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            e.printStackTrace();
+        }
+
     }
 
 }

@@ -38,6 +38,7 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 
 /**
  * @author arun
@@ -82,6 +83,8 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 	public PaxosReplicaCoordinator(Replicable app, NodeIDType myID,
 			Stringifiable<NodeIDType> unstringer, Messenger<NodeIDType, ?> niot) {
 		this(app, myID, unstringer, niot, null, true);
+		this.setOutOfOrderLimit(Config
+				.getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
 	}
 
 	/**

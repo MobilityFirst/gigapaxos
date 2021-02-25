@@ -16,7 +16,7 @@
 
 package edu.umass.cs.reconfiguration;
 
-import edu.umass.cs.gigachain.ChainManager;
+import edu.umass.cs.chainreplication.ChainManager;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
