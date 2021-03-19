@@ -409,7 +409,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * For legacy reasons, this method still accepts JSONObject in addition to
 	 * PaxosPacket as the first argument.
 	 * 
-	 * @param obj
+	 * @param pp
 	 * @param mode
 	 * @throws JSONException
 	 */
