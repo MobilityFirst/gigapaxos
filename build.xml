@@ -121,6 +121,7 @@ destfile="${build.jar.dir}/gigapaxos-android-${build.major.number}.${build.minor
       <fileset dir="${build.classes.dir}" includes="edu/umass/cs/reconfiguration/**/*.class"/>
       <fileset dir="${build.classes.dir}" includes="edu/umass/cs/gigapaxos/**/*.class"/>
       <fileset dir="${build.classes.dir}" includes="edu/umass/cs/protocoltask/**/*.class"/>
+      <fileset dir="${build.classes.dir}" includes="edu/umass/cs/chainreplication/**/*.class"/>
     </jar>
   </target>
   

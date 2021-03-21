@@ -17,6 +17,7 @@
 package edu.umass.cs.reconfiguration;
 
 import edu.umass.cs.chainreplication.ChainManager;
+import edu.umass.cs.chainreplication.chainpackets.ChainPacket;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -63,6 +64,10 @@ public class ChainReplicaCoordinator<NodeIDType>
         /* Need to add this separately because paxos won't initClientMessenger
          * automatically with ReconfigurableNode unlike PaxosServer.
          */
+
+        for (IntegerPacketType type: ChainPacket.ChainPacketType.values())
+            types.add(type);
+
         types.add(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST);
         return requestTypes = types;
     }
@@ -70,13 +75,15 @@ public class ChainReplicaCoordinator<NodeIDType>
     @Override
     public boolean coordinateRequest(Request request, ExecutedCallback callback) throws IOException, RequestParseException {
         // coordinate the request by forwarding to the next node in the chain
-        System.out.println(">>>>> Coordinate: "+request);
-        return true;
-        // return this.chainManager.propose(request.getServiceName(), request, callback)!= null;
+        // System.out.println(">>>>> Coordinate: "+request);
+        // return true;
+        return this.chainManager.propose(request.getServiceName(), request, callback)!= null;
     }
 
     @Override
     public boolean createReplicaGroup(String serviceName, int epoch, String state, Set<NodeIDType> nodes) {
+        // System.out.println(">>>>> Create: "+serviceName+", on "+this.getMyID());
+
         return this.chainManager.createReplicatedChainForcibly(
                 serviceName, epoch, nodes, this, state);
     }
