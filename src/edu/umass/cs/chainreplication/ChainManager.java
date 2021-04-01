@@ -411,6 +411,17 @@ public class ChainManager<NodeIDType> {
         return this.createReplicatedChainFinal(chainID, version, nodes, app, state) != null;
     }
 
+    public boolean deleteReplicatedChain(String chainID, int epoch){
+        ReplicatedChainStateMachine rcsm = this.getInstance(chainID);
+        if(rcsm == null)
+            return true;
+        if(rcsm.getVersion() > epoch) {
+            // exist a higher version, can't delete the state machine
+            return false;
+        }
+        return this.removeInstance(chainID);
+    }
+
     private synchronized ReplicatedChainStateMachine createReplicatedChainFinal(
             String chainID, int version, Set<NodeIDType> nodes,
             Replicable app, String initialState) {
@@ -477,6 +488,10 @@ public class ChainManager<NodeIDType> {
 
     private void putInstance(String chainID, ReplicatedChainStateMachine rcsm){
         this.replicatedChains.put(chainID, rcsm);
+    }
+
+    private boolean removeInstance(String chainID) {
+        return this.replicatedChains.remove(chainID) != null;
     }
 
     public Set<NodeIDType> getReplicaGroup(String chainID) {

@@ -21,7 +21,6 @@ import edu.umass.cs.chainreplication.chainpackets.ChainPacket;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.paxosutil.StringContainer;
 import edu.umass.cs.nio.JSONMessenger;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
@@ -46,7 +45,6 @@ public class ChainReplicaCoordinator<NodeIDType>
                                    Messenger<NodeIDType, ?> niot) {
         super(app, niot);
         assert (niot instanceof JSONMessenger);
-        // TODO: chain replication manager
         this.chainManager = new ChainManager<>(myID, unstringer,
                 (JSONMessenger<NodeIDType>) niot, this, null,
                 true);
@@ -90,7 +88,7 @@ public class ChainReplicaCoordinator<NodeIDType>
 
     @Override
     public boolean deleteReplicaGroup(String serviceName, int epoch) {
-        return false;
+        return this.chainManager.deleteReplicatedChain(serviceName, epoch);
     }
 
     @Override
