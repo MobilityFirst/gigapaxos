@@ -130,12 +130,14 @@ public abstract class ChainPacket extends JSONPacket {
          *
          */
         ACK("CHAIN_ACK", 1003),
-
         /**
          *
          */
         RESPONSE("RESPONSE", 1004),
-
+        /**
+         *
+         */
+        READ("CHAIN_READ", 1005),
         /**
          *
          */

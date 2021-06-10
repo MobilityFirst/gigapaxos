@@ -24,6 +24,7 @@ import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
+import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxosutil.*;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.GenericMessagingTask;
@@ -77,7 +78,9 @@ public class ChainManager<NodeIDType> {
     private final IntegerMap<NodeIDType> integerMap = new IntegerMap<NodeIDType>();
 
     private final ChainOutstading outstanding;
-    
+
+    private final FailureDetection<NodeIDType> FD; // failure detection
+
     private static final Level level = Level.INFO;
 
     // checkpoint
@@ -108,12 +111,15 @@ public class ChainManager<NodeIDType> {
                 id.toString());
         this.myApp = LargeCheckpointer.wrap(ci, largeCheckpointer);
 
+        this.FD = new FailureDetection<NodeIDType>(id, niot, logFolder);
+
         this.replicatedChains = new HashMap<>();
 
         // though the class is called PaxosMessenger, as stated in its document
         // it is just a JSONMessenger which has nothing paxos-specific
         this.messenger = (new PaxosMessenger<NodeIDType>(niot, this.integerMap));
 
+        // TODO: implement a new logger for chain replication
         this.logger = new SQLPaxosLogger(this.myID, id.toString(),
                 logFolder, this.messenger);
 
@@ -184,13 +190,19 @@ public class ChainManager<NodeIDType> {
                 // node -> prev
                 handleAckRequest(cp, rcsm);
                 break;
+
             case RESPONSE:
+                // entry -> client
                 handleResponse(cp, rcsm);
+                break;
+
+            case READ:
+                // node -> tail (primary)
+                handleRead(cp, rcsm);
                 break;
             default:
                 break;
         }
-
 
     }
 
@@ -212,7 +224,6 @@ public class ChainManager<NodeIDType> {
             this.handleForwardRequest(cp, rcsm);
         } else {
             // otherwise, forward the request to head
-
             this.sendRequest(cp, rcsm.getChainHead());
         }
     }
@@ -230,7 +241,15 @@ public class ChainManager<NodeIDType> {
                 "ChainPacket {0} for state machine {1}",
                 new Object[]{cp, rcsm});
 
-        // TODO: execute request here, log decision
+        // TODO: log decision
+        //PaxosPacket pp = convertToPaxosPacketForLogging(cp);
+        //logger.log(pp);
+
+        // Execute request before forward or ack
+        Request request = getInterfaceRequest(this.myApp, ((ChainRequestPacket) cp).requestValue );
+
+        // System.out.println("About to execute request:" + request);
+        this.myApp.execute(request, false);
 
         if(rcsm.getChainTail() == this.myID){
             // this is the tail, send back ACK to the head
@@ -244,6 +263,9 @@ public class ChainManager<NodeIDType> {
 
     private void handleAckRequest(ChainPacket cp,
                                   ReplicatedChainStateMachine rcsm) {
+
+        ((ChainRequestPacket ) cp).setPacketType(ChainPacket.ChainPacketType.RESPONSE);
+
         if(rcsm.getChainHead() == this.myID){
             // this is the head, ACK received
             log.log(level, "ChainManager.handleAck received an ACK request {0}," +
@@ -252,7 +274,6 @@ public class ChainManager<NodeIDType> {
 
             ChainRequestPacket crp = (ChainRequestPacket) cp;
 
-            // TODO: forward ACK to entry node
             if (crp.getEntryReplica() == this.myID){
                 // the head is the entry node, send back response to client here
                 // System.out.println("Head is entry, to respond!");
@@ -260,6 +281,7 @@ public class ChainManager<NodeIDType> {
             } else {
                 // otherwise, send to entry replica
                 // System.out.println("Send to entry to respond!");
+
                 this.sendRequest(cp, crp.getEntryReplica());
             }
 
@@ -275,6 +297,8 @@ public class ChainManager<NodeIDType> {
 
     private void handleResponse(ChainPacket cp,
                                 ReplicatedChainStateMachine rcsm){
+
+        // About to send response back to client
         long requestID = ((ChainRequestPacket) cp).requestID;
         ChainRequestAndCallback requestAndCallback =
                 outstanding.dequeue((ChainRequestPacket) cp);
@@ -287,9 +311,11 @@ public class ChainManager<NodeIDType> {
             Request request = getInterfaceRequest(this.myApp, requestAndCallback.chainRequestPacket.requestValue);
 
             // System.out.println("About to execute request:" + request);
-            this.myApp.execute(request, false);
+            // this.myApp.execute(request, false);
 
             // System.out.println("About to respond:" + request);
+
+            // Send response back to client
             requestAndCallback.callback.executed(request
                     , true);
 
@@ -299,6 +325,53 @@ public class ChainManager<NodeIDType> {
                     "an ACK request {0} for RSM {1} that does not match any enqueued request.",
                     new Object[]{cp, rcsm});
         }
+    }
+
+    /**
+     * Read should be sent to the tail directly as uncoordinated request.
+     *
+     * @param cp
+     * @param rcsm
+     */
+    private void handleRead(ChainPacket cp,
+                            ReplicatedChainStateMachine rcsm){
+
+        ChainRequestPacket crp = (ChainRequestPacket) cp;
+
+        if ( crp.getEntryReplica() == IntegerMap.NULL_INT_NODE ) {
+            crp.setEntryReplica(this.myID);
+            crp.setPacketType(ChainPacket.ChainPacketType.READ);
+        }
+
+        if(rcsm.getChainTail() == this.myID && crp.getEntryReplica() == this.myID){
+            // About to send back request to the client
+            ChainRequestAndCallback requestAndCallback =
+                    outstanding.dequeue(crp);
+            //
+            if (requestAndCallback != null && requestAndCallback.callback != null) {
+
+                Request request = getInterfaceRequest(this.myApp, requestAndCallback.chainRequestPacket.requestValue);
+
+                // execute "READ" request on the tail
+                this.myApp.execute(request, false);
+                
+                // Send response back to client
+                requestAndCallback.callback.executed(request
+                        , true);
+            }
+        } else if (rcsm.getChainTail() == this.myID) {
+
+            Request request = getInterfaceRequest(this.myApp, crp.requestValue);
+            this.myApp.execute(request, false);
+
+            ((ChainRequestPacket) cp).setPacketType(ChainPacket.ChainPacketType.RESPONSE);
+
+            this.sendRequest(cp, crp.getEntryReplica());
+        } else {
+            // otherwise, forward the request to the tail
+            this.sendRequest(cp, rcsm.getChainTail());
+        }
+
     }
 
     private static final Request getInterfaceRequest(Replicable app, String value) {
@@ -641,12 +714,12 @@ public class ChainManager<NodeIDType> {
                 ChainRequestPacket packet = null;
                 try {
                     packet = new ChainRequestPacket(bbuf);
+                    this.manager.handleChainPacket(packet,
+                            this.manager.getInstance(packet.getChainID()));
+                    return true;
                 } catch (UnsupportedEncodingException | UnknownHostException e) {
                     e.printStackTrace();
                 }
-                this.manager.handleChainPacket(packet,
-                        this.manager.getInstance(packet.getChainID()));
-                return true;
             }
 
             try {
