@@ -255,7 +255,7 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 
 	private static Logger log = Logger.getLogger(PaxosManager.class.getName());;
 
-	public SQLPaxosLogger(int id, String strID, String dbPath,
+	SQLPaxosLogger(int id, String strID, String dbPath,
 			PaxosMessenger<?> messenger) {
 		super(id, dbPath, messenger);
 		this.strID = strID;

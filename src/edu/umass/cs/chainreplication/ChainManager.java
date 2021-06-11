@@ -19,12 +19,14 @@ package edu.umass.cs.chainreplication;
 import edu.umass.cs.chainreplication.chainpackets.ChainPacket;
 import edu.umass.cs.chainreplication.chainpackets.ChainRequestPacket;
 import edu.umass.cs.chainreplication.chainutil.ReplicatedChainException;
-import edu.umass.cs.gigapaxos.*;
+
+import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
+import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
-import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.gigapaxos.paxosutil.*;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.GenericMessagingTask;
@@ -79,7 +81,7 @@ public class ChainManager<NodeIDType> {
 
     private final ChainOutstading outstanding;
 
-    private final FailureDetection<NodeIDType> FD; // failure detection
+    // private final FailureDetection<NodeIDType> FD; // failure detection
 
     private static final Level level = Level.INFO;
 
@@ -111,7 +113,8 @@ public class ChainManager<NodeIDType> {
                 id.toString());
         this.myApp = LargeCheckpointer.wrap(ci, largeCheckpointer);
 
-        this.FD = new FailureDetection<NodeIDType>(id, niot, logFolder);
+        // TODO: Failure detector
+        // this.FD = new FailureDetection<NodeIDType>(id, niot, logFolder);
 
         this.replicatedChains = new HashMap<>();
 
@@ -120,8 +123,7 @@ public class ChainManager<NodeIDType> {
         this.messenger = (new PaxosMessenger<NodeIDType>(niot, this.integerMap));
 
         // TODO: implement a new logger for chain replication
-        this.logger = new SQLPaxosLogger(this.myID, id.toString(),
-                logFolder, this.messenger);
+        this.logger = null;
 
         this.nullCheckpointsEnabled = enableNullCheckpoints;
         

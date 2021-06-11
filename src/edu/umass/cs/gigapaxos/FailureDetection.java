@@ -100,7 +100,7 @@ public class FailureDetection<NodeIDType> {
 	private static Logger log = Logger.getLogger(PaxosManager.class
 			.getName());
 
-	public FailureDetection(NodeIDType id,
+	FailureDetection(NodeIDType id,
 			InterfaceNIOTransport<NodeIDType, JSONObject> niot,
 			String paxosLogFolder) {
 		nioTransport = niot;
