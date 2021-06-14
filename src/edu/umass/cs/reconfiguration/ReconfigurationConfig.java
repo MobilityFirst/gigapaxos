@@ -434,6 +434,11 @@ public class ReconfigurationConfig {
 		 */
 		OUT_OF_ORDER_LIMIT(100),
 
+		/**
+		 * Default coordinator: {@link edu.umass.cs.reconfiguration.PaxosReplicaCoordinator}
+		 */
+		REPLICA_COORDINATOR_CLASS("edu.umass.cs.reconfiguration.PaxosReplicaCoordinator"),
+
 		;
 
 		final Object defaultValue;
