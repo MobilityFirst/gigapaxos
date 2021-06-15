@@ -131,6 +131,8 @@ public abstract class ClientReconfigurationPacket extends
 	// creation time of this request
 	private long createTime = System.currentTimeMillis();
 	private ResponseCodes responseCode = null;
+	// initial state
+	private String state = null;
 
 	/**
 	 * @param initiator
@@ -234,6 +236,9 @@ public abstract class ClientReconfigurationPacket extends
 
 		this.responseCode = json.has(Keys.RESPONSE_CODE.toString()) ? ResponseCodes
 				.valueOf(json.getString(Keys.RESPONSE_CODE.toString())) : null;
+
+		this.state = json.has(Keys.INITIAL_STATE.toString())?
+				json.getString(Keys.INITIAL_STATE.toString()) : null;
 	}
 
 	/**
