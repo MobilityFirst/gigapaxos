@@ -394,6 +394,10 @@ public class HttpReconfigurator {
 
 		;
 
+		if (json.has(HTTPKeys.INITIAL_STATE.label)) {
+			json.put(HTTPKeys.INITIAL_STATE.label, json.getString(HTTPKeys.INITIAL_STATE.label));
+		}
+
 		ClientReconfigurationPacket crp;
 		try {
 			crp = (ClientReconfigurationPacket) ReconfigurationPacket

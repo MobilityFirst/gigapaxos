@@ -282,7 +282,11 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		super(json, CreateServiceName.unstringer); // ignores unstringer
 		// may not be true for String packet demultiplexers
 		// assert (this.getSender() != null);
-		this.initialState = json.optString(Keys.STATE.toString(), null);
+		this.initialState = json.has(Keys.STATE.toString())?
+				json.getString(Keys.STATE.toString()) :
+				json.has(ClientReconfigurationPacket.Keys.INITIAL_STATE.toString())?
+						json.getString(ClientReconfigurationPacket.Keys.INITIAL_STATE.toString()) : null;
+		// json.optString(Keys.STATE.toString(), null);
 		this.nameStates = getNameStateMap(json);
 		JSONArray jsonArray = json.has(Keys.FAILED_CREATES.toString()) ? json
 				.getJSONArray(Keys.FAILED_CREATES.toString()) : null;
