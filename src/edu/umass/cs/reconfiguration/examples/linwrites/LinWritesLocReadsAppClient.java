@@ -90,7 +90,7 @@ public class LinWritesLocReadsAppClient extends
 							makeWriteRequest(),
 
 					// to redirect request to specific active replica
-					//new InetSocketAddress("localhost", 8001),
+					// new InetSocketAddress("localhost", 8001),
 
 					new Callback<Request, SimpleAppRequest>() {
 						long createTime = System.currentTimeMillis();

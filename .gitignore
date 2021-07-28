@@ -10,3 +10,5 @@ build.number
 /jars/
 .idea/*
 *.iml
+/output
+/out

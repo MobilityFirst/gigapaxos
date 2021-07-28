@@ -2,7 +2,6 @@ package edu.umass.cs.gigapaxos.examples.adder;
 
 import edu.umass.cs.gigapaxos.PaxosClientAsync;
 import edu.umass.cs.gigapaxos.PaxosConfig;
-import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestCallback;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;

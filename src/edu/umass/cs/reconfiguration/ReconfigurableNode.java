@@ -15,20 +15,6 @@
  * Initial developer(s): V. Arun */
 package edu.umass.cs.reconfiguration;
 
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.net.InetSocketAddress;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.logging.Level;
-
-import edu.umass.cs.nio.interfaces.Stringifiable;
-import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
-import jdk.nashorn.internal.runtime.regexp.joni.constants.NodeType;
-import org.json.JSONObject;
-
 import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -46,6 +32,15 @@ import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPolicyTest;
 import edu.umass.cs.utils.Config;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.logging.Level;
 
 /**
  * 
