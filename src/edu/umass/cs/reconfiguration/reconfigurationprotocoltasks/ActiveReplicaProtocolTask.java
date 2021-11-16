@@ -47,7 +47,8 @@ ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 		ReconfigurationPacket.PacketType.START_EPOCH,
 		ReconfigurationPacket.PacketType.REQUEST_EPOCH_FINAL_STATE,
 		ReconfigurationPacket.PacketType.DROP_EPOCH_FINAL_STATE,
-		ReconfigurationPacket.PacketType.ECHO_REQUEST
+		ReconfigurationPacket.PacketType.ECHO_REQUEST,
+		ReconfigurationPacket.PacketType.HELLO_REQUEST
 	};
 	private static final ReconfigurationPacket.PacketType[] types = ReconfigurationPacket.concatenate(defaultTypes,
 		WaitEpochFinalState.types);

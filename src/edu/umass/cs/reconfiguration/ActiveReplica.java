@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -65,6 +66,8 @@ import edu.umass.cs.nio.nioutils.RTTEstimator;
 import edu.umass.cs.protocoltask.ProtocolExecutor;
 import edu.umass.cs.protocoltask.ProtocolTask;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig.RC;
+import edu.umass.cs.reconfiguration.http.HttpActiveReplica;
+import edu.umass.cs.reconfiguration.interfaces.ActiveReplicaFunctions;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableAppInfo;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
@@ -80,6 +83,7 @@ import edu.umass.cs.reconfiguration.reconfigurationpackets.DemandReport;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.DropEpochFinalState;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EchoRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.EpochFinalState;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.HelloRequest;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket.PacketType;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
@@ -125,7 +129,7 @@ import edu.umass.cs.utils.UtilServer;
  *            active replica placement.
  */
 public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
-		PacketDemultiplexer<Request> {
+		PacketDemultiplexer<Request>, ActiveReplicaFunctions {
 	/**
 	 * Offset for client facing port that may in general be different from
 	 * server-to-server communication as we may need different transport-layer
@@ -190,9 +194,40 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 				AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
 				this.appCoordinator.getARRCNodesAsString());
 
-		// initInstrumenter();
+		initInstrumenter();
+		if (Config.getGlobalBoolean(ReconfigurationConfig.RC.ENABLE_NAT)) {
+			sendHelloRequest();
+		}
+		
+		// ENABLE_ACTIVE_REPLICA_HTTP is true
+		if (Config.getGlobalBoolean(RC.ENABLE_ACTIVE_REPLICA_HTTP) 
+				// and this node is not a reconfigurator
+				&& !(nodeConfig.getReconfigurators().contains(this.getMyID()))) {
+			InetSocketAddress me = this.messenger.getListeningSocketAddress();
+			final InetSocketAddress addr = new InetSocketAddress(me.getAddress(),
+					ReconfigurationConfig.getHTTPPort( me.getPort()) );
+			
+			this.protocolExecutor.submit(new Runnable() {
+				@Override
+				public void run() {
+					initHTTPServer(false, addr);
+				}
+			});
+		}
 	}
 
+	private void initHTTPServer(boolean ssl, InetSocketAddress addr){
+		
+		try {
+			// initialize HTTP server
+			new HttpActiveReplica(this, addr, ssl);
+			
+		} catch (Exception e) {
+			if (!(e instanceof InterruptedException)) // close
+				e.printStackTrace();
+		}	
+	}
+	
 	protected static AbstractReplicaCoordinator<?> wrapCoordinator(
 			AbstractReplicaCoordinator<?> coordinator) {
 		Class<?> clazz = null;
@@ -519,6 +554,65 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private static final String appName = ReconfigurationConfig.application
 			.getSimpleName();
 
+	
+	/**
+	 * The interval to send {@link HelloRequest} to update
+	 * the NIO socket address on the other replicas.
+	 */
+	private static final int helloRequestInterval = 10; // seconds
+	
+	protected void sendHelloRequest() {
+		this.protocolExecutor.scheduleWithFixedDelay(
+				new HelloRunnable(messenger, nodeConfig), 0, helloRequestInterval, TimeUnit.SECONDS);
+	}
+	
+	private class HelloRunnable implements Runnable {
+		
+		private final SSLMessenger<NodeIDType, ?> messenger;
+		private final ConsistentReconfigurableNodeConfig<NodeIDType> nodeConfig;
+		private final NodeIDType myID;
+		
+		HelloRunnable(SSLMessenger<NodeIDType, ?> messenger, 
+				ConsistentReconfigurableNodeConfig<NodeIDType> nodeConfig) {
+			this.messenger = messenger;
+			this.nodeConfig = nodeConfig;
+			this.myID = messenger.getMyID();			
+		}
+		
+		@SuppressWarnings("rawtypes")
+		@Override
+		public void run() {
+			// nodeConfig.
+			for (Object id : nodeConfig.getActiveReplicasMap().keySet()){
+				if ( !id.toString().equals(myID.toString())) {
+					@SuppressWarnings({ "unchecked" })
+					HelloRequest<NodeIDType> request = new HelloRequest(this.messenger.getMyID().toString());		
+					try {						
+						this.messenger.sendToAddress((InetSocketAddress) nodeConfig.getActiveReplicasMap().get(id.toString()), 
+								request.toBytes());								
+					} catch ( IOException e ) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+			for (Object id : nodeConfig.getReconfiguratorsReadOnly().keySet() ){
+				InetSocketAddress addr = nodeConfig.getReconfiguratorsReadOnly().get(id.toString());
+				
+				@SuppressWarnings("unchecked")
+				HelloRequest<NodeIDType> request = new HelloRequest(this.messenger.getMyID().toString());		
+				try {						
+					this.messenger.sendToAddress(addr, 
+							request.toBytes());								
+				} catch ( IOException e ) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
+		
+	}
+	
 	// to print instrumentation stats periodically
 	protected void initInstrumenter() {
 		if (Config.getGlobalBoolean(RC.ENABLE_INSTRUMENTATION))
@@ -548,9 +642,13 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		@SuppressWarnings("unchecked")
 		BasicReconfigurationPacket<NodeIDType> rcPacket = incoming instanceof BasicReconfigurationPacket ? (BasicReconfigurationPacket<NodeIDType>) incoming
 				: null;
+		
 		try {
 			// try handling as reconfiguration packet through protocol task
 			if (rcPacket != null) {
+				if ( rcPacket instanceof HelloRequest ){
+					headerMap.put(rcPacket.getInitiator().toString(), header);
+				}
 				if (!this.protocolExecutor.handleEvent(rcPacket))
 					// do nothing, just log
 					log.log(unhandled,
@@ -987,6 +1085,39 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		return deleted ? mtask.toArray() : null;
 	}
 
+	private ConcurrentHashMap<String, NIOHeader> headerMap = new ConcurrentHashMap<>();
+	
+	/**
+	 * @param hello
+	 * @param ptasks
+	 * @return result
+	 */
+	public GenericMessagingTask<NodeIDType, ?>[] handleHelloRequest(
+			HelloRequest<NodeIDType> hello,
+			ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
+		
+		ReconfigurationConfig.log.log(Level.FINE, "{0} received hello request {1}", new Object[] {
+				this, hello.getSummary() });
+		
+		NodeIDType nodeID = hello.myID;
+		if (nodeID == null) {
+			ReconfigurationConfig.log.log(Level.FINE, "{0} has no initiator in it", new Object[] {
+				 hello.getSummary() });
+			return null;
+		}
+		
+		InetSocketAddress address = headerMap.get(nodeID.toString()).sndr;
+		if (address != null) {
+			synchronized(nodeConfig) {
+				nodeConfig.removeActiveReplica(nodeID);
+				nodeConfig.addActiveReplica(nodeID, address);
+			}
+		}
+		ReconfigurationConfig.log.log(Level.FINE, "NodeConfig gets updated to {0}", new Object[] {
+			nodeConfig });
+		return null;
+	}
+	
 	/**
 	 * @param echo
 	 * @param ptasks
@@ -1504,5 +1635,21 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 						AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString())
 //				|| request.getServiceName().equals(ReconfigurationConfig.getDefaultServiceName())
 				? true: false;
+	}
+
+	/**
+	 * A wrapper method for handRequestToApp, should only be used by {@link HttpActiveReplica}.
+	 */
+	@Override
+	public boolean handRequestToAppForHttp(Request request, ExecutedCallback callback) {
+		return handRequestToApp(request, callback);
+	}
+	
+	/**
+	 * A wrapper method for updateDemandStats, should only be used by {@link HttpActiveReplica}.
+	 */
+	@Override
+	public void updateDemandStatsFromHttp(Request request, InetAddress addr) {
+		updateDemandStats(request, addr);
 	}
 }

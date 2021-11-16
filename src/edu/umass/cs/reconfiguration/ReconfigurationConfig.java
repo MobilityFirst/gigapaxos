@@ -378,14 +378,45 @@ public class ReconfigurationConfig {
 		HTTP_PORT_SSL_OFFSET(400),
 		
 		/**
+		 * Enable DnsReconfigurator, which needs admin privilege to bind to port 53
+		 */
+		ENABLE_RECONFIGURATOR_DNS (false),
+		
+		/**
+		 * The default ttl value used by DnsReconfigurator
+		 */
+		DEFAULT_DNS_TTL(30),
+		
+		/**
+		 * The default traffic policy class used by DnsReconfigurator
+		 */
+		DEFAULT_DNS_TRAFFIC_POLICY_CLASS("edu.umass.cs.reconfiguration.dns.NoopDnsTrafficPolicy"),
+		
+		/**
 		 * Enable the HTTP server for reconfigurators.
 		 */
-		ENABLE_HTTP (true),
+		ENABLE_RECONFIGURATOR_HTTP (true),
+		
+		/**
+		 * Enable the HTTP server for active replicas
+		 */
+		ENABLE_ACTIVE_REPLICA_HTTP(false),
+		
+		/**
+		 * HTTP active replica name
+		 */
+		HTTP_ACTIVE_REPLICA_NAME("edu.umass.cs.reconfiguration.http.HttpActiveReplica"),
 		
 		/**
 		 * If true, transactions are enabled; else disabled.
 		 */
 		ENABLE_TRANSACTIONS (false),
+		
+		/**
+		 * Enable {@HelloRequest} for an active running behind NAT
+		 * to be able to communicate to the other replicas
+		 */
+		ENABLE_NAT (false),
 		
 		/**
 		 * The name of the class used to wrap the application's default
@@ -402,6 +433,11 @@ public class ReconfigurationConfig {
 		 * Used to set @link {@link edu.umass.cs.gigapaxos.PaxosManager#setOutOfOrderLimit(int)}.
 		 */
 		OUT_OF_ORDER_LIMIT(100),
+
+		/**
+		 * Default coordinator: {@link edu.umass.cs.reconfiguration.PaxosReplicaCoordinator}
+		 */
+		REPLICA_COORDINATOR_CLASS("edu.umass.cs.reconfiguration.PaxosReplicaCoordinator"),
 
 		;
 

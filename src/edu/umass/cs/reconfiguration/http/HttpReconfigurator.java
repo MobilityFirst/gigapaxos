@@ -183,7 +183,7 @@ public class HttpReconfigurator {
 			InetSocketAddress sockAddr, boolean ssl)
 			throws CertificateException, SSLException, InterruptedException {
 
-		this.rcf = rcf.toString();
+		this.rcf = rcf==null? "": rcf.toString();
 
 		// Configure SSL.
 		final SslContext sslCtx;
@@ -394,6 +394,10 @@ public class HttpReconfigurator {
 
 		;
 
+		if (json.has(HTTPKeys.INITIAL_STATE.label)) {
+			json.put(HTTPKeys.INITIAL_STATE.label, json.getString(HTTPKeys.INITIAL_STATE.label));
+		}
+
 		ClientReconfigurationPacket crp;
 		try {
 			crp = (ClientReconfigurationPacket) ReconfigurationPacket
@@ -439,10 +443,12 @@ public class HttpReconfigurator {
 				try {
 					JSONObject json = toJSONObject(new QueryStringDecoder(
 							request.uri()).parameters());
+					log.log(Level.INFO, "JSON converted from uri is {0}", new Object[] { json });
 					crp = toReconfiguratorRequest(json, ctx.channel());
 					
 					//System.out.println(crp);
 					
+					if (rcFunctions != null)
 					crp = (ReconfiguratorRequest) this.rcFunctions
 							.sendRequest(crp);
 					buf.append(crp.toString());

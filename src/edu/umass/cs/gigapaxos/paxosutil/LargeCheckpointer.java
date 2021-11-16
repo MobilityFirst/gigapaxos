@@ -1,5 +1,6 @@
 package edu.umass.cs.gigapaxos.paxosutil;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -174,7 +175,7 @@ public class LargeCheckpointer {
 			return json.has(Keys.ISA3142.toString())
 					&& json.has(Keys.FNAME2178.toString())
 					&& json.has(Keys.FSIZE6022.toString())
-					&& JSONObject.getNames(json).length == 3;
+					;
 		} catch (JSONException e) {
 			return false;
 		}
@@ -334,16 +335,23 @@ public class LargeCheckpointer {
 	 */
 	private static String fetchRemoteCheckpoint(InetSocketAddress sockAddr,
 			String remoteFilename, long fileSize, String localFilename) {
+		log.log(Level.FINE, "LargeCheckpointer.fetchRemoteCheckpoint: about to fetch from {0} to get {1} and put at {2}", 
+				new Object[]{sockAddr, remoteFilename, localFilename});
 		synchronized (stringLocker.get(localFilename)) {
 			String request = remoteFilename + "\n";
 			Socket sock = null;
 			FileOutputStream fos = null;
 			try {
 				sock = new Socket(sockAddr.getAddress(), sockAddr.getPort());
+				log.log(Level.FINE, "LargeCheckpointer.fetchRemoteCheckpoint: connected {0} to get {1} and put at {2}",
+						new Object[]{sockAddr, remoteFilename, localFilename});
 				sock.getOutputStream().write(request.getBytes(CHARSET));
 				InputStream inStream = (sock.getInputStream());
-				if (!createCheckpointFile(localFilename))
+				if (!createCheckpointFile(localFilename)){
+					log.warning("LargeCheckpointer.fetchRemoteCheckpoint: failed to create "+localFilename);
 					return null;
+				}
+				log.log(Level.FINE, "LargeCheckpointer.fetchRemoteCheckpoint: file created successfully {0}", new Object[]{localFilename});
 				fos = new FileOutputStream(new File(localFilename));
 				byte[] buf = new byte[1024];
 				int nread = 0;
@@ -356,8 +364,11 @@ public class LargeCheckpointer {
 					nTotalRead += nread;
 					fos.write(buf, 0, nread);
 				}
+				fos.flush();
 				// check exact expected file size
 				if (nTotalRead != fileSize) {
+					log.log(Level.WARNING, "LargeCheckpointer.fetchRemoteCheckpoint: expect {0} bytes, but read {1} bytes, delete file {2}",
+							new Object[]{fileSize, nTotalRead, localFilename});
 					new File(localFilename).delete();
 					localFilename = null;
 				}
@@ -388,17 +399,18 @@ public class LargeCheckpointer {
 	}
 
 	private static boolean createCheckpointFile(String filename) {
-		synchronized (stringLocker.get(filename)) {
+		//synchronized (stringLocker.get(filename)) {
 			File file = new File(filename);
 			try {
-				if (file.getParentFile().mkdirs())
-					file.createNewFile(); // will create only if not exists
+				if (file.getParentFile().mkdirs() || file.getParentFile().exists()){
+					file.createNewFile(); // will create only if the file does not exists
+				}
 			} catch (IOException e) {
 				log.severe("Unable to create checkpoint file for " + filename);
 				e.printStackTrace();
 			}
 			return (file.exists());
-		}
+		//}
 	}
 
 	public String toString() {
@@ -425,6 +437,8 @@ public class LargeCheckpointer {
 		this.deleteOldCheckpoints(getCheckpointDir(), name, 4);
 
 		json.put(Keys.ISA3142.toString(),
+				myID != null && PaxosConfig.getActives().get(myID) != null?
+				new InetSocketAddress(PaxosConfig.getActives().get(myID).getAddress().getHostAddress(), this.serverSock.getLocalPort()):
 				this.serverSock.getLocalSocketAddress());
 		json.put(Keys.FNAME2178.toString(), newFilename);
 		return json.toString();
@@ -554,11 +568,18 @@ public class LargeCheckpointer {
 						// request is filename
 						brFile = new BufferedReader(new InputStreamReader(
 								new FileInputStream(request)));
+						final BufferedInputStream inStream = new BufferedInputStream(new FileInputStream(request));
 						// file successfully open if here
 						OutputStream outStream = sock.getOutputStream();
-						String line = null; // each line is a record
-						while ((line = brFile.readLine()) != null)
-							outStream.write(line.getBytes(CHARSET));
+//						String line = null; // each line is a record
+//						while ((line = brFile.readLine()) != null)
+//							outStream.write(line.getBytes(CHARSET));
+						
+						// read in the binary file and send out
+						final byte[] buffer = new byte[4096];
+					    for (int read = inStream.read(buffer); read >= 0; read = inStream.read(buffer))
+					        outStream.write(buffer, 0, read);
+					    inStream.close();
 						outStream.close();
 					}
 				}

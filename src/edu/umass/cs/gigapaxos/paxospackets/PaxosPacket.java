@@ -447,7 +447,7 @@ public abstract class PaxosPacket extends JSONPacket implements Summarizable {
 		bbuf.get(paxosIDBytes);
 		this.paxosID = paxosIDBytes.length > 0 ? new String(paxosIDBytes,
 				CHARSET) : null;
-		int exactLength = (4 + 4 + 4 + 1 + paxosIDBytes.length);
+		int exactLength = (SIZEOF_PAXOSPACKET_FIXED + paxosIDBytes.length);
 		assert (bbuf.position() == exactLength);
 	}
 

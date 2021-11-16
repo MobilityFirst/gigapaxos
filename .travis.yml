@@ -2,7 +2,7 @@ language: java
 # sudo: required instructs Travis to use a "real VM" instead of a docker VM
 sudo: required
 jdk:
-- oraclejdk8
+- openjdk8
 before_install:
 - sudo apt-get update -qq
 - sudo apt-get install -qq ant-optional

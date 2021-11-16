@@ -44,16 +44,15 @@ public class NoopPaxosAppClient extends PaxosClientAsync {
 				long createTime = System.currentTimeMillis();
 				@Override
 				public void handleResponse(Request response) {
-					System.out
-							.println("Response for request ["
+					System.out.println("Response for request ["
 									+ requestValue
 									+ "] = "
 									+ ((RequestPacket)response).getResponseValue()
 									+ " received in "
 									+ (System.currentTimeMillis() - createTime)
 									+ "ms");
-				}
-					});
+					}
+				});
 			Thread.sleep(100);
 		}
 		noopClient.close();
