@@ -458,7 +458,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * has rolled forward is that it might respond to a prepare with a list
 		 * of accepts fetched from disk that may be inconsistent with its
 		 * acceptor state. */
-		if (!this.paxosManager.hasRecovered(this) && !recovery)
+		if (!this.paxosManager.hasRecovered(this) && !recovery && pp!=null)
 			return; // only process recovery message during rollForward
 
 		boolean isPoke = msgType.equals(PaxosPacketType.NO_TYPE);
@@ -1426,6 +1426,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 	private static final boolean DISABLE_SYNC_DECISIONS = Config
 			.getGlobalBoolean(PC.DISABLE_SYNC_DECISIONS);
+	private static final boolean REVERSE_SYNC = Config
+			.getGlobalBoolean(PC.REVERSE_SYNC);
 
 	/* Typically invoked by handleCommittedRequest above. Also invoked at
 	 * instance creation time if outOfOrderLimit low to deal with the
@@ -1449,7 +1451,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						.getPaxosManager().getOutOfOrderLimit(), syncMode))) {
 			fixGapsRequest = this
 					.requestMissingDecisions(committed != null ? committed.ballot.coordinatorID
-							: this.paxosState.getBallotCoord());
+							: this.paxosState.getBallotCoord(), syncMode);
 			if (fixGapsRequest != null) {
 				log.log(Level.INFO,
 						"{0} sending {1}; maxCommittedSlot = {2}; ",
@@ -2161,7 +2163,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/* Event: Received or locally generated a sync request. Action: Send a sync
 	 * reply containing missing committed requests to the requester. If the
 	 * requester is myself, multicast to all. */
-	private MessagingTask requestMissingDecisions(int coordinatorID) {
+	private MessagingTask requestMissingDecisions(int coordinatorID, SyncMode syncMode) {
 		ArrayList<Integer> missingSlotNumbers = this.paxosState
 				.getMissingCommittedSlots(this.paxosManager
 						.getMaxSyncDecisionsGap());
@@ -2177,7 +2179,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		int requestee = COORD_DONT_LOG_DECISIONS ? randomNonCoordOther(coordinatorID)
 				: randomOther();
-		// send sync request to coordinator or random other node
+		int[] requestees = SyncMode.FORCE_SYNC.equals(syncMode) ?
+				otherGroupMembers() : new int[1];
+		if(!SyncMode.FORCE_SYNC.equals(syncMode))
+			requestees[0] = requestee;
+
+		// send sync request to coordinator or random other node or to all
+		// other nodes if forceSync
 		MessagingTask mtask = requestee != this.getMyID() ? new MessagingTask(
 				requestee, srp) : null;
 
@@ -2297,7 +2305,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 						this.paxosState.getMaxCommittedSlot() });
 
 		if (this.paxosState.getMaxCommittedSlot() - minMissingSlot < 0)
-			return null; // I am worse than you
+			return REVERSE_SYNC ? syncLongDecisionGaps(null, SyncMode
+					.FORCE_SYNC) : null;
+		// I am worse than you
 
 		// get checkpoint if minMissingSlot > last checkpointed slot
 		MessagingTask checkpoint = null;

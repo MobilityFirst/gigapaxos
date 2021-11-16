@@ -345,7 +345,7 @@ public class HttpReconfigurator {
 					return key;
 		throw new HTTPException(
 				ClientReconfigurationPacket.ResponseCodes.MALFORMED_REQUEST,
-				missingKeyMessage(matchKey.toString()));
+				missingKeyMessage(matchKey.toString())  + " in " + json);
 	}
 
 	private static String getHTTPKey(String formKey) {
@@ -374,7 +374,7 @@ public class HttpReconfigurator {
 			return toServerReconfigurationRequest(json, channel, type, name);
 
 		long requestID = (type == ReconfigurationPacket.PacketType.REQUEST_ACTIVE_REPLICAS ? json
-				.getLong(RequestActiveReplicas.Keys.QID.toString()) : 0);
+				.optLong(RequestActiveReplicas.Keys.QID.toString(), 0) : 0);
 					
 		// else must be ClientReconfigurationPacket; insert necessary fields
 		json.put(HTTPKeys.TYPE.label, type.getInt())
@@ -441,14 +441,16 @@ public class HttpReconfigurator {
 							request.uri()).parameters());
 					crp = toReconfiguratorRequest(json, ctx.channel());
 					
-					System.out.println(crp);
+					//System.out.println(crp);
 					
 					crp = (ReconfiguratorRequest) this.rcFunctions
 							.sendRequest(crp);
 					buf.append(crp.toString());
 
 				} catch (JSONException | HTTPException e) {
-					e.printStackTrace();
+					//e.printStackTrace();
+					log.log(Level.INFO, "Incurred exception {0} while trying" +
+							" to parse message {1}", new Object[]{e, msg});
 					buf.append(crp != null ? crp.setFailed()
 							.setResponseMessage(e.getMessage()) : "");
 				}

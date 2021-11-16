@@ -373,7 +373,8 @@ public abstract class PaxosPacket extends JSONPacket implements Summarizable {
 
 	protected abstract JSONObject toJSONObjectImpl() throws JSONException;
 
-	protected net.minidev.json.JSONObject toJSONSmartImpl()
+	protected net.minidev.json.JSONObject
+	toJSONSmartImpl()
 			throws JSONException {
 		return null;
 	}

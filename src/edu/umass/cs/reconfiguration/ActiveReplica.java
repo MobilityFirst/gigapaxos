@@ -137,6 +137,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	 */
 
 	private final AbstractReplicaCoordinator<NodeIDType> appCoordinator;
+	private final AbstractReplicaCoordinator<NodeIDType> originalAppCoordinator;
 	private final ConsistentReconfigurableNodeConfig<NodeIDType> nodeConfig;
 	private final ProtocolExecutor<NodeIDType, ReconfigurationPacket.PacketType, String> protocolExecutor;
 	private final ActiveReplicaProtocolTask<NodeIDType> protocolTask;
@@ -157,6 +158,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 	private ActiveReplica(AbstractReplicaCoordinator<NodeIDType> appC,
 			ReconfigurableNodeConfig<NodeIDType> nodeConfig,
 			SSLMessenger<NodeIDType, ?> messenger, boolean noReporting) {
+		this.originalAppCoordinator = appC;
 		this.appCoordinator = (AbstractReplicaCoordinator<NodeIDType>)
 				wrapCoordinator(appC.setStopCallback(
 				// setting default callback is optional
@@ -772,6 +774,7 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 		this.protocolExecutor.stop();
 		this.messenger.stop();
 		this.appCoordinator.stop();
+		this.originalAppCoordinator.stop();
 	}
 
 	// /////////////// Start of protocol task handler

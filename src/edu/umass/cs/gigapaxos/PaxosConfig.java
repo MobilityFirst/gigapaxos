@@ -560,6 +560,12 @@ public class PaxosConfig {
 		NUM_MESSENGER_WORKERS(1),
 
 		/**
+		 * True means respond with sync request to sync yourself if received
+		 * sync request from a replica that is already ahead of you.
+		 */
+		REVERSE_SYNC(true),
+
+		/**
 		 * 
 		 */
 		USE_NIO_SENDER_TASK(false),
@@ -775,9 +781,11 @@ public class PaxosConfig {
 		 * (like 1 or 2). For more groups, the reordering effects seem to hurt
 		 * more than help.
 		 * 
-		 * Disabled by default.
+		 * Disabled by default. May have liveness problems if no alive server
+		 * has a copy of the original request unless requests broadcast by
+		 * entry replica are logged.
 		 */
-		DIGEST_REQUESTS(true),
+		DIGEST_REQUESTS(false),
 
 		/**
 		 * Number of active groups up to which digesting is done. Digests seem

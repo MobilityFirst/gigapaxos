@@ -424,7 +424,7 @@ public class PaxosManager<NodeIDType> {
 		
 		this.unstringer = unstringer;
 		this.largeCheckpointer = new LargeCheckpointer(paxosLogFolder,
-				this.myID + "");
+				id.toString());
 		this.myApp = LargeCheckpointer.wrap(pi, largeCheckpointer);
 		this.FD = new FailureDetection<NodeIDType>(id, niot, paxosLogFolder);
 		this.pinstances = new MultiArrayMap<String, PaxosInstanceStateMachine>(
@@ -1697,6 +1697,7 @@ public class PaxosManager<NodeIDType> {
 		this.ppBatcher.stop();
 		this.largeCheckpointer.close();
 		this.executor.shutdownNow();
+		this.appExecuteThreadPool.shutdownNow();
 		if(this.myApp instanceof GigapaxosShutdownable) ((GigapaxosShutdownable)this.myApp).shutdown();
 
 		for (Iterator<PaxosInstanceStateMachine> pismIter = this.pinstances

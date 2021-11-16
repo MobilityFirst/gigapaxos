@@ -2280,6 +2280,11 @@ public class Reconfigurator<NodeIDType> implements
 					rcRecReq.startEpoch.getMyReceiver()).setForwader(
 					rcRecReq.startEpoch.getForwarder()).makeResponse();
 
+			Callback<Request,ReconfiguratorRequest> callback = this.callbacksCRP
+					.remove(getCRPKey(response));
+			if (callback != null)
+				callback.processResponse(response);
+
 			if (querier.equals(rcRecReq.startEpoch.creator)) {
 				ReconfigurationConfig.log.log(Level.FINE,
 						"{0} sending deletion confirmation {1} back to client",

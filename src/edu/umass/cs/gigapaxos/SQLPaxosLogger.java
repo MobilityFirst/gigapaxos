@@ -2790,64 +2790,54 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 			}
 		else if (isJournalingEnabled()) {
 			String latest = this.getLatestJournalFile();
-			try {
-				while (this.curRAF != null
-						&& this.curRAF.getFilePointer() == this.curRAF.length()) {
-					this.curRAF.close();
-					this.curRAF = null;
-					// move on to the next file
-					if (this.logfileIndex + 1 < this.logfiles.length)
-						this.curRAF = new RandomAccessFile(
-								this.logfiles[++this.logfileIndex], "r");
-					if (this.curRAF != null)
-						log.log(Level.INFO,
-								"{0} rolling forward logged messages from file {1}",
-								new Object[] { this.journaler,
-										this.logfiles[this.logfileIndex] });
+			File curFile = null;
+			while (pp == null) {
+				try {
+					while (this.curRAF != null && this.curRAF.getFilePointer() == this.curRAF.length()) {
+
+						this.curRAF.close();
+						this.curRAF = null;
+						// move on to the next file
+						if (this.logfileIndex + 1 < this.logfiles.length) this.curRAF = new RandomAccessFile(this.logfiles[++this.logfileIndex], "r");
+
+						if (this.curRAF != null)
+							log.log(Level.INFO, "{0} rolling forward logged messages from file {1}", new Object[]{this.journaler, this.logfiles[this.logfileIndex]});
+
+					}
+					if (this.curRAF == null) return null;
+					curFile = this.logfiles[this.logfileIndex];
+
+					long msgOffset = this.curRAF.getFilePointer();
+					int msgLength = this.curRAF.readInt();
+
+					log.log(Level.FINEST, "{0} reading from offset {1} of length {2} from file {3}", new Object[]{this, msgOffset, msgLength, this.logfiles[this.logfileIndex]});
+
+					byte[] msg = new byte[msgLength];
+					this.curRAF.readFully(msg);
+					// packetStr = new String(msg, CHARSET);
+					packetBytes = msg;
+
+					pp = this.getPacketizer() != null ? this.getPacketizer().stringToPaxosPacket(msg) : PaxosPacket.getPaxosPacket(new String(msg, CHARSET));
+
+					// also index latest log file
+					if (DB_INDEX_JOURNAL && latest != null && this.logfiles[this.logfileIndex].toString().equals(latest))
+						this.indexJournalEntryInDB(pp, this.logfiles[this.logfileIndex].toString(), msgOffset, msgLength);
+
+					assert (pp.getPaxosID() != null) : "paxosID is null for " + pp;
+					if (this.messageLog.getLogIndex(pp.getPaxosID()) == null)
+						this.unpauseLogIndex(pp.getPaxosID());
+
+					// feed into in-memory log
+					this.messageLog.add(pp, this.logfiles[this.logfileIndex].toString(), msgOffset, msgLength);
+
+				} catch(IOException | JSONException e){
+					e.printStackTrace();
+					try {
+						log.log(Level.WARNING, "{0} incurred exception while " + "reading next " + "logged message from " + "file {1}: {2}; filePointer={3}, " + "fileLength={4}", new Object[]{this, curFile, e, this.curRAF.getFilePointer(), this.curRAF.length()});
+					} catch (IOException e1){
+						e1.printStackTrace(); // ignore
+					}
 				}
-				if (this.curRAF == null)
-					return null;
-
-				long msgOffset = this.curRAF.getFilePointer();
-				int msgLength = this.curRAF.readInt();
-
-				log.log(Level.FINEST,
-						"{0} reading from offset {1} of length {2} from file {3}",
-						new Object[] { this, msgOffset, msgLength,
-								this.logfiles[this.logfileIndex] });
-
-				byte[] msg = new byte[msgLength];
-				this.curRAF.readFully(msg);
-				// packetStr = new String(msg, CHARSET);
-				packetBytes = msg;
-
-				pp = this.getPacketizer() != null ? this.getPacketizer()
-						.stringToPaxosPacket(msg) : PaxosPacket
-						.getPaxosPacket(new String(msg, CHARSET));
-
-				// also index latest log file
-				if (DB_INDEX_JOURNAL
-						&& latest != null
-						&& this.logfiles[this.logfileIndex].toString().equals(
-								latest))
-					this.indexJournalEntryInDB(pp,
-							this.logfiles[this.logfileIndex].toString(),
-							msgOffset, msgLength);
-
-				assert(pp.getPaxosID()!=null) : "paxosID is null for " + pp;
-				if (this.messageLog.getLogIndex(pp.getPaxosID()) == null)
-					this.unpauseLogIndex(pp.getPaxosID());
-
-				// feed into in-memory log
-				this.messageLog.add(pp,
-						this.logfiles[this.logfileIndex].toString(), msgOffset,
-						msgLength);
-
-			} catch (IOException | JSONException e) {
-				e.printStackTrace();
-				log.log(Level.WARNING,
-						"{0} incurred exception {1} while reading next logged message",
-						new Object[] { this, e });
 			}
 		}
 		return pp;

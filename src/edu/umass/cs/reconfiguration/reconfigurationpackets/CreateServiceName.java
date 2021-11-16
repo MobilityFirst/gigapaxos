@@ -296,9 +296,11 @@ public class CreateServiceName extends ClientReconfigurationPacket {
 		this.initGroup = json.has(Keys.INIT_GROUP.toString()) ? Util
 				.getSocketAddresses(json.getJSONArray(Keys.INIT_GROUP
 						.toString())) : null;
-		this.policy = ReconfigurationConfig.ReconfigureUponActivesChange
+		this.policy = json.has(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE
+				.toString()) ? ReconfigurationConfig
+				.ReconfigureUponActivesChange
 				.valueOf(json.getString(Keys.RECONFIGURE_UPON_ACTIVES_CHANGE
-						.toString()));
+						.toString())) : ReconfigureUponActivesChange.DEFAULT;
 	}
 
 	/**

@@ -111,7 +111,8 @@ public class IntegerMap<NodeIDType> {
 	}
 
 	private static String message = ": Unable to translate integer ID "
-			+ " to NodeIDType; this is likely a bug";
+			+ " to NodeIDType; this can only happen if a request for a " +
+			"non-existent paxos group is received from a client.";
 
 	// get(int) maps int to NodeIDType
 	/**

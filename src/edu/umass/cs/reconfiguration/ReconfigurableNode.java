@@ -395,19 +395,26 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		return argsAsString;
 	}
 
-	/**
-	 * {@code args} contains a list of app arguments followed by a list of
-	 * active or reconfigurator node IDs at the end. The string "start all" is
-	 * accepted as a proxy for the list of all nodes if the socket addresses of
-	 * all nodes are on the local machine.
-	 * 
-	 * @param args
-	 * @throws IOException
-	 */
 	public static void main(String[] args) throws IOException {
+		main1(args);
+	}
+
+		/**
+		 * {@code args} contains a list of app arguments followed by a list of
+		 * active or reconfigurator node IDs at the end. The string "start all" is
+		 * accepted as a proxy for the list of all nodes if the socket addresses of
+		 * all nodes are on the local machine.
+		 *
+		 * @param args
+		 * @throws IOException
+		 */
+	public static Set<ReconfigurableNode> main1(String[] args) throws IOException {
 		PaxosConfig.ensureFileHandlerDirExists();
 		Config.register(args);
 		ReconfigurationConfig.setConsoleHandler();
+
+		Set<ReconfigurableNode> rcNodes = new HashSet<ReconfigurableNode>();
+
 
 		PaxosConfig.sanityCheck();
 		if (args.length == 0)
@@ -439,7 +446,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 					 * nodes */
 					e.printStackTrace();
 				}
-			return;
+			return null;
 		}
 
 		ReconfigurationPolicyTest
@@ -453,7 +460,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		String cmdlineAppArgs = getAppArgs(args);
 		String[] appArgs = ((sysPropAppArgsAsString != null ? sysPropAppArgsAsString
 				: "")
-				+ " " + cmdlineAppArgs).split("\\s");
+				+ " " + cmdlineAppArgs).trim().split("(\\s)*");
 		int numServers = servers.size();
 		if (numServers == 0)
 			throw new RuntimeException("No valid server names supplied");
@@ -465,16 +472,20 @@ public abstract class ReconfigurableNode<NodeIDType> {
 					+ nodeConfig.getNodePort(node) + " ";
 			serversStr += serverStr;
 			System.out.print(serverStr);
+			rcNodes.add(
 			new DefaultReconfigurableNode(node,
 			// must use a different nodeConfig for each
 					new DefaultNodeConfig<String>(PaxosConfig.getActives(),
 							ReconfigurationConfig.getReconfigurators()),
-					appArgs, false);
+					appArgs, false)
+			);
 		}
 		ReconfigurationConfig.getLogger().log(Level.INFO, "{0} server{1} ready (total number of servers={2})",
 				new Object[] { serversStr, (numServers > 1 ? "s" : ""), PaxosConfig.getActives().size() +  
 				ReconfigurationConfig.getReconfigurators().size()});
 		System.out.println("]; server" + (numServers > 1 ? "s" : "") + servers
 				+ " ready");
+
+		return rcNodes;
 	}
 }
