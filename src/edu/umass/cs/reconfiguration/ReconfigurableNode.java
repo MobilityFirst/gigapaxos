@@ -496,7 +496,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 		String cmdlineAppArgs = getAppArgs(args);
 		String[] appArgs = ((sysPropAppArgsAsString != null ? sysPropAppArgsAsString
 				: "")
-				+ " " + cmdlineAppArgs).trim().split("(\\s)*");
+				+ " " + cmdlineAppArgs).trim().split("(\\s)+");
 		int numServers = servers.size();
 		if (numServers == 0)
 			throw new RuntimeException("No valid server names supplied");

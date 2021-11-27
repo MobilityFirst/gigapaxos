@@ -2047,7 +2047,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					+ " " + this.coordinator;
 			log.log(Level.WARNING,
 					"{0} resending timed out PREPARE {1}; "
-							+ "this is only needed under high congestion or reconfigurations",
+							+ "this is only needed under high congestion or reconfigurations or failures",
 					new Object[] { this,
 							PaxosCoordinator.getBallot(this.coordinator) });
 			Ballot newBallot = PaxosCoordinator.remakeCoordinator(
