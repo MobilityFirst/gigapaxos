@@ -26,7 +26,6 @@ import java.util.logging.Level;
 
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
-import jdk.nashorn.internal.runtime.regexp.joni.constants.NodeType;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
