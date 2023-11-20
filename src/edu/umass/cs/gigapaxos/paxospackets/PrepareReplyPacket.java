@@ -49,7 +49,7 @@ public class PrepareReplyPacket extends PaxosPacket {
 	 */
 	public final TreeMap<Integer, PValuePacket> accepted;
 
-	// first pvalue slot in accepted pvalues
+	// gcSlot+1
 	private final int firstSlot;
 
 	/*
@@ -61,8 +61,8 @@ public class PrepareReplyPacket extends PaxosPacket {
 	private final int maxSlot;
 	
 	/* Different from firstSlot in that firstSlot is gcSlot+1, but minSlot
-	 * is the minimum slot in accepted when this prepare reply was first
-	 * created.
+	 * is the minimum slot in the accepted pvalues map when this prepare reply
+	 * was first created.
 	 */
 	private final int minSlot;
 
@@ -198,7 +198,7 @@ public class PrepareReplyPacket extends PaxosPacket {
 				+ ballot
 				+ (!accepted.isEmpty() ? ", |accepted|=" + accepted.size()
 						+ "[" + this.getMinSlot() + "-" + this.getMaxSlot()
-						+ "]" : "");
+						+ "]" : "[]") + ("gcSlot=" + this.firstSlot);
 	}
 
 	public boolean isComplete() {

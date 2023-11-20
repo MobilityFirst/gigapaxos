@@ -73,7 +73,7 @@ public class IntegerMap<NodeIDType> {
 		// address hashcode collisions
 		if (collision)
 			while (this.nodeMap.containsKey(id)
-					&& !this.nodeMap.get(id).equals(node)) {
+					&& !this.nodeMap.get(id).equals(node) && !((""+id).equals(this.nodeMap.get(id).toString()))) {
 				log.warning("Hash collision: " + node + " != "
 						+ this.nodeMap.get(id));
 				id++;

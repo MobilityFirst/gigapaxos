@@ -75,8 +75,20 @@ public class PaxosAcceptor {
 	protected static final boolean GET_ACCEPTED_PVALUES_FROM_DISK = SQLPaxosLogger
 			.isLoggingEnabled() || SQLPaxosLogger.isJournalingEnabled();
 
-	protected static enum STATES {
-		RECOVERY, ACTIVE, STOPPED
+	// active but never run for coordinator yet
+protected boolean notRunYet() {
+	return this.state == (byte)STATES.ACTIVE_1.ordinal();
+}
+
+protected void setActive2() {
+	this.state = (byte)STATES.ACTIVE_2.ordinal();
+}
+
+protected static enum STATES {
+		RECOVERY,
+		ACTIVE_1, // active, haven't yet run for coordinator
+		ACTIVE_2, // active, have run for coordinator at least once
+		STOPPED
 	};
 
 	private int _slot = 0;
@@ -85,7 +97,7 @@ public class PaxosAcceptor {
 	private int ballotCoord = -1;
 	private int acceptedGCSlot = -1; // slot up to which accepted pvalues are
 										// garbage-collected
-	protected byte state = (byte) STATES.RECOVERY.ordinal(); // initial state is
+	private byte state = (byte) STATES.RECOVERY.ordinal(); // initial state is
 															// recovery
 
 	/*
@@ -144,11 +156,15 @@ public class PaxosAcceptor {
 	}
 
 	protected synchronized void setActive() {
-		this.state = (byte) STATES.ACTIVE.ordinal();
+		this.state = (byte) STATES.ACTIVE_1.ordinal();
 	}
 
 	protected synchronized boolean isActive() {
-		return this.state == (byte) STATES.ACTIVE.ordinal();
+		return this.state == (byte) STATES.ACTIVE_1.ordinal()
+
+				||
+
+				this.state == (byte) STATES.ACTIVE_2.ordinal();
 	}
 
 	protected synchronized boolean isRecovering() {
@@ -246,10 +262,17 @@ public class PaxosAcceptor {
 						: pruneAcceptedProposals(
 								this.acceptedProposals.getMap(),
 								prepare.firstUndecidedSlot),
-				// higest garbage collected slot
-				this.getGCSlot());
+				// max of higest garbage collected slot and
+				// (firstUndecidedSlot-1)
+				this.getMaxGCSlotFirstUndecidedSlot(prepare.firstUndecidedSlot));
 
 		return preply;
+	}
+
+	private int getMaxGCSlotFirstUndecidedSlot(int firstUndecidedSlot) {
+		if(this.getGCSlot() - (firstUndecidedSlot-1) < 0)
+			return firstUndecidedSlot-1;
+		else return this.getGCSlot();
 	}
 
 	// prunes accepted pvalues below those requested by coordinator

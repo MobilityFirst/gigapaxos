@@ -325,8 +325,8 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 	protected synchronized boolean isPrepareAcceptedByMajority(
 			PrepareReplyPacket prepareReply, int[] members) {
 		if (this.canIgnorePrepareReply(prepareReply, members)) {
-			log.log(Level.FINE, "{0} ignoring prepare reply",
-					new Object[] { this });
+			log.log(Level.FINE, "{0} ignoring prepare reply {1}",
+					new Object[] { this, prepareReply.getSummary()});
 			return false;
 		}
 		// isPreemptable and canIgnorePrepareReply should have been called
@@ -368,10 +368,12 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 		if (this.waitforMyBallot.heardFromMajority()) {
 			acceptedByMajority = true;
 			log.log(Level.FINE,
-					"{0}:{1} coordinator {2} acquired PREPARE majority and about to conduct view change; "
-							+ "accepted_pvalues_min_slots = {3}",
+					"{0}:{1} coordinator {2} acquired PREPARE majority {3} " +
+							"and about to conduct view change; "
+							+ "accepted_pvalues_min_slots = {4}",
 					new Object[] { this, prepareReply.getPaxosID(),
 							Ballot.getBallotString(myBallotNum, myBallotCoord),
+							this.waitforMyBallot,
 							getString(this.nodeSlotNumbers) });
 		}
 		return acceptedByMajority;

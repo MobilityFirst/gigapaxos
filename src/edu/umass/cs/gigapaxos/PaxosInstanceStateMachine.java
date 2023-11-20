@@ -910,7 +910,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				new Object[] {
 						this,
 						prepareReply.ballot.compareTo(prepare.ballot) > 0 ? "preempting"
-								: "acking", prepare.ballot,
+								: "acking", prepare.getSummary(),
 						prepareReply.getSummary(log.isLoggable(Level.INFO)) });
 
 		MessagingTask mtask = prevBallot.compareTo(prepareReply.ballot) < 0 ?
@@ -2005,6 +2005,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				this.groupMembers) ||
 		// current coordinator has been long dead
 				lastCoordinatorLongDead))))
+
+				||
+				// haven't run since reboot
+		notRunYet()
+				// just run
 				|| forceRun) {
 			/* We normally round-robin across nodes for electing coordinators,
 			 * e.g., node 7 will try to become coordinator in ballotnum such
@@ -2041,6 +2046,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					this.paxosState.getSlot(), false)) != null) {
 				multicastPrepare = new MessagingTask(this.groupMembers,
 						new PreparePacket(newBallot, this.paxosState.getSlot()));
+				this.paxosState.setActive2(); // mark as have run at least once
 			}
 		} else if (PaxosCoordinator.waitingTooLong(this.coordinator)) {
 			assert (!PaxosCoordinator.waitingTooLong(this.coordinator)) : this
@@ -2073,7 +2079,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		return multicastPrepare;
 	}
 
-	private String getBallots() {
+private boolean notRunYet() {
+		return this.paxosState.notRunYet();
+}
+
+private String getBallots() {
 		return "["
 				+ (this.coordinator != null ? "C:("
 						+ (this.coordinator != null ? this.coordinator
