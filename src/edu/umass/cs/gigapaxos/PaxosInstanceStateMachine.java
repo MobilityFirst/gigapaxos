@@ -380,6 +380,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 	protected void setActive() {
 		this.paxosState.setActive();
+		/* If acceptor slot is 0 and my coordinator ballot number is 0, this
+		 is the initial default coordinator, so we need to mark it as active2
+		  in order to obviate running for coordinator for the very first
+		  request.
+		*/
+		if(this.coordinator!=null && this.coordinator.getBallot().ballotNumber==0 && this.paxosState.getSlot()==0)
+			this.paxosState.setActive2();
 	}
 
 	protected boolean isActive() {
@@ -1188,7 +1195,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		PValuePacket committedPValue = PaxosCoordinator.handleAcceptReply(
 				this.coordinator, this.groupMembers, acceptReply);
 		if (!PaxosCoordinator.exists(this.coordinator))
-			this.coordinator = null;
+			this.coordinator = null; // no-op
 		if (committedPValue == null)
 			return null;
 
@@ -1230,7 +1237,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			 * 
 			 * Update: We no longer need to convert preempted requests to a no-op 
 			 * before forwarding to the new coordinator because we have support for
-			 * handling retransmitted duplicate requests without double execution. 
+			 * handling detecting previously issued accepts for the same
+			 * request ID.
 			 * */
 			assert (committedPValue.ballot.compareTo(acceptReply.ballot) < 0) : (committedPValue
 					+ " >= " + acceptReply);

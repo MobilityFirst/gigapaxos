@@ -68,8 +68,9 @@ public abstract class PaxosCoordinator {
 		boolean sendPrepare = false;
 		if (c == null || c.getPCS() == null
 				|| (c.getPCS().getBallot().compareTo(bnum, coord)) < 0) {
-			if(c==null) 
-				c = new PaxosCoordinatorState(bnum, coord, slot, members, null);
+			//if(c==null)
+			c = new PaxosCoordinatorState(bnum, coord, slot, members, null);
+
 			if (bnum == 0 || recovery)
 				// initial coordinator status assumed, not explicitly prepared.
 				c.getPCS().setCoordinatorActive();
@@ -95,9 +96,10 @@ public abstract class PaxosCoordinator {
 				return PaxosCoordinator.class.getSimpleName()+":"+myID;
 			}
 		};
-		if (bnum == 0 || recovery)
+		if (bnum == 0 || recovery) {
 			// initial coordinator status assumed, not explicitly prepared.
 			c.setCoordinatorActive();
+		}
 		return c;
 	}
 	
@@ -118,7 +120,13 @@ public abstract class PaxosCoordinator {
 	}
 
 	/*
-	 * Cease to exist. Internally called when preempted.
+	 * Cease to exist. Internally called when preempted. The name
+	 * resignAsCoordinator is not meaningful and is a relic of the past. This
+	 *  method just returns proposals in myProposals, which would be
+	 * preActives only if this method is invoked from handlePrepareReply.
+	 *
+	 * This method is also invoked from handleAcceptReply in which case it
+	 * just acts as a no-op.
 	 */
 	private synchronized ArrayList<ProposalPacket> resignAsCoordinator() {
 		ArrayList<ProposalPacket> preActiveProposals = null;
@@ -317,6 +325,7 @@ public abstract class PaxosCoordinator {
 		return (this.exists() && this.isCommandering(slot) && this.getPCS()
 				.testAndSetWaitingTooLong(slot)) ? true : false;
 	}
+
 
 	protected abstract boolean isCommandering(int slot);
 
