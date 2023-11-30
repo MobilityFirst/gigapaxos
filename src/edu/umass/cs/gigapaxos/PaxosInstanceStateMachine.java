@@ -852,7 +852,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			mtasks[0] = new MessagingTask(
 					this.paxosManager.isNodeUp(coordinator) ? coordinator
 							// send to next coordinator if current seems dead
-							: (coordinator = this.getNextCoordinator(
+							: (coordinator = this.getNextCoordinator(coordinator,
 									this.paxosState.getBallot().ballotNumber + 1,
 									groupMembers)),
 					proposal.setForwarderID(this.getMyID())); // unicast
@@ -2009,7 +2009,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		// my acceptor's coordinator is dead
 		(!this.paxosManager.isNodeUp(curBallot.coordinatorID) &&
 		// I am next in line
-		(this.getMyID() == getNextCoordinator(curBallot.ballotNumber + 1,
+		(this.getMyID() == getNextCoordinator(curBallot.coordinatorID, curBallot.ballotNumber + 1,
 				this.groupMembers) ||
 		// current coordinator has been long dead
 				lastCoordinatorLongDead))))
@@ -2080,7 +2080,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							this,
 							curBallot.coordinatorID,
 							(lastCoordinatorLongDead ? "*long*" : ""),
-							getNextCoordinator(curBallot.ballotNumber + 1,
+							getNextCoordinator(curBallot.coordinatorID, curBallot.ballotNumber + 1,
 									this.groupMembers),
 							(PaxosCoordinator.ranRecently(this.coordinator) ? ", and I ran too recently to try again"
 									: "") });
@@ -2124,16 +2124,18 @@ private String getBallots() {
 	 * 100 is the coordinator, then 102's accept replies will keep preempting
 	 * 100's accepts but 101 may never run for coordinator as it has no reason
 	 * to think there is any problem with 100. */
-	private int getNextCoordinator(int ballotnum, int[] members,
+	private int getNextCoordinator(int coordinator, int ballotnum, int[] members,
 			boolean recovery) {
 		for (int i = 1; i < members.length; i++)
 			assert (members[i - 1] < members[i]);
 		assert (!recovery);
+		for(int i=0; i<members.length; i++)
+			if(members[i]==coordinator) return members[(i+1)%members.length];
 		return roundRobinCoordinator(ballotnum);
 	}
 
-	private int getNextCoordinator(int ballotnum, int[] members) {
-		return this.getNextCoordinator(ballotnum, members, false);
+	private int getNextCoordinator(int coordinator, int ballotnum, int[] members) {
+		return this.getNextCoordinator(coordinator, ballotnum, members, false);
 	}
 
 	private int roundRobinCoordinator(int ballotnum) {

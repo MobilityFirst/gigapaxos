@@ -71,7 +71,7 @@ public class FailureDetection<NodeIDType> {
 			.getGlobalLong(PaxosConfig.PC.FAILURE_DETECTION_TIMEOUT) * 1000;
 	private static long inter_ping_period_millis = node_detection_timeout_millis / 2;
 	// run for coordinator even if not next-in-line
-	private static long coordinator_failure_detection_timeout = 3 * node_detection_timeout_millis;
+	private static long coordinator_failure_detection_timeout = 2 * node_detection_timeout_millis;
 	private static long pessimism_offset = 0;
 
 	/*
