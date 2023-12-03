@@ -846,7 +846,7 @@ public class PaxosConfig {
 		/**
 		 * 
 		 */
-		ACCEPT_TIMEOUT(Integer.MAX_VALUE),
+		ACCEPT_TIMEOUT(Config.getGlobalInt(FAILURE_DETECTION_TIMEOUT)),
 
 		/**
 		 * 
@@ -895,6 +895,30 @@ public class PaxosConfig {
 		 * Turns on delay emulation.
 		 */
 		EMULATE_DELAYS (false),
+
+		// seconds
+		PREPARE_TIMEOUT (Config.getGlobalInt(FAILURE_DETECTION_TIMEOUT)),
+
+		ENABLE_FRAGMENTATION (true),
+
+		/* NIO max payload is 64MB, so environments with larger messages need
+		 to set this appropriately. Prepare replies are the only potentially
+		 problematically large messages as they can include batched ACCEPTs
+		 for a large number of slots that can grow large.
+		 */
+		NIO_MAX_PAYLOAD_SIZE (16 * 1024 * 1024),
+
+		/**
+		 * If true, identical requests, i.e., requests with the same requestID,
+		 * paxosID, and sending client's socket address, will get a recently
+		 * cached response if any instead of re-coordinating the request. This
+		 * is useful to reduce the likelihood of double-execution, but does not
+		 * eliminate it completely.
+		 */
+		ENABLE_RESPONSE_CACHING(true),
+
+		FORWARD_PREEMPTED_REQUESTS(true),
+
 
 		/**
 		 * FIXME: The options below only exist for testing stringification
@@ -958,14 +982,8 @@ public class PaxosConfig {
 		 */
 		DISABLE_GET_LOGGED_MESSAGES(false, true),
 		
-		/**
-		 * If true, identical requests, i.e., requests with the same requestID, 
-		 * paxosID, and sending client's socket address, will get a recently
-		 * cached response if any instead of re-coordinating the request. This
-		 * is useful to reduce the likelihood of double-execution, but does not
-		 * eliminate it completely.
-		 */
-		ENABLE_RESPONSE_CACHING(true),
+
+
 
 		/*********** End of unsafe testing options *****************/
 
@@ -1092,7 +1110,7 @@ public class PaxosConfig {
 		final Map<String, InetSocketAddress> actives = PaxosConfig.getActives();
 
 		// FIXME: don't use reconfiguration classes in gigapaxos
-		return new ReconfigurableNodeConfig<String>() {
+		return new /*Reconfigurable*/NodeConfig<String>() {
 
 			@Override
 			public boolean nodeExists(String id) {
@@ -1145,15 +1163,15 @@ public class PaxosConfig {
 				throw new RuntimeException("Method not yet implemented");
 			}
 
-			@Override
-			public Set<String> getActiveReplicas() {
-				return new HashSet<String>(actives.keySet());
-			}
-
-			@Override
-			public Set<String> getReconfigurators() {
-				return new HashSet<String>(actives.keySet());
-			}
+//			@Override
+//			public Set<String> getActiveReplicas() {
+//				return new HashSet<String>(actives.keySet());
+//			}
+//
+//			@Override
+//			public Set<String> getReconfigurators() {
+//				return new HashSet<String>(actives.keySet());
+//			}
 		};
 	}
 

@@ -772,12 +772,24 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 		registerSSL(socketChannelKey, false);
 	}
 
-	/**
-	 * Invoked only by the selector thread. read() is easy as it just needs to
-	 * read whatever is available and send it off to DataProcessingWorker (that
-	 * has to deal with the complexity of parsing a byte stream).
-	 */
-	public static final int MAX_PAYLOAD_SIZE = 4 * 1024 * 1024;
+
+/**
+ * NIO imposes a max payload size by default because its nonblocking nature
+ * inherently means that it has to buffer messages until it can send them.
+ * If the total size of buffered messages grows above the machine's memory
+ * capacity, it will fail. Currently, NIO doesn't explicitly monitor buffer
+ * size usage but instead only limits the number of messages. It is not
+ * useful for a single NIO object to track its total memory consumption as
+ * there may be many active NIO objects in use.
+ *
+ * TODO: Track NIO usage across all NIO instances using a static variable and
+ * issue a warning if it exceeds a configurable limit.
+ **/
+	public static int MAX_PAYLOAD_SIZE = 4 * 1024 * 1024;
+
+	public static void setMaxPayloadSize(int size) {
+		MAX_PAYLOAD_SIZE = Math.max(MAX_PAYLOAD_SIZE, size);
+	}
 
 	// used also by SSLDataProcessingWorker
 	protected static final class AlternatingByteBuffer {
@@ -825,6 +837,11 @@ public class NIOTransport<NodeIDType> implements Runnable, HandshakeCallback {
 
 	private final ConcurrentHashMap<SelectionKey, AlternatingByteBuffer> congested = new ConcurrentHashMap<SelectionKey, AlternatingByteBuffer>();
 
+/**
+ * Invoked only by the selector thread. read() is easy as it just needs to
+ * read whatever is available and send it off to DataProcessingWorker (that
+ * has to deal with the complexity of parsing a byte stream).
+ */
 	private void read(SelectionKey key) throws IOException {
 		SocketChannel socketChannel = (SocketChannel) key.channel();
 

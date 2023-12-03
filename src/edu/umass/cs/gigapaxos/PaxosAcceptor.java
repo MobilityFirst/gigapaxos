@@ -260,6 +260,9 @@ protected static enum STATES {
 				// send pvalues only if not NACKing
 				this.getBallot().compareTo(prepare.ballot) > 0 ? new HashMap<Integer, PValuePacket>()
 						: pruneAcceptedProposals(
+								// note: making a copy and modifying it;
+						// pruning this.acceptedProposals would obviously not
+						// be safe.
 								this.acceptedProposals.getMap(),
 								prepare.firstUndecidedSlot),
 				// max of higest garbage collected slot and
@@ -269,7 +272,7 @@ protected static enum STATES {
 		return preply;
 	}
 
-	private int getMaxGCSlotFirstUndecidedSlot(int firstUndecidedSlot) {
+	protected int getMaxGCSlotFirstUndecidedSlot(int firstUndecidedSlot) {
 		if(this.getGCSlot() - (firstUndecidedSlot-1) < 0)
 			return firstUndecidedSlot-1;
 		else return this.getGCSlot();
@@ -277,12 +280,12 @@ protected static enum STATES {
 
 	// prunes accepted pvalues below those requested by coordinator
 	private synchronized Map<Integer, PValuePacket> pruneAcceptedProposals(
-			Map<Integer, PValuePacket> acceptedMap, int minSlot) {
+			Map<Integer, PValuePacket> acceptedMap, int firstUndecidedSlot) {
 		// long t = System.currentTimeMillis();
 		Iterator<Integer> slotIterator = acceptedMap.keySet().iterator();
 		while (slotIterator.hasNext()) {
 			// comparator should be wraparound-aware
-			if (slotIterator.next() - minSlot < 0)
+			if (slotIterator.next() - firstUndecidedSlot < 0)
 				slotIterator.remove();
 		}
 		// DelayProfiler.updateDelay("getMemoryLoggedAccepts", t);

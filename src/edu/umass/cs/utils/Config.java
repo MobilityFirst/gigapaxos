@@ -124,7 +124,7 @@ public class Config extends Properties {
 	 * @throws IOException
 	 */
 	public static Config register(Class<?> type, String systemPropertyKey,
-			String defaultConfigFile) throws IOException {
+			String defaultConfigFile, Level level) throws IOException {
 		if (!type.isEnum() && !isDefaultValueEnum(type))
 			return null;
 		// one time
@@ -144,6 +144,11 @@ public class Config extends Properties {
 					+ configFile + "; using default values for type " + type);
 			throw ioe;
 		}
+	}
+public static Config register(Class<?> type, String systemPropertyKey,
+							  String defaultConfigFile) throws IOException {
+		return register(type, systemPropertyKey, defaultConfigFile,
+				Level.WARNING);
 	}
 
 	private static HashMap<Object, Object> cmdLine = new HashMap<Object, Object>();

@@ -50,7 +50,7 @@ public class PrepareReplyPacket extends PaxosPacket {
 	public final TreeMap<Integer, PValuePacket> accepted;
 
 	// gcSlot+1
-	private final int firstSlot;
+	public final int firstSlot;
 
 	/*
 	 * Maximum pvalue slot in accepted pvalues. We store this explicitly even
@@ -66,10 +66,13 @@ public class PrepareReplyPacket extends PaxosPacket {
 	 */
 	private final int minSlot;
 
+	public int totalCount;
+
 	private long createTime = System.currentTimeMillis();
 
 	public PrepareReplyPacket(int receiverID, Ballot ballot,
-			Map<Integer, PValuePacket> accepted, int gcSlot, int minSlot, int maxSlot) {
+			Map<Integer, PValuePacket> accepted, int gcSlot, int minSlot,
+							  int maxSlot, int totalCount) {
 		super(accepted == null || accepted.isEmpty() ? (PaxosPacket) null
 				: accepted.values().iterator().next());
 		this.acceptor = receiverID;
@@ -79,13 +82,14 @@ public class PrepareReplyPacket extends PaxosPacket {
 		this.firstSlot = gcSlot + 1;
 		this.maxSlot = maxSlot;
 		this.minSlot = minSlot;
+		this.totalCount = totalCount;
 		this.packetType = PaxosPacketType.PREPARE_REPLY;
 	}
 
 	public PrepareReplyPacket(int receiverID, Ballot ballot,
 			Map<Integer, PValuePacket> accepted, int gcSlot) {
 		this(receiverID, ballot, accepted, gcSlot, getMinSlot(gcSlot+1, accepted), getMaxSlot(gcSlot + 1,
-				accepted));
+				accepted), accepted.size());
 	}
 
 	public PrepareReplyPacket(JSONObject json) throws JSONException {
@@ -99,13 +103,15 @@ public class PrepareReplyPacket extends PaxosPacket {
 		this.firstSlot = json.getInt(PaxosPacket.Keys.PREPLY_MIN.toString());
 		this.maxSlot = json.getInt(PaxosPacket.Keys.MAX_S.toString());
 		this.minSlot = json.getInt(PaxosPacket.Keys.MIN_S.toString());
+		this.totalCount = json.getInt(PaxosPacket.Keys.TOT_S.toString());
 		this.createTime = json.getLong(RequestPacket.Keys.CT.toString());
 	}
 
 	// only for unit testing in PrepareReplyAssembler
 	public PrepareReplyPacket(int acceptor, Ballot ballot,
 			HashMap<Integer, PValuePacket> acceptedMap, int gcSlot, int max) {
-		this(acceptor, ballot, acceptedMap, gcSlot, gcSlot+1, max);
+		this(acceptor, ballot, acceptedMap, gcSlot, gcSlot+1, max,
+				acceptedMap.size());
 	}
 
 	private TreeMap<Integer, PValuePacket> parseJsonForAccepted(JSONObject json)
@@ -133,6 +139,7 @@ public class PrepareReplyPacket extends PaxosPacket {
 		json.put(PaxosPacket.Keys.PREPLY_MIN.toString(), this.firstSlot);
 		json.put(PaxosPacket.Keys.MAX_S.toString(), this.maxSlot);
 		json.put(PaxosPacket.Keys.MIN_S.toString(), this.minSlot);
+		json.put(PaxosPacket.Keys.TOT_S.toString(), this.totalCount);
 		json.put(RequestPacket.Keys.CT.toString(), this.createTime);
 		return json;
 	}
@@ -169,15 +176,16 @@ public class PrepareReplyPacket extends PaxosPacket {
 		return minSlot;
 	}
 
-	// FIXME: wraparound
 	private static int getMaxSlot(int firstSlot,
 			Map<Integer, PValuePacket> acceptedMap) {
-		Integer maxSlot = firstSlot - 1;
+		Integer maxSlot = null;
 		if (acceptedMap != null && !acceptedMap.isEmpty()) {
-			for (Integer curSlot : acceptedMap.keySet())
-				if (curSlot - maxSlot > 0)
-					maxSlot = curSlot;
+			for (Integer curSlot : acceptedMap.keySet()) {
+				if(maxSlot==null) maxSlot = curSlot;
+				else if (curSlot - maxSlot > 0) maxSlot = curSlot;
+			}
 		}
+		if(maxSlot==null) maxSlot = firstSlot;
 		return maxSlot;
 	}
 
@@ -197,15 +205,14 @@ public class PrepareReplyPacket extends PaxosPacket {
 				+ ":"
 				+ ballot
 				+ (!accepted.isEmpty() ? ", |accepted|=" + accepted.size()
-						+ "[" + this.getMinSlot() + "-" + this.getMaxSlot()
-						+ "]" : "[]") + ("gcSlot=" + this.firstSlot);
+				//		+ "[" + this.getMinSlot() + "-" + this.getMaxSlot()
+				//		+ "]"
+				+ accepted.keySet()
+				: "[]") + ("firstSlot=" + this.firstSlot);
 	}
 
 	public boolean isComplete() {
-		for (int i = this.minSlot; i <= this.maxSlot; i++)
-			if (!this.accepted.containsKey(i))
-				return false;
-		return true;
+		return this.totalCount == this.accepted.size();
 	}
 
 	public boolean combine(PrepareReplyPacket incoming) {
@@ -231,7 +238,7 @@ public class PrepareReplyPacket extends PaxosPacket {
 	public PrepareReplyPacket fragment(int length) {
 		PrepareReplyPacket frag = new PrepareReplyPacket(this.acceptor,
 				this.ballot, new HashMap<Integer, PValuePacket>(),
-				this.firstSlot - 1, this.minSlot, this.maxSlot);
+				this.firstSlot - 1, this.minSlot, this.maxSlot, this.totalCount);
 		frag.putPaxosID(this.getPaxosID(), this.getVersion());
 		int curLength = 0;
 		//System.out.println("creating fragment of length "+ length);
@@ -248,7 +255,12 @@ public class PrepareReplyPacket extends PaxosPacket {
 			frag.accepted.put(pvalue.slot, pvalue);
 			slotIter.remove();
 		}
+		// each fragment will carry original totalCount
 		//System.out.println("returning " + frag.getSummary());
 		return frag;
 	}
+
+public void fixTotalCount() {
+		this.totalCount = this.accepted.size();
+}
 }

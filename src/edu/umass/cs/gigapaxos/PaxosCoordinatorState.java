@@ -57,12 +57,13 @@ import edu.umass.cs.utils.Util;
 public class PaxosCoordinatorState extends PaxosCoordinator {
 	private static final String NO_OP = RequestPacket.NO_OP;
 	private static final String STOP = "STOP";
-	private static final int PREPARE_TIMEOUT = 10000; // ms
-	private static final int ACCEPT_TIMEOUT = 10000; // ms
+	private static final int PREPARE_TIMEOUT = Config.getGlobalInt(PC.PREPARE_TIMEOUT)*1000; // ms
+	private static final int ACCEPT_TIMEOUT =
+			Config.getGlobalInt(PC.ACCEPT_TIMEOUT)*1000; // ms
 	private static final double ACCEPT_RETRANSMISSION_BACKOFF_FACTOR = 1.5;
 	private static final double PREPARE_RETRANSMISSION_BACKOFF_FACTOR = 1.5;
 
-	private static final int RERUN_DELAY_THRESHOLD = 10000; // ms
+	private static final int RERUN_DELAY_THRESHOLD = PREPARE_TIMEOUT; //ms
 
 	// final ballot, takes birth and dies with this PaxosCoordinatorState
 	private final int myBallotNum;
@@ -75,7 +76,7 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 
 	/*
 	 * List of proposals carried over from lower ballots to be re-proposed or
-	 * committed in my ballot. Non-null only untul the coordinator becomes
+	 * committed in my ballot. Non-null only until the coordinator becomes
 	 * active.
 	 */
 	private NullIfEmptyMap<Integer, PValuePacket> carryoverProposals = new NullIfEmptyMap<Integer, PValuePacket>();
@@ -412,10 +413,18 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 															// pre-active
 				this.myProposals.put(curSlot, new ProposalStateAtCoordinator(
 						members, makeNoopPValue(curSlot, null, paxosID, version)));
-			} else if (preActives.containsKey(curSlot)) { // stick with
-															// pre-active
-				this.myProposals.put(curSlot, preActives.get(curSlot));
+			} else if (preActives.containsKey(curSlot)) {
+				// stick with pre-active
+				// but insert only if not duplicate with carryover so as to
+				// prevent duplicate execution because of forwarding
+				// preempted requests
+				if(!isDuplicate(preActives.get(curSlot),
+						this.carryoverProposals)) {
+					this.myProposals.put(curSlot, preActives.get(curSlot));
+				}
+				// remove even if duplicate
 				preActives.remove(curSlot);
+
 			}
 		}
 		/*
@@ -434,7 +443,15 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 		processStop(members);
 	}
 
-	/*
+private boolean isDuplicate(ProposalStateAtCoordinator psac,
+							NullIfEmptyMap<Integer, PValuePacket> carryoverProposals)
+{
+	for(PValuePacket pvalue : carryoverProposals.values())
+		if(psac.pValuePacket.equals(pvalue)) return true;
+	return false;
+}
+
+/*
 	 * Phase1b Utility method invoked in combinePValuesOntoProposals to
 	 * repropose slot numbers below maxMinCarryoverSlot with slot numbers >=
 	 * nextProposalSlotNumber. We could also safely just drop these requests,

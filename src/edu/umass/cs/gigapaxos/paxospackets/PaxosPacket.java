@@ -95,6 +95,11 @@ public abstract class PaxosPacket extends JSONPacket implements Summarizable {
 		 */
 		MIN_S,
 		/**
+		 * total number of non-empty slots between MIN_S and MAX_S
+		 */
+		TOT_S,
+
+		/**
 		 * missing decisions
 		 */
 		MISS,

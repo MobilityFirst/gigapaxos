@@ -5,7 +5,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
+import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.utils.Config;
 import org.junit.Test;
 
 import edu.umass.cs.gigapaxos.paxospackets.PValuePacket;
@@ -93,20 +97,27 @@ public class PrepareReplyAssembler {
 	 * @param preply
 	 * @return Array of fragment prepare replies.
 	 */
-	public static PrepareReplyPacket[] fragment(PrepareReplyPacket preply) {
-		return fragment(preply, NIOTransport.MAX_PAYLOAD_SIZE);
+	public static PrepareReplyPacket[] fragment(PrepareReplyPacket preply,
+												Object invoker) {
+		return Config.getGlobalBoolean(PaxosConfig.PC.ENABLE_FRAGMENTATION) ?
+				fragment(preply, NIOTransport.MAX_PAYLOAD_SIZE, invoker) :
+				new PrepareReplyPacket[]{preply};
 	}
 
 	private static PrepareReplyPacket[] fragment(PrepareReplyPacket preply,
-			int fragmentSize) {
+			int fragmentSize, Object invoker) {
 		Set<PrepareReplyPacket> fragments = new HashSet<PrepareReplyPacket>();
 		if (preply.getLengthEstimate() <= fragmentSize) {
 			fragments.add(preply);
 			return fragments.toArray(new PrepareReplyPacket[0]);
 		}
-
-		while (!preply.accepted.isEmpty())
-			fragments.add(preply.fragment(fragmentSize));
+		else {
+			ReconfigurationConfig.getLogger().log(Level.WARNING, "{0} " +
+					"fragmenting large prepare reply payload of size {1}: " +
+					"{2}", new Object[]{invoker, preply.getLengthEstimate(),
+					preply});
+			while (!preply.accepted.isEmpty()) fragments.add(preply.fragment(fragmentSize));
+		}
 		return fragments.toArray(new PrepareReplyPacket[0]);
 	}
 

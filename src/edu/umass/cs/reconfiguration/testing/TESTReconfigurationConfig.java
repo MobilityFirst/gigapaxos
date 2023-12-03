@@ -39,7 +39,7 @@ public class TESTReconfigurationConfig {
 		// testing specific config parameters
 		try {
 			Config.register(TRC.class, TESTING_CONFIG_FILE_KEY,
-					DEFAULT_TESTING_CONFIG_FILE);
+					DEFAULT_TESTING_CONFIG_FILE, Level.FINE);
 		} catch (IOException e) {
 			// ignore as defaults will be used
 		}

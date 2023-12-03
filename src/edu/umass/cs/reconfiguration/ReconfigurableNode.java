@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 
+import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
 import org.json.JSONObject;
@@ -446,6 +447,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
 	public static Set<ReconfigurableNode> main1(String[] args) throws IOException {
 		PaxosConfig.ensureFileHandlerDirExists();
 		Config.register(args);
+		NIOTransport.setMaxPayloadSize(Config.getGlobalInt(PC.NIO_MAX_PAYLOAD_SIZE));
 		ReconfigurationConfig.setConsoleHandler();
 
 		Set<ReconfigurableNode> rcNodes = new HashSet<ReconfigurableNode>();

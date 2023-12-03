@@ -478,7 +478,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * resend accepts. There is little reason to send prepares proactively
 		 * if no new activity is happening. */
 		mtasks[0] = (!recovery ?
-		// check run for coordinator if not active
+		// check run for coordinator if not active, which will also check to
+				// reissue timed out prepare if needed
 		(!PaxosCoordinator.isActive(this.coordinator)
 		// ignore pokes unless not caught up
 		&& (!isPoke || !PaxosCoordinator.caughtUp(this.coordinator))) ? checkRunForCoordinator()
@@ -821,12 +822,16 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				this.paxosState.getBallot())) {
 			// multicast ACCEPT to all
 			proposal.addDebugInfoDeep("a");
-			AcceptPacket multicastAccept = this.getPaxosManager()
-					.getPreviouslyIssuedAccept(proposal);
-			if (multicastAccept == null || !multicastAccept.ballot.equals(this.coordinator.getBallot()))
-				this.getPaxosManager().setIssuedAccept(
-						multicastAccept = PaxosCoordinator.propose(
-								this.coordinator, this.groupMembers, proposal));
+			AcceptPacket multicastAccept;
+			// This synchronization is so that a concurrent issuance of
+			// an identical ACCEPT and invocation of setIssuedAccept in
+			// handlePrepareReply doesn't interleave resulting in double
+			// execution of a preempted and forwarded request.
+			synchronized (this) {
+				multicastAccept = this.getPaxosManager().getPreviouslyIssuedAccept(proposal);
+				if (multicastAccept == null || !multicastAccept.ballot.equals(this.coordinator.getBallot()))
+					this.getPaxosManager().setIssuedAccept(multicastAccept = PaxosCoordinator.propose(this.coordinator, this.groupMembers, proposal));
+			}
 			if (multicastAccept != null) {
 				assert (this.coordinator.getBallot().coordinatorID == getMyID() && multicastAccept.sender == getMyID());
 				if (proposal.isBroadcasted())
@@ -899,13 +904,32 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			return null; // no need to get accepted pvalues from disk during
 							// recovery as networking is disabled anyway
 
-		// may also need to look into disk if ACCEPTED_PROPOSALS_ON_DISK is true
+		/** In general, we need to also check the disk if
+		 * ACCEPTED_PROPOSALS_ON_DISK is true because the in-memory accepts
+		 * are not reliable under crash recovery.
+		 *
+		 * We may have some accepts not garbage collected on disk
+		 * even though they have been GC'd in memory because we prefer to not
+		 * incur the overhead of
+		 * GC'ing
+		 * in {@link PaxosInstanceStateMachine#garbageCollectAccepted(int)}
+		 * potentially upon every accept or decision, so we may find some
+		 * accepts on disk that don't need to be sent for safety, but it
+		 * can't hurt and will probably help the coordinator if its
+		 * firstUndecidedSlot is at or below the acceptor's GC'd slot. The GC
+		 * overhead on disk-logged accepts is incurred only upon checkpointing.
+		 */
 		if (PaxosAcceptor.GET_ACCEPTED_PVALUES_FROM_DISK
-		// no need to gather pvalues if NACKing anyway
-				&& prepareReply.ballot.compareTo(prepare.ballot) == 0)
-			prepareReply.accepted.putAll(this.paxosManager.getPaxosLogger()
-					.getLoggedAccepts(this.getPaxosID(), this.getVersion(),
-							prepare.firstUndecidedSlot));
+				// no need to gather pvalues if NACKing anyway
+				&& prepareReply.ballot.compareTo(prepare.ballot) == 0) {
+			prepareReply.accepted.putAll(this.paxosManager.getPaxosLogger().getLoggedAccepts(this.getPaxosID(), this.getVersion(), prepare.firstUndecidedSlot
+//							this.paxosState.getMaxGCSlotFirstUndecidedSlot
+//							(prepare.firstUndecidedSlot)+1_
+			));
+			// to ensure isComplete is true upon receipt in case
+			// fragmentation is enabled.
+			prepareReply.fixTotalCount();
+		}
 
 		for (PValuePacket pvalue : prepareReply.accepted.values())
 			// if I accepted a pvalue, my acceptor ballot must reflect it
@@ -924,17 +948,16 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		// log only if not already logged (if my ballot got upgraded)
 		new LogMessagingTask(prepare.ballot.coordinatorID,
 		// ensures large prepare replies are fragmented
-				PrepareReplyAssembler.fragment(prepareReply), prepare)
+				PrepareReplyAssembler.fragment(prepareReply,this), prepare)
 				// else just send prepareReply
 				: new MessagingTask(prepare.ballot.coordinatorID,
-						PrepareReplyAssembler.fragment(prepareReply));
-		for (PaxosPacket pp : mtask.msgs)
-			assert (((PrepareReplyPacket) pp).getLengthEstimate() < NIOTransport.MAX_PAYLOAD_SIZE) : Util
-					.suicide(this
-							+ " trying to return unfragmented prepare reply of size "
-							+ ((PrepareReplyPacket) pp).getLengthEstimate()
-							+ " : " + pp.getSummary() + "; prevBallot = "
-							+ prevBallot);
+						PrepareReplyAssembler.fragment(prepareReply, this));
+		for (PaxosPacket pp : mtask.msgs) {
+			assert (((PrepareReplyPacket) pp).getLengthEstimate() < NIOTransport.MAX_PAYLOAD_SIZE) :
+					Util.suicide(this + " trying to return unfragmented prepare reply of size " +
+							((PrepareReplyPacket) pp).getLengthEstimate() + " : " + pp.getSummary() +
+							"; prevBallot = " + prevBallot);
+		}
 		return mtask;
 	}
 
@@ -951,7 +974,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * to all replicas. */
 	private MessagingTask handlePrepareReply(PrepareReplyPacket prepareReply) {
 		// necessary to defragment first for safety
-		if ((prepareReply = PrepareReplyAssembler.processIncoming(prepareReply)) == null) {
+		if (Config.getGlobalBoolean(PC.ENABLE_FRAGMENTATION) && (prepareReply =
+				PrepareReplyAssembler.processIncoming(prepareReply)) == null) {
 			return null;
 		}
 		this.paxosManager.heardFrom(prepareReply.acceptor); // FD optimization,
@@ -959,38 +983,44 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		ArrayList<ProposalPacket> preActiveProposals = null;
 		ArrayList<AcceptPacket> acceptList = null;
 
-		if ((preActiveProposals = PaxosCoordinator.getPreActivesIfPreempted(
-				this.coordinator, prepareReply, this.groupMembers)) != null) {
-			log.log(Level.INFO,
-					"{0} ({1}) election PREEMPTED by {2}",
-					new Object[] { this,
-							PaxosCoordinator.getBallotStr(this.coordinator),
-							prepareReply.ballot });
-			this.coordinator = null;
-			if (!preActiveProposals.isEmpty())
-				mtask = new MessagingTask(prepareReply.ballot.coordinatorID,
-						(preActiveProposals.toArray(new PaxosPacket[0])));
-		} else if ((acceptList = PaxosCoordinator.handlePrepareReply(
-				this.coordinator, prepareReply, this.groupMembers)) != null
-				&& !acceptList.isEmpty()) {
-			mtask = new MessagingTask(this.groupMembers,
-					((acceptList).toArray(new PaxosPacket[0])));
-			// can't have previous accepts as just became coordinator
-			for(AcceptPacket accept : acceptList)
-				this.getPaxosManager().setIssuedAccept(accept);
-			log.log(Level.INFO, "{0} elected coordinator; sending {1}",
-					new Object[] { this, mtask });
-		} else if(acceptList != null && this.coordinator.isActive())
-			/* This case can happen when a node runs for coordinator and gets
-			 * elected without being prompted by a client request, which can
-			 * happen upon the receipt of any paxos packet and the presumed
-			 * coordinator has been unresponsive for a while.
-			 */
-			log.log(Level.INFO, "{0} elected coordinator; no ACCEPTs to send",
-					new Object[] { this});
-		else
-			log.log(Level.FINE, "{0} received prepare reply {1}", new Object[] {
-					this, prepareReply.getSummary(log.isLoggable(Level.INFO)) });
+		// synchronization needed so that identical requests don't find
+		// different slots because of concurrency between this block and the
+		// synchronized block in handleProposal. This way, combined with
+		// duplicate checking within PaxosCoordinatorState.propose, we can
+		// forward preempted requests while preventing duplicate execution.
+		//
+		// This synchronization only prevents the same request from getting a
+		// different slot if the forwarded request comes after the lower
+		// ballot accept has been inserted and the coordinator has gotten
+		// elected and reissued lower ballot accepts; otherwise a preactive
+		// coordinator could still double-insert the same request as no
+		// accepts are issued in the preactive stage. Thus, we still need to
+		// explicitly detect duplicate requests in the preactive state in
+		// PaxosCoordinatorState.
+		synchronized (this) {
+			if ((preActiveProposals = PaxosCoordinator.getPreActivesIfPreempted(this.coordinator, prepareReply, this.groupMembers)) != null) {
+				log.log(Level.INFO, "{0} ({1}) election PREEMPTED by {2}", new Object[]{this, PaxosCoordinator.getBallotStr(this.coordinator), prepareReply.ballot});
+				this.coordinator = null;
+				if (!preActiveProposals.isEmpty())
+					mtask = new MessagingTask(prepareReply.ballot.coordinatorID, (preActiveProposals.toArray(new PaxosPacket[0])));
+			}
+			else if ((acceptList = PaxosCoordinator.handlePrepareReply(this.coordinator, prepareReply, this.groupMembers)) != null && !acceptList.isEmpty()) {
+				mtask = new MessagingTask(this.groupMembers, ((acceptList).toArray(new PaxosPacket[0])));
+				// can't have previous accepts as just became coordinator
+				for (AcceptPacket accept : acceptList)
+					this.getPaxosManager().setIssuedAccept(accept);
+				log.log(Level.INFO, "{0} elected coordinator; sending {1}", new Object[]{this, mtask});
+			}
+			else if (acceptList != null && this.coordinator.isActive())
+				/* This case of !acceptList.isEmpty() can happen when a node
+				 * runs for coordinator and gets
+				 * elected without being prompted by a client request, which can
+				 * happen upon the receipt of any paxos packet and the presumed
+				 * coordinator has been unresponsive for a while.
+				 */
+				log.log(Level.INFO, "{0} elected coordinator; no ACCEPTs to send", new Object[]{this});
+			else log.log(Level.FINE, "{0} received prepare reply {1}", new Object[]{this, prepareReply.getSummary(log.isLoggable(Level.INFO))});
+		}
 
 		return mtask; // Could be unicast or multicast
 	}
@@ -1014,17 +1044,20 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		// accept.batchSize()+1);
 
 		AcceptPacket copy = accept;
-		if (DIGEST_REQUESTS && !accept.hasRequestValue()
-				&& (accept = this.paxosManager.match(accept)) == null) {
-			log.log(Level.FINE, "{0} received unmatched accept ", new Object[] {
-					this, copy.getSummary(log.isLoggable(Level.FINE)) });
-			// if(this.paxosState.getSlot() - copy.slot > 0)
-			// DelayProfiler.updateCount("C_EXECD_ACCEPTS_RCVD",
-			// copy.batchSize()+1);
-			return new MessagingTask[0];
-		} else
-			log.log(Level.FINER, "{0} received matching accept for {1}", new Object[] {
-					this, accept.getSummary() });
+		if (DIGEST_REQUESTS && !accept.hasRequestValue()) {
+			if ((accept = this.paxosManager.match(accept)) == null) {
+				log.log(Level.FINE, "{0} received unmatched accept ",
+						new Object[]{this,
+						 copy.getSummary(log.isLoggable(Level.FINE))});
+				// if(this.paxosState.getSlot() - copy.slot > 0)
+				// DelayProfiler.updateCount("C_EXECD_ACCEPTS_RCVD",
+				// copy.batchSize()+1);
+				return new MessagingTask[0];
+			}
+			else
+				log.log(Level.FINER, "{0} received matching accept for {1}",
+						new Object[]{this, accept.getSummary()});
+		}
 
 		// DelayProfiler.updateCount("C_ACCEPTS_RCVD", accept.batchSize()+1);
 		assert (accept.hasRequestValue());
@@ -1219,7 +1252,8 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				DelayProfiler.updateCount("CLIENT_COMMITS",
 						committedPValue.batchSize() + 1);
 			}
-		} else if (committedPValue.getType() == PaxosPacket.PaxosPacketType.PREEMPTED) {
+		} else if (committedPValue.getType() == PaxosPacket.PaxosPacketType.PREEMPTED
+				&& Config.getGlobalBoolean(PC.FORWARD_PREEMPTED_REQUESTS)) {
 			/* Could drop the request, but we forward the preempted proposal as
 			 * a no-op to the new coordinator for testing purposes. The new(er)
 			 * coordinator information is within acceptReply. Note that our
@@ -1239,6 +1273,19 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			 * before forwarding to the new coordinator because we have support for
 			 * handling detecting previously issued accepts for the same
 			 * request ID.
+			 *
+			 * Unfortunately, this option + synchronization mechanisms across
+			 *  handleProposal and handlePrepareReply + duplicate detection
+			 * in PaxosCoordinatorState.combinePValuesOntoProposals still
+			 * doesn't prevent double execution because it is still possible
+			 * for two different coordinators to issue ACCEPTs for the same
+			 * request in two different slots. Safety requires that a
+			 * coordinator finding both such ACCEPTs in carryoverProposals
+			 * re-propose them as per the paxos invariant, so it is not just
+			 * a matter of efficient checking of duplicate requests.
+			 *
+			 * So, it is best to just drop preempted requests unless double
+			 * execution is acceptable.
 			 * */
 			assert (committedPValue.ballot.compareTo(acceptReply.ballot) < 0) : (committedPValue
 					+ " >= " + acceptReply);
@@ -2109,29 +2156,17 @@ private String getBallots() {
 				+ this.getBallots();
 	}
 
-	/* Computes the next coordinator as the node with the smallest ID that is
-	 * still up. We could plug in any deterministic policy here. But this policy
-	 * should somehow take into account whether nodes are up or down. Otherwise,
-	 * paxos will be stuck if both the current and the next-in-line coordinator
-	 * are both dead.
-	 * 
-	 * It is important to choose the coordinator in a deterministic way when
-	 * recovering, e.g., the lowest numbered node. Otherwise different nodes may
-	 * have different impressions of who the coordinator is with unreliable
-	 * failure detectors, but no one other than the current coordinator may
-	 * actually ever run for coordinator. E.g., with three nodes 100, 101, 102,
-	 * if 102 thinks 101 is the coordinator, and the other two start by assuming
-	 * 100 is the coordinator, then 102's accept replies will keep preempting
-	 * 100's accepts but 101 may never run for coordinator as it has no reason
-	 * to think there is any problem with 100. */
+	/* Computes the next coordinator as the next node in the group sorted by
+	node IDs. */
 	private int getNextCoordinator(int coordinator, int ballotnum, int[] members,
 			boolean recovery) {
 		for (int i = 1; i < members.length; i++)
 			assert (members[i - 1] < members[i]);
-		assert (!recovery);
+		assert (!recovery); // should never get called during recovery
 		for(int i=0; i<members.length; i++)
 			if(members[i]==coordinator) return members[(i+1)%members.length];
-		return roundRobinCoordinator(ballotnum);
+		return members[(int)(Math.random()*members.length)];
+				//roundRobinCoordinator(ballotnum);
 	}
 
 	private int getNextCoordinator(int coordinator, int ballotnum, int[] members) {
@@ -2199,6 +2234,7 @@ private String getBallots() {
 
 		int requestee = COORD_DONT_LOG_DECISIONS ? randomNonCoordOther(coordinatorID)
 				: randomOther();
+		syncMode = SyncMode.FORCE_SYNC;
 		int[] requestees = SyncMode.FORCE_SYNC.equals(syncMode) ?
 				otherGroupMembers() : new int[1];
 		if(!SyncMode.FORCE_SYNC.equals(syncMode))
@@ -2207,7 +2243,7 @@ private String getBallots() {
 		// send sync request to coordinator or random other node or to all
 		// other nodes if forceSync
 		MessagingTask mtask = requestee != this.getMyID() ? new MessagingTask(
-				requestee, srp) : null;
+				requestees, srp) : null;
 
 		return mtask;
 	}

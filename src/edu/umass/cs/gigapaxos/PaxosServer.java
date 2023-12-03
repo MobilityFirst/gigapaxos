@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Set;
 
+import edu.umass.cs.nio.NIOTransport;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.PaxosConfig.PC;
@@ -139,6 +140,7 @@ public class PaxosServer {
 					"At least one node ID must be specified as a command-line argument for starting "
 							+ PaxosServer.class.getSimpleName());
 		Config.register(args);
+		NIOTransport.setMaxPayloadSize(Config.getGlobalInt(PC.NIO_MAX_PAYLOAD_SIZE));
 		if (Config.getGlobalBoolean(PC.EMULATE_DELAYS))
 			AbstractPacketDemultiplexer.emulateDelays();
 
