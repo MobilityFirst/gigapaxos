@@ -107,7 +107,14 @@ public abstract class PaxosCoordinator {
 		return c!=null ? c.prepare(members) : null;
 	}
 
-	protected abstract void setNodeSlots(int[] nodeSlots);
+public static boolean isPreemptedFully(PaxosCoordinator c,
+									   AcceptReplyPacket acceptReply) {
+		if(c!=null && acceptReply.ballot.compareTo(c.getBallot()) >0 && c.preemptedFully())
+			return true;
+		return false;
+}
+
+protected abstract void setNodeSlots(int[] nodeSlots);
 	protected static PaxosCoordinator hotRestore(PaxosCoordinator c, HotRestoreInfo hri) {
 		if (hri.coordBallot == null)
 			return null;
@@ -361,14 +368,14 @@ public abstract class PaxosCoordinator {
 
 	protected abstract int getNextProposalSlot();
 	
-	protected static int getNextProposalSlot(PaxosCoordinator c) {
-		return c!=null ? c.getNextProposalSlot() : -1;
+	protected static int getNextProposalSlotIfActive(PaxosCoordinator c) {
+		return c!=null && c.isActive() ? c.getNextProposalSlot() : -1;
 	}
 
 	protected abstract int[] getNodeSlots();
 	
-	protected static int[] getNodeSlots(PaxosCoordinator c) {
-		return c!=null ? c.getNodeSlots() : null;
+	protected static int[] getNodeSlotsIfActive(PaxosCoordinator c) {
+		return c!=null && c.isActive() ? c.getNodeSlots() : null;
 	}
 
 
@@ -385,6 +392,9 @@ public abstract class PaxosCoordinator {
 	// unsynchronized to prevent logging console deadlocks
 	protected static Ballot getBallot(PaxosCoordinator c) {
 		return c!=null ? c.getBallot() : null;
+	}
+	protected static Ballot getBallotIfActive(PaxosCoordinator c) {
+		return c!=null && c.isActive() ? c.getBallot() : null;
 	}
 
 	protected abstract boolean isActive();

@@ -3075,6 +3075,11 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 		byte[] buf = null;
 		try {
 			raf.seek(offset);
+			// This assertion sometimes does get triggered, probably because the logged accepts
+			// are not fsync'd to disk but are logged in the DiskMap for the message log index,
+			// so we can't read any further in the file. This is actually a safety issue and the
+			// only way to prevent it is to use fsync; unless this assertion is being triggered
+			// because of some other bug.
 			assert (raf.length() > offset) : this + " " + raf.length() + " <= "
 					+ offset + " while reading logfile " + logfile;
 			int readLength = raf.readInt();
