@@ -832,11 +832,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			// execution of a preempted and forwarded request.
 			synchronized (this) {
 				multicastAccept = this.getPaxosManager().getPreviouslyIssuedAccept(proposal);
-				if (multicastAccept == null || !multicastAccept.ballot.equals(this.coordinator.getBallot()))
+				if (multicastAccept == null || (PaxosCoordinator.getBallot(this.coordinator)!=null &&
+						!multicastAccept.ballot.equals(PaxosCoordinator.getBallot(this.coordinator))))
 					this.getPaxosManager().setIssuedAccept(multicastAccept = PaxosCoordinator.propose(this.coordinator, this.groupMembers, proposal));
 			}
 			if (multicastAccept != null) {
-				assert (this.coordinator.getBallot().coordinatorID == getMyID() && multicastAccept.sender == getMyID());
+				assert (this.coordinator==null ||
+						(this.coordinator.getBallot().coordinatorID == getMyID() && multicastAccept.sender == getMyID()));
 				if (proposal.isBroadcasted())
 					multicastAccept = this.paxosManager.digest(multicastAccept);
 				mtasks[0] = multicastAccept != null ? new MessagingTask(
