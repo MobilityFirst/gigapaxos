@@ -477,14 +477,17 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * Pokes are primarily for sync'ing decisions and could be also used to
 		 * resend accepts. There is little reason to send prepares proactively
 		 * if no new activity is happening. */
-		mtasks[0] = (!recovery ?
+		mtasks[0] =
+				(!recovery ?
 		// check run for coordinator if not active, which will also check to
 				// reissue timed out prepare if needed
-		(!PaxosCoordinator.isActive(this.coordinator)
-		// ignore pokes unless not caught up
-		&& (!isPoke || !PaxosCoordinator.caughtUp(this.coordinator))) ? checkRunForCoordinator()
-				// else reissue long waiting accepts
-				: this.pokeLocalCoordinator()
+					(!PaxosCoordinator.isActive(this.coordinator)
+					// ignore pokes unless myProposals is nonempty
+					&& (!isPoke || !PaxosCoordinator.caughtUp(this.coordinator)))
+							?
+							checkRunForCoordinator()
+							// else reissue long waiting accepts
+							: this.pokeLocalCoordinator()
 				// neither during recovery
 				: null);
 
@@ -1227,8 +1230,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		PValuePacket committedPValue = PaxosCoordinator.handleAcceptReply(
 				this.coordinator, this.groupMembers, acceptReply);
-		if (!PaxosCoordinator.exists(this.coordinator))
-			this.coordinator = null; // no-op
+
+		nullifyCoordinatorIfPreemptedFully(acceptReply);
+
 		if (committedPValue == null)
 			return null;
 
@@ -1313,6 +1317,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		return committedPValue.getType() == PaxosPacket.PaxosPacketType.DECISION ? multicastDecision
 				: unicastPreempted;
+	}
+
+	private synchronized void nullifyCoordinatorIfPreemptedFully(AcceptReplyPacket acceptReply) {
+			if (PaxosCoordinator.isPreemptedFully(this.coordinator, acceptReply))
+				this.coordinator = null;
 	}
 
 	/* Each accept reply can generate a decision here, so we need to batch the
@@ -1494,6 +1503,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * It is good to prevent such scenarios (even though they don't affect
 	 * safety), so we have shouldSync always return true at creation time i.e.,
 	 * expected slot is 0 or 1.
+	 *
+	 * FIXME: shouldSync should also be true until sync'd at least once after
+	 *   crash recovery.
 	 * 
 	 * forceSync is used only in the beginning in the case of missedBirthing. */
 	private MessagingTask syncLongDecisionGaps(PValuePacket committed,
@@ -1964,10 +1976,10 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							this.paxosState.getSlot(),
 							this.paxosState.getBallot(),
 							this.paxosState.getGCSlot(),
-							PaxosCoordinator.getBallot(this.coordinator),
+							PaxosCoordinator.getBallotIfActive(this.coordinator),
 							PaxosCoordinator
-									.getNextProposalSlot(this.coordinator),
-							PaxosCoordinator.getNodeSlots(this.coordinator));
+									.getNextProposalSlotIfActive(this.coordinator),
+							PaxosCoordinator.getNodeSlotsIfActive(this.coordinator));
 					log.log(Level.FINE, "{0} pausing [{1}]", new Object[] {
 							this, hri });
 					// if (paused = this.paxosManager.getPaxosLogger().pause(
@@ -2095,10 +2107,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 									: " has not yet initialized its coordinator") });
 			Ballot newBallot = new Ballot(curBallot.ballotNumber + 1,
 					this.getMyID());
-			if ((this.coordinator = PaxosCoordinator.makeCoordinator(
-					this.coordinator, newBallot.ballotNumber,
-					newBallot.coordinatorID, this.groupMembers,
-					this.paxosState.getSlot(), false)) != null) {
+			if (this.tryMakeCoordinator(newBallot) != null) {
 				multicastPrepare = new MessagingTask(this.groupMembers,
 						new PreparePacket(newBallot, this.paxosState.getSlot()));
 				this.paxosState.setActive2(); // mark as have run at least once
@@ -2132,6 +2141,13 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 							(PaxosCoordinator.ranRecently(this.coordinator) ? ", and I ran too recently to try again"
 									: "") });
 		return multicastPrepare;
+	}
+
+	private synchronized PaxosCoordinator tryMakeCoordinator(Ballot newBallot) {
+		return this.coordinator = PaxosCoordinator.makeCoordinator(
+				this.coordinator, newBallot.ballotNumber,
+				newBallot.coordinatorID, this.groupMembers,
+				this.paxosState.getSlot(), false);
 	}
 
 private boolean notRunYet() {
@@ -2234,7 +2250,7 @@ private String getBallots() {
 
 		int requestee = COORD_DONT_LOG_DECISIONS ? randomNonCoordOther(coordinatorID)
 				: randomOther();
-		syncMode = SyncMode.FORCE_SYNC;
+		//syncMode = SyncMode.FORCE_SYNC;
 		int[] requestees = SyncMode.FORCE_SYNC.equals(syncMode) ?
 				otherGroupMembers() : new int[1];
 		if(!SyncMode.FORCE_SYNC.equals(syncMode))
