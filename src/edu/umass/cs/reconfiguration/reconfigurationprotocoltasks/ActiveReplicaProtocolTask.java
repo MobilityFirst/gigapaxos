@@ -114,6 +114,8 @@ ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String> {
 		ProtocolEvent<ReconfigurationPacket.PacketType, String> event,
 		ProtocolTask<NodeIDType, ReconfigurationPacket.PacketType, String>[] ptasks) {
 
+		System.out.println(">> ActiveReplicaProtocolTask - event:" + event.getType());
+
 		ReconfigurationPacket.PacketType type = event.getType();
 		Object returnValue = null;
 		try {

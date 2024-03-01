@@ -3,7 +3,11 @@ package edu.umass.cs.gigapaxos.examples.xdn;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
+import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -17,7 +21,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-public class XDNGigapaxosApp implements Replicable {
+public class XDNGigapaxosApp implements Replicable, Reconfigurable {
 
     private String activeReplicaID;
 
@@ -37,7 +41,6 @@ public class XDNGigapaxosApp implements Replicable {
         }
 
         if (request instanceof XDNRequest xdnRequest) {
-            System.out.println(">>>>> XDNGigaPaxosApp execute XDNRequest request=" + xdnRequest);
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
 
@@ -52,17 +55,9 @@ public class XDNGigapaxosApp implements Replicable {
                 return false;
             }
 
-            if (Objects.equals(activeReplicaID, "AR0")) {
-                System.out.println(">>>>>> XDNGigapaxosApp request = " + httpRequest);
-            }
-
             // forward request to the containerized service, and get the http response
             HttpResponse<byte[]> response = serviceClient.send(httpRequest,
                     HttpResponse.BodyHandlers.ofByteArray());
-
-            if (Objects.equals(activeReplicaID, "AR0"))
-                System.out.println(">>>>>> XDNGigapaxosApp response = " +
-                        new String(response.body(), StandardCharsets.UTF_8));
 
             // convert the response into netty's http response
             io.netty.handler.codec.http.HttpResponse nettyHttpResponse =
@@ -429,4 +424,72 @@ public class XDNGigapaxosApp implements Replicable {
     }
 
 
+    /**
+     * Below are the implementation methods for Replicable interface
+     */
+
+    private static class XDNStopRequest implements ReconfigurableRequest {
+
+        private final String serviceName;
+        private final int epochNumber;
+
+        public XDNStopRequest(String serviceName, int epochNumber) {
+            this.serviceName = serviceName;
+            this.epochNumber = epochNumber;
+        }
+
+        @Override
+        public IntegerPacketType getRequestType() {
+            return ReconfigurableRequest.STOP;
+        }
+
+        @Override
+        public String getServiceName() {
+            return serviceName;
+        }
+
+        @Override
+        public int getEpochNumber() {
+            return epochNumber;
+        }
+
+        @Override
+        public boolean isStop() {
+            return true;
+        }
+    }
+
+    @Override
+    public ReconfigurableRequest getStopRequest(String name, int epoch) {
+        System.out.println(">> XDNGigapaxosApp - getStopRequest name:" + name + " epoch:" + epoch);
+        return new XDNStopRequest(name, epoch);
+    }
+
+    @Override
+    public String getFinalState(String name, int epoch) {
+        // TODO: implement me
+        System.out.println(">> XDNGigapaxosApp - getFinalState name:" + name + " epoch:" + epoch);
+        return "";
+    }
+
+    @Override
+    public void putInitialState(String name, int epoch, String state) {
+        // TODO: implement me
+        System.out.println(">> XDNGigapaxosApp - putInitialState name:" + name + " epoch:" + epoch + " state:" + state);
+        return;
+    }
+
+    @Override
+    public boolean deleteFinalState(String name, int epoch) {
+        // TODO: implement me
+        System.out.println(">> XDNGigapaxosApp - deleteFinalState name:" + name + " epoch:" + epoch);
+        return true;
+    }
+
+    @Override
+    public Integer getEpoch(String name) {
+        // TODO: implement me
+        System.out.println(">> XDNGigapaxosApp - getEpoch name:" + name);
+        return 0;
+    }
 }

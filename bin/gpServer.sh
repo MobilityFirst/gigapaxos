@@ -382,7 +382,8 @@ DEFAULT_JVMARGS="-cp $CLASSPATH $COMMON_JVMARGS \
 $LOCAL_SSL_KEYFILES \
 -Djava.util.logging.config.file=$LOG_PROPERTIES \
 -Dlog4j.configuration=$LOG4J_PROPERTIES \
--DgigapaxosConfig=$GP_PROPERTIES"
+-DgigapaxosConfig=$GP_PROPERTIES \
+-Djdk.httpclient.allowRestrictedHeaders=connection,content-length,host"
 
 JVMARGS="$DEFAULT_JVMARGS $SUPPLIED_JVMARGS"
 
@@ -523,6 +524,7 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
     esac
   fi
   # else go ahead and force clear
+  docker ps -aq | xargs docker stop | xargs docker rm
           stop_servers
           for server in $servers; do
             get_address_port $server

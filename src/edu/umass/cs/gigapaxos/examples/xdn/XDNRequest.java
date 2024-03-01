@@ -51,8 +51,8 @@ public class XDNRequest implements ReplicableRequest {
 
     private HttpRequest httpRequest;
     private HttpContent httpContent;
-
     private HttpResponse httpResponse;
+    private byte[] statediff;
 
     // SERIALIZED_PREFIX is used as prefix of the serialized (string) version of
     // XDNRequest, otherwise Gigapaxos will detect it as JSONPacket and handle it

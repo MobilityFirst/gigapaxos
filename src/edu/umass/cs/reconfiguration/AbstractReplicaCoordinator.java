@@ -125,6 +125,9 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		appCoordMap.putIfAbsent(app, this);
 		this.app = app instanceof AbstractReplicaCoordinator ? ((AbstractReplicaCoordinator<?>) app).app
 				: new TrivialRepliconfigurable(app);
+
+		System.out.println(">> AbstractReplicaCoordinator - isinstance? " + (app instanceof AbstractReplicaCoordinator));
+
 		this.messenger = null;
 	}
 
@@ -232,10 +235,15 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		boolean handled = false;
 		// check if coordination on request before unwrapping
 
+		System.out.println(">>>>>>>>>>>> replicaCoordinator handleIncoming " + request);
+
 		if (needsCoordination(request)) {
+			System.out.println(">>>>>>>>>>>> replicaCoordinator handleIncoming coordinated");
 			try {
-				if (request instanceof ReplicableRequest)
+				if (request instanceof ReplicableRequest) {
 					((ReplicableRequest) request).setNeedsCoordination(false);
+					System.out.println(">>>>>>>>>>>> replicaCoordinator handleIncoming coordinated, nvm");
+				}
 				handled = coordinateRequest(unwrapIfNeeded(request), callback);
 			} catch (IOException ioe) {
 				ioe.printStackTrace();
@@ -293,6 +301,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 		boolean handled = request.getRequestType()==ReconfigurationPacket.PacketType.NO_TYPE ||
 				(((this.app instanceof Replicable) ? ((Replicable) (this.app))
 				.execute(request, noReplyToClient) : this.app.execute(request)));
+		System.out.println(">>>>>>>> "+getMyID()+" AbstractReplicaCoordinator - after app execute " + requestCallback);
 		callCallback(request, handled, requestCallback);
 		/* We always return true because the return value here is a no-op. It
 		 * might as well be void. Returning anything but true will ensure that a
@@ -427,17 +436,24 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	 * for an older request. */
 	protected final void callCallback(Request request, boolean handled,
 			ExecutedCallback requestCallback) {
+		System.out.println(">>>>>>>> AbstractReplicaCoordinator - callCallBack " + getMyID() + " " + requestCallback);
 		if (this.stopCallback != null
 				&& request instanceof ReconfigurableRequest
 				&& ((ReconfigurableRequest) request).isStop()) {
 			// no longer used (by ActiveReplica)
+			System.out.println(">>>>>>>> "+getMyID()+" AbstractReplicaCoordinator - callCallback - first " + this.stopCallback);
 			this.stopCallback.executed(request, handled);
-		} else if (requestCallback != null)
+		} else if (requestCallback != null) {
 			// request-specific callback
+			System.out.println(">>>>>>>> "+getMyID()+" AbstractReplicaCoordinator - callCallback - request " + requestCallback);
 			requestCallback.executed(request, handled);
-		else if (this.callback != null)
+		} else if (this.callback != null) {
 			// used by reconfigurator
+			System.out.println(">>>>>>>> "+getMyID()+" AbstractReplicaCoordinator - callCallback - reconfigurator " + this.callback);
 			this.callback.executed(request, handled);
+		} else {
+			System.out.println(">>>>>>>> "+getMyID()+" AbstractReplicaCoordinator - callCallback - unspecified :( ");
+		}
 	}
 
 	/*********************** Start of private helper methods **********************/

@@ -122,6 +122,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
         AbstractReplicaCoordinator<NodeIDType> appCoordinator = null;
         // ReplicaCoordinator<NodeIDType> appCoordinator = null;
 
+        System.out.println(">> createApp");
+
         if (ReconfigurationConfig.application == null)
             throw new RuntimeException("Application name can not be null");
         // else
@@ -141,6 +143,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
                                 + " responses back to clients or rely on alternate means for messaging.");
             appCoordinator = this.getAppCoordinator(
                     app, myID, nodeConfig, messenger);
+
+            // TODO: fadhil: why app is a member or replicaCoordinator,
+            // TODO: but then we use replicaCoordinator to create 3 replica groups: for the service, AR_AR_NODES, AR_RC_NODES
 
             // default service name created at all actives
             ReconfigurationConfig
@@ -180,7 +185,7 @@ public abstract class ReconfigurableNode<NodeIDType> {
             appCoordinator.createReplicaGroup(
                     AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString(),
                     0,
-                    // state is just the stringified map of active replicas
+                    // state is just the stringified map of reconfigurators
                     nodeConfig.getReconfiguratorsReadOnly().toString(),
                     nodeConfig.getActiveReplicas());
 
@@ -201,6 +206,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
             Replicable app, NodeIDType myID,
             ReconfigurableNodeConfig<NodeIDType> nodeConfig,
             JSONMessenger<NodeIDType> messenger) {
+
+        System.out.println(">> getAppCoordinator");
+
         String coordinatorClassName = Config.getGlobalString(
                 ReconfigurationConfig.RC.REPLICA_COORDINATOR_CLASS);
         if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PaxosReplicaCoordinator"))
@@ -212,6 +220,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
         else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.ChainReplicaCoordinator"))
             return new ChainReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
                     messenger);
+        else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator"))
+            return new PrimaryBackupReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
 
         return null;
 
@@ -516,7 +526,9 @@ public abstract class ReconfigurableNode<NodeIDType> {
                             new DefaultNodeConfig<String>(
                                     PaxosConfig.getActives(),
                                     ReconfigurationConfig.getReconfigurators()),
-                            appArgs, false)
+                            appArgs,
+                            false
+                    )
             );
         }
 

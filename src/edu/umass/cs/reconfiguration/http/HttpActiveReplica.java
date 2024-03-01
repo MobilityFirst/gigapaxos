@@ -379,12 +379,9 @@ public class HttpActiveReplica {
              */
             boolean retrieved = false;
 
-            System.out.println(">>>>>>> request channelRead0");
             if (msg instanceof HttpRequest) {
                 HttpRequest httpRequest = this.request = (HttpRequest) msg;
                 buf.setLength(0);
-
-                System.out.println(">>>>>>> request headers: " + request.headers());
 
                 if (HttpUtil.is100ContinueExpected(httpRequest)) {
                     send100Continue(ctx);
@@ -417,11 +414,7 @@ public class HttpActiveReplica {
             }
 
             if (msg instanceof HttpContent) {
-
-                System.out.println(">>>>>>> request HttpContent " + msg);
-
                 if (!retrieved) {
-                    System.out.println(">>>>>>> request HttpContent consume ");
                     HttpContent httpContent = (HttpContent) msg;
                     log.log(Level.INFO, "Http server received a request with HttpContent: {0}", new Object[]{httpContent});
                     if (httpContent != null) {
@@ -440,7 +433,6 @@ public class HttpActiveReplica {
 
                 if (msg instanceof LastHttpContent) {
                     if (retrieved) {
-                        System.out.println(">>>>>>> request LastHttpContent " + msg);
                         log.log(Level.INFO, "About to execute request: {0}", new Object[]{gRequest});
                         Object lock = new Object();
                         finished = false;
@@ -487,7 +479,6 @@ public class HttpActiveReplica {
                         }
                         buf.append("\r\n");
                     }
-                    System.out.println(">>>>>>> request checking ");
                     if (!writeResponse(trailer, ctx)) {
                         // If keep-alive is off, close the connection once the content is fully written.
                         ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
@@ -499,9 +490,6 @@ public class HttpActiveReplica {
         }
 
         private void handleReceivedXDNRequest(ChannelHandlerContext ctx, Object msg) throws Exception {
-
-            System.out.println(">>>>>> remoteAddress=" + ctx.channel().remoteAddress().toString() + " localAddress=" + ctx.channel().localAddress().toString());
-
             XDNRequest xdnHttpRequest = new XDNRequest();
 
             if (msg instanceof HttpRequest) {
@@ -541,7 +529,6 @@ public class HttpActiveReplica {
                 // forward http request to XDN App, which eventually will forward it to the service.
                 // Note that response later will be written inside the callback, via ctx.
                 arFunctions.handRequestToAppForHttp(gpRequest, callback);
-                System.out.println("############# original context: " + ctx);
             }
         }
 
@@ -567,9 +554,6 @@ public class HttpActiveReplica {
                         HttpHeaderValues.KEEP_ALIVE);
             }
 
-            System.out.println(">>>>>> sending bad request ... " + message);
-
-            System.out.println(">>>>>>++++++ " + ctx.isRemoved() + " " + ctx);
             ChannelFuture cf = ctx.writeAndFlush(response);
             if (!cf.isSuccess()) {
                 System.out.println("write failed: " + cf.cause());
@@ -584,19 +568,14 @@ public class HttpActiveReplica {
         private static void writeHttpResponse(HttpResponse httpResponse, ChannelHandlerContext ctx,
                                               boolean isKeepAlive) {
 
-            System.out.println(">>> sending response: " + httpResponse);
-
             if (isKeepAlive) {
                 httpResponse.headers().set(
                         HttpHeaderNames.CONNECTION,
                         HttpHeaderValues.KEEP_ALIVE);
             }
 
-
             ChannelFuture cf = ctx.writeAndFlush(httpResponse);
             cf.addListener((ChannelFutureListener) channelFuture -> {
-                System.out.println(">>> future state: " + channelFuture.state().toString());
-                System.out.println(">>> isKeepAlive: " + isKeepAlive);
                 if (!channelFuture.isSuccess()) {
                     System.out.println("writing response failed: " + channelFuture.cause());
                 }
@@ -643,8 +622,6 @@ public class HttpActiveReplica {
                 response.headers().add(HttpHeaderNames.SET_COOKIE, ServerCookieEncoder.STRICT.encode("key2", "value2"));
             }
 
-            System.out.println(">>>>>>> request writeResponse ");
-
             // Write the response.
             ctx.write(response);
 
@@ -677,8 +654,6 @@ public class HttpActiveReplica {
                 }
             }
         }
-
-
     }
 
     /**

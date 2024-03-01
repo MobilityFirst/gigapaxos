@@ -1,0 +1,21 @@
+# Declared properties of the bookcatalog service.
+---
+service-name  : "bookcatalog"           # optional, will be randomly assigned if not specified.
+image-name    : "bookcatalog:latest"    # required, the `latest` tag will be used if tag is omitted.
+port          : 8000                    # default is 80 if not specified
+consistency   : "linearizable"          # optional, the default is `linearizable`.
+deterministic : true                    # optional, XDN assumes service is non-deterministic by default.
+state-dir     : /app/data/              # required, might be optional in future release.
+
+request-properties:
+  - commutative:
+      - "PUT /books/:id1"
+      - "PUT /books/:id2"
+  - commutative:
+      - "POST /books/:id1"
+      - "POST /books/:id2"
+  - commutative:
+      - "DELETE /books/:id1"
+      - "DELETE /books/:id2"
+  - nil-external:
+      - "DELETE /books/:id PARAM blind=true"
