@@ -2,6 +2,8 @@
 build.number
 /build/
 /dist/
+/output
+/out
 /derby.log
 /paxos_logs/
 /reconfiguration_DB/

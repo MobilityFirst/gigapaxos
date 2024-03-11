@@ -3495,4 +3495,42 @@ public class PaxosManager<NodeIDType> {
 			rc.setAcceptPacket(accept);
 		return accept;
 	}
+
+	/**
+	 * isPaxosCoordinator returns true if the paxos instance that live in this
+	 * node (i.e., ActiveReplica) think itself is the current paxos coordinator.
+	 * Note that, due to asynchrony, it is possible that multiple nodes think
+	 * itself as an active coordinator.
+	 * @param serviceName the name of service (or object) being replicated.
+	 * @return true if the paxos instanace in this node think itself as
+	 *  a paxos coordinator.
+	 */
+	public boolean isPaxosCoordinator(String serviceName) {
+		// use getInstance() method, instead of directly accessing `pinstances`,
+		// because a paused PaxosInstanceStateMachine (PISM) could be null.
+		PaxosInstanceStateMachine pism = this.getInstance(serviceName);
+		if (pism == null) {
+			return false;
+		}
+
+		return pism.isPaxosCoordinator();
+	}
+
+	/**
+	 * getPaxosCoordinator returns the node ID, which this node (Active Replica)
+	 * think as the coordinator. It is possible this node to return the ID
+	 * of itself if it thinks it is the current coordinator at the time of
+	 * executing this method.
+	 * @param serviceName the name of service (or object) being replicated.
+	 * @return the ID of the coordinator node, or null if this node does not
+	 *  know who is the current coordinator.
+	 */
+	public NodeIDType getPaxosCoordinator(String serviceName) {
+		PaxosInstanceStateMachine pism = this.getInstance(serviceName);
+		if (pism == null) {
+			return null;
+		}
+
+		return this.integerMap.get(pism.getCurrentPaxosCoordinator());
+	}
 }
