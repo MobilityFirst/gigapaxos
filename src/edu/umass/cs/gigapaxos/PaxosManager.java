@@ -3520,7 +3520,8 @@ public class PaxosManager<NodeIDType> {
 	 * getPaxosCoordinator returns the node ID, which this node (Active Replica)
 	 * think as the coordinator. It is possible this node to return the ID
 	 * of itself if it thinks it is the current coordinator at the time of
-	 * executing this method.
+	 * executing this method. The returned node ID (if not null) can be used
+	 * by Messenger to send any protocol messages.
 	 * @param serviceName the name of service (or object) being replicated.
 	 * @return the ID of the coordinator node, or null if this node does not
 	 *  know who is the current coordinator.
