@@ -17,7 +17,7 @@ import java.util.logging.Logger;
 
 import javax.net.ssl.SSLException;
 
-import edu.umass.cs.gigapaxos.examples.xdn.XDNRequest;
+import edu.umass.cs.xdn.XDNRequest;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import org.json.JSONException;
@@ -510,7 +510,10 @@ public class HttpActiveReplica {
 
                 // return http bad request if service name is not available
                 if (!isContainServiceName(xdnHttpRequest)) {
-                    sendBadRequestResponse("unspecified xdn service name", ctx, isKeepAlive);
+                    sendBadRequestResponse(
+                            "unspecified xdn service name",
+                            ctx,
+                            isKeepAlive);
                     return;
                 }
 
@@ -519,7 +522,8 @@ public class HttpActiveReplica {
 
                 // create gigapaxos' request, it is important to explicitly set the clientAddress,
                 // otherwise, down the pipeline, the RequestPacket's equals method will return false
-                // and our callback will not be called.
+                // and our callback will not be called, leaving the client hanging
+                // waiting for response.
                 ReplicableClientRequest gpRequest = ReplicableClientRequest.wrap(xdnHttpRequest);
                 String[] addrPort = ctx.channel().remoteAddress().toString().split(":");
                 gpRequest.setClientAddress(new InetSocketAddress(
@@ -646,8 +650,10 @@ public class HttpActiveReplica {
             public void executed(Request executedRequest, boolean handled) {
                 if (executedRequest instanceof XDNRequest xdnRequest) {
                     HttpResponse httpResponse = xdnRequest.getHttpResponse();
-                    boolean isKeepAlive = HttpUtil.isKeepAlive(request.getHttpRequest()) &&
-                            HttpUtil.isKeepAlive(httpResponse);
+                    boolean isKeepAlive = HttpUtil.isKeepAlive(request.getHttpRequest());
+                    if (httpResponse != null) {
+                        isKeepAlive = isKeepAlive && HttpUtil.isKeepAlive(httpResponse);
+                    }
                     writeHttpResponse(httpResponse, ctx, isKeepAlive);
                 } else {
                     System.out.println("ERROR!!! executedRequest is not an XDNRequest anymore :(");

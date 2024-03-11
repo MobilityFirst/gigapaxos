@@ -1,4 +1,4 @@
-package edu.umass.cs.gigapaxos.examples.xdn;
+package edu.umass.cs.xdn;
 
 import edu.umass.cs.gigapaxos.examples.noop.NoopPaxosApp;
 import edu.umass.cs.gigapaxos.interfaces.Request;

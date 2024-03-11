@@ -1,17 +1,17 @@
 /* Copyright (c) 2015 University of Massachusetts
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
@@ -45,91 +45,91 @@ import java.util.concurrent.*;
 import java.util.logging.Level;
 
 /**
+ * @param <NodeIDType> <p>
+ *                     PaxosManager is the primary interface to create and use paxos by
+ *                     creating a paxos instance.
+ *                     <p>
+ *                     PaxosManager manages all paxos instances at a node. There is
+ *                     typically one paxos manager per machine. This class could be
+ *                     static, but it is not so that we can test emulations involving
+ *                     multiple "machines" within a JVM.
+ *                     <p>
+ *                     PaxosManager has four functions at a machine that are useful
+ *                     across paxos instances of all applications on the machine: (1)
+ *                     logging, (2) failure detection, (3) messaging, and (4) paxos
+ *                     instance mapping. The fourth is key to allowing the manager to
+ *                     demultiplex incoming messages to the appropriate application paxos
+ *                     instance.
  * @author V. Arun
- * @param <NodeIDType>
- * 
- *            <p>
- *            PaxosManager is the primary interface to create and use paxos by
- *            creating a paxos instance.
- * 
- *            PaxosManager manages all paxos instances at a node. There is
- *            typically one paxos manager per machine. This class could be
- *            static, but it is not so that we can test emulations involving
- *            multiple "machines" within a JVM.
- * 
- *            PaxosManager has four functions at a machine that are useful
- *            across paxos instances of all applications on the machine: (1)
- *            logging, (2) failure detection, (3) messaging, and (4) paxos
- *            instance mapping. The fourth is key to allowing the manager to
- *            demultiplex incoming messages to the appropriate application paxos
- *            instance.
  */
 public class PaxosManager<NodeIDType> {
 
-	// final
-	private final AbstractPaxosLogger paxosLogger; // logging
-	private final FailureDetection<NodeIDType> FD; // failure detection
-	private final PaxosMessenger<NodeIDType> messenger; // messaging
-	private final int myID;
-	private final Replicable myApp; // default app for all paxosIDs
+    // final
+    private final AbstractPaxosLogger paxosLogger; // logging
+    private final FailureDetection<NodeIDType> FD; // failure detection
+    private final PaxosMessenger<NodeIDType> messenger; // messaging
+    private final int myID;
+    private final Replicable myApp; // default app for all paxosIDs
 
-	// background deactivation/cremation tasks, all else event-driven
-	private final ScheduledExecutorService executor;
-	// paxos instance mapping
-	private final MultiArrayMap<String, PaxosInstanceStateMachine> pinstances;
-	// stopped paxos instances about to be incinerated
-	private final HashMap<String, PaxosInstanceStateMachine> corpses;
-	private final IntegerMap<NodeIDType> integerMap = new IntegerMap<NodeIDType>();
-	private final Stringifiable<NodeIDType> unstringer;
-	private final RequestBatcher requestBatcher;
-	private final PaxosPacketBatcher ppBatcher;
+    // background deactivation/cremation tasks, all else event-driven
+    private final ScheduledExecutorService executor;
+    // paxos instance mapping
+    private final MultiArrayMap<String, PaxosInstanceStateMachine> pinstances;
+    // stopped paxos instances about to be incinerated
+    private final HashMap<String, PaxosInstanceStateMachine> corpses;
+    private final IntegerMap<NodeIDType> integerMap = new IntegerMap<NodeIDType>();
+    private final Stringifiable<NodeIDType> unstringer;
+    private final RequestBatcher requestBatcher;
+    private final PaxosPacketBatcher ppBatcher;
 
-	private int outOfOrderLimit = PaxosInstanceStateMachine.SYNC_THRESHOLD;
-	private int interCheckpointInterval = PaxosInstanceStateMachine.INTER_CHECKPOINT_INTERVAL;
-	private int checkpointTransferTrigger = PaxosInstanceStateMachine.MAX_SYNC_DECISIONS_GAP;
-	private long minResyncDelay = PaxosInstanceStateMachine.MIN_RESYNC_DELAY;
-	private final boolean nullCheckpointsEnabled;
-	private final Outstanding outstanding = new Outstanding();
-	private final LargeCheckpointer largeCheckpointer;
-	private PendingDigests pendingDigests;
-	
-	/**
-	 * aditya:
-	 * The thread pool is for executing app.execute() 
-	 * in the single node case. Otherwise, 
-	 * in the single node case the app.execute() 
-	 * method would get called from AbstractPaxosLogger thread.
-	 */
-	private final ScheduledExecutorService appExecuteThreadPool;
+    private int outOfOrderLimit = PaxosInstanceStateMachine.SYNC_THRESHOLD;
+    private int interCheckpointInterval = PaxosInstanceStateMachine.INTER_CHECKPOINT_INTERVAL;
+    private int checkpointTransferTrigger = PaxosInstanceStateMachine.MAX_SYNC_DECISIONS_GAP;
+    private long minResyncDelay = PaxosInstanceStateMachine.MIN_RESYNC_DELAY;
+    private final boolean nullCheckpointsEnabled;
+    private final Outstanding outstanding = new Outstanding();
+    private final LargeCheckpointer largeCheckpointer;
+    private PendingDigests pendingDigests;
 
-	private static final boolean USE_GC_MAP = Config
-			.getGlobalBoolean(PC.USE_GC_MAP);
+    /**
+     * aditya:
+     * The thread pool is for executing app.execute()
+     * in the single node case. Otherwise,
+     * in the single node case the app.execute()
+     * method would get called from AbstractPaxosLogger thread.
+     */
+    private final ScheduledExecutorService appExecuteThreadPool;
+
+    private static final boolean USE_GC_MAP = Config
+            .getGlobalBoolean(PC.USE_GC_MAP);
 
     /**
      *
      */
-     public static class RequestAndCallback {
+    public static class RequestAndCallback {
         /**
          *
          */
-         protected RequestPacket requestPacket;
+        protected RequestPacket requestPacket;
         /**
          *
          */
-         final ExecutedCallback callback;
+        final ExecutedCallback callback;
 
         RequestAndCallback(RequestPacket request, ExecutedCallback callback) {
             this.requestPacket = request;
             this.callback = callback;
         }
+
         /**
          * @return RequestPacket
          */
         public RequestPacket getRequestPacket() {
             return this.requestPacket;
         }
+
         protected AcceptPacket setAcceptPacket(AcceptPacket accept) {
-            return (AcceptPacket)(this.requestPacket= accept);
+            return (AcceptPacket) (this.requestPacket = accept);
         }
     }
 

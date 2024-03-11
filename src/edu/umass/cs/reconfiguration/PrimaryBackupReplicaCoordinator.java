@@ -1,28 +1,49 @@
 package edu.umass.cs.reconfiguration;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
+import edu.umass.cs.xdn.XDNRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceCreationException;
-import edu.umass.cs.gigapaxos.paxosutil.PaxosInstanceDestructionException;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.*;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * PrimaryBackupReplicaCoordinator handles replica groups that use primary-backup, which
+ * only allow request execution in the coordinator, leaving other replicas as backups.
+ * Generally, primary-backup is suitable to provide fault-tolerance for non-deterministic
+ * services.
+ * <p>
+ * PrimaryBackupReplicaCoordinator uses PaxosManager to ensure all replicas agree on
+ * the order of statediffs, generated from each request execution.
+ * <p>
+ * Note that this coordinator is currently only tested when HttpActiveReplica is used.
+ * More adjustments are needed to support plain ActiveReplica.
+ *
+ * @param <NodeIDType>
+ */
 public class PrimaryBackupReplicaCoordinator<NodeIDType>
         extends AbstractReplicaCoordinator<NodeIDType> {
 
     private final PaxosManager<NodeIDType> paxosManager;
     private final Set<IntegerPacketType> requestTypes;
+    private final NodeIDType myNodeID;
+    private final boolean IS_REDIRECT_TO_PRIMARY = false;
 
     public PrimaryBackupReplicaCoordinator(
             Replicable app,
@@ -45,6 +66,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         Set<IntegerPacketType> types = new HashSet<>(app.getRequestTypes());
         types.add(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST);
         this.requestTypes = types;
+
+        this.myNodeID = myID;
     }
 
     @Override
@@ -56,24 +79,125 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
     @Override
     public boolean coordinateRequest(Request request, ExecutedCallback callback)
             throws IOException, RequestParseException {
-        System.out.println(">> coordinateRequest");
-        System.out.println(">> myID:" + getMyID() + " isActive? " +
-                this.paxosManager.isActive(request.getServiceName()));
+        System.out.println(">> coordinateRequest " + request.getClass().getName() + " " + request.getServiceName());
+        System.out.println(">> myID:" + getMyID() + " isCoordinator? " +
+                this.paxosManager.isPaxosCoordinator(request.getServiceName()));
 
-        boolean isActiveCoordinator = this.paxosManager.isActive(request.getServiceName());
-        if (isActiveCoordinator) {
-            return executeRequestCoordinateStatediff(request, callback);
-        } else {
-            // TODO: forward request to active OR send error to client
+        String serviceName = request.getServiceName();
+        boolean isCurrentPrimary = this.paxosManager.isPaxosCoordinator(serviceName);
+        if (!isCurrentPrimary) {
+            if (IS_REDIRECT_TO_PRIMARY) {
+                return forwardRequestToPrimary(request, callback);
+            }
+            NodeIDType currPrimaryID = this.paxosManager.getPaxosCoordinator(serviceName);
+            if (currPrimaryID == null) {
+                return sendErrorResponse(request, callback, "unknown coordinator");
+            }
+
+            return askClientToContactPrimary(currPrimaryID, request, callback);
         }
 
+        return executeRequestCoordinateStatediff(request, callback);
+    }
+
+    private boolean askClientToContactPrimary(NodeIDType primaryNodeID, Request request,
+                                              ExecutedCallback callback) {
+        XDNRequest xdnRequest = XDNRequest.createFromString(request.toString());
+        xdnRequest.setHttpResponse(createRedirectResponse(
+                primaryNodeID, request.getServiceName(), xdnRequest.getHttpRequest()));
+        callback.executed(xdnRequest, false);
         return true;
     }
 
+    private HttpResponse createRedirectResponse(NodeIDType primaryNodeID, String serviceName,
+                                                HttpRequest httpRequest) {
+        // prepare the response headers
+        HttpHeaders headers = new DefaultHttpHeaders();
+        headers.add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+
+        // set the redirected location
+        String primaryHost = String.format("http://%s.%s.xdn.io:%d",
+                serviceName,
+                primaryNodeID,
+                ReconfigurationConfig.getHTTPPort(
+                        PaxosConfig.getActives().get(primaryNodeID.toString()).getPort()));
+        String redirectURL = primaryHost + httpRequest.uri();
+        headers.set(HttpHeaderNames.LOCATION, redirectURL);
+
+        // by default, we have an empty header trailing for the response
+        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
+
+        String respMessage = String.format("Please contact the primary replica in %s",
+                primaryHost);
+
+        return new DefaultFullHttpResponse(
+                httpRequest.protocolVersion(),
+                HttpResponseStatus.TEMPORARY_REDIRECT,
+                Unpooled.copiedBuffer(respMessage.getBytes(StandardCharsets.UTF_8)),
+                headers,
+                trailingHeaders);
+    }
+
+    private boolean sendErrorResponse(Request request, ExecutedCallback callback,
+                                      String errorMessage) {
+        XDNRequest xdnRequest = XDNRequest.createFromString(request.toString());
+        xdnRequest.setHttpResponse(createErrorResponse(xdnRequest.getHttpRequest(), errorMessage));
+        callback.executed(xdnRequest, false);
+        return true;
+    }
+
+    private HttpResponse createErrorResponse(HttpRequest httpRequest, String errorMessage) {
+        String respMessage = String.format("XDN internal server error. Reason: %s", errorMessage);
+        HttpHeaders headers = new DefaultHttpHeaders();
+        headers.add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
+        return new DefaultFullHttpResponse(
+                httpRequest.protocolVersion(),
+                HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                Unpooled.copiedBuffer(respMessage.getBytes(StandardCharsets.UTF_8)),
+                headers,
+                trailingHeaders);
+    }
+
     private boolean executeRequestCoordinateStatediff(Request request, ExecutedCallback callback) {
-        this.app.execute(request);
-        // TODO: capture the statediff, coordinate the statediff.
-        this.paxosManager.propose(request.getServiceName(), request, callback);
+        System.out.println(">> " + this.myNodeID + " primaryBackup execution:   " + request.getClass().getSimpleName());
+
+        Request primaryRequest = request;
+        if (request instanceof ReplicableClientRequest rcRequest) {
+            primaryRequest = rcRequest.getRequest();
+        }
+
+        this.app.execute(primaryRequest);
+
+        XDNRequest.XDNStatediffApplyRequest statediffApplyRequest =
+                new XDNRequest.XDNStatediffApplyRequest(
+                        request.getServiceName(),
+                        "statediff".getBytes());
+
+        System.out.println(">> " + this.myNodeID + " propose ...");
+        System.out.println(" request type " + primaryRequest.getClass().getSimpleName());
+
+        Request finalPrimaryRequest = primaryRequest;
+        this.paxosManager.propose(
+                request.getServiceName(),
+                statediffApplyRequest,
+                new ExecutedCallback() {
+                    @Override
+                    public void executed(Request statediffRequest, boolean handled) {
+                        System.out.println("chained executed ...");
+                        callback.executed(finalPrimaryRequest, handled);
+                    }
+                });
+        return true;
+    }
+
+    private boolean forwardRequestToPrimary(Request request, ExecutedCallback callback) {
+        // TODO: hold request in a hashmap, then forward to primary
+        // TODO: two options (1) have a thread running a loop, or identify message from
+        //  coordinateRequest
+
+        System.out.println("current coordinator is " + this.paxosManager.getPaxosCoordinator(request.getServiceName()));
+
         return true;
     }
 

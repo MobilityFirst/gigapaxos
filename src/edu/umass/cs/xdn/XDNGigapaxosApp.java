@@ -1,13 +1,11 @@
-package edu.umass.cs.gigapaxos.examples.xdn;
+package edu.umass.cs.xdn;
 
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.reconfiguration.examples.AppRequest;
 import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
-import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -36,6 +34,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
 
     @Override
     public boolean execute(Request request) {
+        System.out.println(">> " + this.activeReplicaID + " XDNApp execution:   " + request.getClass().getSimpleName());
+
         if (request instanceof HttpActiveReplicaRequest harRequest) {
             harRequest.setResponse("ok");
         }
@@ -43,6 +43,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
         if (request instanceof XDNRequest xdnRequest) {
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
+
+        // TODO: handle statediff in backups where execute is simply applying the statediff
 
         return true;
     }
@@ -189,6 +191,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
         // Case-3: the actual restore, i.e., initialize service in new epoch (>0) with state
         // obtained from the latest checkpoint (possibly from different active replica).
         if (state != null && state.startsWith("checkpoint:")) {
+            // TODO: implement me
             System.err.println("unimplemented! restore(.) with latest checkpointed state");
             return false;
         }
@@ -204,6 +207,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
 
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
+        System.out.println(">>> createFromString " + stringified);
+        if (stringified.startsWith(XDNRequest.XDNStatediffApplyRequest.XDN_PREFIX_STATEDIFF_REQUEST)) {
+            return XDNRequest.XDNStatediffApplyRequest.createFromString(stringified);
+        }
+
         Request req = XDNRequest.createFromString(stringified);
 
         // handle request from existing http interface
