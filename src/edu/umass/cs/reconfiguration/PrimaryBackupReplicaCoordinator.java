@@ -2,7 +2,9 @@ package edu.umass.cs.reconfiguration;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
+import edu.umass.cs.reconfiguration.reconfigurationutils.TrivialRepliconfigurable;
 import edu.umass.cs.xdn.XDNRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
@@ -44,6 +46,7 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
     private final Set<IntegerPacketType> requestTypes;
     private final NodeIDType myNodeID;
     private final boolean IS_REDIRECT_TO_PRIMARY = false;
+    private final BackupableApplication backupableApplication;
 
     public PrimaryBackupReplicaCoordinator(
             Replicable app,
@@ -51,6 +54,15 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
             Stringifiable<NodeIDType> unstringer,
             Messenger<NodeIDType, JSONObject> messenger) {
         super(app, messenger);
+
+        if (!(app instanceof BackupableApplication)) {
+            String exceptionMessage = String.format("Cannot use %s for non %s",
+                    this.getClass().getSimpleName(),
+                    BackupableApplication.class.getSimpleName());
+            throw new RuntimeException(exceptionMessage);
+        }
+
+        this.backupableApplication = (BackupableApplication) app;
 
         System.out.println(">> PrimaryBackupReplicaCoordinator - initialization");
 
@@ -167,12 +179,14 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
             primaryRequest = rcRequest.getRequest();
         }
 
+        // TODO: ensure atomicity of batch execution
         this.app.execute(primaryRequest);
 
+        String statediff = this.backupableApplication.captureStatediff(request.getServiceName());
         XDNRequest.XDNStatediffApplyRequest statediffApplyRequest =
                 new XDNRequest.XDNStatediffApplyRequest(
                         request.getServiceName(),
-                        "statediff".getBytes());
+                        statediff);
 
         System.out.println(">> " + this.myNodeID + " propose ...");
         System.out.println(" request type " + primaryRequest.getClass().getSimpleName());
@@ -181,12 +195,9 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         this.paxosManager.propose(
                 request.getServiceName(),
                 statediffApplyRequest,
-                new ExecutedCallback() {
-                    @Override
-                    public void executed(Request statediffRequest, boolean handled) {
-                        System.out.println("chained executed ...");
-                        callback.executed(finalPrimaryRequest, handled);
-                    }
+                (statediffRequest, handled) -> {
+                    System.out.println("chained executed ...");
+                    callback.executed(finalPrimaryRequest, handled);
                 });
         return true;
     }

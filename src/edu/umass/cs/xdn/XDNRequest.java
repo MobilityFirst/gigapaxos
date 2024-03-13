@@ -228,10 +228,10 @@ public class XDNRequest implements ReplicableRequest {
         public static final String XDN_PREFIX_STATEDIFF_REQUEST = String.format("%s%d:",
                 SERIALIZED_PREFIX, PacketType.XDN_STATEDIFF_APPLY_REQUEST.getInt());
         private final String serviceName;
-        private final byte[] statediff;
+        private final String statediff;
         private long requestID;
 
-        public XDNStatediffApplyRequest(String serviceName, byte[] statediff) {
+        public XDNStatediffApplyRequest(String serviceName, String statediff) {
             this.serviceName = serviceName;
             this.statediff = statediff;
             this.requestID = System.currentTimeMillis();
@@ -256,6 +256,10 @@ public class XDNRequest implements ReplicableRequest {
             this.requestID = requestID;
         }
 
+        public String getStatediff() {
+            return statediff;
+        }
+
         @Override
         public boolean needsCoordination() {
             return true;
@@ -266,7 +270,7 @@ public class XDNRequest implements ReplicableRequest {
             try {
                 JSONObject json = new JSONObject();
                 json.put("sn", this.serviceName);
-                json.put("sd", new String(this.statediff, StandardCharsets.UTF_8));
+                json.put("sd", this.statediff);
                 json.put("id", this.requestID);
                 return String.format("%s%s",
                         XDN_PREFIX_STATEDIFF_REQUEST,
@@ -291,7 +295,7 @@ public class XDNRequest implements ReplicableRequest {
 
                 XDNStatediffApplyRequest request = new XDNStatediffApplyRequest(
                         serviceName,
-                        statediffStr.getBytes(StandardCharsets.UTF_8));
+                        statediffStr);
                 request.setRequestID(requestID);
                 return request;
             } catch (JSONException e) {

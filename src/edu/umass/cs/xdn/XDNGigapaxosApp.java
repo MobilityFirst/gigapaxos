@@ -1,12 +1,15 @@
 package edu.umass.cs.xdn;
 
+import com.mchange.v2.io.FileUtils;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.ZipFiles;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 
@@ -17,19 +20,25 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class XDNGigapaxosApp implements Replicable, Reconfigurable {
+public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication {
 
     private String activeReplicaID;
 
     private HashMap<String, Integer> activeServicePorts;
+    private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
 
     private HttpClient serviceClient = HttpClient.newHttpClient();
 
     public XDNGigapaxosApp(String[] args) {
-        activeReplicaID = args[args.length - 1];
+        activeReplicaID = args[args.length - 1].toLowerCase();
         activeServicePorts = new HashMap<>();
+        serviceProperties = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -38,6 +47,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
 
         if (request instanceof HttpActiveReplicaRequest harRequest) {
             harRequest.setResponse("ok");
+        }
+
+        if (request instanceof XDNRequest.XDNStatediffApplyRequest xdnRequest) {
+            return applyStatediff(request.getServiceName(), xdnRequest.getStatediff());
         }
 
         if (request instanceof XDNRequest xdnRequest) {
@@ -208,7 +221,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
         System.out.println(">>> createFromString " + stringified);
-        if (stringified.startsWith(XDNRequest.XDNStatediffApplyRequest.XDN_PREFIX_STATEDIFF_REQUEST)) {
+        if (stringified.startsWith(XDNRequest.XDNStatediffApplyRequest.
+                XDN_PREFIX_STATEDIFF_REQUEST)) {
             return XDNRequest.XDNStatediffApplyRequest.createFromString(stringified);
         }
 
@@ -297,6 +311,14 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
         }
         int publicPort = getRandomNumber(50000, 65000);
 
+        XDNServiceProperties prop = new XDNServiceProperties();
+        prop.dockerImageName = dockerImageName;
+        prop.consistencyModel = consistencyModel;
+        prop.isDeterministic = isDeterministic;
+        prop.stateDir = stateDir;
+        prop.exposedPort = dockerPort;
+        prop.mappedPort = publicPort;
+
         // actually start the containerized service, via command line
         boolean isSuccess = startContainer(serviceName, dockerImageName, publicPort, dockerPort);
         if (!isSuccess) {
@@ -305,6 +327,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
 
         // store the service's public port for request forwarding.
         activeServicePorts.put(serviceName, publicPort);
+        serviceProperties.put(serviceName, prop);
 
         return true;
     }
@@ -313,7 +336,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
         // TODO: implement me
         return false;
     }
-
 
     /**
      * startContainer runs the bash command below to start running a docker container.
@@ -431,10 +453,202 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
         }
     }
 
+    private String copyContainerDirectory(String serviceName) {
+        // gather the required service properties
+        XDNServiceProperties serviceProperty = serviceProperties.get(serviceName);
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", containerName);
+        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", containerName);
 
-    /**
-     * Below are the implementation methods for Replicable interface
-     */
+        // create /tmp/xdn/statediff/ and /tmp/xdn/zip/ directories, if needed
+        createXDNStatediffDirIfNotExist();
+
+        // remove previous statediff, if any
+        int exitCode = runShellCommand(String.format("rm -rf %s", statediffDirPath), false);
+        if (exitCode != 0) {
+            return null;
+        }
+
+        // remove previous statediff archive, if any
+        exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
+        if (exitCode != 0) {
+            return null;
+        }
+
+        // get the statediff into statediffDirPath
+        String command = String.format("docker cp %s:%s %s",
+                containerName,
+                serviceProperty.stateDir,
+                statediffDirPath);
+        exitCode = runShellCommand(command, false);
+        if (exitCode != 0) {
+            return null;
+        }
+
+        // archive the statediff into statediffZipPath
+        ZipFiles.zipDirectory(new File(statediffDirPath), statediffZipPath);
+
+        // convert the archive into String
+        try {
+            byte[] statediffBytes = Files.readAllBytes(Path.of(statediffZipPath));
+            return String.format("xdn:statediff:%s:%s",
+                    this.activeReplicaID,
+                    new String(statediffBytes, StandardCharsets.ISO_8859_1));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private int runShellCommand(String command) {
+        return runShellCommand(command, true);
+    }
+
+    private int runShellCommand(String command, boolean isSilent) {
+        try {
+            // prepare to start the command
+            ProcessBuilder pb = new ProcessBuilder(command.split("\\s+"));
+            if (isSilent) {
+                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            }
+
+            if (!isSilent) {
+                System.out.println("command: " + command);
+            }
+
+            // run the command as a new OS process
+            Process process = pb.start();
+
+            // print out the output in stderr, if needed
+            if (!isSilent) {
+                InputStream errInputStream = process.getErrorStream();
+                BufferedReader errBufferedReader = new BufferedReader(
+                        new InputStreamReader(errInputStream));
+                String line;
+                while ((line = errBufferedReader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+
+            if (!isSilent) {
+                System.out.println("exit code: " + exitCode);
+            }
+
+            return exitCode;
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void createXDNStatediffDirIfNotExist() {
+        try {
+            String statediffDirPath = "/tmp/xdn";
+            Files.createDirectories(Paths.get(statediffDirPath));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            String statediffDirPath = "/tmp/xdn/statediff";
+            Files.createDirectories(Paths.get(statediffDirPath));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            String statediffDirPath = "/tmp/xdn/zip";
+            Files.createDirectories(Paths.get(statediffDirPath));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**********************************************************************************************
+     *             Begin implementation methods for BackupableApplication interface               *
+     *********************************************************************************************/
+
+    @Override
+    public String captureStatediff(String serviceName) {
+        return copyContainerDirectory(serviceName);
+    }
+
+    @Override
+    public boolean applyStatediff(String serviceName, String statediff) {
+        System.out.println(">>>>>> applying statediff: " + serviceName + " " + statediff);
+
+        // validate the statediff
+        if (statediff == null || !statediff.startsWith("xdn:statediff:")) {
+            System.out.println("invalid XDN statediff format, ignoring it");
+            return false;
+        }
+
+        // get the primary ID, ignore if I'm the primary
+        String suffix = statediff.substring("xdn:statediff:".length());
+        int primaryIDEndIdx = suffix.indexOf(":");
+        String primaryID = suffix.substring(0, primaryIDEndIdx);
+        if (primaryID.equals(activeReplicaID)) {
+            System.out.println(">> I'm the coordinator, ignoring statediff. coordinatorID=" + primaryID + " myID=" + activeReplicaID);
+            return true;
+        }
+
+        // gather the required service properties
+        XDNServiceProperties serviceProperty = serviceProperties.get(serviceName);
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", containerName);
+        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", containerName);
+
+        // remove previous statediff archive, if any
+        int exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
+        if (exitCode != 0) {
+            return false;
+        }
+
+        // convert the String statediff back to archive
+        String statediffString = suffix.substring(primaryIDEndIdx + 1);
+        try (FileOutputStream fos = new FileOutputStream(statediffZipPath)) {
+            fos.write(statediffString.getBytes(StandardCharsets.ISO_8859_1));
+            fos.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        // remove previous statediff, if any
+        exitCode = runShellCommand(String.format("rm -rf %s", statediffDirPath), false);
+        if (exitCode != 0) {
+            return false;
+        }
+
+        // unarchive the statediff
+        ZipFiles.unzip(statediffZipPath, statediffDirPath);
+
+        // copy back the statediff into the service container
+        String copyCommand = String.format("docker cp %s %s:%s",
+                statediffDirPath + "/.", containerName, serviceProperty.stateDir);
+        exitCode = runShellCommand(copyCommand, false);
+        if (exitCode != 0) {
+            return false;
+        }
+
+        // restart the service container
+        String restartCommand = String.format("docker container restart %s", containerName);
+        exitCode = runShellCommand(restartCommand, false);
+        if (exitCode != 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**********************************************************************************************
+     *             End of implementation methods for BackupableApplication interface              *
+     *********************************************************************************************/
+
+
+    /**********************************************************************************************
+     *                  Begin implementation methods for Replicable interface                     *
+     *********************************************************************************************/
 
     private static class XDNStopRequest implements ReconfigurableRequest {
 
@@ -500,4 +714,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable {
         System.out.println(">> XDNGigapaxosApp - getEpoch name:" + name);
         return 0;
     }
+
+    /**********************************************************************************************
+     *                   End implementation methods for Replicable interface                      *
+     *********************************************************************************************/
+
 }

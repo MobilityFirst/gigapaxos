@@ -164,6 +164,7 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 				proposee,
 				log.isLoggable(level) ? this.getReplicaGroup(paxosGroupID)
 						: null });
+		System.out.println(">>>>>>>>>>>>>>>>>>>> app? " + this.app.getClass().getSimpleName());
 		return proposee != null;
 	}
 
