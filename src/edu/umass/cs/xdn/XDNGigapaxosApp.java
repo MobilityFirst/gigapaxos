@@ -158,6 +158,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private HttpVersion getNettyHttpVersion(HttpClient.Version httpClientVersion) {
+        // TODO: upgrade netty that support HTTP2
         switch (httpClientVersion) {
             case HTTP_1_1, HTTP_2 -> {
                 return HttpVersion.HTTP_1_1;
@@ -181,7 +182,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     public boolean restore(String name, String state) {
         System.out.println("BookCatalogApp - restore name=" + name + " state=" + state);
 
-        // Corner case when name is empty, which fundamentally should not happen.
+        // A corner case when name is empty, which fundamentally should not happen.
         if (name == null || name.equals("")) {
             System.err.println("restore(.) is called with empty service name");
             return false;
@@ -343,114 +344,43 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      */
     private boolean startContainer(String serviceName, String imageName,
                                    int publicPort, int internalPort) {
-        try {
-            String command = String.format("docker run -d --name=%s.%s.xdn.io -p %d:%d %s",
-                    serviceName, activeReplicaID, publicPort, internalPort, imageName);
-            System.out.println(">>>> running command " + command);
-            Process process = new ProcessBuilder(command.split("\\s+")).start();
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String startCommand = String.format("docker run -d --name=%s -p %d:%d %s",
+                containerName, publicPort, internalPort, imageName);
 
-            // read the output of the command
-            InputStream inputStream = process.getInputStream();
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // read the error of the command
-            InputStream errInputStream = process.getErrorStream();
-            BufferedReader errBufferedReader = new BufferedReader(
-                    new InputStreamReader(errInputStream));
-            while ((line = errBufferedReader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // get the process exit code
-            int exitCode = process.waitFor();
-            System.out.println("exit code: " + exitCode);
-            return true;
-
-        } catch (IOException e) {
-            System.out.println("failed to run command: " + e);
-            return false;
-        } catch (InterruptedException e) {
-            System.out.println("docker run process is interrupted: " + e);
+        int exitCode = runShellCommand(startCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to start container");
             return false;
         }
+
+        return true;
     }
 
     private boolean stopContainer(String serviceName) {
-        try {
-            String command = String.format("docker container stop %s.%s.xdn.io",
-                    serviceName, activeReplicaID);
-            System.out.println(">>>> running command " + command);
-            Process process = new ProcessBuilder(command.split("\\s+")).start();
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String stopCommand = String.format("docker container stop %s", containerName);
 
-            // read the output of the command
-            InputStream inputStream = process.getInputStream();
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // read the error of the command
-            InputStream errInputStream = process.getErrorStream();
-            BufferedReader errBufferedReader = new BufferedReader(
-                    new InputStreamReader(errInputStream));
-            while ((line = errBufferedReader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // get the process exit code
-            int exitCode = process.waitFor();
-            System.out.println("exit code: " + exitCode);
-
-            return true;
-        } catch (IOException e) {
-            System.out.println("failed to run command: " + e);
-            return false;
-        } catch (InterruptedException e) {
-            System.out.println("docker stop process is interrupted: " + e);
+        int exitCode = runShellCommand(stopCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to stop container");
             return false;
         }
+
+        return true;
     }
 
     private boolean removeContainer(String serviceName) {
-        try {
-            String command = String.format("docker container rm %s.%s.xdn.io",
-                    serviceName, activeReplicaID);
-            System.out.println(">>>> running command " + command);
-            Process process = new ProcessBuilder(command.split("\\s+")).start();
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String removeCommand = String.format("docker container rm %s", containerName);
 
-            // read the output of the command
-            InputStream inputStream = process.getInputStream();
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // read the error of the command
-            InputStream errInputStream = process.getErrorStream();
-            BufferedReader errBufferedReader = new BufferedReader(
-                    new InputStreamReader(errInputStream));
-            while ((line = errBufferedReader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // get the process exit code
-            int exitCode = process.waitFor();
-            System.out.println("exit code: " + exitCode);
-
-            return true;
-        } catch (IOException e) {
-            System.out.println("failed to run command: " + e);
-            return false;
-        } catch (InterruptedException e) {
-            System.out.println("docker stop process is interrupted: " + e);
+        int exitCode = runShellCommand(removeCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to remove container");
             return false;
         }
+
+        return true;
     }
 
     private String copyContainerDirectory(String serviceName) {
