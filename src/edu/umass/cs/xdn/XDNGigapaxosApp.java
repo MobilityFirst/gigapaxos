@@ -325,12 +325,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         prop.mappedPort = publicPort;
 
         // actually start the containerized service, via command line
-        boolean isSuccess = startContainer(
-                prop.serviceName,
-                prop.dockerImages,
-                prop.mappedPort,
-                prop.exposedPort,
-                prop.stateDir);
+        boolean isSuccess = startContainer(prop);
         if (!isSuccess) {
             return false;
         }
@@ -351,14 +346,14 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      * startContainer runs the bash command below to start running a docker container.
      * TODO: use the stateDir argument.
      */
-    private boolean startContainer(String serviceName, List<String> imageNames,
-                                   int publicPort, int internalPort, String stateDirPath) {
+    private boolean startContainer(XDNServiceProperties properties) {
 
         if (IS_USE_FUSE) {
-            return startContainerWithFSMount();
+            return startContainerWithFSMount(properties);
         }
 
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String containerName = String.format("%s.%s.xdn.io",
+                properties.serviceName, this.activeReplicaID);
 
         // prepare state directory in the host
         String cleanupCommand = String.format("rm -rf /xdn/state/%s", containerName);
@@ -371,8 +366,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         String startCommand = String.format("docker run -d --name=%s -p %d:%d " +
                 "--mount type=bind,source=%s,target=%s %s",
-                containerName, publicPort, internalPort,
-                containerStateDirPath, stateDirPath, imageNames.get(0));
+                containerName, properties.mappedPort, properties.exposedPort,
+                containerStateDirPath, properties.stateDir, properties.dockerImages.get(0));
         exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to start container");
