@@ -97,8 +97,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
 
         String serviceName = request.getServiceName();
         boolean isCurrentPrimary = this.paxosManager.isPaxosCoordinator(serviceName);
-        if (!isCurrentPrimary) {
-            NodeIDType currPrimaryID = this.paxosManager.getPaxosCoordinator(serviceName);
+        NodeIDType currPrimaryID = this.paxosManager.getPaxosCoordinator(serviceName);
+        if (!isCurrentPrimary && currPrimaryID != myNodeID) {
             if (currPrimaryID == null) {
                 return sendErrorResponse(request, callback, "unknown coordinator");
             }

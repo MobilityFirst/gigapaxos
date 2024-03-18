@@ -474,8 +474,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // get the statediff into statediffDirPath
         String command = String.format("docker cp %s:%s %s",
                 containerName,
-                serviceProperty.stateDir,
-                statediffDirPath);
+                serviceProperty.stateDir + "/.",
+                statediffDirPath + "/");
         exitCode = runShellCommand(command, false);
         if (exitCode != 0) {
             System.err.println("failed to copy statediff");
