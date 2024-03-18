@@ -224,6 +224,29 @@ public class XDNRequest implements ReplicableRequest {
 
     }
 
+    public static class XDNForwardHttpRequest implements ReplicableRequest {
+
+        @Override
+        public IntegerPacketType getRequestType() {
+            return PacketType.XDN_FORWARD_HTTP_REQUEST;
+        }
+
+        @Override
+        public String getServiceName() {
+            return null;
+        }
+
+        @Override
+        public long getRequestID() {
+            return 0;
+        }
+
+        @Override
+        public boolean needsCoordination() {
+            return true;
+        }
+    }
+
     public static class XDNStatediffApplyRequest implements ReplicableRequest {
         public static final String XDN_PREFIX_STATEDIFF_REQUEST = String.format("%s%d:",
                 SERIALIZED_PREFIX, PacketType.XDN_STATEDIFF_APPLY_REQUEST.getInt());

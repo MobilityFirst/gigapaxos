@@ -42,10 +42,10 @@ import java.util.Set;
 public class PrimaryBackupReplicaCoordinator<NodeIDType>
         extends AbstractReplicaCoordinator<NodeIDType> {
 
+    private final boolean IS_REDIRECT_TO_PRIMARY = false;
     private final PaxosManager<NodeIDType> paxosManager;
     private final Set<IntegerPacketType> requestTypes;
     private final NodeIDType myNodeID;
-    private final boolean IS_REDIRECT_TO_PRIMARY = false;
     private final BackupableApplication backupableApplication;
 
     public PrimaryBackupReplicaCoordinator(
@@ -98,12 +98,13 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         String serviceName = request.getServiceName();
         boolean isCurrentPrimary = this.paxosManager.isPaxosCoordinator(serviceName);
         if (!isCurrentPrimary) {
-            if (IS_REDIRECT_TO_PRIMARY) {
-                return forwardRequestToPrimary(request, callback);
-            }
             NodeIDType currPrimaryID = this.paxosManager.getPaxosCoordinator(serviceName);
             if (currPrimaryID == null) {
                 return sendErrorResponse(request, callback, "unknown coordinator");
+            }
+
+            if (IS_REDIRECT_TO_PRIMARY) {
+                return forwardRequestToPrimary(currPrimaryID, request, callback);
             }
 
             return askClientToContactPrimary(currPrimaryID, request, callback);
@@ -202,7 +203,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         return true;
     }
 
-    private boolean forwardRequestToPrimary(Request request, ExecutedCallback callback) {
+    private boolean forwardRequestToPrimary(NodeIDType primaryNodeID, Request request,
+                                            ExecutedCallback callback) {
         // TODO: hold request in a hashmap, then forward to primary
         // TODO: two options (1) have a thread running a loop, or identify message from
         //  coordinateRequest

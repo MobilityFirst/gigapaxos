@@ -1,6 +1,5 @@
 package edu.umass.cs.xdn;
 
-import com.mchange.v2.io.FileUtils;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
@@ -196,15 +195,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         // Case-2: initialize a brand-new service name.
         // Note that in gigapaxos, initialization is a special case of restore
-        // with state == initialState. In XDN, the initialState is always started with "init:".
-        // Example of the initState is "init:bookcatalog:8000:linearizable:true:/app/data",
-        if (state != null && state.startsWith("init:")) {
+        // with state == initialState. In XDN, the initialState is always started with "xdn:init:".
+        // Example of the initState is "xdn:init:bookcatalog:8000:linearizable:true:/app/data",
+        if (state != null && state.startsWith("xdn:init:")) {
             return initContainerizedService(name, state);
         }
 
         // Case-3: the actual restore, i.e., initialize service in new epoch (>0) with state
         // obtained from the latest checkpoint (possibly from different active replica).
-        if (state != null && state.startsWith("checkpoint:")) {
+        if (state != null && state.startsWith("xdn:checkpoint:")) {
             // TODO: implement me
             System.err.println("unimplemented! restore(.) with latest checkpointed state");
             return false;
@@ -260,8 +259,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      */
     private boolean initContainerizedService(String serviceName, String initialState) {
 
-        System.out.println(">>> initContainerizedService serviceName=" + serviceName + " initState=" + initialState);
-
         // if the service is already initialized previously, in this active replica,
         // then stop and remove the previous service.
         if (activeServicePorts.containsKey(serviceName)) {
@@ -291,18 +288,18 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             }
         }
 
-        // decode and validate the initial state
+        // ecode and validate the initial state
         String[] decodedInitialState = initialState.split(":");
-        if (decodedInitialState.length < 6 || !decodedInitialState[0].equals("init")) {
+        if (decodedInitialState.length < 7 || !initialState.startsWith("xdn:init:")) {
             System.err.println("incorrect initial state, example of expected state is" +
-                    " 'init:bookcatalog:8000:linearizable:true:/app/data'");
+                    " 'xdn:init:bookcatalog:8000:linearizable:true:/app/data'");
             return false;
         }
-        String dockerImageName = decodedInitialState[1];
-        String dockerPortStr = decodedInitialState[2];
-        String consistencyModel = decodedInitialState[3];
-        boolean isDeterministic = decodedInitialState[4].equalsIgnoreCase("true");
-        String stateDir = decodedInitialState[5];
+        String dockerImageNames = decodedInitialState[2];
+        String dockerPortStr = decodedInitialState[3];
+        String consistencyModel = decodedInitialState[4];
+        boolean isDeterministic = decodedInitialState[5].equalsIgnoreCase("true");
+        String stateDir = decodedInitialState[6];
         int dockerPort = 0;
         try {
             dockerPort = Integer.parseInt(dockerPortStr);
@@ -310,18 +307,20 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             System.err.println("incorrect docker port: " + e);
             return false;
         }
+
+        // TODO: assign port systematically to avoid port conflict
         int publicPort = getRandomNumber(50000, 65000);
 
         XDNServiceProperties prop = new XDNServiceProperties();
-        prop.dockerImageName = dockerImageName;
+        prop.dockerImages.addAll(List.of(dockerImageNames.split(",")));
+        prop.exposedPort = dockerPort;
         prop.consistencyModel = consistencyModel;
         prop.isDeterministic = isDeterministic;
         prop.stateDir = stateDir;
-        prop.exposedPort = dockerPort;
         prop.mappedPort = publicPort;
 
         // actually start the containerized service, via command line
-        boolean isSuccess = startContainer(serviceName, dockerImageName, publicPort, dockerPort);
+        boolean isSuccess = startContainer(serviceName, prop.dockerImages, publicPort, dockerPort);
         if (!isSuccess) {
             return false;
         }
@@ -342,11 +341,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      * startContainer runs the bash command below to start running a docker container.
      * TODO: use the stateDir argument.
      */
-    private boolean startContainer(String serviceName, String imageName,
+    private boolean startContainer(String serviceName, List<String> imageNames,
                                    int publicPort, int internalPort) {
         String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
         String startCommand = String.format("docker run -d --name=%s -p %d:%d %s",
-                containerName, publicPort, internalPort, imageName);
+                containerName, publicPort, internalPort, imageNames.get(0));
 
         int exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
