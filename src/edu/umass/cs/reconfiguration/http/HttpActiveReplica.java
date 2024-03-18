@@ -349,10 +349,12 @@ public class HttpActiveReplica {
 
                 // handle the second condition: Host ending with "xdn.io"
                 String requestHost = httpRequest.headers().get(HttpHeaderNames.HOST);
-                String[] hostPort = requestHost.split(":");
-                String host = hostPort[0];
-                if (host.endsWith("xdn.io")) {
-                    isXDNRequest = true;
+                if (requestHost != null) {
+                    String[] hostPort = requestHost.split(":");
+                    String host = hostPort[0];
+                    if (host.endsWith("xdn.io")) {
+                        isXDNRequest = true;
+                    }
                 }
 
                 if (isXDNRequest) {

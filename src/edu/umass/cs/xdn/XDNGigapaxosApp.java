@@ -27,6 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication {
 
+    private final boolean IS_USE_FUSE = false;
+
     private String activeReplicaID;
 
     private HashMap<String, Integer> activeServicePorts;
@@ -38,6 +40,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         activeReplicaID = args[args.length - 1].toLowerCase();
         activeServicePorts = new HashMap<>();
         serviceProperties = new ConcurrentHashMap<>();
+
+        // TODO: check if FUSE program is available
     }
 
     @Override
@@ -312,6 +316,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         int publicPort = getRandomNumber(50000, 65000);
 
         XDNServiceProperties prop = new XDNServiceProperties();
+        prop.serviceName = serviceName;
         prop.dockerImages.addAll(List.of(dockerImageNames.split(",")));
         prop.exposedPort = dockerPort;
         prop.consistencyModel = consistencyModel;
@@ -320,7 +325,12 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         prop.mappedPort = publicPort;
 
         // actually start the containerized service, via command line
-        boolean isSuccess = startContainer(serviceName, prop.dockerImages, publicPort, dockerPort);
+        boolean isSuccess = startContainer(
+                prop.serviceName,
+                prop.dockerImages,
+                prop.mappedPort,
+                prop.exposedPort,
+                prop.stateDir);
         if (!isSuccess) {
             return false;
         }
@@ -342,12 +352,83 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      * TODO: use the stateDir argument.
      */
     private boolean startContainer(String serviceName, List<String> imageNames,
-                                   int publicPort, int internalPort) {
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
-        String startCommand = String.format("docker run -d --name=%s -p %d:%d %s",
-                containerName, publicPort, internalPort, imageNames.get(0));
+                                   int publicPort, int internalPort, String stateDirPath) {
 
-        int exitCode = runShellCommand(startCommand, false);
+        if (IS_USE_FUSE) {
+            return startContainerWithFSMount();
+        }
+
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+
+        // prepare state directory in the host
+        String cleanupCommand = String.format("rm -rf /xdn/state/%s", containerName);
+        int exitCode = runShellCommand(cleanupCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to cleanup previous state directory");
+            return false;
+        }
+        String containerStateDirPath = createXDNStateDirrIfNotExist(containerName);
+
+        String startCommand = String.format("docker run -d --name=%s -p %d:%d " +
+                "--mount type=bind,source=%s,target=%s %s",
+                containerName, publicPort, internalPort,
+                containerStateDirPath, stateDirPath, imageNames.get(0));
+        exitCode = runShellCommand(startCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to start container");
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean startContainerWithFSMount(XDNServiceProperties properties) {
+        String containerName = String.format("%s.%s.xdn.io",
+                properties.serviceName, this.activeReplicaID);
+
+        // remove previous directory, if exist
+        String stateDirPath = String.format("/tmp/xdn/state/%s/", containerName);
+        String cleanupCommand = String.format("rm -rf %s", stateDirPath);
+        int exitCode = runShellCommand(cleanupCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to remove previous state directory");
+            return false;
+        }
+
+        // prepare state directory
+        String mkdirCommand = String.format("mkdir -p %s", stateDirPath);
+        exitCode = runShellCommand(mkdirCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to create state directory");
+            return false;
+        }
+
+        // TODO: copy initial state from the image into the host directory
+
+        // prepare socket file for the filesystem
+        String fsSocketPath = "/tmp/xdn/fuselog/socket/";
+        mkdirCommand = String.format("mkdir -p %s", fsSocketPath);
+        exitCode = runShellCommand(mkdirCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to create socket directory");
+            return false;
+        }
+
+        // TODO: mount the filesystem
+        String mountCommand = String.format("fuselog --socket=%s%s %s",
+                fsSocketPath, containerName, containerName);
+        exitCode = runShellCommand(mountCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to mount filesystem");
+            return false;
+        }
+
+        // start the docker container
+        String startCommand = String.format("docker run -d --name=%s -p %d:%d " +
+                        "--mount type=bind,source=%s,target=%s %s",
+                containerName, properties.exposedPort, properties.mappedPort,
+                stateDirPath, properties.stateDir, properties.dockerImages.get(0));
+        exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to start container");
             return false;
@@ -395,12 +476,14 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // remove previous statediff, if any
         int exitCode = runShellCommand(String.format("rm -rf %s", statediffDirPath), false);
         if (exitCode != 0) {
+            System.err.println("failed to remove previous statediff");
             return null;
         }
 
         // remove previous statediff archive, if any
         exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
         if (exitCode != 0) {
+            System.err.println("failed to remove previous statediff archive");
             return null;
         }
 
@@ -411,7 +494,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 statediffDirPath);
         exitCode = runShellCommand(command, false);
         if (exitCode != 0) {
-            return null;
+            System.err.println("failed to copy statediff");
+            return "null";
         }
 
         // archive the statediff into statediffZipPath
@@ -491,6 +575,29 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private String createXDNStateDirrIfNotExist(String containerName) {
+        try {
+            String xdnWorkdirPath = "/tmp/xdn";
+            Files.createDirectories(Paths.get(xdnWorkdirPath));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            String statedirPath = "/tmp/xdn/state";
+            Files.createDirectories(Paths.get(statedirPath));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            String containerStatedirPath = String.format("/tmp/xdn/state/%s", containerName);
+            Files.createDirectories(Paths.get(containerStatedirPath));
+            return containerStatedirPath;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     /**********************************************************************************************
