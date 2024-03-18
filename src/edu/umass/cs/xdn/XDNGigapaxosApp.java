@@ -354,21 +354,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         String containerName = String.format("%s.%s.xdn.io",
                 properties.serviceName, this.activeReplicaID);
-
-        // prepare state directory in the host
-        String cleanupCommand = String.format("rm -rf /xdn/state/%s", containerName);
-        int exitCode = runShellCommand(cleanupCommand, false);
-        if (exitCode != 0) {
-            System.err.println("failed to cleanup previous state directory");
-            return false;
-        }
-        String containerStateDirPath = createXDNStateDirrIfNotExist(containerName);
-
-        String startCommand = String.format("docker run -d --name=%s -p %d:%d " +
-                "--mount type=bind,source=%s,target=%s %s",
+        String startCommand = String.format("docker run -d --name=%s -p %d:%d %s",
                 containerName, properties.mappedPort, properties.exposedPort,
-                containerStateDirPath, properties.stateDir, properties.dockerImages.get(0));
-        exitCode = runShellCommand(startCommand, false);
+                properties.dockerImages.get(0));
+        int exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to start container");
             return false;
