@@ -85,6 +85,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             xdnRequest.setHttpResponse(nettyHttpResponse);
             return true;
         } catch (Exception e) {
+            xdnRequest.setHttpResponse(createNettyHttpErrorResponse(e));
             e.printStackTrace();
             return false;
         }
@@ -158,6 +159,17 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 trailingHeaders
         );
         return result;
+    }
+
+    private io.netty.handler.codec.http.HttpResponse createNettyHttpErrorResponse(Exception e) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        sw.write("Failed to get response from the containerized service:\n");
+        e.printStackTrace(pw);
+        return new DefaultFullHttpResponse(
+                HttpVersion.HTTP_1_1,
+                HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                Unpooled.copiedBuffer(sw.toString().getBytes()));
     }
 
     private HttpVersion getNettyHttpVersion(HttpClient.Version httpClientVersion) {
