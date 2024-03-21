@@ -4,8 +4,7 @@ import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
-import edu.umass.cs.reconfiguration.reconfigurationutils.TrivialRepliconfigurable;
-import edu.umass.cs.xdn.XDNRequest;
+import edu.umass.cs.xdn.request.XDNHttpRequest;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -15,6 +14,7 @@ import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.xdn.request.XDNStatediffApplyRequest;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 import org.json.JSONObject;
@@ -42,7 +42,7 @@ import java.util.Set;
 public class PrimaryBackupReplicaCoordinator<NodeIDType>
         extends AbstractReplicaCoordinator<NodeIDType> {
 
-    private final boolean IS_REDIRECT_TO_PRIMARY = false;
+    private final boolean ENABLE_INTERNAL_REDIRECT_PRIMARY = false;
     private final PaxosManager<NodeIDType> paxosManager;
     private final Set<IntegerPacketType> requestTypes;
     private final NodeIDType myNodeID;
@@ -103,7 +103,7 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                 return sendErrorResponse(request, callback, "unknown coordinator");
             }
 
-            if (IS_REDIRECT_TO_PRIMARY) {
+            if (ENABLE_INTERNAL_REDIRECT_PRIMARY) {
                 return forwardRequestToPrimary(currPrimaryID, request, callback);
             }
 
@@ -115,7 +115,7 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
 
     private boolean askClientToContactPrimary(NodeIDType primaryNodeID, Request request,
                                               ExecutedCallback callback) {
-        XDNRequest xdnRequest = XDNRequest.createFromString(request.toString());
+        XDNHttpRequest xdnRequest = XDNHttpRequest.createFromString(request.toString());
         xdnRequest.setHttpResponse(createRedirectResponse(
                 primaryNodeID, request.getServiceName(), xdnRequest.getHttpRequest()));
         callback.executed(xdnRequest, false);
@@ -153,7 +153,7 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
 
     private boolean sendErrorResponse(Request request, ExecutedCallback callback,
                                       String errorMessage) {
-        XDNRequest xdnRequest = XDNRequest.createFromString(request.toString());
+        XDNHttpRequest xdnRequest = XDNHttpRequest.createFromString(request.toString());
         xdnRequest.setHttpResponse(createErrorResponse(xdnRequest.getHttpRequest(), errorMessage));
         callback.executed(xdnRequest, false);
         return true;
@@ -184,8 +184,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         this.app.execute(primaryRequest);
 
         String statediff = this.backupableApplication.captureStatediff(request.getServiceName());
-        XDNRequest.XDNStatediffApplyRequest statediffApplyRequest =
-                new XDNRequest.XDNStatediffApplyRequest(
+        XDNStatediffApplyRequest statediffApplyRequest =
+                new XDNStatediffApplyRequest(
                         request.getServiceName(),
                         statediff);
 

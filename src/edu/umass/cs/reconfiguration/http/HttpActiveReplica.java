@@ -17,7 +17,8 @@ import java.util.logging.Logger;
 
 import javax.net.ssl.SSLException;
 
-import edu.umass.cs.xdn.XDNRequest;
+import edu.umass.cs.xdn.request.XDNHttpRequest;
+import edu.umass.cs.xdn.request.XDNRequest;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import org.json.JSONException;
@@ -315,6 +316,7 @@ public class HttpActiveReplica {
         final InetSocketAddress senderAddr;
 
         private HttpRequest request;
+        private HttpContent requestContent;
         /**
          * Buffer that stores the response content
          */
@@ -492,41 +494,46 @@ public class HttpActiveReplica {
         }
 
         private void handleReceivedXDNRequest(ChannelHandlerContext ctx, Object msg) throws Exception {
-            XDNRequest xdnHttpRequest = new XDNRequest();
 
             if (msg instanceof HttpRequest) {
                 this.request = (HttpRequest) msg;
-                xdnHttpRequest.setHttpRequest((HttpRequest) msg);
                 if (HttpUtil.is100ContinueExpected((HttpRequest) msg)) {
                     send100Continue(ctx);
                 }
             }
 
             if (msg instanceof HttpContent) {
-                xdnHttpRequest.setHttpContent((HttpContent) msg);
+                this.requestContent = (HttpContent) msg;
             }
 
             if (msg instanceof LastHttpContent) {
-
-                boolean isKeepAlive = HttpUtil.isKeepAlive(xdnHttpRequest.getHttpRequest());
+                assert this.request != null;
+                boolean isKeepAlive = HttpUtil.isKeepAlive(this.request);
+                String serviceName = XDNHttpRequest.inferServiceName(this.request);
 
                 // return http bad request if service name is not available
-                if (!isContainServiceName(xdnHttpRequest)) {
+                if (serviceName == null || serviceName.equals("")) {
                     sendBadRequestResponse(
-                            "unspecified xdn service name",
+                            "Unspecified service name." +
+                                    "This can be cause because of a wrong Host or empty XDN header",
                             ctx,
                             isKeepAlive);
                     return;
                 }
 
-                // prepare the callback for this http request
-                XDNHTTPExecutedCallback callback = new XDNHTTPExecutedCallback(xdnHttpRequest, ctx);
+                XDNHttpRequest httpRequest = new XDNHttpRequest(
+                        serviceName,
+                        this.request,
+                        this.requestContent);
 
-                // create gigapaxos' request, it is important to explicitly set the clientAddress,
+                // prepare the callback for this http request
+                XDNHttpExecutedCallback callback = new XDNHttpExecutedCallback(httpRequest, ctx);
+
+                // create Gigapaxos' request, it is important to explicitly set the clientAddress,
                 // otherwise, down the pipeline, the RequestPacket's equals method will return false
                 // and our callback will not be called, leaving the client hanging
                 // waiting for response.
-                ReplicableClientRequest gpRequest = ReplicableClientRequest.wrap(xdnHttpRequest);
+                ReplicableClientRequest gpRequest = ReplicableClientRequest.wrap(httpRequest);
                 String[] addrPort = ctx.channel().remoteAddress().toString().split(":");
                 gpRequest.setClientAddress(new InetSocketAddress(
                         InetAddress.getByName(addrPort[0].substring(1)),
@@ -540,7 +547,7 @@ public class HttpActiveReplica {
 
         private boolean isContainServiceName(XDNRequest request) {
             String serviceName = request.getServiceName();
-            return serviceName != null;
+            return serviceName != null && !serviceName.equals("");
         }
 
         private static void sendBadRequestResponse(String message, ChannelHandlerContext ctx, boolean isKeepAlive) {
@@ -639,27 +646,25 @@ public class HttpActiveReplica {
             ctx.write(response);
         }
 
-        private static class XDNHTTPExecutedCallback implements ExecutedCallback {
-            private final ChannelHandlerContext ctx;
-            private final XDNRequest request;
-
-            public XDNHTTPExecutedCallback(XDNRequest request, ChannelHandlerContext ctx) {
-                this.request = request;
-                this.ctx = ctx;
-            }
+        private record XDNHttpExecutedCallback(XDNHttpRequest request, ChannelHandlerContext ctx)
+                implements ExecutedCallback {
 
             @Override
             public void executed(Request executedRequest, boolean handled) {
-                if (executedRequest instanceof XDNRequest xdnRequest) {
-                    HttpResponse httpResponse = xdnRequest.getHttpResponse();
-                    boolean isKeepAlive = HttpUtil.isKeepAlive(request.getHttpRequest());
-                    if (httpResponse != null) {
-                        isKeepAlive = isKeepAlive && HttpUtil.isKeepAlive(httpResponse);
-                    }
-                    writeHttpResponse(httpResponse, ctx, isKeepAlive);
-                } else {
-                    System.out.println("ERROR!!! executedRequest is not an XDNRequest anymore :(");
+                if (!(executedRequest instanceof XDNHttpRequest xdnRequest)) {
+                    String exceptionMessage = "Unexpected executed request (" +
+                            executedRequest.getClass().getSimpleName() +
+                            "), it must be an XDNHttpRequest.";
+                    throw new RuntimeException(exceptionMessage);
                 }
+
+                System.out.println(">>> executed callback");
+                HttpResponse httpResponse = xdnRequest.getHttpResponse();
+                boolean isKeepAlive = HttpUtil.isKeepAlive(request.getHttpRequest());
+                if (httpResponse != null) {
+                    isKeepAlive = isKeepAlive && HttpUtil.isKeepAlive(httpResponse);
+                }
+                writeHttpResponse(httpResponse, ctx, isKeepAlive);
             }
         }
     }

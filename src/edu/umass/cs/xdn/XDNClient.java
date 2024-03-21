@@ -5,6 +5,8 @@ import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.xdn.request.XDNHttpRequest;
+import edu.umass.cs.xdn.request.XDNRequest;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,7 +23,7 @@ public class XDNClient extends ReconfigurableAppClientAsync<Request> {
 
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
-        return new XDNRequest();
+        return XDNHttpRequest.createFromString(stringified);
     }
 
     @Override

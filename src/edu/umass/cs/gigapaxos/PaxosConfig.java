@@ -981,8 +981,11 @@ public class PaxosConfig {
 		 * Testing option. Implies no coordinator fault-tolerance.
 		 */
 		DISABLE_GET_LOGGED_MESSAGES(false, true),
-		
 
+		/**
+		 * During startup,
+		 */
+		ENABLE_STARTUP_LEADER_ELECTION(true, false);
 
 
 		/*********** End of unsafe testing options *****************/

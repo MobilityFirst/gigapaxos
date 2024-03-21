@@ -360,7 +360,7 @@ public class PaxosCoordinatorState extends PaxosCoordinator {
 							new Object[] { this, existing.getSummary() });
 				this.carryoverProposals.put(pvalue.slot, pvalue);
 			} else if (pvalue.ballot.compareTo(existing.ballot) == 0) {
-				assert (pvalue.requestValue.equals(existing.requestValue));
+				assert (pvalue.requestValue.equals(existing.requestValue)) : "pvalue = " + pvalue + "\n" + "existing = " + existing;
 			}
 		}
 		waitforMyBallot.updateHeardFrom(prepareReply.acceptor);

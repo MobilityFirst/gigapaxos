@@ -9,30 +9,44 @@ import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.ZipFiles;
+import edu.umass.cs.xdn.request.XDNHttpRequest;
+import edu.umass.cs.xdn.request.XDNRequest;
+import edu.umass.cs.xdn.request.XDNRequestType;
+import edu.umass.cs.xdn.request.XDNStatediffApplyRequest;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 
 import java.io.*;
+import java.net.StandardProtocolFamily;
 import java.net.URI;
+import java.net.UnixDomainSocketAddress;
 import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication {
 
-    private final boolean IS_USE_FUSE = false;
+    private final boolean IS_USE_FUSE = true;
+    private final String FUSELOG_BIN_PATH = "/users/fadhil/fuse/fuselog";
+    private final String FUSELOG_APPLY_BIN_PATH = "/users/fadhil/fuse/apply";
 
     private String activeReplicaID;
 
     private HashMap<String, Integer> activeServicePorts;
     private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
+    private HashMap<String, SocketChannel> fsSocketConnection;
+    private HashMap<String, Boolean> isServiceActive;
 
     private HttpClient serviceClient = HttpClient.newHttpClient();
 
@@ -40,32 +54,143 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         activeReplicaID = args[args.length - 1].toLowerCase();
         activeServicePorts = new HashMap<>();
         serviceProperties = new ConcurrentHashMap<>();
+        fsSocketConnection = new HashMap<>();
+        isServiceActive = new HashMap<>();
 
-        // TODO: check if FUSE program is available
+        if (IS_USE_FUSE) {
+            var fuselogBinary = new File(FUSELOG_BIN_PATH);
+            var fuselogApplyBinary = new File(FUSELOG_APPLY_BIN_PATH);
+            assert fuselogBinary.exists() && fuselogApplyBinary.exists();
+        }
+
     }
 
     @Override
     public boolean execute(Request request) {
         System.out.println(">> " + this.activeReplicaID + " XDNApp execution:   " + request.getClass().getSimpleName());
+        String serviceName = request.getServiceName();
 
         if (request instanceof HttpActiveReplicaRequest harRequest) {
             harRequest.setResponse("ok");
+            return true;
         }
 
-        if (request instanceof XDNRequest.XDNStatediffApplyRequest xdnRequest) {
-            return applyStatediff(request.getServiceName(), xdnRequest.getStatediff());
+        if (request instanceof XDNStatediffApplyRequest xdnRequest) {
+            return applyStatediff(serviceName, xdnRequest.getStatediff());
         }
 
-        if (request instanceof XDNRequest xdnRequest) {
+        if (request instanceof XDNHttpRequest xdnRequest) {
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
-
-        // TODO: handle statediff in backups where execute is simply applying the statediff
 
         return true;
     }
 
-    private boolean forwardHttpRequestToContainerizedService(XDNRequest xdnRequest) {
+    private void deactivate(String serviceName) {
+        System.out.println(">> " + activeReplicaID + " deactivate...");
+
+        try {
+            // without FUSE (i.e., using Zip archive, we need the service container to be running
+            if (!IS_USE_FUSE) {
+                return;
+            }
+
+            // stop container
+            boolean isSuccess = stopContainer(serviceName);
+            if (!isSuccess) {
+                System.err.println("failed to deactivate active container");
+                return;
+            }
+
+            // disconnect filesystem socket
+            SocketChannel socketChannel = fsSocketConnection.get(serviceName);
+            if (socketChannel != null) {
+                socketChannel.close();
+                fsSocketConnection.remove(serviceName);
+            }
+
+            // unmount filesystem
+            String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+            String stateDirPath = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
+            String unmountCommand = String.format("umount %s", stateDirPath);
+            int errCode = runShellCommand(unmountCommand, false);
+            if (errCode != 0) {
+                System.err.println("failed to unmount filesystem");
+                return;
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void activate(String serviceName) {
+        System.out.println(">> " + activeReplicaID + " activate...");
+
+        // without FUSE (i.e., using Zip archive, we need the service container to be running
+        if (!IS_USE_FUSE) {
+            return;
+        }
+
+        // mount the filesystem
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String stateDirPath = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
+        String fsSocketDir = "/tmp/xdn/fuselog/socket/";
+        String fsSocketFile = String.format("%s%s.sock", fsSocketDir, containerName);
+        String mountCommand = String.format("%s -o allow_other -f -s %s", FUSELOG_BIN_PATH, stateDirPath);
+        var t = new Thread() {
+            public void run() {
+                Map<String, String> envVars = new HashMap<>();
+                envVars.put("FUSELOG_SOCKET_FILE", fsSocketFile);
+                int exitCode = runShellCommand(mountCommand, false, envVars);
+                if (exitCode != 0) {
+                    System.err.println("failed to mount filesystem");
+                    return;
+                }
+            }
+        };
+        t.start();
+
+        try {
+            TimeUnit.MILLISECONDS.sleep(10);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        // connect into filesystem socket
+        try {
+            UnixDomainSocketAddress address = UnixDomainSocketAddress.of(Path.of(fsSocketFile));
+            SocketChannel socketChannel = SocketChannel.open(StandardProtocolFamily.UNIX);
+            boolean isConnEstablished = socketChannel.connect(address);
+            if (!isConnEstablished) {
+                System.err.println("failed to connect to the filesystem");
+                return;
+            }
+
+            fsSocketConnection.put(serviceName, socketChannel);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        // start container
+        String startCommand = String.format("docker start %s", containerName);
+        int exitCode = runShellCommand(startCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to start container");
+            return;
+        }
+
+    }
+
+    private boolean forwardHttpRequestToContainerizedService(XDNHttpRequest xdnRequest) {
+        String serviceName = xdnRequest.getServiceName();
+        System.out.println(">> is service active: " + isServiceActive.get(serviceName));
+        if (isServiceActive.get(serviceName) != null && !isServiceActive.get(serviceName)) {
+            activate(serviceName);
+            isServiceActive.put(serviceName, true);
+        }
+
         try {
             // create http request
             HttpRequest httpRequest = convertXDNRequestToHttpRequest(xdnRequest);
@@ -73,6 +198,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 return false;
             }
 
+            System.out.println(">> " + activeReplicaID + " forwarding request to service ...");
             // forward request to the containerized service, and get the http response
             HttpResponse<byte[]> response = serviceClient.send(httpRequest,
                     HttpResponse.BodyHandlers.ofByteArray());
@@ -82,6 +208,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                     createNettyHttpResponse(response);
 
             // store the response in the xdn request, later to be returned to the end client.
+            System.out.println(">> " + activeReplicaID + " storing response " + nettyHttpResponse);
             xdnRequest.setHttpResponse(nettyHttpResponse);
             return true;
         } catch (Exception e) {
@@ -92,7 +219,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     // convertXDNRequestToHttpRequest converts Netty's HTTP request into Java's HTTP request
-    private HttpRequest convertXDNRequestToHttpRequest(XDNRequest xdnRequest) {
+    private HttpRequest convertXDNRequestToHttpRequest(XDNHttpRequest xdnRequest) {
         try {
             // preparing url to the containerized service
             String url = String.format("http://127.0.0.1:%d%s",
@@ -102,11 +229,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             // preparing the HTTP request body, if any
             // TODO: handle non text body, ie. file or binary data
             HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.noBody();
-            if (xdnRequest.getHttpContent() != null &&
-                    xdnRequest.getHttpContent().content() != null) {
+            if (xdnRequest.getHttpRequestContent() != null &&
+                    xdnRequest.getHttpRequestContent().content() != null) {
                 bodyPublisher = HttpRequest
                         .BodyPublishers
-                        .ofString(xdnRequest.getHttpContent().content()
+                        .ofString(xdnRequest.getHttpRequestContent().content()
                                 .toString(StandardCharsets.UTF_8));
             }
 
@@ -214,6 +341,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // with state == initialState. In XDN, the initialState is always started with "xdn:init:".
         // Example of the initState is "xdn:init:bookcatalog:8000:linearizable:true:/app/data",
         if (state != null && state.startsWith("xdn:init:")) {
+            isServiceActive.put(name, true);
             return initContainerizedService(name, state);
         }
 
@@ -237,23 +365,46 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
         System.out.println(">>> createFromString " + stringified);
-        if (stringified.startsWith(XDNRequest.XDNStatediffApplyRequest.
-                XDN_PREFIX_STATEDIFF_REQUEST)) {
-            return XDNRequest.XDNStatediffApplyRequest.createFromString(stringified);
+
+        // case-1: handle all xdn requests with prefix "xdn:"
+        if (stringified.startsWith(XDNRequest.SERIALIZED_PREFIX)) {
+            // handle a statediff request
+            if (stringified.startsWith(XDNStatediffApplyRequest.SERIALIZED_PREFIX)) {
+                Request r = XDNStatediffApplyRequest.createFromString(stringified);
+                if (r == null) {
+                    Exception e = new RuntimeException(
+                            "Invalid serialized format for xdn statediff request");
+                    throw new RequestParseException(e);
+                }
+                return r;
+            }
+
+            // handle an http request
+            if (stringified.startsWith(XDNHttpRequest.SERIALIZED_PREFIX)) {
+                Request r = XDNHttpRequest.createFromString(stringified);
+                if (r == null) {
+                    Exception e = new RuntimeException(
+                            "Invalid serialized format for xdn http request");
+                    throw new RequestParseException(e);
+                }
+                return r;
+            }
+
+            Exception e = new RuntimeException(
+                    "Invalid serialized format for xdn request");
+            throw new RequestParseException(e);
         }
 
-        Request req = XDNRequest.createFromString(stringified);
 
-        // handle request from existing http interface
-        if (req == null) {
-            System.out.println("XDNGigaPaxosApp - use default request");
-            try {
-                req = new HttpActiveReplicaRequest(stringified.getBytes());
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
-            } catch (UnknownHostException e) {
-                throw new RuntimeException(e);
-            }
+        // case-2: handle the default HttpActiveReplica request (for backward compatibility)
+        System.out.println("XDNGigaPaxosApp - use default request");
+        Request req;
+        try {
+            req = new HttpActiveReplicaRequest(stringified.getBytes());
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
         }
 
         return req;
@@ -262,7 +413,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     @Override
     public Set<IntegerPacketType> getRequestTypes() {
         HashSet<IntegerPacketType> packetTypes = new HashSet<>();
-        packetTypes.add(XDNRequest.PacketType.XDN_SERVICE_HTTP_REQUEST);
+        packetTypes.add(XDNRequestType.XDN_SERVICE_HTTP_REQUEST);
+        packetTypes.add(XDNRequestType.XDN_STATEDIFF_APPLY_REQUEST);
+        packetTypes.add(XDNRequestType.XDN_HTTP_FORWARD_REQUEST);
         return packetTypes;
     }
 
@@ -356,7 +509,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     /**
      * startContainer runs the bash command below to start running a docker container.
-     * TODO: use the stateDir argument.
      */
     private boolean startContainer(XDNServiceProperties properties) {
 
@@ -383,7 +535,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 properties.serviceName, this.activeReplicaID);
 
         // remove previous directory, if exist
-        String stateDirPath = String.format("/tmp/xdn/state/%s/", containerName);
+        String stateDirPath = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
         String cleanupCommand = String.format("rm -rf %s", stateDirPath);
         int exitCode = runShellCommand(cleanupCommand, false);
         if (exitCode != 0) {
@@ -402,27 +554,55 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // TODO: copy initial state from the image into the host directory
 
         // prepare socket file for the filesystem
-        String fsSocketPath = "/tmp/xdn/fuselog/socket/";
-        mkdirCommand = String.format("mkdir -p %s", fsSocketPath);
+        String fsSocketDir = "/tmp/xdn/fuselog/socket/";
+        String fsSocketFile = String.format("%s%s.sock", fsSocketDir, containerName);
+        mkdirCommand = String.format("mkdir -p %s", fsSocketDir);
         exitCode = runShellCommand(mkdirCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to create socket directory");
             return false;
         }
 
-        // TODO: mount the filesystem
-        String mountCommand = String.format("fuselog --socket=%s%s %s",
-                fsSocketPath, containerName, containerName);
-        exitCode = runShellCommand(mountCommand, false);
-        if (exitCode != 0) {
-            System.err.println("failed to mount filesystem");
-            return false;
+        // mount the filesystem
+        String mountCommand = String.format("%s -o allow_other -f -s %s", FUSELOG_BIN_PATH, stateDirPath);
+        var t = new Thread() {
+            public void run() {
+                Map<String, String> envVars = new HashMap<>();
+                envVars.put("FUSELOG_SOCKET_FILE", fsSocketFile);
+                int exitCode = runShellCommand(mountCommand, false, envVars);
+                if (exitCode != 0) {
+                    System.err.println("failed to mount filesystem");
+                    return;
+                }
+            }
+        };
+        t.start();
+
+        try {
+            TimeUnit.MILLISECONDS.sleep(10);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        // establish connection to the filesystem
+        try {
+            UnixDomainSocketAddress address = UnixDomainSocketAddress.of(Path.of(fsSocketFile));
+            SocketChannel socketChannel = SocketChannel.open(StandardProtocolFamily.UNIX);
+            boolean isConnEstablished = socketChannel.connect(address);
+            if (!isConnEstablished) {
+                System.err.println("failed to connect to the filesystem");
+                return false;
+            }
+
+            fsSocketConnection.put(properties.serviceName, socketChannel);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
         // start the docker container
         String startCommand = String.format("docker run -d --name=%s -p %d:%d " +
                         "--mount type=bind,source=%s,target=%s %s",
-                containerName, properties.exposedPort, properties.mappedPort,
+                containerName, properties.mappedPort, properties.exposedPort,
                 stateDirPath, properties.stateDir, properties.dockerImages.get(0));
         exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
@@ -509,11 +689,51 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
     }
 
+    private String captureStatediffWithFuse(XDNServiceProperties properties) {
+        try {
+            SocketChannel fsConn = fsSocketConnection.get(properties.serviceName);
+
+            // send get statediff command (g) to the filesystem
+            fsConn.write(ByteBuffer.wrap("g\n".getBytes()));
+
+            // wait for response indicating the size of the statediff
+            ByteBuffer sizeBuffer = ByteBuffer.allocate(8);
+            sizeBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            sizeBuffer.clear();
+            System.out.println(">> reading response ...");
+            int numRead = fsConn.read(sizeBuffer);
+            if (numRead < 8) {
+                System.err.println("failed to read size of the statediff");
+                return null;
+            }
+            long statediffSize = sizeBuffer.getLong(0);
+            System.out.println(">> statediff size=" + statediffSize);
+
+            // read all the statediff
+            ByteBuffer statediffBuffer = ByteBuffer.allocate((int) statediffSize);
+            numRead = 0;
+            while (numRead < statediffSize) {
+                numRead += fsConn.read(statediffBuffer);
+            }
+            System.out.println("complete reading statediff ...");
+
+            return String.format("xdn:statediff:%s:%s",
+                    this.activeReplicaID,
+                    new String(statediffBuffer.array(), StandardCharsets.ISO_8859_1));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private int runShellCommand(String command) {
         return runShellCommand(command, true);
     }
 
     private int runShellCommand(String command, boolean isSilent) {
+        return runShellCommand(command, isSilent, null);
+    }
+
+    private int runShellCommand(String command, boolean isSilent, Map<String, String> environmentVariables) {
         try {
             // prepare to start the command
             ProcessBuilder pb = new ProcessBuilder(command.split("\\s+"));
@@ -522,8 +742,16 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 pb.redirectError(ProcessBuilder.Redirect.DISCARD);
             }
 
+            if (environmentVariables != null) {
+                Map<String, String> processEnv = pb.environment();
+                processEnv.putAll(environmentVariables);
+            }
+
             if (!isSilent) {
                 System.out.println("command: " + command);
+                if (environmentVariables != null) {
+                    System.out.println(environmentVariables.toString());
+                }
             }
 
             // run the command as a new OS process
@@ -573,35 +801,19 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
     }
 
-    private String createXDNStateDirrIfNotExist(String containerName) {
-        try {
-            String xdnWorkdirPath = "/tmp/xdn";
-            Files.createDirectories(Paths.get(xdnWorkdirPath));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            String statedirPath = "/tmp/xdn/state";
-            Files.createDirectories(Paths.get(statedirPath));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            String containerStatedirPath = String.format("/tmp/xdn/state/%s", containerName);
-            Files.createDirectories(Paths.get(containerStatedirPath));
-            return containerStatedirPath;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-    }
-
     /**********************************************************************************************
      *             Begin implementation methods for BackupableApplication interface               *
      *********************************************************************************************/
 
     @Override
     public String captureStatediff(String serviceName) {
+
+        if (IS_USE_FUSE) {
+            XDNServiceProperties prop = serviceProperties.get(serviceName);
+            assert prop != null;
+            return captureStatediffWithFuse(prop);
+        }
+
         return copyContainerDirectory(serviceName);
     }
 
@@ -620,8 +832,18 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         int primaryIDEndIdx = suffix.indexOf(":");
         String primaryID = suffix.substring(0, primaryIDEndIdx);
         if (primaryID.equals(activeReplicaID)) {
-            System.out.println(">> I'm the coordinator, ignoring statediff. coordinatorID=" + primaryID + " myID=" + activeReplicaID);
+            System.out.println(">> I'm the coordinator, ignoring statediff. coordinatorID="
+                    + primaryID + " myID=" + activeReplicaID);
             return true;
+        }
+        String statediffString = suffix.substring(primaryIDEndIdx + 1);
+
+        if (IS_USE_FUSE) {
+            if (isServiceActive.get(serviceName) != null && isServiceActive.get(serviceName)) {
+                deactivate(serviceName);
+                isServiceActive.put(serviceName, false);
+            }
+            return applyStatediffWithFuse(serviceName, statediffString);
         }
 
         // gather the required service properties
@@ -637,7 +859,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // convert the String statediff back to archive
-        String statediffString = suffix.substring(primaryIDEndIdx + 1);
         try (FileOutputStream fos = new FileOutputStream(statediffZipPath)) {
             fos.write(statediffString.getBytes(StandardCharsets.ISO_8859_1));
             fos.flush();
@@ -670,6 +891,37 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             return false;
         }
 
+        return true;
+    }
+
+    private boolean applyStatediffWithFuse(String serviceName, String statediff) {
+        // TODO: when applying statediff the service need to be stopped/paused, the filesystem need to be stopped.
+
+        try {
+            // gather the required service properties
+            String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+
+            // store statediff into an external file
+            runShellCommand("mkdir -p /tmp/xdn/fuselog/statediff/", false);
+            String tempStatediffFilePath = String.format("/tmp/xdn/fuselog/statediff/%s", containerName);
+            FileOutputStream outputStream = new FileOutputStream(tempStatediffFilePath);
+            outputStream.write(statediff.getBytes(StandardCharsets.ISO_8859_1));
+            outputStream.flush();
+            outputStream.close();
+
+            String stateDir = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
+            String applyCommand = String.format("%s %s", FUSELOG_APPLY_BIN_PATH, stateDir);
+            Map<String, String> env = new HashMap<>();
+            env.put("FUSELOG_STATEDIFF_FILE", tempStatediffFilePath);
+            int errCode = runShellCommand(applyCommand, false, env);
+            if (errCode != 0) {
+                System.err.println("failed to apply statediff");
+                return false;
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         return true;
     }
 
@@ -721,29 +973,35 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     @Override
     public String getFinalState(String name, int epoch) {
-        // TODO: implement me
-        System.out.println(">> XDNGigapaxosApp - getFinalState name:" + name + " epoch:" + epoch);
-        return "";
+        var exceptionMessage = String.format(
+                "XDNGigapaxosApp.getFinalState is unimplemented, serviceName=%s epoch=%d",
+                name, epoch);
+        throw new RuntimeException(exceptionMessage);
     }
 
     @Override
     public void putInitialState(String name, int epoch, String state) {
-        // TODO: implement me
-        System.out.println(">> XDNGigapaxosApp - putInitialState name:" + name + " epoch:" + epoch + " state:" + state);
-        return;
+        var exceptionMessage = String.format(
+                "XDNGigapaxosApp.putInitialState is unimplemented, serviceName=%s epoch=%d state=%s",
+                name, epoch, state);
+        throw new RuntimeException(exceptionMessage);
     }
 
     @Override
     public boolean deleteFinalState(String name, int epoch) {
-        // TODO: implement me
-        System.out.println(">> XDNGigapaxosApp - deleteFinalState name:" + name + " epoch:" + epoch);
-        return true;
+        var exceptionMessage = String.format(
+                "XDNGigapaxosApp.deleteFinalState is unimplemented, serviceName=%s epoch=%d",
+                name, epoch);
+        throw new RuntimeException(exceptionMessage);
     }
 
     @Override
     public Integer getEpoch(String name) {
-        // TODO: implement me
-        System.out.println(">> XDNGigapaxosApp - getEpoch name:" + name);
+        // TODO: store epoch for each service
+        // var exceptionMessage = String.format(
+        //         "XDNGigapaxosApp.getEpoch is unimplemented, serviceName=%s", name);
+        // throw new RuntimeException(exceptionMessage);
+
         return 0;
     }
 
