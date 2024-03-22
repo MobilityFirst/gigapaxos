@@ -1,17 +1,17 @@
 /* Copyright (c) 2015 University of Massachusetts
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * Initial developer(s): V. Arun */
 package edu.umass.cs.gigapaxos;
 
@@ -67,13 +67,13 @@ import edu.umass.cs.utils.Util;
 
 /**
  * @author V. Arun
- * 
+ *
  *         This class is the top-level paxos class per instance or paxos group
  *         on a machine. This class is "protected" as the only way to use it
  *         will be through the corresponding PaxosManager even if there is just
  *         one paxos application running on the machine.
  *         <p>
- * 
+ *
  *         This class delegates much of the interesting paxos actions to
  *         PaxosAcceptorState and PaxosCoordinator. It delegates all messaging
  *         to PaxosManager's PaxosMessenger. It is "managed", i.e., its paxos
@@ -81,13 +81,13 @@ import edu.umass.cs.utils.Util;
  *         PaxosManager. It's logging is handled by an implementation of
  *         AbstractPaxosLogger.
  *         <p>
- * 
+ *
  *         The high-level organization is best reflected in handlePaxosMessage,
  *         a method that delegates processing to the acceptor or coordinator and
  *         gets back a messaging task, e.g., receiving a prepare message will
  *         probably result in a prepare-reply messaging task, and so on.
  *         <p>
- * 
+ *
  *         Space: An inactive PaxosInstanceStateMachine, i.e., whose
  *         corresponding application is currently not processing any requests,
  *         uses ~225B *total*. Here is the breakdown: PaxosInstanceStateMachine
@@ -101,7 +101,7 @@ import edu.umass.cs.utils.Util;
  *         about 2.25GB (10M*225B). The amount of space used by PaxosManager and
  *         others is small and depends only on S, not N or K.
  *         <p>
- * 
+ *
  *         When actively processing requests, the total space per paxos instance
  *         can easily go up to thousands of bytes. But we are unlikely to be
  *         processing requests across even hundreds of thousands of different
@@ -112,7 +112,7 @@ import edu.umass.cs.utils.Util;
  *         *requests* at a machine is on average ~100K. The number of active
  *         paxos instances at that machine is at most the number of active
  *         requests at that machine.
- * 
+ *
  */
 public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/* If false, the paxosID is represented as a byte[], so we must invoke
@@ -168,7 +168,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * an initial checkpoint will still be made. It will make no difference if
 	 * initialState is non-null as checkpointing non-null initial state is
 	 * necessary for safety.
-	 * 
+	 *
 	 * The default setting must be true. Not allowing null checkpoints can cause
 	 * reconfiguration to stall as there is no way for the new epoch to
 	 * distinguish between no previous epoch final state and null previous epoch
@@ -300,7 +300,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * harmless (even if the underlying object has not been garbage collected by
 	 * the JVM. In particular, it can NOT make the app execute requests or send
 	 * out paxos messages to the external world.
-	 * 
+	 *
 	 * @return Whether this paxos instance has been stopped.
 	 */
 	protected boolean isStopped() {
@@ -310,7 +310,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/**
 	 * Forces a synchronization wait. PaxosManager needs this to ensure that an
 	 * ongoing stop is fully executed.
-	 * 
+	 *
 	 * @return True.
 	 */
 	protected synchronized boolean synchronizedNoop() {
@@ -406,7 +406,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/**
 	 * This is the main entry point into this class and is used by
 	 * {@link PaxosManager} to supply incoming packets.
-	 * 
+	 *
 	 * @param obj
 	 *            JSONObject or RequestPacket.
 	 * @throws JSONException
@@ -418,7 +418,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/**
 	 * For legacy reasons, this method still accepts JSONObject in addition to
 	 * PaxosPacket as the first argument.
-	 * 
+	 *
 	 * @param pp
 	 * @param mode
 	 * @throws JSONException
@@ -577,7 +577,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		if (!recovery) {
 			this.sendMessagingTask(mtasks);
 		}
-		
+
 		level = Level.FINEST;
 		if (pp != null)
 			log.log(level, "{0} finished handlePaxosMessage{2}({1})",
@@ -764,7 +764,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			.getGlobalBoolean(PC.BATCHING_ENABLED);
 
 	/* "Phase0" Event: Received a request from a client.
-	 * 
+	 *
 	 * Action: Call handleProposal which will send the corresponding proposal
 	 * to the current coordinator. */
 	private MessagingTask[] handleRequest(RequestPacket request) {
@@ -811,11 +811,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 	/* "Phase0"->Phase2a: Event: Received a proposal [request, slot] from any
 	 * node.
-	 * 
+	 *
 	 * Action: If a non-coordinator node receives a proposal, send to the
 	 * coordinator. Otherwise, propose it to acceptors with a good slot number
 	 * (thereby initiating phase2a for this request).
-	 * 
+	 *
 	 * Return: A send either to a coordinator of the proposal or to all replicas
 	 * of the proposal with a good slot number. */
 	private MessagingTask[] handleProposal(RequestPacket proposal) {
@@ -893,11 +893,11 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/* Phase1a Event: Received a prepare request for a ballot, i.e. that
 	 * ballot's coordinator is acquiring proposing rights for all slot numbers
 	 * (lowest uncommitted up to infinity)
-	 * 
+	 *
 	 * Action: This node needs to check if it has accepted a higher numbered
 	 * ballot already and if not, it can accept this ballot, thereby promising
 	 * not to accept any lower ballots.
-	 * 
+	 *
 	 * Return: Send prepare reply with proposal values previously accepted to
 	 * the sender (the received ballot's coordinator). */
 	private MessagingTask handlePrepare(PreparePacket prepare) {
@@ -970,14 +970,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	}
 
 	/* Phase1b Event: Received a reply to my ballot preparation request.
-	 * 
+	 *
 	 * Action: If the reply contains a higher ballot, we must resign.
 	 * Otherwise, if we acquired a majority with the receipt of this reply, send
 	 * all previously accepted (but uncommitted) requests reported in the
 	 * prepare replies, each in its highest reported ballot, to all replicas.
 	 * These are the proposals that get carried over across a ballot change and
 	 * must be re-proposed.
-	 * 
+	 *
 	 * Return: A list of messages each of which has to be multicast (proposed)
 	 * to all replicas. */
 	private MessagingTask handlePrepareReply(PrepareReplyPacket prepareReply) {
@@ -1038,7 +1038,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 	/* Phase2a Event: Received an accept message for a proposal with some
 	 * ballot.
-	 * 
+	 *
 	 * Action: Send back current or updated ballot to the ballot's coordinator. */
 	private static final boolean EXECUTE_UPON_ACCEPT = Config
 			.getGlobalBoolean(PC.EXECUTE_UPON_ACCEPT);
@@ -1137,7 +1137,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * of a paxos group as it helps balance the coordinator load. With many
 	 * paxos groups, digests actually increase the number of messages by n-1 per
 	 * paxos round but batching accepts helps reduce that added overhead.
-	 * 
+	 *
 	 * With many groups, even with batched accepts, digests are still a net loss
 	 * for two reasons. The first is the increased message count. The second is
 	 * the added overhead of serializing reconstructed accepts while logging
@@ -1202,12 +1202,12 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 	/* Phase2b Event: Received a reply to an accept request, i.e. to a request
 	 * to accept a proposal from the coordinator.
-	 * 
+	 *
 	 * Action: If this reply results in a majority for the corresponding
 	 * proposal, commit the request and notify all. If this preempts a proposal
 	 * being coordinated because it contains a higher ballot, forward to the
 	 * preempting coordinator in the higher ballot reported.
-	 * 
+	 *
 	 * Return: The committed proposal if any to be multicast to all replicas, or
 	 * the preempted proposal if any to be unicast to the preempting
 	 * coordinator. Null if neither. */
@@ -1215,7 +1215,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		this.paxosManager.heardFrom(acceptReply.acceptor); // FD optimization
 		RequestInstrumenter.received(acceptReply, acceptReply.acceptor,
 				this.getMyID());
-		
+
 		Level level=Level.FINER;
 		log.log(level, "{0} handling accept reply {1}", new Object[]{this, acceptReply.getSummary(log.isLoggable(level))});
 
@@ -1271,14 +1271,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			 * acceptor might still think we are the coordinator. The only
 			 * evidence of a new coordinator is in acceptReply that must have
 			 * reported a higher ballot if we are here, hence the assert.
-			 * 
+			 *
 			 * Warning: Can not forward the preempted request as-is to the new
 			 * coordinator as this can result in multiple executions of a
 			 * request. Although the multiple executions will have different
 			 * slot numbers and will not violate paxos safety, this is extremely
-			 * undesirable for most applications. 
-			 * 
-			 * Update: We no longer need to convert preempted requests to a no-op 
+			 * undesirable for most applications.
+			 *
+			 * Update: We no longer need to convert preempted requests to a no-op
 			 * before forwarding to the new coordinator because we have support for
 			 * handling detecting previously issued accepts for the same
 			 * request ID.
@@ -1388,7 +1388,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 			.getGlobalBoolean(PC.BATCHED_COMMITS);
 
 	/* Phase3 Event: Received notification about a committed proposal.
-	 * 
+	 *
 	 * Action: This method is responsible for executing a committed request.
 	 * For this, it needs to call a handler implementing the PaxosInterface
 	 * interface. */
@@ -1511,7 +1511,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 *
 	 * FIXME: shouldSync should also be true until sync'd at least once after
 	 *   crash recovery.
-	 * 
+	 *
 	 * forceSync is used only in the beginning in the case of missedBirthing. */
 	private MessagingTask syncLongDecisionGaps(PValuePacket committed,
 			SyncMode syncMode) {
@@ -1578,7 +1578,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * replicated state machine will be stuck. So, essentially, the app has to
 	 * support atomicity or the operations have to be idempotent for correctness
 	 * of the replicated state machine.
-	 * 
+	 *
 	 * This method is protected, not private, because it needs to be called by
 	 * the logger after it is done logging the committed request. Having the
 	 * logger call this method is only space-efficient design alternative. */
@@ -1671,7 +1671,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * overwrite a higher version checkpoint. An alternative to implement this
 	 * check in putCheckpointState in the logger that anyway does a read before
 	 * a write, but it is cleaner to have the following invariant here.
-	 * 
+	 *
 	 * Invariant: A paxos instance can not checkpoint if a higher paxos instance
 	 * has been (or is being) created. */
 	private static final String consistentCheckpoint(PaxosInstanceStateMachine pism,
@@ -1700,7 +1700,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		 * worry about clock synchronization; only if not under recovery; and
 		 * only if the decision was received directly as opposed to via
 		 * handleCheckpoint.
-		 * 
+		 *
 		 * FIXME: should probably exclude all sync decision responses, not just
 		 * immediately after handleCheckpoint. */
 		if (inorderDecision.getEntryReplica() == getMyID()
@@ -1714,7 +1714,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/**
 	 * Helper method used above in EEC as well as by PaxosManager for emulating
 	 * unreplicated execution for testing purposes.
-	 * 
+	 *
 	 * protected only so that PaxosManager can call this directly to test
 	 * emulateUnreplicated mode.
 	 */
@@ -1739,7 +1739,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 					 * method. */
 					Request request =
 					// don't convert to and from string unnecessarily
-					!requestPacket.shouldReturnRequestValue() 
+					!requestPacket.shouldReturnRequestValue()
 					|| requestPacket.requestValue.equals(Request.NO_OP) ? requestPacket
 					// ask app to translate string to InterfaceRequest
 							: getInterfaceRequest(app,
@@ -1894,7 +1894,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	protected synchronized boolean forceCheckpoint() {
 		String pid = this.getPaxosID();
 		int cpSlot = this.paxosState.getSlot() - 1;
-		String state = 
+		String state =
 		consistentCheckpoint(
 				this,
 				true,
@@ -1920,31 +1920,31 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	/* A note on locking: The PaxosManager lock is typically the first to get
 	 * acquired if it ever appears in a chain of locks with one exception as
 	 * noted in the invariants below.
-	 * 
+	 *
 	 * Invariants: There must be no lock chain
-	 * 
+	 *
 	 * !!! PaxosManager -> PaxosInstanceStateMachine
-	 * 
+	 *
 	 * because there is *by design* a lock chain
-	 * 
+	 *
 	 * --> PaxosInstanceStateMachine -> PaxosManager
-	 * 
+	 *
 	 * when this instance is being stopped.
-	 * 
+	 *
 	 * There must be no lock chains as follows (an invariant is easy to adhere
 	 * to or rather impossible to violate by design because acceptor and
 	 * coordinator are unaware of and have no references to PaxosManager):
-	 * 
+	 *
 	 * !!! nothing -> PaxosAcceptor -> PaxosManager
-	 * 
+	 *
 	 * !!! nothing -> PaxosCoordinator -> PaxosManager
-	 * 
+	 *
 	 * because there are lock chains of the form
-	 * 
+	 *
 	 * --> PaxosManager -> PaxosAcceptor or PaxosCoordinator */
 
 	/* Same as tryForcedCheckpointAndStop but without the checkpoint.
-	 * 
+	 *
 	 * Why this method is not synchronized: when this paxos instance is
 	 * executing a request that takes a long time, this method might
 	 * concurrently try to pause it and even succeed (!), say, because the
@@ -1957,14 +1957,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	 * break and return, so no harm done. When this instance gets eventually
 	 * unpaused, it would seem exactly like just after having executed that last
 	 * decision, so no harm done.
-	 * 
+	 *
 	 * Conversely, this method might lock paxosState first and then EEC might
 	 * get invoked. If so, the program counter could enter the synchronized EEC
 	 * method but will block on paxosState.isStopped until this tryPause method
 	 * finishes. If tryPuase is unsuccessful, nothing has changed, so no harm
 	 * done. Else if tryPause successfully pauses, isStopped will return true
 	 * and EEC will become a noop, so no harm done.
-	 * 
+	 *
 	 * Note: If we make this method synchronized, the deactivator thread could
 	 * be blocked on this instance for a long time. */
 	protected HotRestoreInfo tryPause() {
@@ -2048,20 +2048,20 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 
 		/* curBallot is my acceptor's ballot; "my acceptor's coordinator" is
 		 * that ballot's coordinator.
-		 * 
+		 *
 		 * If I am not already a coordinator with a ballot at least as high as
 		 * my acceptor's ballot's coordinator
-		 * 
+		 *
 		 * AND
-		 * 
+		 *
 		 * I didn't run too recently
-		 * 
+		 *
 		 * AND
-		 * 
+		 *
 		 * (I am my acceptor's coordinator OR (my acceptor's coordinator is dead
 		 * AND (I am next in line OR the current coordinator has been dead for a
 		 * really long time)))
-		 * 
+		 *
 		 * OR forceRun */
 		if ((
 		/* I am not already a coordinator with a ballot at least as high as my
@@ -2155,14 +2155,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				this.paxosState.getSlot(), false);
 	}
 
-private boolean notRunYet() {
-	if (!ENABLE_STARTUP_COORDINATOR_ELECTION) {
-		return false;
-	}
-		return this.paxosState.notRunYet();
-}
+    private boolean notRunYet() {
+        if (!ENABLE_STARTUP_COORDINATOR_ELECTION) {
+            return false;
+        }
+            return this.paxosState.notRunYet();
+    }
 
-private String getBallots() {
+    private String getBallots() {
 		return "["
 				+ (this.coordinator != null ? "C:("
 						+ (this.coordinator != null ? this.coordinator
@@ -2372,7 +2372,7 @@ private String getBallots() {
 	/* Event: Received a sync reply packet with a list of missing committed
 	 * requests Action: Send back all missing committed requests from the log to
 	 * the sender (replier).
-	 * 
+	 *
 	 * We could try to send some from acceptor memory instead of the log, but in
 	 * general, it is not worth the effort. Furthermore, if the sync gap is too
 	 * much, do a checkpoint transfer. */
