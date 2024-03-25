@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication {
 
-    private final boolean IS_USE_FUSE = true;
+    private final boolean IS_USE_FUSE = false;
     private final String FUSELOG_BIN_PATH = "/users/fadhil/fuse/fuselog";
     private final String FUSELOG_APPLY_BIN_PATH = "/users/fadhil/fuse/apply";
 

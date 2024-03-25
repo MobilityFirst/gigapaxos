@@ -1,7 +1,6 @@
 package edu.umass.cs.xdn.request;
 
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 import org.json.JSONArray;
@@ -14,7 +13,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public class XDNHttpRequest implements ReplicableRequest {
+public class XDNHttpRequest extends XDNRequest {
 
     /**
      * All the serialized XDNHttpRequest starts with "xdn:31300:"

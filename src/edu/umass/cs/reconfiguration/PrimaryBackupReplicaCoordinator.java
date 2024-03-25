@@ -2,9 +2,11 @@ package edu.umass.cs.reconfiguration;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosManager;
+import edu.umass.cs.gigapaxos.paxosutil.MessagingTask;
+import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
-import edu.umass.cs.xdn.request.XDNHttpRequest;
+import edu.umass.cs.xdn.request.*;
 import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
@@ -14,9 +16,9 @@ import edu.umass.cs.nio.interfaces.Messenger;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
-import edu.umass.cs.xdn.request.XDNStatediffApplyRequest;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -24,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * PrimaryBackupReplicaCoordinator handles replica groups that use primary-backup, which
@@ -42,11 +45,14 @@ import java.util.Set;
 public class PrimaryBackupReplicaCoordinator<NodeIDType>
         extends AbstractReplicaCoordinator<NodeIDType> {
 
-    private final boolean ENABLE_INTERNAL_REDIRECT_PRIMARY = false;
+    private final boolean ENABLE_INTERNAL_REDIRECT_PRIMARY = true;
     private final PaxosManager<NodeIDType> paxosManager;
     private final Set<IntegerPacketType> requestTypes;
     private final NodeIDType myNodeID;
     private final BackupableApplication backupableApplication;
+
+    // outstanding request forwarded to primary
+    ConcurrentHashMap<Long, XDNRequestAndCallback> outstanding = new ConcurrentHashMap<>();
 
     public PrimaryBackupReplicaCoordinator(
             Replicable app,
@@ -209,7 +215,28 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         // TODO: two options (1) have a thread running a loop, or identify message from
         //  coordinateRequest
 
-        System.out.println("current coordinator is " + this.paxosManager.getPaxosCoordinator(request.getServiceName()));
+        // validate that the request is http request
+        assert (request instanceof ReplicableClientRequest);
+        ReplicableClientRequest rcRequest = (ReplicableClientRequest) request;
+        Request primaryRequest = rcRequest.getRequest();
+        assert (primaryRequest instanceof XDNHttpRequest);
+        XDNHttpRequest httpRequest = (XDNHttpRequest) primaryRequest;
+
+        // put request and callback into outstanding map
+        XDNRequestAndCallback rc = new XDNRequestAndCallback(httpRequest, callback);
+        outstanding.put(httpRequest.getRequestID(), rc);
+
+        // prepare forwarded request
+        XDNHttpForwardRequest forwardRequest = new XDNHttpForwardRequest(httpRequest);
+
+        // forward request to the current primary
+        System.out.println("current coordinator is " + primaryNodeID);
+        GenericMessagingTask<NodeIDType, XDNRequest> m = new GenericMessagingTask<>(primaryNodeID, forwardRequest);
+        try {
+            this.messenger.send(m);
+        } catch (IOException | JSONException e) {
+            throw new RuntimeException(e);
+        }
 
         return true;
     }

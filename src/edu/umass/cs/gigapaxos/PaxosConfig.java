@@ -919,6 +919,24 @@ public class PaxosConfig {
 
 		FORWARD_PREEMPTED_REQUESTS(true),
 
+		/**
+		 * If true, an active replica will start leader election process (i.e.,
+		 * Phase 1 of Paxos) during startup, when it has not yet run for coordinator.
+		 * Checkout {@link PaxosInstanceStateMachine#notRunYet()}. Note that this
+		 * option ensures better liveness since replica groups will have an
+		 * elected coordinator faster. However, the options can cause flaky
+		 * leadership during replica group startup: rapid leader changes before
+		 * a long-running coordinator is elected.
+		 *
+		 * If false, there will be a coordinator chosen deterministically during
+		 * startup, even when all the Nodes do not start with Phase 1 of Paxos.
+		 * This option is more stable but can cause liveness issue when the
+		 * deterministically chosen coordinator during startup suddenly crashed,
+		 * making all the Nodes need to wait until coordinator timeout.
+		 *
+		 */
+		ENABLE_STARTUP_LEADER_ELECTION(true),
+
 
 		/**
 		 * FIXME: The options below only exist for testing stringification
@@ -982,10 +1000,7 @@ public class PaxosConfig {
 		 */
 		DISABLE_GET_LOGGED_MESSAGES(false, true),
 
-		/**
-		 * During startup,
-		 */
-		ENABLE_STARTUP_LEADER_ELECTION(true, false);
+
 
 
 		/*********** End of unsafe testing options *****************/

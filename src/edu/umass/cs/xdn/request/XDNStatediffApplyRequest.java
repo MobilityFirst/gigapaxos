@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Random;
 
-public class XDNStatediffApplyRequest implements ReplicableRequest {
+public class XDNStatediffApplyRequest extends XDNRequest {
 
     /**
      * All the serialized XDNStatediffApplyRequest starts with "xdn:31302:"
