@@ -40,7 +40,6 @@ import edu.umass.cs.nio.NIOTransport;
 import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.SSLDataProcessingWorker.SSL_MODES;
 import edu.umass.cs.nio.interfaces.NodeConfig;
-import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.DiskMap;
@@ -918,6 +917,24 @@ public class PaxosConfig {
 		ENABLE_RESPONSE_CACHING(true),
 
 		FORWARD_PREEMPTED_REQUESTS(true),
+
+		/**
+		 * If true, an Active Replica will start coordinator election process
+		 * (i.e., Phase 1 of Paxos or Leader Election) during startup, when an
+		 * Active has not yet run for a Coordinator.
+		 * Checkout {@link PaxosInstanceStateMachine#notRunYet()}.
+		 * Note that this option ensures better liveness since replica groups
+		 * will have an elected coordinator faster. However, the options can cause
+		 * flaky leadership during replica group startup: rapid leader changes
+		 * before a long-running coordinator is elected.
+		 * <p>
+		 * If false, there will be a coordinator chosen deterministically during
+		 * startup, even when all the Nodes do not start with Phase 1 of Paxos.
+		 * This option is more stable but can cause liveness issue when the
+		 * deterministically chosen coordinator during startup suddenly crashed,
+		 * making all the Nodes need to wait until coordinator timeout.
+		 */
+		ENABLE_STARTUP_COORDINATOR_ELECTION(true),
 
 
 		/**
