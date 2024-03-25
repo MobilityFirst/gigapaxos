@@ -2155,14 +2155,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				this.paxosState.getSlot(), false);
 	}
 
-private boolean notRunYet() {
-	if (!ENABLE_STARTUP_COORDINATOR_ELECTION) {
-		return false;
-	}
+	private boolean notRunYet() {
+		if (!ENABLE_STARTUP_COORDINATOR_ELECTION) {
+			return false;
+		}
 		return this.paxosState.notRunYet();
-}
+	}
 
-private String getBallots() {
+	private String getBallots() {
 		return "["
 				+ (this.coordinator != null ? "C:("
 						+ (this.coordinator != null ? this.coordinator
