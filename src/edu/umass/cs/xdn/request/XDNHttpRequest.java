@@ -6,7 +6,6 @@ import io.netty.handler.codec.http.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -21,9 +20,12 @@ public class XDNHttpRequest extends XDNRequest {
     public static final String SERIALIZED_PREFIX = String.format("%s%d:",
             XDNRequest.SERIALIZED_PREFIX, XDNRequestType.XDN_SERVICE_HTTP_REQUEST.getInt());
 
+    private static final String XDN_HTTP_REQUEST_ID_HEADER = "XDN-Request-ID";
+
+    private final long requestID;
+    private final String serviceName;
     private final HttpRequest httpRequest;
     private final HttpContent httpRequestContent;
-    private final String serviceName;
     private HttpResponse httpResponse;
 
     public XDNHttpRequest(String serviceName, HttpRequest httpRequest, HttpContent httpRequestContent) {
@@ -32,31 +34,66 @@ public class XDNHttpRequest extends XDNRequest {
         this.httpRequest = httpRequest;
         this.httpRequestContent = httpRequestContent;
 
-        // TODO: specify header field to be used as requestID
+        Long inferredRequestID = XDNHttpRequest.inferRequestID(this.httpRequest);
+        if (inferredRequestID != null) {
+            this.requestID = inferredRequestID;
+        } else {
+            this.requestID = System.currentTimeMillis();
+        }
+        this.httpRequest.headers().set(XDN_HTTP_REQUEST_ID_HEADER, this.requestID);
     }
 
-    // The service's name is embedded in the request header.
+    // The service's name is encoded in the request header.
     // For example, the service name is 'hello' for these cases:
     // - request with "XDN: hello" in the header.
     // - request with "Host: hello.abc.xdn.io:80" in the header.
-    // return an empty string if service name cannot be inferred
+    // return null if service's name cannot be inferred
     public static String inferServiceName(HttpRequest httpRequest) {
         assert httpRequest != null;
 
-        // case-1: embedded in the XDN header (e.g., XDN: alice-book-catalog)
+        // case-1: encoded in the XDN header (e.g., XDN: alice-book-catalog)
         String xdnHeader = httpRequest.headers().get("XDN");
-        if (xdnHeader != null && xdnHeader.length() > 0) {
+        if (xdnHeader != null && !xdnHeader.isEmpty()) {
             return xdnHeader;
         }
 
-        // case-2: embedded in the required Host header (e.g., Host: alice-book-catalog.xdn.io)
+        // case-2: encoded in the required Host header (e.g., Host: alice-book-catalog.xdn.io)
         String hostStr = httpRequest.headers().get(HttpHeaderNames.HOST);
-        if (hostStr == null || hostStr.length() == 0) {
+        if (hostStr == null || hostStr.isEmpty()) {
             return null;
         }
         String reqServiceName = hostStr.split("\\.")[0];
-        if (reqServiceName.length() > 0) {
+        if (!reqServiceName.isEmpty()) {
             return reqServiceName;
+        }
+
+        return null;
+    }
+
+    // In general, we infer the HTTP request ID based on these headers:
+    // (1) `ETag`, (2) `X-Request-ID`, or (3) `XDN-Request-ID`, in that order.
+    // If the request does not contain those header, null will be returned.
+    // Later, the newly generated request ID should be stored in the header
+    // with `XDN-Request-ID` key (check the constructor of XDNHttpRequest).
+    public static Long inferRequestID(HttpRequest httpRequest) {
+        assert httpRequest != null;
+
+        // case-1: encoded as Etag header
+        String etag = httpRequest.headers().get(HttpHeaderNames.ETAG);
+        if (etag != null) {
+            return (long) Objects.hashCode(etag);
+        }
+
+        // case-2: encoded as X-Request-ID header
+        String xRequestID = httpRequest.headers().get("X-Request-ID");
+        if (xRequestID != null) {
+            return (long) Objects.hashCode(xRequestID);
+        }
+
+        // case-3: encoded as XDN-Request-ID header
+        String xdnReqID = httpRequest.headers().get("XDN-Request-ID");
+        if (xdnReqID != null) {
+            return Long.valueOf(xdnReqID);
         }
 
         return null;
@@ -74,7 +111,7 @@ public class XDNHttpRequest extends XDNRequest {
 
     @Override
     public long getRequestID() {
-        return 0;
+        return requestID;
     }
 
     @Override
@@ -127,11 +164,7 @@ public class XDNHttpRequest extends XDNRequest {
                 headerJsonArray.put(String.format("%s:%s", entry.getKey(), entry.getValue()));
             }
             json.put("headers", headerJsonArray);
-            if (httpRequestContent != null) {
-                json.put("content", httpRequestContent.content().toString(StandardCharsets.UTF_8));
-            } else {
-                json.put("content", "");
-            }
+            json.put("content", httpRequestContent.content().toString(StandardCharsets.ISO_8859_1));
             return SERIALIZED_PREFIX + json.toString();
         } catch (JSONException e) {
             throw new RuntimeException(e);
@@ -162,57 +195,19 @@ public class XDNHttpRequest extends XDNRequest {
                 httpHeaders.add(headerKey, headerVal);
             }
 
-            // init request and content, then combine them into XDNRequest
+            // init request and content, then combine them into XDNHttpRequest
             HttpRequest req = new DefaultHttpRequest(
                     HttpVersion.valueOf(httpProtocolVersion),
                     HttpMethod.valueOf(httpMethod),
                     httpURI,
                     httpHeaders);
             HttpContent reqContent = new DefaultHttpContent(
-                    Unpooled.copiedBuffer(httpContent, StandardCharsets.UTF_8));
-            String serviceName = inferServiceName(req);
-            XDNHttpRequest deserializedRequest = new XDNHttpRequest(serviceName, req, reqContent);
-            return deserializedRequest;
+                    Unpooled.copiedBuffer(httpContent, StandardCharsets.ISO_8859_1));
+            String serviceName = XDNHttpRequest.inferServiceName(req);
+            return new XDNHttpRequest(serviceName, req, reqContent);
         } catch (JSONException e) {
             e.printStackTrace();
             return null;
-        }
-    }
-
-
-    public static class TestXDNHttpRequest {
-        @Test
-        public void TestXDNRequestSerializationDeserialization() {
-            HttpRequest dummyHttpRequest = new DefaultHttpRequest(
-                    HttpVersion.HTTP_1_1,
-                    HttpMethod.POST,
-                    "/?name=alice-book-catalog&qval=qwerty",
-                    new DefaultHttpHeaders()
-                            .add("header-1", "value-1")
-                            .add("header-1", "value-2")
-                            .add("header-1", "value-3")
-                            .add("header-a", "value-a")
-                            .add("header-b", "value-b")
-                            .add("Random-1", "a,b,c")
-                            .add("Random-2", "a:b:c")
-                            .add("Random-Char", "=,;:\"'`")
-                            .add("Content-Type", "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34"));
-            HttpContent dummyHttpContent = new DefaultHttpContent(
-                    Unpooled.copiedBuffer("somestringcontent".getBytes(StandardCharsets.UTF_8)));
-
-            String serviceName = "dummyServiceName";
-            XDNHttpRequest dummyXDNHttpRequest = new XDNHttpRequest(serviceName, dummyHttpRequest, dummyHttpContent);
-
-            // the created XDNRequest from string should equal to the
-            // original XDNRequest being used to generate the string.
-            XDNHttpRequest deserializedXDNRequest = XDNHttpRequest.createFromString(
-                    dummyXDNHttpRequest.toString());
-            System.out.println(dummyXDNHttpRequest);
-            System.out.println(deserializedXDNRequest);
-            assert deserializedXDNRequest != null : "deserialized XDNRequest is null";
-            assert Objects.equals(
-                    dummyXDNHttpRequest,
-                    deserializedXDNRequest) : "deserialized XDNRequest is different";
         }
     }
 

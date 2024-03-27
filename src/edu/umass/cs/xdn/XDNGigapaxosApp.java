@@ -9,10 +9,7 @@ import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.ZipFiles;
-import edu.umass.cs.xdn.request.XDNHttpRequest;
-import edu.umass.cs.xdn.request.XDNRequest;
-import edu.umass.cs.xdn.request.XDNRequestType;
-import edu.umass.cs.xdn.request.XDNStatediffApplyRequest;
+import edu.umass.cs.xdn.request.*;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 
@@ -368,6 +365,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         // case-1: handle all xdn requests with prefix "xdn:"
         if (stringified.startsWith(XDNRequest.SERIALIZED_PREFIX)) {
+
             // handle a statediff request
             if (stringified.startsWith(XDNStatediffApplyRequest.SERIALIZED_PREFIX)) {
                 Request r = XDNStatediffApplyRequest.createFromString(stringified);
@@ -385,6 +383,28 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 if (r == null) {
                     Exception e = new RuntimeException(
                             "Invalid serialized format for xdn http request");
+                    throw new RequestParseException(e);
+                }
+                return r;
+            }
+
+            // handle a forwarded request
+            if (stringified.startsWith(XDNHttpForwardRequest.SERIALIZED_PREFIX)) {
+                Request r = XDNHttpForwardRequest.createFromString(stringified);
+                if (r == null) {
+                    Exception e = new RuntimeException(
+                            "Invalid serialized format for xdn http forward request");
+                    throw new RequestParseException(e);
+                }
+                return r;
+            }
+
+            // handle a forwarded response
+            if (stringified.startsWith(XDNHttpForwardResponse.SERIALIZED_PREFIX)) {
+                Request r = XDNHttpForwardResponse.createFromString(stringified);
+                if (r == null) {
+                    Exception e = new RuntimeException(
+                            "Invalid serialized format for xdn http forward response");
                     throw new RequestParseException(e);
                 }
                 return r;
@@ -416,6 +436,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         packetTypes.add(XDNRequestType.XDN_SERVICE_HTTP_REQUEST);
         packetTypes.add(XDNRequestType.XDN_STATEDIFF_APPLY_REQUEST);
         packetTypes.add(XDNRequestType.XDN_HTTP_FORWARD_REQUEST);
+        packetTypes.add(XDNRequestType.XDN_HTTP_FORWARD_RESPONSE);
         return packetTypes;
     }
 

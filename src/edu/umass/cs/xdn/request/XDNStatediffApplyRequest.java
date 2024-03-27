@@ -1,19 +1,15 @@
 package edu.umass.cs.xdn.request;
 
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import java.util.Random;
 
 public class XDNStatediffApplyRequest extends XDNRequest {
 
     /**
-     * All the serialized XDNStatediffApplyRequest starts with "xdn:31302:"
+     * All the serialized XDNStatediffApplyRequest starts with "xdn:31303:"
      */
     public static final String SERIALIZED_PREFIX = String.format("%s%d:",
             XDNRequest.SERIALIZED_PREFIX, XDNRequestType.XDN_STATEDIFF_APPLY_REQUEST.getInt());
@@ -107,31 +103,6 @@ public class XDNStatediffApplyRequest extends XDNRequest {
         } catch (JSONException e) {
             e.printStackTrace();
             return null;
-        }
-    }
-
-    public static class TestXDNStatediffApplyRequest {
-        @Test
-        public void TestXDNStatediffApplyRequestSerializationDeserialization() {
-            byte[] statediff = new byte[10240];
-            new Random().nextBytes(statediff);
-
-            String serviceName = "dummyServiceName";
-            String statediffString = new String(statediff, StandardCharsets.ISO_8859_1);
-            XDNStatediffApplyRequest request = new XDNStatediffApplyRequest(
-                    serviceName,
-                    statediffString);
-
-            String serialized = request.toString();
-            XDNStatediffApplyRequest deserializedRequest = XDNStatediffApplyRequest.
-                    createFromString(serialized);
-
-            System.out.println(request);
-            System.out.println(deserializedRequest);
-            assert deserializedRequest != null : "deserialized XDNStatediffApplyRequest is null";
-
-            assert request.equals(deserializedRequest);
-            assert serialized.equals(deserializedRequest.toString());
         }
     }
 

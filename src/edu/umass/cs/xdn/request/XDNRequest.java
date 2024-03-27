@@ -1,17 +1,7 @@
 package edu.umass.cs.xdn.request;
 
-import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.interfaces.ReplicableRequest;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.http.*;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
+import io.netty.handler.codec.http.HttpResponse;
 
 /**
  * XDNRequest is an umbrella class that holds all Requests handled by XDN Application and
@@ -25,11 +15,14 @@ import java.util.Objects;
  *                            ┌────────────┐
  *         ┌─────────────────►│ XDNRequest │◄───────────────┐
  *         │                  └────────────┘                │
- *         │                        ▲                       │
- *         │                        │                       │
- * ┌───────┴───────┐ ┌──────────────┴──────┐ ┌──────────────┴─────────┐
- * │ XDNHttpRequest│ │XDNHttpForwardRequest│ │XDNStatediffApplyRequest│
- * └───────────────┘ └─────────────────────┘ └────────────────────────┘
+ *         │                        ▲   └───┐               │
+ *         │                        │       │               │
+ * ┌───────┴───────┐ ┌──────────────┴──────┐│┌──────────────┴─────────┐
+ * │ XDNHttpRequest│ │XDNHttpForwardRequest│││XDNStatediffApplyRequest│
+ * └───────────────┘ └─────────────────────┘│└────────────────────────┘
+ *                           ┌──────────────┴───────┐
+ *                           │XDNHttpForwardResponse│
+ *                           └──────────────────────┘
  *
  */
 public abstract class XDNRequest implements ReplicableRequest {

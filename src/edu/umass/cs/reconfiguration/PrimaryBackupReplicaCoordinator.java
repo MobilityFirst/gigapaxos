@@ -2,7 +2,6 @@ package edu.umass.cs.reconfiguration;
 
 import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.PaxosManager;
-import edu.umass.cs.gigapaxos.paxosutil.MessagingTask;
 import edu.umass.cs.nio.GenericMessagingTask;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
@@ -45,11 +44,19 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PrimaryBackupReplicaCoordinator<NodeIDType>
         extends AbstractReplicaCoordinator<NodeIDType> {
 
+    enum Role {
+        PRIMARY_CANDIDATE,
+        PRIMARY,
+        BACKUP
+    }
+
     private final boolean ENABLE_INTERNAL_REDIRECT_PRIMARY = true;
     private final PaxosManager<NodeIDType> paxosManager;
     private final Set<IntegerPacketType> requestTypes;
     private final NodeIDType myNodeID;
     private final BackupableApplication backupableApplication;
+
+    private Role currentRole = Role.BACKUP;
 
     // outstanding request forwarded to primary
     ConcurrentHashMap<Long, XDNRequestAndCallback> outstanding = new ConcurrentHashMap<>();
@@ -68,9 +75,9 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
             throw new RuntimeException(exceptionMessage);
         }
 
+        // store the backupable application so this coordinator can
+        // later capture the statediff after request execution.
         this.backupableApplication = (BackupableApplication) app;
-
-        System.out.println(">> PrimaryBackupReplicaCoordinator - initialization");
 
         // initialize the Paxos Manager for this Node
         this.paxosManager = new PaxosManager<NodeIDType>(myID, unstringer, messenger, this)
@@ -85,7 +92,17 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         types.add(ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST);
         this.requestTypes = types;
 
+        // store my node id
         this.myNodeID = myID;
+
+
+        // TODO: infer role, propose primary-start message
+
+    }
+
+    private void inferCurrentRole() {
+        // TODO: implement me
+        // this.paxosManager.getPaxosCoordinator();
     }
 
     @Override
@@ -99,24 +116,69 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
             throws IOException, RequestParseException {
         System.out.println(">> coordinateRequest " + request.getClass().getName() + " " + request.getServiceName());
         System.out.println(">> myID:" + getMyID() + " isCoordinator? " +
-                this.paxosManager.isPaxosCoordinator(request.getServiceName()));
+                this.paxosManager.isPaxosCoordinator(request.getServiceName()) +
+                " callback: " + callback);
 
+        if (request instanceof ReplicableClientRequest rcr) {
+            request = rcr.getRequest();
+        }
+        assert request instanceof XDNRequest;
+        IntegerPacketType requestType = request.getRequestType();
+
+        switch (requestType) {
+            case XDNRequestType.XDN_SERVICE_HTTP_REQUEST:
+            case XDNRequestType.XDN_HTTP_FORWARD_REQUEST:
+                return handleServiceRequest((XDNRequest) request, callback);
+
+            case XDNRequestType.XDN_HTTP_FORWARD_RESPONSE:
+                return handleForwardedResponse((XDNHttpForwardResponse) request);
+
+            case XDNRequestType.XDN_STATEDIFF_APPLY_REQUEST:
+                throw new IllegalStateException("Statediff apply request can only be handled in" +
+                        " App.execute(.)");
+
+            default:
+                throw new IllegalStateException("Unexpected request type: " + requestType);
+        }
+    }
+
+    private boolean handleServiceRequest(XDNRequest request, ExecutedCallback callback) {
         String serviceName = request.getServiceName();
         boolean isCurrentPrimary = this.paxosManager.isPaxosCoordinator(serviceName);
         NodeIDType currPrimaryID = this.paxosManager.getPaxosCoordinator(serviceName);
+        // if this node is not a primary, forward the request to the primary, either
+        // (1) using internal redirection, or
+        // (2) asking the client to contact the primary.
         if (!isCurrentPrimary && currPrimaryID != myNodeID) {
             if (currPrimaryID == null) {
                 return sendErrorResponse(request, callback, "unknown coordinator");
             }
 
+            // case-1: use internal redirection
             if (ENABLE_INTERNAL_REDIRECT_PRIMARY) {
                 return forwardRequestToPrimary(currPrimaryID, request, callback);
             }
 
+            // case-2: ask client to contact primary
             return askClientToContactPrimary(currPrimaryID, request, callback);
         }
 
+        // else, if this node is a primary then execute the request and
+        // capture the statediff.
         return executeRequestCoordinateStatediff(request, callback);
+    }
+
+    private boolean handleForwardedResponse(XDNHttpForwardResponse response) {
+        XDNRequestAndCallback rc = outstanding.get(response.getRequestID());
+        if (rc == null) {
+            System.out.println(">> unknown client :(");
+            return false;
+        }
+
+        XDNHttpRequest request = (XDNHttpRequest) rc.request();
+        request.setHttpResponse(response.getHttpResponse());
+        rc.callback().executed(request, true);
+        return true;
     }
 
     private boolean askClientToContactPrimary(NodeIDType primaryNodeID, Request request,
@@ -178,13 +240,26 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                 trailingHeaders);
     }
 
+    // currently this request execution method support two different type of Request:
+    // (1) XDNHttpRequest, and
+    // (2) XDNHttpForwardRequest, which also contains XDNHttpRequest, being forwarded
+    //     by entry replica to this coordinator node.
     private boolean executeRequestCoordinateStatediff(Request request, ExecutedCallback callback) {
         System.out.println(">> " + this.myNodeID + " primaryBackup execution:   " + request.getClass().getSimpleName());
 
-        Request primaryRequest = request;
-        if (request instanceof ReplicableClientRequest rcRequest) {
-            primaryRequest = rcRequest.getRequest();
+        assert request instanceof XDNHttpRequest ||
+                request instanceof XDNHttpForwardRequest;
+
+        boolean isEntryNode = false;
+        XDNHttpRequest primaryRequest = null;
+        if (request instanceof XDNHttpRequest) {
+            primaryRequest = (XDNHttpRequest) request;
+            isEntryNode = true;
         }
+        if (request instanceof XDNHttpForwardRequest forwardRequest) {
+            primaryRequest = forwardRequest.getRequest();
+        }
+        assert primaryRequest != null;
 
         // TODO: ensure atomicity of batch execution
         this.app.execute(primaryRequest);
@@ -199,39 +274,67 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         System.out.println(" request type " + primaryRequest.getClass().getSimpleName());
 
         Request finalPrimaryRequest = primaryRequest;
-        this.paxosManager.propose(
-                request.getServiceName(),
-                statediffApplyRequest,
-                (statediffRequest, handled) -> {
-                    System.out.println("chained executed ...");
-                    callback.executed(finalPrimaryRequest, handled);
-                });
+        if (isEntryNode) {
+            this.paxosManager.propose(
+                    request.getServiceName(),
+                    statediffApplyRequest,
+                    (statediffRequest, handled) -> {
+                        callback.executed(finalPrimaryRequest, handled);
+                    });
+        } else {
+            GenericMessagingTask<NodeIDType, ?> responseMessagingTask =
+                    getResponseMessagingTask(request, primaryRequest);
+            Messenger<NodeIDType, ?> myMessenger = this.messenger;
+            this.paxosManager.propose(
+                    request.getServiceName(),
+                    statediffApplyRequest,
+                    (statediffRequest, handled) -> {
+                        try {
+                            System.out.println(">> " + myNodeID + " sending response back to entry node ...");
+                            myMessenger.send(responseMessagingTask);
+                        } catch (IOException | JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+            );
+        }
         return true;
+    }
+
+    private GenericMessagingTask<NodeIDType, ?> getResponseMessagingTask(
+            Request request, XDNHttpRequest primaryRequest) {
+        XDNHttpForwardRequest forwardRequest = (XDNHttpForwardRequest) request;
+        XDNHttpForwardResponse response = new XDNHttpForwardResponse(
+                primaryRequest.getRequestID(),
+                request.getServiceName(),
+                primaryRequest.getHttpResponse()
+        );
+        NodeIDType entryNodeID = (NodeIDType) forwardRequest.getEntryNodeID();
+        System.out.println(">> " + myNodeID + " sending response back to " + entryNodeID);
+        GenericMessagingTask<NodeIDType, ?> responseMessage = new GenericMessagingTask<>(
+                entryNodeID, response);
+        return responseMessage;
     }
 
     private boolean forwardRequestToPrimary(NodeIDType primaryNodeID, Request request,
                                             ExecutedCallback callback) {
-        // TODO: hold request in a hashmap, then forward to primary
-        // TODO: two options (1) have a thread running a loop, or identify message from
-        //  coordinateRequest
 
         // validate that the request is http request
-        assert (request instanceof ReplicableClientRequest);
-        ReplicableClientRequest rcRequest = (ReplicableClientRequest) request;
-        Request primaryRequest = rcRequest.getRequest();
-        assert (primaryRequest instanceof XDNHttpRequest);
-        XDNHttpRequest httpRequest = (XDNHttpRequest) primaryRequest;
+        assert (request instanceof XDNHttpRequest);
+        XDNHttpRequest httpRequest = (XDNHttpRequest) request;
 
         // put request and callback into outstanding map
         XDNRequestAndCallback rc = new XDNRequestAndCallback(httpRequest, callback);
         outstanding.put(httpRequest.getRequestID(), rc);
 
         // prepare forwarded request
-        XDNHttpForwardRequest forwardRequest = new XDNHttpForwardRequest(httpRequest);
+        XDNHttpForwardRequest forwardRequest = new XDNHttpForwardRequest(
+                httpRequest, myNodeID.toString());
 
         // forward request to the current primary
         System.out.println("current coordinator is " + primaryNodeID);
-        GenericMessagingTask<NodeIDType, XDNRequest> m = new GenericMessagingTask<>(primaryNodeID, forwardRequest);
+        GenericMessagingTask<NodeIDType, XDNRequest> m = new GenericMessagingTask<>(
+                primaryNodeID, forwardRequest);
         try {
             this.messenger.send(m);
         } catch (IOException | JSONException e) {
