@@ -510,8 +510,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         prop.stateDir = stateDir;
         prop.mappedPort = publicPort;
 
+        // create docker network, via command line
+        String networkName = String.format("net::%s:%s", activeReplicaID, prop.serviceName);
+        int exitCode = createDockerNetwork(networkName);
+        if (exitCode != 0) {
+            return false;
+        }
+
         // actually start the containerized service, via command line
-        boolean isSuccess = startContainer(prop);
+        boolean isSuccess = startContainer(prop, networkName);
         if (!isSuccess) {
             return false;
         }
@@ -531,16 +538,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     /**
      * startContainer runs the bash command below to start running a docker container.
      */
-    private boolean startContainer(XDNServiceProperties properties) {
-
+    private boolean startContainer(XDNServiceProperties properties, String networkName) {
         if (IS_USE_FUSE) {
-            return startContainerWithFSMount(properties);
+            return startContainerWithFSMount(properties, networkName);
         }
 
         String containerName = String.format("%s.%s.xdn.io",
                 properties.serviceName, this.activeReplicaID);
-        String startCommand = String.format("docker run -d --name=%s -p %d:%d %s",
-                containerName, properties.mappedPort, properties.exposedPort,
+        String startCommand = String.format("docker run -d --name=%s --network=%s --publish=%d:%d %s",
+                containerName, networkName, properties.mappedPort, properties.exposedPort,
                 properties.dockerImages.get(0));
         int exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
@@ -551,7 +557,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         return true;
     }
 
-    private boolean startContainerWithFSMount(XDNServiceProperties properties) {
+    private boolean startContainerWithFSMount(XDNServiceProperties properties, String networkName) {
         String containerName = String.format("%s.%s.xdn.io",
                 properties.serviceName, this.activeReplicaID);
 
@@ -621,9 +627,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // start the docker container
-        String startCommand = String.format("docker run -d --name=%s -p %d:%d " +
+        String startCommand = String.format("docker run -d --name=%s --network=%s --publish=%d:%d " +
                         "--mount type=bind,source=%s,target=%s %s",
-                containerName, properties.mappedPort, properties.exposedPort,
+                containerName, networkName, properties.mappedPort, properties.exposedPort,
                 stateDirPath, properties.stateDir, properties.dockerImages.get(0));
         exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
@@ -658,6 +664,18 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         return true;
+    }
+
+    private int createDockerNetwork(String networkName) {
+        String createNetCmd = String.format("docker network create %s",
+                networkName);
+        int exitCode = runShellCommand(createNetCmd, false);
+        if (exitCode != 0 && exitCode != 1) {
+            // 1 is the exit code of creating already exist network
+            System.err.println("Error: failed to create network");
+            return exitCode;
+        }
+        return 0;
     }
 
     private String copyContainerDirectory(String serviceName) {
