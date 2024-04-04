@@ -55,6 +55,12 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         isServiceActive = new HashMap<>();
 
         if (IS_USE_FUSE) {
+            // validate the operating system as currently FUSE is only supported in Linux
+            String osName = System.getProperty("os.name");
+            if (!osName.equalsIgnoreCase("linux")) {
+                throw new RuntimeException("Error: FUSE can only be used in Linux");
+            }
+
             var fuselogBinary = new File(FUSELOG_BIN_PATH);
             var fuselogApplyBinary = new File(FUSELOG_APPLY_BIN_PATH);
             assert fuselogBinary.exists() && fuselogApplyBinary.exists();
