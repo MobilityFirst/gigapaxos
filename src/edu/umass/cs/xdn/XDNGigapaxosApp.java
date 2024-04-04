@@ -10,14 +10,15 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.ZipFiles;
 import edu.umass.cs.xdn.request.*;
+import edu.umass.cs.xdn.service.InitializedService;
+import edu.umass.cs.xdn.service.ServiceComponent;
+import edu.umass.cs.xdn.service.ServiceProperty;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
+import org.json.JSONException;
 
 import java.io.*;
-import java.net.StandardProtocolFamily;
-import java.net.URI;
-import java.net.UnixDomainSocketAddress;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -41,21 +42,27 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     private String activeReplicaID;
 
     private HashMap<String, Integer> activeServicePorts;
-    private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
-    private HashMap<String, SocketChannel> fsSocketConnection;
-    private HashMap<String, Boolean> isServiceActive;
 
-    private HttpClient serviceClient = HttpClient.newHttpClient();
+    // FIXME: need to check
+    //  (1) multicontainer with primary-backup, how to restart?
+    //  (2) multicontainer with primary-backup via FUSE
+    //  (3) multicontainer with paxos / active replication
+    // private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
+
+    private final ConcurrentHashMap<String, InitializedService> services;
+    private final HashMap<String, SocketChannel> fsSocketConnection;
+    private final HashMap<String, Boolean> isServiceActive;
+    private final HttpClient serviceClient = HttpClient.newHttpClient();
 
     public XDNGigapaxosApp(String[] args) {
         activeReplicaID = args[args.length - 1].toLowerCase();
         activeServicePorts = new HashMap<>();
-        serviceProperties = new ConcurrentHashMap<>();
+        services = new ConcurrentHashMap<>();
         fsSocketConnection = new HashMap<>();
         isServiceActive = new HashMap<>();
 
         if (IS_USE_FUSE) {
-            // validate the operating system as currently FUSE is only supported in Linux
+            // validate the operating system as currently FUSE is only supported on Linux
             String osName = System.getProperty("os.name");
             if (!osName.equalsIgnoreCase("linux")) {
                 throw new RuntimeException("Error: FUSE can only be used in Linux");
@@ -85,6 +92,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         if (request instanceof XDNHttpRequest xdnRequest) {
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
+
+        System.out.println("Error: executing unknown request type " +
+                request.getClass().getSimpleName());
 
         return true;
     }
@@ -186,132 +196,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     }
 
-    private boolean forwardHttpRequestToContainerizedService(XDNHttpRequest xdnRequest) {
-        String serviceName = xdnRequest.getServiceName();
-        System.out.println(">> is service active: " + isServiceActive.get(serviceName));
-        if (isServiceActive.get(serviceName) != null && !isServiceActive.get(serviceName)) {
-            activate(serviceName);
-            isServiceActive.put(serviceName, true);
-        }
-
-        try {
-            // create http request
-            HttpRequest httpRequest = convertXDNRequestToHttpRequest(xdnRequest);
-            if (httpRequest == null) {
-                return false;
-            }
-
-            System.out.println(">> " + activeReplicaID + " forwarding request to service ...");
-            // forward request to the containerized service, and get the http response
-            HttpResponse<byte[]> response = serviceClient.send(httpRequest,
-                    HttpResponse.BodyHandlers.ofByteArray());
-
-            // convert the response into netty's http response
-            io.netty.handler.codec.http.HttpResponse nettyHttpResponse =
-                    createNettyHttpResponse(response);
-
-            // store the response in the xdn request, later to be returned to the end client.
-            System.out.println(">> " + activeReplicaID + " storing response " + nettyHttpResponse);
-            xdnRequest.setHttpResponse(nettyHttpResponse);
-            return true;
-        } catch (Exception e) {
-            xdnRequest.setHttpResponse(createNettyHttpErrorResponse(e));
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    // convertXDNRequestToHttpRequest converts Netty's HTTP request into Java's HTTP request
-    private HttpRequest convertXDNRequestToHttpRequest(XDNHttpRequest xdnRequest) {
-        try {
-            // preparing url to the containerized service
-            String url = String.format("http://127.0.0.1:%d%s",
-                    this.activeServicePorts.get(xdnRequest.getServiceName()),
-                    xdnRequest.getHttpRequest().uri());
-
-            // preparing the HTTP request body, if any
-            // TODO: handle non text body, ie. file or binary data
-            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.noBody();
-            if (xdnRequest.getHttpRequestContent() != null &&
-                    xdnRequest.getHttpRequestContent().content() != null) {
-                bodyPublisher = HttpRequest
-                        .BodyPublishers
-                        .ofString(xdnRequest.getHttpRequestContent().content()
-                                .toString(StandardCharsets.UTF_8));
-            }
-
-            // preparing the HTTP request builder
-            HttpRequest.Builder httpReqBuilder = HttpRequest.newBuilder()
-                    .uri(new URI(url))
-                    .method(xdnRequest.getHttpRequest().method().toString(),
-                            bodyPublisher);
-
-            // preparing the HTTP headers, if any.
-            // note that the code need to be run with the following flag:
-            // "-Djdk.httpclient.allowRestrictedHeaders=connection,content-length,host",
-            // otherwise setting those restricted headers here will later trigger
-            // java.lang.IllegalArgumentException, such as: restricted header name: "Host".
-            if (xdnRequest.getHttpRequest().headers() != null) {
-                Iterator<Map.Entry<String, String>> it = xdnRequest.getHttpRequest()
-                        .headers().iteratorAsString();
-                while (it.hasNext()) {
-                    Map.Entry<String, String> entry = it.next();
-                    httpReqBuilder.setHeader(entry.getKey(), entry.getValue());
-                }
-            }
-
-            return httpReqBuilder.build();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private io.netty.handler.codec.http.HttpResponse createNettyHttpResponse(
-            HttpResponse<byte[]> httpResponse) {
-        // copy http headers, if any
-        HttpHeaders headers = new DefaultHttpHeaders();
-        for (String headerKey : httpResponse.headers().map().keySet()) {
-            for (String headerVal : httpResponse.headers().allValues(headerKey)) {
-                headers.add(headerKey, headerVal);
-            }
-        }
-
-        // by default, we have an empty header trailing for the response
-        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
-
-        // build the http response
-        io.netty.handler.codec.http.HttpResponse result = new DefaultFullHttpResponse(
-                getNettyHttpVersion(httpResponse.version()),
-                HttpResponseStatus.valueOf(httpResponse.statusCode()),
-                Unpooled.copiedBuffer(httpResponse.body()),
-                headers,
-                trailingHeaders
-        );
-        return result;
-    }
-
-    private io.netty.handler.codec.http.HttpResponse createNettyHttpErrorResponse(Exception e) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        sw.write("Failed to get response from the containerized service:\n");
-        e.printStackTrace(pw);
-        return new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1,
-                HttpResponseStatus.INTERNAL_SERVER_ERROR,
-                Unpooled.copiedBuffer(sw.toString().getBytes()));
-    }
-
-    private HttpVersion getNettyHttpVersion(HttpClient.Version httpClientVersion) {
-        // TODO: upgrade netty that support HTTP2
-        switch (httpClientVersion) {
-            case HTTP_1_1, HTTP_2 -> {
-                return HttpVersion.HTTP_1_1;
-            }
-        }
-        return HttpVersion.HTTP_1_1;
-    }
-
     @Override
     public boolean execute(Request request, boolean doNotReplyToClient) {
         return this.execute(request);
@@ -328,7 +212,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         System.out.println("BookCatalogApp - restore name=" + name + " state=" + state);
 
         // A corner case when name is empty, which fundamentally should not happen.
-        if (name == null || name.equals("")) {
+        if (name == null || name.isEmpty()) {
             System.err.println("restore(.) is called with empty service name");
             return false;
         }
@@ -345,7 +229,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // Example of the initState is "xdn:init:bookcatalog:8000:linearizable:true:/app/data",
         if (state != null && state.startsWith("xdn:init:")) {
             isServiceActive.put(name, true);
-            return initContainerizedService(name, state);
+            return initContainerizedService2(name, state);
         }
 
         // Case-3: the actual restore, i.e., initialize service in new epoch (>0) with state
@@ -359,10 +243,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // Unknown cases, should not be triggered
         System.err.println("unknown restore case, name=" + name + " state=" + state);
         return false;
-    }
-
-    private int getRandomNumber(int min, int max) {
-        return (int) ((Math.random() * (max - min)) + min);
     }
 
     @Override
@@ -484,7 +364,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             }
         }
 
-        // ecode and validate the initial state
+        // decode and validate the initial state
         String[] decodedInitialState = initialState.split(":");
         if (decodedInitialState.length < 7 || !initialState.startsWith("xdn:init:")) {
             System.err.println("incorrect initial state, example of expected state is" +
@@ -531,7 +411,95 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         // store the service's public port for request forwarding.
         activeServicePorts.put(serviceName, publicPort);
-        serviceProperties.put(serviceName, prop);
+        // serviceProperties.put(serviceName, prop);
+
+        return true;
+    }
+
+    /**
+     * initContainerizedService2 initializes a containerized service, in idempotent manner.
+     * This is a new implementation of initContainerizedService, but with support on multiple
+     * components.
+     *
+     * @param serviceName  name of the to-be-initialized service.
+     * @param initialState the initial state with "xdn:init:" prefix.
+     * @return false if failed to initialize the service.
+     */
+    private boolean initContainerizedService2(String serviceName, String initialState) {
+        String validInitialStatePrefix = "xdn:init:";
+
+        // validate the initial state
+        if (!initialState.startsWith(validInitialStatePrefix)) {
+            throw new RuntimeException("invalid initial state");
+        }
+
+        // decode the initial state, containing the service property
+        ServiceProperty property = null;
+        String networkName = String.format("net::%s:%s", activeReplicaID, serviceName);
+        int allocatedPort = getRandomPort();
+        try {
+            initialState = initialState.substring(validInitialStatePrefix.length());
+            property = ServiceProperty.createFromJSONString(initialState);
+        } catch (JSONException e) {
+            throw new RuntimeException("invalid initial state as JSON: " + e);
+        }
+
+        // prepare container names for each service component
+        List<String> containerNames = new ArrayList<>();
+        int idx = 0;
+        for (ServiceComponent c : property.getComponents()) {
+            String containerName = String.format("%d.%s.%s.xdn.io",
+                    idx, serviceName, activeReplicaID);
+            containerNames.add(containerName);
+            idx++;
+        }
+
+        // prepare the initialized service
+        InitializedService service = new InitializedService(
+                property,
+                serviceName,
+                networkName,
+                allocatedPort,
+                containerNames
+        );
+
+        // TODO: remove already running containers, if any
+
+        // create docker network, via command line
+        int exitCode = createDockerNetwork(networkName);
+        if (exitCode != 0) {
+            return false;
+        }
+
+        // TODO: prepare statediff directory, if required
+        String fuseMountSource = null;
+        String fuseMountTarget = null;
+
+        // actually start the service, run each component as container,
+        // in the same order as they are specified.
+        idx = 0;
+        for (ServiceComponent c : property.getComponents()) {
+            boolean isSuccess = startContainer(
+                    c.getImageName(),
+                    containerNames.get(idx),
+                    networkName,
+                    c.getExposedPort(),
+                    c.getEntryPort(),
+                    c.isEntryComponent() ? allocatedPort : null,
+                    IS_USE_FUSE ? fuseMountSource : null,
+                    IS_USE_FUSE ? fuseMountTarget : null,
+                    c.getEnvironmentVariables());
+            if (!isSuccess) {
+                throw new RuntimeException("failed to start container for component " +
+                        c.getComponentName());
+            }
+
+            idx++;
+        }
+
+        // store all the service metadata
+        services.put(serviceName, service);
+        activeServicePorts.put(serviceName, allocatedPort);
 
         return true;
     }
@@ -685,11 +653,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private String copyContainerDirectory(String serviceName) {
+        InitializedService service = services.get(serviceName);
+        if (service == null) {
+            throw new RuntimeException("unknown service " + serviceName);
+        }
+
         // gather the required service properties
-        XDNServiceProperties serviceProperty = serviceProperties.get(serviceName);
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
-        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", containerName);
-        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", containerName);
+        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, activeReplicaID);
+        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", serviceStatediffName);
+        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", serviceStatediffName);
 
         // create /tmp/xdn/statediff/ and /tmp/xdn/zip/ directories, if needed
         createXDNStatediffDirIfNotExist();
@@ -710,8 +682,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         // get the statediff into statediffDirPath
         String command = String.format("docker cp %s:%s %s",
-                containerName,
-                serviceProperty.stateDir + "/.",
+                service.statefulContainer,
+                service.stateDirectory + "/.",
                 statediffDirPath + "/");
         exitCode = runShellCommand(command, false);
         if (exitCode != 0) {
@@ -770,61 +742,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
     }
 
-    private int runShellCommand(String command) {
-        return runShellCommand(command, true);
-    }
-
-    private int runShellCommand(String command, boolean isSilent) {
-        return runShellCommand(command, isSilent, null);
-    }
-
-    private int runShellCommand(String command, boolean isSilent, Map<String, String> environmentVariables) {
-        try {
-            // prepare to start the command
-            ProcessBuilder pb = new ProcessBuilder(command.split("\\s+"));
-            if (isSilent) {
-                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-            }
-
-            if (environmentVariables != null) {
-                Map<String, String> processEnv = pb.environment();
-                processEnv.putAll(environmentVariables);
-            }
-
-            if (!isSilent) {
-                System.out.println("command: " + command);
-                if (environmentVariables != null) {
-                    System.out.println(environmentVariables.toString());
-                }
-            }
-
-            // run the command as a new OS process
-            Process process = pb.start();
-
-            // print out the output in stderr, if needed
-            if (!isSilent) {
-                InputStream errInputStream = process.getErrorStream();
-                BufferedReader errBufferedReader = new BufferedReader(
-                        new InputStreamReader(errInputStream));
-                String line;
-                while ((line = errBufferedReader.readLine()) != null) {
-                    System.out.println(line);
-                }
-            }
-
-            int exitCode = process.waitFor();
-
-            if (!isSilent) {
-                System.out.println("exit code: " + exitCode);
-            }
-
-            return exitCode;
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private void createXDNStatediffDirIfNotExist() {
         try {
             String statediffDirPath = "/tmp/xdn";
@@ -854,9 +771,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     public String captureStatediff(String serviceName) {
 
         if (IS_USE_FUSE) {
-            XDNServiceProperties prop = serviceProperties.get(serviceName);
-            assert prop != null;
-            return captureStatediffWithFuse(prop);
+            throw new RuntimeException("unimplemented :(");
+            // XDNServiceProperties prop = serviceProperties.get(serviceName);
+            // assert prop != null;
+            // return captureStatediffWithFuse(prop);
         }
 
         return copyContainerDirectory(serviceName);
@@ -865,6 +783,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     @Override
     public boolean applyStatediff(String serviceName, String statediff) {
         System.out.println(">>>>>> applying statediff: " + serviceName + " " + statediff);
+
+        InitializedService service = services.get(serviceName);
+        if (service == null) {
+            throw new RuntimeException("unknown service " + serviceName);
+        }
 
         // validate the statediff
         if (statediff == null || !statediff.startsWith("xdn:statediff:")) {
@@ -884,6 +807,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         String statediffString = suffix.substring(primaryIDEndIdx + 1);
 
         if (IS_USE_FUSE) {
+            // FIXME: support multicontainer in FUSE
             if (isServiceActive.get(serviceName) != null && isServiceActive.get(serviceName)) {
                 deactivate(serviceName);
                 isServiceActive.put(serviceName, false);
@@ -892,10 +816,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // gather the required service properties
-        XDNServiceProperties serviceProperty = serviceProperties.get(serviceName);
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
-        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", containerName);
-        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", containerName);
+        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, activeReplicaID);
+        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", serviceStatediffName);
+        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", serviceStatediffName);
 
         // remove previous statediff archive, if any
         int exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
@@ -923,14 +846,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         // copy back the statediff into the service container
         String copyCommand = String.format("docker cp %s %s:%s",
-                statediffDirPath + "/.", containerName, serviceProperty.stateDir);
+                statediffDirPath + "/.", service.statefulContainer, service.stateDirectory);
         exitCode = runShellCommand(copyCommand, false);
         if (exitCode != 0) {
             return false;
         }
 
         // restart the service container
-        String restartCommand = String.format("docker container restart %s", containerName);
+        // TODO: may need to restart all containers own by this service
+        String restartCommand = String.format("docker container restart %s", service.statefulContainer);
         exitCode = runShellCommand(restartCommand, false);
         if (exitCode != 0) {
             return false;
@@ -1052,6 +976,279 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     /**********************************************************************************************
      *                   End implementation methods for Replicable interface                      *
+     *********************************************************************************************/
+
+
+    /**********************************************************************************************
+     *                                  Begin utility methods                                     *
+     *********************************************************************************************/
+
+    private int getRandomNumber(int min, int max) {
+        return (int) ((Math.random() * (max - min)) + min);
+    }
+
+    /**
+     * This method tries to find available port, most of the time.
+     * It is possible, in race condition, that the port deemed as available
+     * is being used by others even when this method return the port.
+     *
+     * @return port number that is potentially available
+     */
+    private int getRandomPort() {
+        int maxAttempt = 5;
+        int port = getRandomNumber(50000, 65000);
+        boolean isPortAvailable = false;
+
+        // check if port is already used by others
+        while (!isPortAvailable && maxAttempt > 0) {
+            try {
+                // success connection means the port is already used
+                Socket s = new Socket("localhost", port);
+                s.close();
+                port = getRandomNumber(50000, 65000);
+            } catch (IOException e) {
+                // unsuccessful connection could mean that the port is available
+                isPortAvailable = true;
+            }
+            maxAttempt--;
+        }
+
+        return port;
+    }
+
+    private boolean startContainer(String imageName, String containerName, String networkName,
+                                   Integer exposedPort, Integer publishedPort,
+                                   Integer allocatedHttpPort, String mountDirSource,
+                                   String mountDirTarget, Map<String, String> env) {
+
+        String publishPortSubCmd = "";
+        if (publishedPort != null && allocatedHttpPort != null) {
+            publishPortSubCmd = String.format("--publish=%d:%d", allocatedHttpPort, publishedPort);
+        }
+        if (publishedPort != null && allocatedHttpPort == null) {
+            publishPortSubCmd = String.format("--publish=%d:%d", publishedPort, publishedPort);
+        }
+
+        // Note that exposed port will be ignored if there is published port
+        String exposePortSubCmd = "";
+        if (exposedPort != null && publishPortSubCmd.isEmpty()) {
+            exposePortSubCmd = String.format("--expose=%d", exposedPort);
+        }
+
+        String mountSubCmd = "";
+        if (mountDirSource != null && !mountDirSource.isEmpty() &&
+                mountDirTarget != null && !mountDirTarget.isEmpty()) {
+            mountSubCmd = String.format("--mount type=bind,source=%s,target=%s",
+                    mountDirSource, mountDirTarget);
+        }
+
+        String envSubCmd = "";
+        if (env != null) {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> keyVal : env.entrySet()) {
+                sb.append(String.format("--env %s=%s ", keyVal.getKey(), keyVal.getValue()));
+            }
+            envSubCmd = sb.toString();
+        }
+
+        String startCommand = String.format("docker run -d --name=%s --network=%s %s %s %s %s %s",
+                containerName, networkName, publishPortSubCmd, exposePortSubCmd, mountSubCmd,
+                envSubCmd, imageName);
+        int exitCode = runShellCommand(startCommand, false);
+        if (exitCode != 0) {
+            System.err.println("failed to start container");
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean forwardHttpRequestToContainerizedService(XDNHttpRequest xdnRequest) {
+        String serviceName = xdnRequest.getServiceName();
+        System.out.println(">> is service active: " + isServiceActive.get(serviceName));
+        if (isServiceActive.get(serviceName) != null && !isServiceActive.get(serviceName)) {
+            activate(serviceName);
+            isServiceActive.put(serviceName, true);
+        }
+
+        try {
+            // create http request
+            HttpRequest httpRequest = convertXDNRequestToHttpRequest(xdnRequest);
+            if (httpRequest == null) {
+                return false;
+            }
+
+            System.out.println(">> " + activeReplicaID + " forwarding request to service ...");
+            // forward request to the containerized service, and get the http response
+            HttpResponse<byte[]> response = serviceClient.send(httpRequest,
+                    HttpResponse.BodyHandlers.ofByteArray());
+
+            // convert the response into netty's http response
+            io.netty.handler.codec.http.HttpResponse nettyHttpResponse =
+                    createNettyHttpResponse(response);
+
+            // store the response in the xdn request, later to be returned to the end client.
+            System.out.println(">> " + activeReplicaID + " storing response " + nettyHttpResponse);
+            xdnRequest.setHttpResponse(nettyHttpResponse);
+            return true;
+        } catch (Exception e) {
+            xdnRequest.setHttpResponse(createNettyHttpErrorResponse(e));
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // convertXDNRequestToHttpRequest converts Netty's HTTP request into Java's HTTP request
+    private HttpRequest convertXDNRequestToHttpRequest(XDNHttpRequest xdnRequest) {
+        try {
+            // preparing url to the containerized service
+            String url = String.format("http://127.0.0.1:%d%s",
+                    this.activeServicePorts.get(xdnRequest.getServiceName()),
+                    xdnRequest.getHttpRequest().uri());
+
+            // preparing the HTTP request body, if any
+            // TODO: handle non text body, ie. file or binary data
+            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.noBody();
+            if (xdnRequest.getHttpRequestContent() != null &&
+                    xdnRequest.getHttpRequestContent().content() != null) {
+                bodyPublisher = HttpRequest
+                        .BodyPublishers
+                        .ofString(xdnRequest.getHttpRequestContent().content()
+                                .toString(StandardCharsets.UTF_8));
+            }
+
+            // preparing the HTTP request builder
+            HttpRequest.Builder httpReqBuilder = HttpRequest.newBuilder()
+                    .uri(new URI(url))
+                    .method(xdnRequest.getHttpRequest().method().toString(),
+                            bodyPublisher);
+
+            // preparing the HTTP headers, if any.
+            // note that the code need to be run with the following flag:
+            // "-Djdk.httpclient.allowRestrictedHeaders=connection,content-length,host",
+            // otherwise setting those restricted headers here will later trigger
+            // java.lang.IllegalArgumentException, such as: restricted header name: "Host".
+            if (xdnRequest.getHttpRequest().headers() != null) {
+                Iterator<Map.Entry<String, String>> it = xdnRequest.getHttpRequest()
+                        .headers().iteratorAsString();
+                while (it.hasNext()) {
+                    Map.Entry<String, String> entry = it.next();
+                    httpReqBuilder.setHeader(entry.getKey(), entry.getValue());
+                }
+            }
+
+            return httpReqBuilder.build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private io.netty.handler.codec.http.HttpResponse createNettyHttpResponse(
+            HttpResponse<byte[]> httpResponse) {
+        // copy http headers, if any
+        HttpHeaders headers = new DefaultHttpHeaders();
+        for (String headerKey : httpResponse.headers().map().keySet()) {
+            for (String headerVal : httpResponse.headers().allValues(headerKey)) {
+                headers.add(headerKey, headerVal);
+            }
+        }
+
+        // by default, we have an empty header trailing for the response
+        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
+
+        // build the http response
+        io.netty.handler.codec.http.HttpResponse result = new DefaultFullHttpResponse(
+                getNettyHttpVersion(httpResponse.version()),
+                HttpResponseStatus.valueOf(httpResponse.statusCode()),
+                Unpooled.copiedBuffer(httpResponse.body()),
+                headers,
+                trailingHeaders
+        );
+        return result;
+    }
+
+    private io.netty.handler.codec.http.HttpResponse createNettyHttpErrorResponse(Exception e) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        sw.write("Failed to get response from the containerized service:\n");
+        e.printStackTrace(pw);
+        return new DefaultFullHttpResponse(
+                HttpVersion.HTTP_1_1,
+                HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                Unpooled.copiedBuffer(sw.toString().getBytes()));
+    }
+
+    private HttpVersion getNettyHttpVersion(HttpClient.Version httpClientVersion) {
+        // TODO: upgrade netty that support HTTP2
+        switch (httpClientVersion) {
+            case HTTP_1_1, HTTP_2 -> {
+                return HttpVersion.HTTP_1_1;
+            }
+        }
+        return HttpVersion.HTTP_1_1;
+    }
+
+
+    private int runShellCommand(String command) {
+        return runShellCommand(command, true);
+    }
+
+    private int runShellCommand(String command, boolean isSilent) {
+        return runShellCommand(command, isSilent, null);
+    }
+
+    private int runShellCommand(String command, boolean isSilent,
+                                Map<String, String> environmentVariables) {
+        try {
+            // prepare to start the command
+            ProcessBuilder pb = new ProcessBuilder(command.split("\\s+"));
+            if (isSilent) {
+                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            }
+
+            if (environmentVariables != null) {
+                Map<String, String> processEnv = pb.environment();
+                processEnv.putAll(environmentVariables);
+            }
+
+            if (!isSilent) {
+                System.out.println("command: " + command);
+                if (environmentVariables != null) {
+                    System.out.println(environmentVariables.toString());
+                }
+            }
+
+            // run the command as a new OS process
+            Process process = pb.start();
+
+            // print out the output in stderr, if needed
+            if (!isSilent) {
+                InputStream errInputStream = process.getErrorStream();
+                BufferedReader errBufferedReader = new BufferedReader(
+                        new InputStreamReader(errInputStream));
+                String line;
+                while ((line = errBufferedReader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+
+            if (!isSilent) {
+                System.out.println("exit code: " + exitCode);
+            }
+
+            return exitCode;
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    /**********************************************************************************************
+     *                                  End utility methods                                     *
      *********************************************************************************************/
 
 }
