@@ -483,6 +483,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                     c.getImageName(),
                     containerNames.get(idx),
                     networkName,
+                    c.getComponentName(),
                     c.getExposedPort(),
                     c.getEntryPort(),
                     c.isEntryComponent() ? allocatedPort : null,
@@ -1017,7 +1018,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private boolean startContainer(String imageName, String containerName, String networkName,
-                                   Integer exposedPort, Integer publishedPort,
+                                   String hostName, Integer exposedPort, Integer publishedPort,
                                    Integer allocatedHttpPort, String mountDirSource,
                                    String mountDirTarget, Map<String, String> env) {
 
@@ -1051,9 +1052,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             envSubCmd = sb.toString();
         }
 
-        String startCommand = String.format("docker run -d --name=%s --network=%s %s %s %s %s %s",
-                containerName, networkName, publishPortSubCmd, exposePortSubCmd, mountSubCmd,
-                envSubCmd, imageName);
+        String startCommand = String.format("docker run -d --name=%s --hostname=%s --network=%s %s %s %s %s %s",
+                containerName, hostName, networkName, publishPortSubCmd, exposePortSubCmd,
+                mountSubCmd, envSubCmd, imageName);
         int exitCode = runShellCommand(startCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to start container");
