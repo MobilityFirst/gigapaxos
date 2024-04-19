@@ -18,6 +18,7 @@ package edu.umass.cs.reconfiguration;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -350,15 +351,40 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 	public final Request getRequest(byte[] bytes, NIOHeader header)
 			throws RequestParseException {
 		try {
-			return ByteBuffer.wrap(bytes).getInt() == ReconfigurationPacket.PacketType.REPLICABLE_CLIENT_REQUEST
-					.getInt() ? (this.app instanceof AppRequestParserBytes ? new ReplicableClientRequest(
-					bytes, header, (AppRequestParserBytes) this.app)
-					: new ReplicableClientRequest(bytes,
-							(AppRequestParser) this.app))
 
-					: this.app instanceof AppRequestParserBytes ? ((AppRequestParserBytes) this.app)
-							.getRequest(bytes, header) : this.app
-							.getRequest(new String(bytes, NIOHeader.CHARSET));
+			// FIXME: Remove the wrapping of request with ReplicableClientRequest.
+			//  The current implementation of ActiveReplica does not seem to differentiate
+			//  CoordinatorPacket and AppRequest. Currently, ActiveReplica only knows
+			//  ReconfigurationPacket and AppRequest. ActiveReplica also specifically passes
+			//  ReplicableClientRequest, this is why we wrap all of the parsed request with
+			//  ReplicableClientRequest.
+			//  .
+			//  ActiveReplica does assertion in ActiveReplica.assertAppRequest(Request). without
+			//  wrapping all request with ReplicableClientRequest, the assertion will fail, throwing
+			//  runtime exception.
+			//  .
+			//  Wrapping all requests into ReplicableClientRequest, even for CoordinatorPacket,
+			//  is a potential confusion because CoordinatorPacket comes from fellow ActiveReplica,
+			//  and not from the end user.
+			if (this.parserBytes != null) {
+				return ReplicableClientRequest.wrap(parserBytes.getRequest(bytes, header));
+			}
+			if (this.parser != null) {
+				return ReplicableClientRequest.wrap(
+						parser.getRequest(new String(bytes, StandardCharsets.ISO_8859_1)));
+			}
+
+			int inferredRequestType = ByteBuffer.wrap(bytes).getInt();
+			int replicableClientRequestType = ReconfigurationPacket.PacketType.
+					REPLICABLE_CLIENT_REQUEST.getInt();
+			return inferredRequestType == replicableClientRequestType ?
+					(this.app instanceof AppRequestParserBytes ?
+							new ReplicableClientRequest(
+									bytes, header, (AppRequestParserBytes) this.app)
+							: new ReplicableClientRequest(bytes, (AppRequestParser) this.app))
+					: this.app instanceof AppRequestParserBytes ?
+						((AppRequestParserBytes) this.app).getRequest(bytes, header)
+						: this.app.getRequest(new String(bytes, NIOHeader.CHARSET));
 		} catch (UnsupportedEncodingException e) {
 			throw new RequestParseException(e);
 		}

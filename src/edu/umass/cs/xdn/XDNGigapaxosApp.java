@@ -3,7 +3,11 @@ package edu.umass.cs.xdn;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.primarybackup.PrimaryEpoch;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
+import edu.umass.cs.primarybackup.packets.ChangePrimaryPacket;
+import edu.umass.cs.primarybackup.packets.PrimaryBackupPacketType;
+import edu.umass.cs.primarybackup.packets.StartEpochPacket;
 import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
@@ -50,6 +54,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     // private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
 
     private final ConcurrentHashMap<String, InitializedService> services;
+    private final ConcurrentHashMap<String, PrimaryEpoch> currentEpoch;
     private final HashMap<String, SocketChannel> fsSocketConnection;
     private final HashMap<String, Boolean> isServiceActive;
     private final HttpClient serviceClient = HttpClient.newHttpClient();
@@ -58,6 +63,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         activeReplicaID = args[args.length - 1].toLowerCase();
         activeServicePorts = new HashMap<>();
         services = new ConcurrentHashMap<>();
+        currentEpoch = new ConcurrentHashMap<>();
         fsSocketConnection = new HashMap<>();
         isServiceActive = new HashMap<>();
 
@@ -86,6 +92,18 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         if (request instanceof XDNStatediffApplyRequest xdnRequest) {
+            // TODO: move this epoch validation into another method
+            PrimaryEpoch currentEpoch = this.currentEpoch.get(serviceName);
+            PrimaryEpoch statediffEpoch = xdnRequest.getEpoch();
+            if (currentEpoch == null) {
+                this.currentEpoch.put(serviceName, statediffEpoch);
+                currentEpoch = statediffEpoch;
+            }
+            // statediff from non-monotonically increasing epoch
+            if (statediffEpoch.compareTo(currentEpoch) < 0) {
+                System.out.println("ignoring stale statediff ...");
+                return true;
+            }
             return applyStatediff(serviceName, xdnRequest.getStatediff());
         }
 
@@ -93,8 +111,29 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
 
+        if (request instanceof StartEpochPacket startPacket) {
+            return handleStartEpochPacket(startPacket);
+        }
+
         System.out.println("Error: executing unknown request type " +
                 request.getClass().getSimpleName());
+
+        return true;
+    }
+
+    private boolean handleStartEpochPacket(StartEpochPacket startPacket) {
+        PrimaryEpoch startEpoch = startPacket.getStartingEpoch();
+        String serviceName = startPacket.getServiceName();
+        PrimaryEpoch currentEpoch = this.currentEpoch.get(serviceName);
+
+        if (currentEpoch == null) {
+            this.currentEpoch.put(serviceName, startEpoch);
+            currentEpoch = startEpoch;
+        }
+
+        if (currentEpoch.compareTo(startEpoch) < 0) {
+            this.currentEpoch.put(serviceName, startEpoch);
+        }
 
         return true;
     }
@@ -247,7 +286,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
-        System.out.println(">>> createFromString " + stringified);
+        // System.out.println(">>> createFromString " + stringified);
 
         // case-1: handle all xdn requests with prefix "xdn:"
         if (stringified.startsWith(XDNRequest.SERIALIZED_PREFIX)) {
@@ -301,6 +340,28 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             throw new RequestParseException(e);
         }
 
+        // case-1.5: handle primary-backup level packet
+        // TODO: move this to coordinator level
+        if (stringified.startsWith(StartEpochPacket.SERIALIZED_PREFIX)) {
+            Request r = StartEpochPacket.createFromString(stringified);
+            if (r == null) {
+                Exception e = new RuntimeException(
+                        "Invalid serialized format for primary backup start epoch packet");
+                throw new RequestParseException(e);
+            }
+            return r;
+        }
+        // TODO: move this to coordinator level
+        if (stringified.startsWith(ChangePrimaryPacket.SERIALIZED_PREFIX)) {
+            Request r = ChangePrimaryPacket.createFromString(stringified);
+            if (r == null) {
+                Exception e = new RuntimeException(
+                        "Invalid serialized format for primary backup change primary packet");
+                throw new RequestParseException(e);
+            }
+            return r;
+        }
+
 
         // case-2: handle the default HttpActiveReplica request (for backward compatibility)
         System.out.println("XDNGigaPaxosApp - use default request");
@@ -323,6 +384,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         packetTypes.add(XDNRequestType.XDN_STATEDIFF_APPLY_REQUEST);
         packetTypes.add(XDNRequestType.XDN_HTTP_FORWARD_REQUEST);
         packetTypes.add(XDNRequestType.XDN_HTTP_FORWARD_RESPONSE);
+
+        // TODO: move this to coordinator level
+        packetTypes.add(PrimaryBackupPacketType.PB_START_EPOCH_PACKET);
+        packetTypes.add(PrimaryBackupPacketType.PB_CHANGE_PRIMARY_PACKET);
+
         return packetTypes;
     }
 
@@ -783,7 +849,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     @Override
     public boolean applyStatediff(String serviceName, String statediff) {
-        System.out.println(">>>>>> applying statediff: " + serviceName + " " + statediff);
+        System.out.println(">>>>>> applying statediff: " + serviceName);
 
         InitializedService service = services.get(serviceName);
         if (service == null) {
@@ -862,6 +928,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         return true;
+    }
+
+    @Override
+    public ConcurrentHashMap<String, PrimaryEpoch> getEpochMetadata() {
+        return this.currentEpoch;
     }
 
     private boolean applyStatediffWithFuse(String serviceName, String statediff) {

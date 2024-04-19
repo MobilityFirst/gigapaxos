@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 
 import javax.net.ssl.SSLException;
 
+import edu.umass.cs.primarybackup.packets.ChangePrimaryPacket;
 import edu.umass.cs.xdn.request.XDNHttpRequest;
 import edu.umass.cs.xdn.request.XDNRequest;
 import io.netty.channel.*;
@@ -521,6 +522,15 @@ public class HttpActiveReplica {
                     return;
                 }
 
+                // FIXME: need to cleanly handle coordinator request
+                if (this.request.headers().get("coordinator-request") != null &&
+                        this.request.headers().get("node-id") != null) {
+                    String nodeID = this.request.headers().get("node-id");
+                    ChangePrimaryPacket p = new ChangePrimaryPacket(serviceName, nodeID);
+                    handleCoordinatorRequest(p, ctx);
+                    return;
+                }
+
                 XDNHttpRequest httpRequest = new XDNHttpRequest(
                         serviceName,
                         this.request,
@@ -545,14 +555,44 @@ public class HttpActiveReplica {
             }
         }
 
-        private boolean isContainServiceName(XDNRequest request) {
-            String serviceName = request.getServiceName();
-            return serviceName != null && !serviceName.equals("");
+        // TODO: cleanly handle this
+        private void handleCoordinatorRequest(ChangePrimaryPacket p, ChannelHandlerContext context) {
+            arFunctions.handRequestToAppForHttp(p, (request, handled) -> {
+                sendStringResponse("OK\n", context, false);
+            });
         }
 
         private static void sendBadRequestResponse(String message, ChannelHandlerContext ctx, boolean isKeepAlive) {
             FullHttpResponse response = new DefaultFullHttpResponse(
                     HTTP_1_1, BAD_REQUEST,
+                    Unpooled.copiedBuffer(message, CharsetUtil.UTF_8));
+
+            // Add 'Content-Length' header only for a keep-alive connection.
+            // Add keep alive header as per:
+            // http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html#Connection
+            if (isKeepAlive) {
+                response.headers().setInt(
+                        HttpHeaderNames.CONTENT_LENGTH,
+                        response.content().readableBytes());
+                response.headers().set(
+                        HttpHeaderNames.CONNECTION,
+                        HttpHeaderValues.KEEP_ALIVE);
+            }
+
+            ChannelFuture cf = ctx.writeAndFlush(response);
+            if (!cf.isSuccess()) {
+                System.out.println("write failed: " + cf.cause());
+            }
+
+            // If keep-alive is off, close the connection once the content is fully written.
+            if (!isKeepAlive) {
+                ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+            }
+        }
+
+        private static void sendStringResponse(String message, ChannelHandlerContext ctx, boolean isKeepAlive) {
+            FullHttpResponse response = new DefaultFullHttpResponse(
+                    HTTP_1_1, OK,
                     Unpooled.copiedBuffer(message, CharsetUtil.UTF_8));
 
             // Add 'Content-Length' header only for a keep-alive connection.
@@ -648,7 +688,6 @@ public class HttpActiveReplica {
 
         private record XDNHttpExecutedCallback(XDNHttpRequest request, ChannelHandlerContext ctx)
                 implements ExecutedCallback {
-
             @Override
             public void executed(Request executedRequest, boolean handled) {
                 if (!(executedRequest instanceof XDNHttpRequest xdnRequest)) {

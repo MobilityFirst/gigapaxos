@@ -222,6 +222,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
                     messenger);
         else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator"))
             return new PrimaryBackupReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
+        else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.TempPrimaryBackupReplicaCoordinator"))
+            return new TempPrimaryBackupReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
 
         return null;
 

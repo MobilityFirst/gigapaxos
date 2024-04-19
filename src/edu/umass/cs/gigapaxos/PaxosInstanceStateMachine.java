@@ -2664,4 +2664,9 @@ private String getBallots() {
 		return this.paxosState.getBallotCoord();
 	}
 
+    protected void tryToBeCoordinator() {
+        MessagingTask m = checkRunForCoordinator(true);
+        this.sendMessagingTask(m);
+    }
+
 }

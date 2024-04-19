@@ -1,7 +1,6 @@
 package edu.umass.cs.xdn.request;
 
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
-import io.netty.handler.codec.http.HttpResponse;
 import org.json.JSONException;
 import org.json.JSONObject;
 

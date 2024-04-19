@@ -1,5 +1,6 @@
 package edu.umass.cs.xdn.request;
 
+import edu.umass.cs.primarybackup.PrimaryEpoch;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -12,9 +13,11 @@ public class TestXDNStatediffApplyRequest {
         new Random().nextBytes(statediff);
 
         String serviceName = "dummyServiceName";
+        PrimaryEpoch zero = new PrimaryEpoch("0:0");
         String statediffString = new String(statediff, StandardCharsets.ISO_8859_1);
         XDNStatediffApplyRequest request = new XDNStatediffApplyRequest(
                 serviceName,
+                zero,
                 statediffString);
 
         String serialized = request.toString();

@@ -878,4 +878,8 @@ public class Util {
 				.getPort()+offset);
 	}
 
+	public static int getRandomNumberBetween(int min, int max) {
+		return (int) ((Math.random() * (max - min)) + min);
+	}
+
 }
