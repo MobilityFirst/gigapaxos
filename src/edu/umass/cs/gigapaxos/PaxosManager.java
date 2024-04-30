@@ -3447,14 +3447,14 @@ public class PaxosManager<NodeIDType> {
 	 * node (i.e., ActiveReplica) think itself is the current paxos coordinator.
 	 * Note that, due to asynchrony, it is possible that multiple nodes think
 	 * itself as an active coordinator.
-	 * @param serviceName the name of service (or object) being replicated.
+	 * @param paxosID instance ID, name of service (or object) being replicated.
 	 * @return true if the paxos instanace in this node think itself as
 	 *  a paxos coordinator.
 	 */
-	public boolean isPaxosCoordinator(String serviceName) {
+	public boolean isPaxosCoordinator(String paxosID) {
 		// use getInstance() method, instead of directly accessing `pinstances`,
 		// because a paused PaxosInstanceStateMachine (PISM) could be null.
-		PaxosInstanceStateMachine pism = this.getInstance(serviceName);
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
 		if (pism == null) {
 			return false;
 		}
@@ -3468,17 +3468,39 @@ public class PaxosManager<NodeIDType> {
 	 * of itself if it thinks it is the current coordinator at the time of
 	 * executing this method. The returned node ID (if not null) can be used
 	 * by Messenger to send any protocol messages.
-	 * @param serviceName the name of service (or object) being replicated.
+	 * @param paxosID instance ID, name of service (or object) being replicated.
 	 * @return the ID of the coordinator node, or null if this node does not
 	 *  know who is the current coordinator.
 	 */
-	public NodeIDType getPaxosCoordinator(String serviceName) {
-		PaxosInstanceStateMachine pism = this.getInstance(serviceName);
+	public NodeIDType getPaxosCoordinator(String paxosID) {
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
 		if (pism == null) {
 			return null;
 		}
 
 		return this.integerMap.get(pism.getCurrentPaxosCoordinator());
+	}
+
+	public void tryToBePaxosCoordinator(String paxosID) {
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
+		if (pism == null) {
+			return;
+		}
+
+		pism.tryToBeCoordinator();;
+	}
+
+	public void restartFromLastCheckpoint(String paxosID) {
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
+		if (pism == null) {
+			return;
+		}
+
+		this.softCrash(pism);
+		pism = this.getInstance(paxosID);
+		assert pism != null :
+				"failed to restart as pism is failed to be re-created";
+		pism.poke(true);
 	}
 
 }

@@ -1,15 +1,11 @@
 package edu.umass.cs.primarybackup.tests;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
-import edu.umass.cs.gigapaxos.interfaces.ExecutedCallback;
-import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.primarybackup.examples.MonotonicAppRequest;
 import edu.umass.cs.primarybackup.packets.ChangePrimaryPacket;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.DefaultNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
-import edu.umass.cs.utils.Config;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -19,7 +15,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static edu.umass.cs.primarybackup.tests.TestPrimaryBackup.*;
-import static edu.umass.cs.primarybackup.tests.TestPrimaryBackup.NODE_3_ID;
 
 public class TestSendRequestWhilePrimaryChanges {
 
