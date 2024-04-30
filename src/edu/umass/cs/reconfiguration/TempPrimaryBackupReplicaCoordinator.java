@@ -122,4 +122,18 @@ public class TempPrimaryBackupReplicaCoordinator<NodeIDType>
     public Set<NodeIDType> getReplicaGroup(String serviceName) {
         return this.pbManager.getReplicaGroup(serviceName);
     }
+
+    public AppRequestParser getRequestParser() {
+        return this.pbManager;
+    }
+
+    public PrimaryBackupManager<NodeIDType> getPrimaryBackupManager() {
+        return this.pbManager;
+    }
+
+    public final void close() {
+        this.stop();
+        this.pbManager.stop();
+    }
+
 }

@@ -38,10 +38,10 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
     /**
      * The followings are the application state: the sequence.
      */
-    private record Number(Integer timestamp, Integer number) {
+    protected record Number(Integer timestamp, Integer number) {
     }
 
-    private final List<Number> sequence = new ArrayList<>();
+    protected final List<Number> sequence = new ArrayList<>();
 
     private void start(int port) {
         ServerSocket serverSocket;
@@ -107,7 +107,7 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
             Number last = sequence.getLast();
             n = last.number + getRandomNumberBetween(5, 1);
         }
-        Number pair = new Number((int) (System.currentTimeMillis() / 1000L), n);
+        Number pair = new Number((int) (System.currentTimeMillis()), n);
         sequence.add(pair);
         return n;
     }
@@ -127,26 +127,6 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
             }
         }
         return seqStr.toString();
-    }
-
-    // TODO: use assertMonotonicallyIncreasingNumbers method for testing primary integrity
-    public void test_AssertMonotonicallyIncreasingNumbers() {
-        boolean isMonotonic = true;
-
-        if (sequence.isEmpty()) {
-            return;
-        }
-
-        Number prev = sequence.getFirst();
-        for (int i = 1; i < sequence.size(); i++) {
-            Number cur = sequence.get(i);
-            if (cur.number <= prev.number) {
-                isMonotonic = false;
-                break;
-            }
-        }
-
-        assert isMonotonic;
     }
 
     public static void main(String[] args) {
@@ -208,6 +188,7 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
 
     @Override
     public String checkpoint(String name) {
+        System.out.printf("MonotonicApp checkpoint name=%s\n", name);
         StringBuilder stateSnapshot = new StringBuilder();
         for (Number n : sequence) {
             stateSnapshot.append(String.format("%d:%d,", n.timestamp, n.number));
@@ -217,6 +198,12 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
 
     @Override
     public boolean restore(String name, String state) {
+        System.out.printf("MonotonicApp restore name=%s state=%s\n", name, state);
+        if (state == null || state.isEmpty()) {
+            this.sequence.clear();
+            return true;
+        }
+
         this.sequence.clear();
         String[] numberStrings = state.split("\\.");
         for (String numberStr : numberStrings) {
@@ -238,7 +225,10 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
     //==============================================================================================
     @Override
     public String captureStatediff(String serviceName) {
-        Number last = sequence.getLast();
+        Number last = null;
+        synchronized (sequence) {
+            last = sequence.getLast();
+        }
         if (last == null) {
             return "";
         }
@@ -247,10 +237,13 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
 
     @Override
     public boolean applyStatediff(String serviceName, String statediff) {
+        System.out.println(">> applying stateDiff: " + statediff);
         String[] lastNumber = statediff.split(":");
         int timestamp = Integer.parseInt(lastNumber[0]);
         int number = Integer.parseInt(lastNumber[1]);
-        sequence.add(new Number(timestamp, number));
+        synchronized (sequence) {
+            sequence.add(new Number(timestamp, number));
+        }
         return true;
     }
 

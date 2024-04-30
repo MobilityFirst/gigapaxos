@@ -14,6 +14,7 @@ import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -21,6 +22,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
 
@@ -41,7 +44,7 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
     // requests while waiting role change from PRIMARY_CANDIDATE to PRIMARY
     private final Queue<RequestAndCallback> outstandingRequests;
 
-    // requests forwarded to the primary
+    // requests forwarded to the PRIMARY
     private final Map<Long, RequestAndCallback> forwardedRequests;
 
     public PrimaryBackupManager(NodeIDType nodeID,
@@ -57,17 +60,25 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                 equals(backupableApp.getClass().getSimpleName());
 
         this.myNodeID = nodeID;
-        this.currentPrimaryEpoch = new HashMap<>();
-        this.currentRole = new HashMap<>();
-        this.currentPrimary = new HashMap<>();
+        this.currentPrimaryEpoch = new ConcurrentHashMap<>();
+        this.currentRole = new ConcurrentHashMap<>();
+        this.currentPrimary = new ConcurrentHashMap<>();
 
         this.replicableApp = replicableApp;
         this.backupableApp = backupableApp;
         this.paxosMiddlewareApp = new PaxosMiddlewareApp(
-                nodeID.toString(), this.backupableApp, this.currentPrimary,
-                this.currentPrimaryEpoch);
+                nodeID.toString(),
+                this.replicableApp,
+                this.backupableApp,
+                this.currentPrimary,
+                this.currentPrimaryEpoch,
+                this.currentRole,
+                this
+        );
+
 
         // TODO: confirm whether paxosLogFolder==null is fine here
+        this.setupPaxosConfiguration();
         this.paxosManager = new PaxosManager<>(
                 this.myNodeID,
                 unstringer,
@@ -81,47 +92,70 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                         messenger);
 
         this.messenger = messenger;
-        this.outstandingRequests = new LinkedList<>();
-        this.forwardedRequests = new HashMap<>();
+        this.outstandingRequests = new ConcurrentLinkedQueue<>();
+        this.forwardedRequests = new ConcurrentHashMap<>();
 
-        System.out.printf(">> %s PrimaryBackupManager is initialized.", myNodeID);
+        System.out.printf(">> %s PrimaryBackupManager is initialized.\n", myNodeID);
+    }
+
+    // setupPaxosConfiguration sets Paxos configuration required for PrimaryBackup use case
+    private void setupPaxosConfiguration() {
+        String[] args = {
+                String.format("%s=%b", PaxosConfig.PC.ENABLE_EMBEDDED_STORE_SHUTDOWN, true),
+                String.format("%s=%b", PaxosConfig.PC.ENABLE_STARTUP_LEADER_ELECTION, false),
+                String.format("%s=%b", PaxosConfig.PC.FORWARD_PREEMPTED_REQUESTS, false),
+                String.format("%s=%d", PaxosConfig.PC.PACKET_DEMULTIPLEXER_THREADS, 0),
+                String.format("%s=%b", PaxosConfig.PC.HIBERNATE_OPTION, true),
+                String.format("%s=%b", PaxosConfig.PC.BATCHING_ENABLED, false),
+        };
+        Config.register(args);
+
+        // TODO: investigate how to enable batching without stateDiff reordering
     }
 
     public static Set<IntegerPacketType> getAllPrimaryBackupPacketTypes() {
         return new HashSet<>(List.of(PrimaryBackupPacketType.values()));
     }
 
-    // TODO: handle different packet here
-    public boolean handlePrimaryBackupPacket(PrimaryBackupPacket packet, ExecutedCallback callback) {
+    public boolean handlePrimaryBackupPacket(
+            PrimaryBackupPacket packet, ExecutedCallback callback) {
         System.out.printf(">> PBManager-%s: handling packet %s\n", myNodeID, packet.getRequestType());
 
+        // RequestPacket: client -> entry replica
         if (packet instanceof RequestPacket requestPacket) {
             return handleRequestPacket(requestPacket, callback);
         }
 
+        // ForwardedRequestPacket: entry replica -> primary
         if (packet instanceof ForwardedRequestPacket forwardedRequestPacket) {
             return handleForwardedRequestPacket(forwardedRequestPacket, callback);
         }
 
+        // ResponsePacket: primary -> entry replica
         if (packet instanceof ResponsePacket responsePacket) {
             return handleResponsePacket(responsePacket, callback);
         }
 
+        // ChangePrimaryPacket: client -> entry replica
         if (packet instanceof ChangePrimaryPacket changePrimaryPacket) {
-            throw new RuntimeException("unimplemented");
+            return handleChangePrimaryPacket(changePrimaryPacket, callback);
         }
 
+        // ApplyStateDiffPacket: primary -> replica
         if (packet instanceof ApplyStateDiffPacket) {
             throw new RuntimeException("ApplyStateDiffPacket can only be handled in " +
                     "PaxosMiddlewareApp via Paxos' execute(.), after agreement");
         }
 
+        // StartEpochPacket: primary candidate -> replica
         if (packet instanceof StartEpochPacket) {
             throw new RuntimeException("StartEpochPacket can only be handled in PaxosMiddlewareApp "
                     + "via Paxos' execute(.), after agreement");
         }
 
-        return true;
+        String exceptionMsg = String.format("unknown primary backup packet '%s'",
+                packet.getClass().getSimpleName());
+        throw new RuntimeException(exceptionMsg);
     }
 
     private boolean handleRequestPacket(RequestPacket packet, ExecutedCallback callback) {
@@ -161,41 +195,60 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
 
         // ensure this method is only invoked by the primary node
         Role currentServiceRole = this.currentRole.get(serviceName);
-        assert currentServiceRole == Role.PRIMARY;
+        assert currentServiceRole == Role.PRIMARY : String.format("%s my role for %s is %s",
+                myNodeID, serviceName, currentServiceRole.toString());
 
         // RequestPacket -> AppRequest -> execute() -> AppResponse -> RequestPacket (with response)
+        Request appRequest = null;
         try {
             // parse the encapsulated application request
             String encodedServiceRequest = new String(packet.getEncodedServiceRequest(),
                     StandardCharsets.ISO_8859_1);
-            Request appRequest = replicableApp.getRequest(encodedServiceRequest);
-
-            // execute the app request, put response if request is ClientRequest
-            replicableApp.execute(appRequest);
-            if (appRequest instanceof ClientRequest) {
-                ClientRequest responsePacket = ((ClientRequest) appRequest).getResponse();
-                packet.setResponse(responsePacket);
-                System.out.printf(">> PBManager-%s: set response to %s\n",
-                        myNodeID, responsePacket.toString());
-            }
-
-            // capture stateDiff, then propose the stateDiff
-            String stateDiff = backupableApp.captureStatediff(serviceName);
-            PrimaryEpoch currentEpoch = this.currentPrimaryEpoch.get(serviceName);
-            if (currentEpoch == null) {
-                throw new RuntimeException("Unknown current primary epoch for " + serviceName);
-            }
-            this.paxosManager.propose(
-                    serviceName,
-                    new ApplyStateDiffPacket(serviceName, currentEpoch, stateDiff),
-                    (stateDiffPacket, handled) -> {
-                        callback.executed(packet, handled);
-                    });
-
-            return true;
+            appRequest = replicableApp.getRequest(encodedServiceRequest);
         } catch (RequestParseException e) {
             throw new RuntimeException(e);
         }
+
+
+        // execute the app request, and capture the stateDiff
+        PrimaryEpoch currentEpoch = null;
+        boolean isExecuteSuccess = false;
+        String stateDiff = null;
+        synchronized (this) {
+            currentEpoch = this.currentPrimaryEpoch.get(serviceName);
+            if (currentEpoch == null) {
+                throw new RuntimeException("Unknown current primary epoch for " + serviceName);
+            }
+            isExecuteSuccess = replicableApp.execute(appRequest);
+            if (!isExecuteSuccess) {
+                throw new RuntimeException("Failed to execute request for " + serviceName);
+            }
+            stateDiff = backupableApp.captureStatediff(serviceName);
+        }
+
+        // propose the stateDiff
+        System.out.printf(">>> %s:PBManager proposing epoch=%s statediff=%s\n",
+                myNodeID, currentEpoch, stateDiff);
+        PrimaryEpoch finalCurrentEpoch = currentEpoch;
+        String finalStateDiff = stateDiff;
+        this.paxosManager.propose(
+                serviceName,
+                new ApplyStateDiffPacket(serviceName, currentEpoch, stateDiff),
+                (stateDiffPacket, handled) -> {
+                    System.out.printf(">>> %s:PBManager epoch=%s statediff=%s is accepted\n",
+                            myNodeID, finalCurrentEpoch, finalStateDiff);
+                    callback.executed(packet, handled);
+                });
+
+        // put response if request is ClientRequest
+        if (appRequest instanceof ClientRequest) {
+            ClientRequest responsePacket = ((ClientRequest) appRequest).getResponse();
+            packet.setResponse(responsePacket);
+            System.out.printf(">> PBManager-%s: set response to %s\n",
+                    myNodeID, responsePacket.toString());
+        }
+
+        return true;
     }
 
     private boolean handRequestToPrimary(RequestPacket packet, ExecutedCallback callback) {
@@ -213,6 +266,8 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
             throw new RuntimeException("Unknown primary ID");
             // TODO: potential fix would be to ask the current Paxos' coordinator to be the Primary
         }
+        System.out.printf(">> PBManager-%s: handing request to primary at %s\n",
+                myNodeID, currentPrimaryIDStr);
 
         // store the request and callback, so later we can send the response back to client
         // after receiving the response from the primary
@@ -230,6 +285,8 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
 
         // send the forwarded request to the primary
         try {
+            System.out.printf(">> PBManager-%s: is disconnected to %s? %b\n",
+                    myNodeID, currentPrimaryID, this.messenger.isDisconnected(currentPrimaryID));
             this.messenger.send(m);
         } catch (IOException | JSONException e) {
             throw new RuntimeException(e);
@@ -242,42 +299,64 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
         throw new RuntimeException("unimplemented");
     }
 
-    private boolean handleForwardedRequestPacket(ForwardedRequestPacket forwardedRequestPacket,
-                                                 ExecutedCallback callback) {
+    private boolean handleForwardedRequestPacket(
+            ForwardedRequestPacket forwardedRequestPacket, ExecutedCallback callback) {
         System.out.printf(">> PBManager-%s: handling forwarded request %s\n",
                 myNodeID, forwardedRequestPacket.toString());
 
-        byte[] encodedRequest = forwardedRequestPacket.getForwardedRequest();
-        String encodedRequestString = new String(encodedRequest, StandardCharsets.ISO_8859_1);
-        RequestPacket rp = RequestPacket.createFromString(encodedRequestString);
-        this.executeRequestCoordinateStateDiff(rp, (executedRequest, handled) -> {
-            System.out.printf(">> PBManager-%s: forwarded request is executed, forwarding " +
-                            "response back to the entry replica in %s\n",
-                    myNodeID, forwardedRequestPacket.getEntryNodeID());
-            System.out.printf(">> PBManager-%s: response %s\n", myNodeID, executedRequest.toString());
+        String groupName = forwardedRequestPacket.getServiceName();
+        Role curentRole = null;
+        synchronized (this) {
+            curentRole = this.currentRole.get(groupName);
+        }
 
-            if (executedRequest instanceof ClientRequest requestWithResponse) {
-                ResponsePacket resp = new ResponsePacket(
-                        executedRequest.getServiceName(),
-                        rp.getRequestID(),
-                        requestWithResponse.getResponse().toString().
-                                getBytes(StandardCharsets.ISO_8859_1));
-                GenericMessagingTask<NodeIDType, ResponsePacket> m = new GenericMessagingTask<>(
-                        (NodeIDType) forwardedRequestPacket.getEntryNodeID(),
-                        resp);
-                try {
-                    messenger.send(m);
-                } catch (IOException | JSONException e) {
-                    throw new RuntimeException(e);
+        if (curentRole.equals(Role.BACKUP)) {
+            throw new RuntimeException("Unimplemented: should re-forward request to primary");
+        }
+
+        if (curentRole.equals(Role.PRIMARY_CANDIDATE)) {
+            throw new RuntimeException("Unimplemented: should buffer request");
+        }
+
+        if (curentRole.equals(Role.PRIMARY)) {
+            byte[] encodedRequest = forwardedRequestPacket.getForwardedRequest();
+            String encodedRequestString = new String(encodedRequest, StandardCharsets.ISO_8859_1);
+            RequestPacket rp = RequestPacket.createFromString(encodedRequestString);
+            this.executeRequestCoordinateStateDiff(rp, (executedRequest, handled) -> {
+                System.out.printf(">> PBManager-%s: forwarded request is executed, forwarding " +
+                                "response back to the entry replica in %s\n",
+                        myNodeID, forwardedRequestPacket.getEntryNodeID());
+                System.out.printf(">> PBManager-%s: response %s\n", myNodeID, executedRequest.toString());
+
+                if (executedRequest instanceof ClientRequest requestWithResponse) {
+                    ResponsePacket resp = new ResponsePacket(
+                            executedRequest.getServiceName(),
+                            rp.getRequestID(),
+                            requestWithResponse.getResponse().toString().
+                                    getBytes(StandardCharsets.ISO_8859_1));
+                    GenericMessagingTask<NodeIDType, ResponsePacket> m = new GenericMessagingTask<>(
+                            (NodeIDType) forwardedRequestPacket.getEntryNodeID(),
+                            resp);
+                    try {
+                        messenger.send(m);
+                    } catch (IOException | JSONException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-            }
 
-            // callback.executed(request, handled);
-        });
-        return true;
+                // callback.executed(request, handled);
+            });
+
+            return true;
+        }
+
+        String exceptionMsg = String.format("%s:PrimaryBackupManager - unknown role for group '%s'",
+                myNodeID, groupName);
+        throw new RuntimeException(exceptionMsg);
     }
 
-    private boolean handleResponsePacket(ResponsePacket responsePacket, ExecutedCallback callback) {
+    private boolean handleResponsePacket(ResponsePacket responsePacket, ExecutedCallback
+            callback) {
         try {
             byte[] encodedResponse = responsePacket.getEncodedResponse();
             Request appRequest = this.replicableApp.getRequest(
@@ -298,6 +377,62 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
         } catch (RequestParseException e) {
             throw new RuntimeException(e);
         }
+        return true;
+    }
+
+    private boolean handleChangePrimaryPacket(ChangePrimaryPacket packet,
+                                              ExecutedCallback callback) {
+
+        // ignore ChangePrimary with incorrect nodeID
+        if (!Objects.equals(packet.getNodeID(), myNodeID.toString())) {
+            callback.executed(packet, false);
+        }
+
+        String groupName = packet.getServiceName();
+        Role myCurrentRole = null;
+        PrimaryEpoch curEpoch = null;
+        synchronized (this) {
+            myCurrentRole = this.currentRole.get(groupName);
+            curEpoch = this.currentPrimaryEpoch.get(groupName);
+        }
+        if (myCurrentRole == null) {
+            System.out.printf(">> %s unknown role for service name '%s'", myNodeID, groupName);
+            return true;
+        }
+        if (myCurrentRole.equals(Role.PRIMARY)) {
+            System.out.printf(">> %s already the primary for service name '%s'",
+                    myNodeID,
+                    groupName);
+            return true;
+        }
+
+        if (curEpoch == null) {
+            System.out.printf(">> %s unknown current epoch for service name '%s'",
+                    myNodeID, groupName);
+            return true;
+        }
+        PrimaryEpoch newEpoch = new PrimaryEpoch(
+                myNodeID.toString(),
+                curEpoch.counter + 1
+        );
+
+        this.paxosManager.tryToBePaxosCoordinator(groupName); // could still be fail
+        this.currentRole.put(groupName, Role.PRIMARY_CANDIDATE);
+        this.currentPrimaryEpoch.put(groupName, newEpoch);
+        StartEpochPacket startPacket = new StartEpochPacket(groupName, newEpoch);
+        this.paxosManager.propose(
+                groupName,
+                startPacket,
+                (proposedPacket, isHandled) -> {
+                    System.out.printf("\n\n>> %s I'M THE PRIMARY NOW FOR %s!!\n\n",
+                            myNodeID, groupName);
+                    currentRole.put(groupName, Role.PRIMARY);
+                    currentPrimary.put(groupName, myNodeID.toString());
+                    processOutstandingRequests();
+
+                    callback.executed(packet, isHandled);
+                }
+        );
         return true;
     }
 
@@ -369,10 +504,11 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                     groupName,
                     startPacket,
                     (proposedPacket, isHandled) -> {
-                        System.out.printf(">> %s I'M THE PRIMARY NOW FOR %s!!",
+                        System.out.printf("\n\n>> %s I'M THE PRIMARY NOW FOR %s!!\n\n",
                                 myNodeID, groupName);
                         currentRole.put(groupName, Role.PRIMARY);
                         currentPrimary.put(groupName, paxosCoordinatorID.toString());
+                        currentPrimaryEpoch.put(groupName, zero);
                         processOutstandingRequests();
                     }
             );
@@ -407,6 +543,22 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
     public Set<NodeIDType> getReplicaGroup(String groupName) {
         System.out.println(">> getReplicaGroup - " + groupName);
         return this.paxosManager.getReplicaGroup(groupName);
+    }
+
+    public final void stop() {
+        this.paxosManager.close();
+    }
+
+    public boolean isCurrentPrimary(String groupName) {
+        Role myCurrentRole = this.currentRole.get(groupName);
+        if (myCurrentRole == null) {
+            return false;
+        }
+        return myCurrentRole.equals(Role.PRIMARY);
+    }
+
+    private void restartPaxosInstance(String groupName) {
+        this.paxosManager.restartFromLastCheckpoint(groupName);
     }
 
 
@@ -468,22 +620,39 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
          */
         private final Map<String, String> currentPrimaryPtr;
         private final Map<String, PrimaryEpoch> currentEpochPtr;
+        private final Map<String, Role> currentRolePtr;
         private final BackupableApplication backupableApplicationPtr;
+        private final Replicable replicableAppPtr;
+        private final PrimaryBackupManager managerPtr;
 
         public PaxosMiddlewareApp(String myNodeID,
+                                  Replicable replicableAppPtr,
                                   BackupableApplication backupableApplicationPtr,
                                   Map<String, String> currentPrimaryPtr,
-                                  Map<String, PrimaryEpoch> currentEpochPtr) {
+                                  Map<String, PrimaryEpoch> currentEpochPtr,
+                                  Map<String, Role> currentRolePtr,
+                                  PrimaryBackupManager managerPtr) {
+
+            // Replicable and BackupableApplication interface must be implemented by the same
+            // Application because captureStateDiff(.) in the BackupableApplication is invoked after
+            // execute(.) in the Replicable.
+            assert replicableAppPtr.getClass().getSimpleName().
+                    equals(backupableApplicationPtr.getClass().getSimpleName());
+            assert replicableAppPtr.hashCode() == backupableApplicationPtr.hashCode();
+
             this.myNodeID = myNodeID;
+            this.replicableAppPtr = replicableAppPtr;
             this.backupableApplicationPtr = backupableApplicationPtr;
             this.currentPrimaryPtr = currentPrimaryPtr;
             this.currentEpochPtr = currentEpochPtr;
+            this.currentRolePtr = currentRolePtr;
+            this.managerPtr = managerPtr;
 
+            // only two packet/request type that t
             Set<IntegerPacketType> types = new HashSet<>();
             types.add(PrimaryBackupPacketType.PB_START_EPOCH_PACKET);
             types.add(PrimaryBackupPacketType.PB_STATE_DIFF_PACKET);
             this.requestTypes = types;
-
         }
 
         @Override
@@ -498,7 +667,9 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                 return ApplyStateDiffPacket.createFromString(stringified);
             }
 
-            throw new RuntimeException("unable to parse request " + stringified);
+            throw new RequestParseException(
+                    new RuntimeException("unable to parse request " + stringified)
+            );
         }
 
         @Override
@@ -517,42 +688,146 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                 return true;
             }
 
-            System.out.printf(">>> %s PaxosMiddlewareApp execute request=%s\n",
-                    myNodeID, request.getClass().getSimpleName());
-            String serviceName = request.getServiceName();
+            System.out.printf(">> %s:PaxosMiddlewareApp execute %s\n",
+                    myNodeID, request.getRequestType());
 
             if (request instanceof StartEpochPacket startEpochPacket) {
-                PrimaryEpoch primaryEpoch = startEpochPacket.getStartingEpoch();
-                currentPrimaryPtr.put(serviceName, primaryEpoch.nodeID);
-                System.out.printf(">> %s putting current primary for %s as %s\n",
-                        myNodeID, serviceName, primaryEpoch.nodeID);
-                return true;
+                return executeStartEpochPacket(startEpochPacket);
             }
 
             if (request instanceof ApplyStateDiffPacket stateDiffPacket) {
-                PrimaryEpoch primaryEpoch = stateDiffPacket.getPrimaryEpoch();
-                PrimaryEpoch currentEpoch = currentEpochPtr.get(serviceName);
+                return executeApplyStateDiffPacket(stateDiffPacket);
+            }
 
-                if (primaryEpoch.nodeID.equals(myNodeID)) {
+            throw new RuntimeException(String.format("PaxosMiddlewareApp: Unknown execute handler" +
+                    " for request %s: %s", request.getClass().getSimpleName(), request.toString()));
+        }
+
+        private boolean executeStartEpochPacket(StartEpochPacket packet) {
+            System.out.printf(">>> %s:PaxosMiddlewareApp:executeStartEpoch epoch=%s\n",
+                    myNodeID, packet.getStartingEpoch());
+            String groupName = packet.getServiceName();
+            PrimaryEpoch newPrimaryEpoch = packet.getStartingEpoch();
+            PrimaryEpoch currentEpoch = this.currentEpochPtr.get(groupName);
+            String newPrimaryID = newPrimaryEpoch.nodeID;
+
+            // update my current epoch, if its unknown
+            if (currentEpoch == null) {
+                this.currentEpochPtr.put(groupName, newPrimaryEpoch);
+                this.currentPrimaryPtr.put(groupName, newPrimaryID);
+                currentEpoch = newPrimaryEpoch;
+            }
+
+            // receive smaller, ignore that epoch.
+            // receive current epoch from myself, ignore the StartEpoch packet as it already
+            // handled via callback of propose(StartEpoch)
+            if (newPrimaryEpoch.compareTo(currentEpoch) <= 0) {
+                return true;
+            }
+
+            // step down to be backup node
+            if (newPrimaryEpoch.compareTo(currentEpoch) > 0) {
+                Role myCurrentRole = currentRolePtr.get(groupName);
+
+                if (myCurrentRole == null) {
+                    currentRolePtr.put(groupName, Role.BACKUP);
+                    currentEpochPtr.put(groupName, newPrimaryEpoch);
+                    currentPrimaryPtr.put(groupName, newPrimaryID);
+                    System.out.printf(">> %s putting current primary for %s as %s\n",
+                            myNodeID, groupName, newPrimaryID);
+                    return true;
+                }
+
+                if (myCurrentRole.equals(Role.BACKUP)) {
+                    currentRolePtr.put(groupName, Role.BACKUP);
+                    currentEpochPtr.put(groupName, newPrimaryEpoch);
+                    currentPrimaryPtr.put(groupName, newPrimaryID);
+                    System.out.printf(">> %s putting current primary for %s as %s\n",
+                            myNodeID, groupName, newPrimaryID);
+                    return true;
+                }
+
+                if (myCurrentRole.equals(Role.PRIMARY) ||
+                        myCurrentRole.equals(Role.PRIMARY_CANDIDATE)) {
+                    currentRolePtr.put(groupName, Role.BACKUP);
+                    currentEpochPtr.put(groupName, newPrimaryEpoch);
+                    currentPrimaryPtr.put(groupName, newPrimaryID);
+
+                    System.out.printf(">> %s shutting down .... \n", myNodeID);
+                    managerPtr.restartPaxosInstance(groupName);
+
+                    // throw new RuntimeException(String.format("%s:PaxosMiddlewareApp: unhandled restart and " +
+                    //        "re-execute", myNodeID));
+                    return true;
+                }
+
+                throw new RuntimeException(String.format("PaxosMiddlewareApp: Unhandled case " +
+                                "myEpoch=%s primaryEpoch=%s role=%s", currentEpoch, newPrimaryEpoch,
+                        myCurrentRole));
+            }
+
+            throw new RuntimeException(String.format("PaxosMiddlewareApp: Unhandled case " +
+                    "myEpoch=%s primaryEpoch=%s", currentEpoch, newPrimaryEpoch));
+        }
+
+        private boolean executeApplyStateDiffPacket(ApplyStateDiffPacket packet) {
+            String groupName = packet.getServiceName();
+            PrimaryEpoch primaryEpoch = packet.getPrimaryEpoch();
+            PrimaryEpoch currentEpoch = currentEpochPtr.get(groupName);
+            Role myCurrentRole = currentRolePtr.get(groupName);
+
+            System.out.printf(">>> %s:PaxosMiddlewareApp:executeStateDiff role=%s myEpoch=%s epoch=%s stateDiff=%s\n",
+                    myNodeID, myCurrentRole, currentEpoch, packet.getPrimaryEpoch(), packet.getStateDiff());
+
+            // Invariant: when executing stateDiff for epoch e, this node must already execute
+            //  startEpoch for epoch e.
+            assert currentEpoch != null : "currentEpoch has not been updated";
+            assert myCurrentRole != null : "Unknown role for " + groupName;
+
+            // Case-1: lower epoch, ignoring stale stateDiff from older primary.
+            if (primaryEpoch.compareTo(currentEpoch) < 0) {
+                System.out.printf(">>> %s:PBManager ignoring stateDiff from old primary " +
+                                "(%s, myEpoch=%s)\n",
+                        myNodeID,
+                        primaryEpoch,
+                        currentEpoch);
+                return true;
+            }
+
+            // Case-2: epoch is already current
+            if (primaryEpoch.equals(currentEpoch)) {
+
+                // Ignoring stateDiff generated by myself since myself is the primary and thus
+                // already applied the stateDiff right after execution
+                if (myCurrentRole.equals(Role.PRIMARY)) {
                     System.out.printf(">> PBManager-%s: ignoring stateDiff from myself\n",
                             myNodeID);
                     return true;
                 }
 
-                if (currentEpoch == null || currentEpoch.compareTo(primaryEpoch) <= 0) {
-                    currentEpochPtr.put(serviceName, primaryEpoch);
-                    currentPrimaryPtr.put(serviceName, primaryEpoch.nodeID);
-                    this.backupableApplicationPtr.applyStatediff(
-                            serviceName, stateDiffPacket.getStateDiff());
+                // This case should not happen, the epoch is already current yet this node
+                // is still a primary candidate. The node should already change its role to PRIMARY
+                // in the callback of propose(StartEpoch), before the node is able to propose a
+                // stateDiff with current epoch.
+                if (myCurrentRole.equals(Role.PRIMARY_CANDIDATE)) {
+                    assert false : "executing stateDiff from myself while still being a candidate";
                     return true;
                 }
-                if (currentEpoch.compareTo(primaryEpoch) >= 0) {
-                    // ignore stale stateDiff
-                    System.out.printf(">> PBManager-%s: ignoring stale stateDiff with epoch %s " +
-                                    "(currentEpoch:%s)\n",
-                            myNodeID, primaryEpoch.toString(), currentEpoch.toString());
+
+                // As a backup, this node simply apply the stateDiff coming from the PRIMARY
+                if (myCurrentRole.equals(Role.BACKUP)) {
+                    this.backupableApplicationPtr.applyStatediff(groupName, packet.getStateDiff());
                     return true;
                 }
+
+                throw new RuntimeException(String.format("PaxosMiddlewareApp: Unhandled case " +
+                        "myEpoch=primaryEpoch=%s role=%s", primaryEpoch, myCurrentRole));
+            }
+
+            // Case-3: get higher epoch
+            if (primaryEpoch.compareTo(currentEpoch) > 0) {
+                throw new RuntimeException(String.format("PaxosMiddlewareApp: Executing higher " +
+                        "epoch=%s before executing startEpoch", primaryEpoch));
             }
 
             return true;
@@ -560,14 +835,20 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
 
         @Override
         public String checkpoint(String name) {
-            return null;
+            System.out.printf(">>> %s PaxosMiddlewareApp checkpoint name=%s\n",
+                    myNodeID, name);
+            return this.replicableAppPtr.checkpoint(name);
         }
 
         @Override
         public boolean restore(String name, String state) {
             System.out.printf(">>> %s PaxosMiddlewareApp restore name=%s state=%s\n",
                     myNodeID, name, state);
-            return true;
+            if (state == null || state.isEmpty()) {
+                this.currentEpochPtr.remove(name);
+                this.currentRolePtr.put(name, Role.BACKUP);
+            }
+            return this.replicableAppPtr.restore(name, state);
         }
 
         //----------------------------------------------------------------------------------------||

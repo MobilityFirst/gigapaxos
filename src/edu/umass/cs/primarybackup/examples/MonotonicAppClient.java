@@ -6,6 +6,7 @@ import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
 import edu.umass.cs.reconfiguration.ReconfigurationConfig;
+import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;

@@ -195,7 +195,8 @@ public class SQLPaxosLogger extends AbstractPaxosLogger {
 	/**
 	 * Needed for testing with recovery in the same JVM
 	 */
-	private static final boolean DONT_SHUTDOWN_EMBEDDED = true;
+	private static final boolean DONT_SHUTDOWN_EMBEDDED = !Config.
+			getGlobalBoolean(PC.ENABLE_EMBEDDED_STORE_SHUTDOWN);
 
 	private static final int MAX_FILENAME_SIZE = 512;
 

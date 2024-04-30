@@ -927,15 +927,28 @@ public class PaxosConfig {
 		 * elected coordinator faster. However, the options can cause flaky
 		 * leadership during replica group startup: rapid leader changes before
 		 * a long-running coordinator is elected.
-		 *
+		 * <p>
 		 * If false, there will be a coordinator chosen deterministically during
 		 * startup, even when all the Nodes do not start with Phase 1 of Paxos.
 		 * This option is more stable but can cause liveness issue when the
 		 * deterministically chosen coordinator during startup suddenly crashed,
 		 * making all the Nodes need to wait until coordinator timeout.
-		 *
+		 * <p>
+		 * The default value is true.
 		 */
 		ENABLE_STARTUP_LEADER_ELECTION(true),
+
+
+		/**
+		 * This option is mainly for testing scenario that deploy multiple nodes
+		 * in the same JVM/machine. The default value 'false' means the Paxos'
+		 * embedded datastore will not shut down when {@link PaxosManager#close()}
+		 * is called, which in turn will call {@link SQLPaxosLogger#closeGracefully()}.
+		 * If the value is 'true', we can "stop" and "re-create" node in our test
+		 * scenario as when we stop a node, the datastore connection will be cleanly
+		 * stopped as well.
+		 */
+		ENABLE_EMBEDDED_STORE_SHUTDOWN(false),
 
 
 		/**
