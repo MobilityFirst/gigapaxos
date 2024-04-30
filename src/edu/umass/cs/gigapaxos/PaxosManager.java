@@ -3481,12 +3481,4 @@ public class PaxosManager<NodeIDType> {
 		return this.integerMap.get(pism.getCurrentPaxosCoordinator());
 	}
 
-	// FIXME: Fadhil - experimental
-	public boolean isActive(String serviceName) {
-		PaxosInstanceStateMachine pism = pinstances.get(serviceName);
-		if (pism != null) {
-			return pism.isActive();
-		}
-		return false;
-	}
 }
