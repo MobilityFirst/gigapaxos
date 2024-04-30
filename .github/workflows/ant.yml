@@ -21,5 +21,7 @@ jobs:
       with:
         java-version: '21'
         distribution: 'oracle'
+    - name: Build jar archive
+      run: ant jar
     - name: Test with Ant
       run: ant test
