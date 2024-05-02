@@ -14,7 +14,7 @@ import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.ZipFiles;
 import edu.umass.cs.xdn.request.*;
-import edu.umass.cs.xdn.service.InitializedService;
+import edu.umass.cs.xdn.service.ServiceInstance;
 import edu.umass.cs.xdn.service.ServiceComponent;
 import edu.umass.cs.xdn.service.ServiceProperty;
 import io.netty.buffer.Unpooled;
@@ -53,7 +53,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     //  (3) multicontainer with paxos / active replication
     // private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
 
-    private final ConcurrentHashMap<String, InitializedService> services;
+    private final ConcurrentHashMap<String, ServiceInstance> services;
     private final ConcurrentHashMap<String, PrimaryEpoch> currentEpoch;
     private final HashMap<String, SocketChannel> fsSocketConnection;
     private final HashMap<String, Boolean> isServiceActive;
@@ -521,7 +521,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // prepare the initialized service
-        InitializedService service = new InitializedService(
+        ServiceInstance service = new ServiceInstance(
                 property,
                 serviceName,
                 networkName,
@@ -720,7 +720,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private String copyContainerDirectory(String serviceName) {
-        InitializedService service = services.get(serviceName);
+        ServiceInstance service = services.get(serviceName);
         if (service == null) {
             throw new RuntimeException("unknown service " + serviceName);
         }
@@ -851,7 +851,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     public boolean applyStatediff(String serviceName, String statediff) {
         System.out.println(">>>>>> applying statediff: " + serviceName);
 
-        InitializedService service = services.get(serviceName);
+        ServiceInstance service = services.get(serviceName);
         if (service == null) {
             throw new RuntimeException("unknown service " + serviceName);
         }

@@ -1,4 +1,9 @@
-# gigapaxos
+# XDN - Replicating Blackbox Stateful Services to Live on the Edge
 
-Refer to the Getting Started page in the
-[Wiki](<https://github.com/MobilityFirst/gigapaxos/wiki>) above for tutorials.
+## Getting started
+
+## Single machine deployment
+
+## Distributed deployment
+
+

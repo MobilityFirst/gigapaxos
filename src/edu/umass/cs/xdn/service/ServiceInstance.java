@@ -2,7 +2,7 @@ package edu.umass.cs.xdn.service;
 
 import java.util.List;
 
-public class InitializedService {
+public class ServiceInstance {
     public final ServiceProperty property;
     public final String serviceName;
     public final String networkName;
@@ -18,8 +18,8 @@ public class InitializedService {
     public final String entryContainer;
     public final String statefulContainer;
 
-    public InitializedService(ServiceProperty property, String serviceName, String networkName,
-                              int allocatedHttpPort, List<String> containerNames) {
+    public ServiceInstance(ServiceProperty property, String serviceName, String networkName,
+                           int allocatedHttpPort, List<String> containerNames) {
         this.property = property;
         this.serviceName = serviceName;
         this.networkName = networkName;

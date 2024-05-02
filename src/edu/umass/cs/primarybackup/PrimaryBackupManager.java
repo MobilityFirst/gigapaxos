@@ -51,7 +51,8 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                                 Replicable replicableApp,
                                 BackupableApplication backupableApp,
                                 Stringifiable<NodeIDType> unstringer,
-                                Messenger<NodeIDType, JSONObject> messenger) {
+                                Messenger<NodeIDType, JSONObject> messenger,
+                                boolean omitClientMessengerInitialization) {
 
         // Replicable and BackupableApplication interface must be implemented by the same
         // Application because captureStateDiff(.) in the BackupableApplication is invoked after
@@ -76,8 +77,6 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                 this
         );
 
-
-        // TODO: confirm whether paxosLogFolder==null is fine here
         this.setupPaxosConfiguration();
         this.paxosManager = new PaxosManager<>(
                 this.myNodeID,
@@ -85,11 +84,13 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                 messenger,
                 this.paxosMiddlewareApp,
                 null,
-                true)
-                .initClientMessenger(new InetSocketAddress(
-                                messenger.getNodeConfig().getNodeAddress(this.myNodeID),
-                                messenger.getNodeConfig().getNodePort(this.myNodeID)),
-                        messenger);
+                true);
+        if (!omitClientMessengerInitialization) {
+            this.paxosManager.initClientMessenger(new InetSocketAddress(
+                            messenger.getNodeConfig().getNodeAddress(this.myNodeID),
+                            messenger.getNodeConfig().getNodePort(this.myNodeID)),
+                    messenger);
+        }
 
         this.messenger = messenger;
         this.outstandingRequests = new ConcurrentLinkedQueue<>();
@@ -111,6 +112,14 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
         Config.register(args);
 
         // TODO: investigate how to enable batching without stateDiff reordering
+    }
+
+    public PrimaryBackupManager(NodeIDType nodeID,
+                                Replicable replicableApp,
+                                BackupableApplication backupableApp,
+                                Stringifiable<NodeIDType> unstringer,
+                                Messenger<NodeIDType, JSONObject> messenger) {
+        this(nodeID, replicableApp, backupableApp, unstringer, messenger, false);
     }
 
     public static Set<IntegerPacketType> getAllPrimaryBackupPacketTypes() {

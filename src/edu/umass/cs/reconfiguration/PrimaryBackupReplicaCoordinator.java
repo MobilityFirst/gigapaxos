@@ -1,5 +1,6 @@
 package edu.umass.cs.reconfiguration;
 
+import edu.umass.cs.gigapaxos.PaxosManager;
 import edu.umass.cs.gigapaxos.interfaces.*;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.nio.interfaces.Messenger;
@@ -39,7 +40,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
     public PrimaryBackupReplicaCoordinator(Replicable app,
                                            NodeIDType myID,
                                            Stringifiable<NodeIDType> unstringer,
-                                           Messenger<NodeIDType, JSONObject> messenger) {
+                                           Messenger<NodeIDType, JSONObject> messenger,
+                                           boolean omitClientMessengerInitialization) {
         super(app, messenger);
 
         // the Replicable application used for PrimaryBackupCoordinator must also implement
@@ -52,7 +54,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                 app,
                 (BackupableApplication) app,
                 unstringer,
-                messenger
+                messenger,
+                omitClientMessengerInitialization
         );
 
         // initialize all the request types handled
@@ -63,6 +66,13 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
 
         // update the coordinator request parser
         this.setGetRequestImpl(this.pbManager);
+    }
+
+    public PrimaryBackupReplicaCoordinator(Replicable app,
+                                           NodeIDType myID,
+                                           Stringifiable<NodeIDType> unstringer,
+                                           Messenger<NodeIDType, JSONObject> messenger) {
+        this(app, myID, unstringer, messenger, false);
     }
 
     @Override

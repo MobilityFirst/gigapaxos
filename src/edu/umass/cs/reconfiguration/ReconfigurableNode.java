@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 
 import edu.umass.cs.nio.NIOTransport;
+import edu.umass.cs.xdn.XDNReplicaCoordinator;
 import org.json.JSONObject;
 
 import edu.umass.cs.gigapaxos.AbstractPaxosLogger;
@@ -218,6 +219,8 @@ public abstract class ReconfigurableNode<NodeIDType> {
                     messenger);
         else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.TempPrimaryBackupReplicaCoordinator"))
             return new PrimaryBackupReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
+        else if (coordinatorClassName.equals("edu.umass.cs.xdn.XDNReplicaCoordinator"))
+            return new XDNReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
 
         return null;
 

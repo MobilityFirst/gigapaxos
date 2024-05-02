@@ -5,7 +5,7 @@ public enum ConsistencyModel {
     SEQUENTIAL,
     CAUSAL,
     EVENTUAL,
-    READ,
+    READ_YOUR_WRITES,
     WRITES_FOLLOW_READS,
     MONOTONIC_READS,
     MONOTONIC_WRITES
