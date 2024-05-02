@@ -247,14 +247,6 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
         return true;
     }
 
-    @Override
-    public ConcurrentHashMap<String, PrimaryEpoch> getEpochMetadata() {
-        // TODO: getEpochMetadata is a temporary method in BackupableApplication interface and will
-        //  be removed after complete refactor, separating PrimaryBackupCoordinator with XDN.
-        return null;
-    }
-
-
     private record MonotonicAppStopRequest(String serviceName, int placementEpoch)
             implements ReconfigurableRequest {
 

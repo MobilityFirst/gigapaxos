@@ -1,6 +1,5 @@
 package edu.umass.cs.primarybackup.tests;
 
-import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.AbstractPacketDemultiplexer;
 import edu.umass.cs.nio.JSONMessenger;
@@ -9,11 +8,10 @@ import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.NodeConfig;
 import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.primarybackup.PrimaryBackupManager;
-import edu.umass.cs.reconfiguration.TempPrimaryBackupReplicaCoordinator;
+import edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationutils.ReconfigurationPacketDemultiplexer;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
-import edu.umass.cs.utils.Config;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -29,7 +27,7 @@ public class TestPrimaryBackup {
     protected static final String NODE_3_ID = "node3";
     protected static final String SERVICE_NAME = "monotonic-app-test-001";
 
-    protected record CoordinatorNode(TempPrimaryBackupReplicaCoordinator<String> coordinator,
+    protected record CoordinatorNode(PrimaryBackupReplicaCoordinator<String> coordinator,
                                      PrimaryBackupManager manager,
                                      MonotonicTestApp app,
                                      JSONMessenger<String> messenger) {
@@ -48,8 +46,8 @@ public class TestPrimaryBackup {
                         node1ID, config);
         JSONMessenger<String> messengerAtNode1 = TestPrimaryBackup.createNodeDefaultMessenger(
                 node1ID, config, pdAtNode1);
-        TempPrimaryBackupReplicaCoordinator<String> node1 =
-                new TempPrimaryBackupReplicaCoordinator<>(
+        PrimaryBackupReplicaCoordinator<String> node1 =
+                new PrimaryBackupReplicaCoordinator<>(
                         appAtNode1,
                         node1ID,
                         TestPrimaryBackup.getDefaultStringifier(),
@@ -70,8 +68,8 @@ public class TestPrimaryBackup {
                 createDefaultPacketDemultiplexer(node2ID, config);
         JSONMessenger<String> messengerAtNode2 = TestPrimaryBackup.createNodeDefaultMessenger(
                 node2ID, config, pdAtNode2);
-        TempPrimaryBackupReplicaCoordinator<String> node2 =
-                new TempPrimaryBackupReplicaCoordinator<>(
+        PrimaryBackupReplicaCoordinator<String> node2 =
+                new PrimaryBackupReplicaCoordinator<>(
                         appAtNode2,
                         node2ID,
                         TestPrimaryBackup.getDefaultStringifier(),
@@ -93,8 +91,8 @@ public class TestPrimaryBackup {
                         node3ID, config);
         JSONMessenger<String> messengerAtNode3 = TestPrimaryBackup.createNodeDefaultMessenger(
                 node3ID, config, pdAtNode3);
-        TempPrimaryBackupReplicaCoordinator<String> node3 =
-                new TempPrimaryBackupReplicaCoordinator<>(
+        PrimaryBackupReplicaCoordinator<String> node3 =
+                new PrimaryBackupReplicaCoordinator<>(
                         appAtNode3,
                         node3ID,
                         TestPrimaryBackup.getDefaultStringifier(),
@@ -178,7 +176,7 @@ public class TestPrimaryBackup {
     }
 
     private static void registerHandlerForDemultiplexer(ReconfigurationPacketDemultiplexer pd,
-                                                        TempPrimaryBackupReplicaCoordinator<String>
+                                                        PrimaryBackupReplicaCoordinator<String>
                                                                 coordinator) {
         pd.setAppRequestParser(coordinator.getRequestParser());
         pd.register(

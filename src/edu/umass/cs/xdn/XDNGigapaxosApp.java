@@ -930,11 +930,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         return true;
     }
 
-    @Override
-    public ConcurrentHashMap<String, PrimaryEpoch> getEpochMetadata() {
-        return this.currentEpoch;
-    }
-
     private boolean applyStatediffWithFuse(String serviceName, String statediff) {
         // TODO: when applying statediff the service need to be stopped/paused, the filesystem need to be stopped.
 

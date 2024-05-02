@@ -17,5 +17,4 @@ import java.util.concurrent.ConcurrentHashMap;
 public interface BackupableApplication {
     public String captureStatediff(String serviceName);
     public boolean applyStatediff(String serviceName, String statediff);
-    public ConcurrentHashMap<String, PrimaryEpoch> getEpochMetadata();
 }
