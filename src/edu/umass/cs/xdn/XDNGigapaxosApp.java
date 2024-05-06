@@ -4,6 +4,7 @@ import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
+import edu.umass.cs.primarybackup.PrimaryBackupManager;
 import edu.umass.cs.primarybackup.PrimaryEpoch;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.primarybackup.packets.*;
@@ -11,18 +12,20 @@ import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
-import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.ZipFiles;
 import edu.umass.cs.xdn.request.*;
-import edu.umass.cs.xdn.service.ServiceInstance;
 import edu.umass.cs.xdn.service.ServiceComponent;
+import edu.umass.cs.xdn.service.ServiceInstance;
 import edu.umass.cs.xdn.service.ServiceProperty;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 import org.json.JSONException;
 
 import java.io.*;
-import java.net.*;
+import java.net.Socket;
+import java.net.StandardProtocolFamily;
+import java.net.URI;
+import java.net.UnixDomainSocketAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -59,7 +62,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     private final HashMap<String, Boolean> isServiceActive;
     private final HttpClient serviceClient = HttpClient.newHttpClient();
 
-
+    private PrimaryBackupManager<String> primaryBackupManager;
 
     public XDNGigapaxosApp(String[] args) {
         activeReplicaID = args[args.length - 1].toLowerCase();
@@ -83,6 +86,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     }
 
+    protected void setPrimaryBackupManager(PrimaryBackupManager<String> pbManager) {
+        this.primaryBackupManager = pbManager;
+    }
+
     @Override
     public boolean execute(Request request) {
         System.out.println(">> " + this.activeReplicaID + " XDNApp execution:   " + request.getClass().getSimpleName());
@@ -91,6 +98,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         if (request instanceof HttpActiveReplicaRequest harRequest) {
             harRequest.setResponse("ok");
             return true;
+        }
+
+        if (request instanceof PrimaryBackupPacket packet) {
+            return handlePrimaryBackupPacket(packet);
         }
 
         if (request instanceof XDNStatediffApplyRequest xdnRequest) {
@@ -113,18 +124,16 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
 
-        if (request instanceof StartEpochPacket startPacket) {
-            return handleStartEpochPacket(startPacket);
-        }
-
-        if (request instanceof ApplyStateDiffPacket stateDiffPacket) {
-            return applyStatediff(serviceName, stateDiffPacket.getStateDiff());
-        }
-
         System.out.println("Error: executing unknown request type " +
                 request.getClass().getSimpleName());
 
         return true;
+    }
+
+    private boolean handlePrimaryBackupPacket(PrimaryBackupPacket packet) {
+        assert this.primaryBackupManager != null :
+                "PrimaryBackupManager must be set first for XDNGigapaxosApp";
+        return this.primaryBackupManager.handlePrimaryBackupPacket(packet, null);
     }
 
     private boolean handleStartEpochPacket(StartEpochPacket startPacket) {

@@ -73,10 +73,14 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
         PrimaryBackupManager.setupPaxosConfiguration();
         PaxosReplicaCoordinator<NodeIDType> paxosReplicaCoordinator =
                 new PaxosReplicaCoordinator<>(app, myID, unstringer, messenger);
-        this.paxosCoordinator = paxosReplicaCoordinator;
-        this.primaryBackupCoordinator =
+        PrimaryBackupReplicaCoordinator<NodeIDType> primaryBackupReplicaCoordinator =
                 new PrimaryBackupReplicaCoordinator<>(app, myID, unstringer, messenger,
                         paxosReplicaCoordinator.getPaxosManager(), true);
+        ((XDNGigapaxosApp) app).setPrimaryBackupManager(
+                (PrimaryBackupManager<String>) primaryBackupReplicaCoordinator.getManager());
+
+        this.primaryBackupCoordinator = primaryBackupReplicaCoordinator;
+        this.paxosCoordinator = paxosReplicaCoordinator;
         this.chainReplicationCoordinator = null;
 
         // initialize empty service -> coordinator mapping
@@ -106,6 +110,9 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
         var coordinator = this.serviceCoordinator.get(serviceName);
         if (coordinator == null) {
             throw new RuntimeException("unknown coordinator for " + serviceName);
+        } else {
+            System.out.printf(">> %s:XDNReplicaCoordinator handling request for %s with coordinator=%s\n",
+                    myNodeID, serviceName, coordinator.getClass().getSimpleName());
         }
         ReplicableClientRequest gpRequest = ReplicableClientRequest.wrap(request);
         gpRequest.setClientAddress(messenger.getListeningSocketAddress());

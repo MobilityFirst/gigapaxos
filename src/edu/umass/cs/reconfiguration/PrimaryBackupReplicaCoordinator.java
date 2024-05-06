@@ -84,6 +84,10 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
         );
     }
 
+    public PrimaryBackupManager<NodeIDType> getManager() {
+        return pbManager;
+    }
+
     @Override
     public Set<IntegerPacketType> getRequestTypes() {
         return requestTypes;
