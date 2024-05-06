@@ -1,17 +1,17 @@
 package edu.umass.cs.xdn;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.primarybackup.PrimaryEpoch;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
-import edu.umass.cs.primarybackup.packets.ChangePrimaryPacket;
-import edu.umass.cs.primarybackup.packets.PrimaryBackupPacketType;
-import edu.umass.cs.primarybackup.packets.StartEpochPacket;
+import edu.umass.cs.primarybackup.packets.*;
 import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 import edu.umass.cs.utils.ZipFiles;
 import edu.umass.cs.xdn.request.*;
 import edu.umass.cs.xdn.service.ServiceInstance;
@@ -58,6 +58,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     private final HashMap<String, SocketChannel> fsSocketConnection;
     private final HashMap<String, Boolean> isServiceActive;
     private final HttpClient serviceClient = HttpClient.newHttpClient();
+
+
 
     public XDNGigapaxosApp(String[] args) {
         activeReplicaID = args[args.length - 1].toLowerCase();
@@ -113,6 +115,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         if (request instanceof StartEpochPacket startPacket) {
             return handleStartEpochPacket(startPacket);
+        }
+
+        if (request instanceof ApplyStateDiffPacket stateDiffPacket) {
+            return applyStatediff(serviceName, stateDiffPacket.getStateDiff());
         }
 
         System.out.println("Error: executing unknown request type " +
@@ -257,7 +263,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // Case-1: gigapaxos started meta service with name == XDNGigaPaxosApp0 and state == {}
-        if (name.equals(this.getClass().getSimpleName() + "0") &&
+        if (name.equals(PaxosConfig.getDefaultServiceName()) &&
                 state != null && state.equals("{}")) {
             return true;
         }
@@ -286,95 +292,99 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
-        // System.out.println(">>> createFromString " + stringified);
+        System.out.printf(">>> %s:XDNGigapaxosApp-createFromString string=%s\n",
+                activeReplicaID, stringified);
 
         // case-1: handle all xdn requests with prefix "xdn:"
         if (stringified.startsWith(XDNRequest.SERIALIZED_PREFIX)) {
-
-            // handle a statediff request
-            if (stringified.startsWith(XDNStatediffApplyRequest.SERIALIZED_PREFIX)) {
-                Request r = XDNStatediffApplyRequest.createFromString(stringified);
-                if (r == null) {
-                    Exception e = new RuntimeException(
-                            "Invalid serialized format for xdn statediff request");
-                    throw new RequestParseException(e);
-                }
-                return r;
-            }
-
-            // handle an http request
-            if (stringified.startsWith(XDNHttpRequest.SERIALIZED_PREFIX)) {
-                Request r = XDNHttpRequest.createFromString(stringified);
-                if (r == null) {
-                    Exception e = new RuntimeException(
-                            "Invalid serialized format for xdn http request");
-                    throw new RequestParseException(e);
-                }
-                return r;
-            }
-
-            // handle a forwarded request
-            if (stringified.startsWith(XDNHttpForwardRequest.SERIALIZED_PREFIX)) {
-                Request r = XDNHttpForwardRequest.createFromString(stringified);
-                if (r == null) {
-                    Exception e = new RuntimeException(
-                            "Invalid serialized format for xdn http forward request");
-                    throw new RequestParseException(e);
-                }
-                return r;
-            }
-
-            // handle a forwarded response
-            if (stringified.startsWith(XDNHttpForwardResponse.SERIALIZED_PREFIX)) {
-                Request r = XDNHttpForwardResponse.createFromString(stringified);
-                if (r == null) {
-                    Exception e = new RuntimeException(
-                            "Invalid serialized format for xdn http forward response");
-                    throw new RequestParseException(e);
-                }
-                return r;
-            }
-
-            Exception e = new RuntimeException(
-                    "Invalid serialized format for xdn request");
-            throw new RequestParseException(e);
+            return this.getXDNRequest(stringified);
         }
 
-        // case-1.5: handle primary-backup level packet
-        // TODO: move this to coordinator level
+        // case-2: handle primary-backup request, with prefix "pb:"
+        if (stringified.startsWith(PrimaryBackupPacket.SERIALIZED_PREFIX)) {
+            return this.getPrimaryBackupRequest(stringified);
+        }
+
+        Exception e = new RuntimeException("unknown request format");
+        throw new RequestParseException(e);
+    }
+
+    private Request getXDNRequest(String stringified) throws RequestParseException {
+
+        // handle a statediff request
+        if (stringified.startsWith(XDNStatediffApplyRequest.SERIALIZED_PREFIX)) {
+            Request r = XDNStatediffApplyRequest.createFromString(stringified);
+            if (r == null) {
+                Exception e = new RuntimeException(
+                        "Invalid serialized format for xdn statediff request");
+                throw new RequestParseException(e);
+            }
+            return r;
+        }
+
+        // handle an http request
+        if (stringified.startsWith(XDNHttpRequest.SERIALIZED_PREFIX)) {
+            Request r = XDNHttpRequest.createFromString(stringified);
+            if (r == null) {
+                Exception e = new RuntimeException(
+                        "Invalid serialized format for xdn http request");
+                throw new RequestParseException(e);
+            }
+            return r;
+        }
+
+        // handle a forwarded request
+        if (stringified.startsWith(XDNHttpForwardRequest.SERIALIZED_PREFIX)) {
+            Request r = XDNHttpForwardRequest.createFromString(stringified);
+            if (r == null) {
+                Exception e = new RuntimeException(
+                        "Invalid serialized format for xdn http forward request");
+                throw new RequestParseException(e);
+            }
+            return r;
+        }
+
+        // handle a forwarded response
+        if (stringified.startsWith(XDNHttpForwardResponse.SERIALIZED_PREFIX)) {
+            Request r = XDNHttpForwardResponse.createFromString(stringified);
+            if (r == null) {
+                Exception e = new RuntimeException(
+                        "Invalid serialized format for xdn http forward response");
+                throw new RequestParseException(e);
+            }
+            return r;
+        }
+
+        Exception e = new RuntimeException(
+                "Invalid serialized format for xdn request");
+        throw new RequestParseException(e);
+    }
+
+    private Request getPrimaryBackupRequest(String stringified) throws RequestParseException {
+
         if (stringified.startsWith(StartEpochPacket.SERIALIZED_PREFIX)) {
-            Request r = StartEpochPacket.createFromString(stringified);
-            if (r == null) {
-                Exception e = new RuntimeException(
-                        "Invalid serialized format for primary backup start epoch packet");
-                throw new RequestParseException(e);
-            }
-            return r;
+            return StartEpochPacket.createFromString(stringified);
         }
-        // TODO: move this to coordinator level
+
         if (stringified.startsWith(ChangePrimaryPacket.SERIALIZED_PREFIX)) {
-            Request r = ChangePrimaryPacket.createFromString(stringified);
-            if (r == null) {
-                Exception e = new RuntimeException(
-                        "Invalid serialized format for primary backup change primary packet");
-                throw new RequestParseException(e);
-            }
-            return r;
+            return ChangePrimaryPacket.createFromString(stringified);
         }
 
-
-        // case-2: handle the default HttpActiveReplica request (for backward compatibility)
-        System.out.println("XDNGigaPaxosApp - use default request");
-        Request req;
-        try {
-            req = new HttpActiveReplicaRequest(stringified.getBytes());
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+        if (stringified.startsWith(ForwardedRequestPacket.SERIALIZED_PREFIX)) {
+            return ForwardedRequestPacket.createFromString(stringified);
         }
 
-        return req;
+        if (stringified.startsWith(ApplyStateDiffPacket.SERIALIZED_PREFIX)) {
+            return ApplyStateDiffPacket.createFromString(stringified);
+        }
+
+        if (stringified.startsWith(ResponsePacket.SERIALIZED_PREFIX)) {
+            return ResponsePacket.createFromString(stringified);
+        }
+
+        Exception e = new RuntimeException(
+                "Invalid serialized format for primary-backup request");
+        throw new RequestParseException(e);
     }
 
     @Override
@@ -386,8 +396,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         packetTypes.add(XDNRequestType.XDN_HTTP_FORWARD_RESPONSE);
 
         // TODO: move this to coordinator level
-        packetTypes.add(PrimaryBackupPacketType.PB_START_EPOCH_PACKET);
-        packetTypes.add(PrimaryBackupPacketType.PB_CHANGE_PRIMARY_PACKET);
+        packetTypes.addAll(List.of(PrimaryBackupPacketType.values()));
 
         return packetTypes;
     }
@@ -710,7 +719,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     private int createDockerNetwork(String networkName) {
         String createNetCmd = String.format("docker network create %s",
                 networkName);
-        int exitCode = runShellCommand(createNetCmd, false);
+        int exitCode = runShellCommand(createNetCmd, true);
         if (exitCode != 0 && exitCode != 1) {
             // 1 is the exit code of creating already exist network
             System.err.println("Error: failed to create network");

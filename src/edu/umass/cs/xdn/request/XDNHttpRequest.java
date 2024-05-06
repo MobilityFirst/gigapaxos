@@ -1,18 +1,26 @@
 package edu.umass.cs.xdn.request;
 
+import edu.umass.cs.gigapaxos.interfaces.ClientRequest;
+import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.junit.Test;
+import org.junit.experimental.runners.Enclosed;
+import org.junit.runner.RunWith;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public class XDNHttpRequest extends XDNRequest {
+@RunWith(Enclosed.class)
+public class XDNHttpRequest extends XDNRequest implements ClientRequest {
 
     /**
      * All the serialized XDNHttpRequest starts with "xdn:31300:"
@@ -165,7 +173,76 @@ public class XDNHttpRequest extends XDNRequest {
             }
             json.put("headers", headerJsonArray);
             json.put("content", httpRequestContent.content().toString(StandardCharsets.ISO_8859_1));
+
+            if (httpResponse != null) {
+                json.put("response", serializedHttpResponse(httpResponse));
+            }
+
             return SERIALIZED_PREFIX + json.toString();
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String serializedHttpResponse(HttpResponse response) {
+        assert response != null;
+        JSONObject json = new JSONObject();
+
+        try {
+            // serialize version
+            json.put("version", response.protocolVersion().toString());
+
+            // serialize status
+            json.put("status", response.status().code());
+
+            // serialize response header
+            JSONArray headerJsonArray = new JSONArray();
+            Iterator<Map.Entry<String, String>> it = response.headers().iteratorAsString();
+            while (it.hasNext()) {
+                Map.Entry<String, String> entry = it.next();
+                headerJsonArray.put(String.format("%s:%s", entry.getKey(), entry.getValue()));
+            }
+            json.put("headers", headerJsonArray);
+
+            // serialize response body
+            assert response instanceof DefaultFullHttpResponse;
+            DefaultFullHttpResponse fullHttpResponse = (DefaultFullHttpResponse) response;
+            json.put("body", fullHttpResponse.content().toString(StandardCharsets.ISO_8859_1));
+
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+
+        return json.toString();
+    }
+
+    private static HttpResponse deserializedHttpResponse(String response) {
+        assert response != null;
+
+        try {
+            JSONObject json = new JSONObject(response);
+            String versionString = json.getString("version");
+            int statusCode = json.getInt("status");
+            JSONArray headerArray = json.getJSONArray("headers");
+            String bodyString = json.getString("body");
+
+            // copy http response headers, if any
+            HttpHeaders headers = new DefaultHttpHeaders();
+            for (int i = 0; i < headerArray.length(); i++) {
+                String[] raw = headerArray.getString(i).split(":");
+                headers.add(raw[0], raw[1]);
+            }
+
+            // by default, we have an empty header trailing for the response
+            HttpHeaders trailingHeaders = new DefaultHttpHeaders();
+
+            return new DefaultFullHttpResponse(
+                    HttpVersion.valueOf(versionString),
+                    HttpResponseStatus.valueOf(statusCode),
+                    Unpooled.copiedBuffer(bodyString.getBytes(StandardCharsets.ISO_8859_1)),
+                    headers,
+                    trailingHeaders
+            );
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -184,6 +261,8 @@ public class XDNHttpRequest extends XDNRequest {
             String httpMethod = json.getString("method");
             String httpURI = json.getString("uri");
             String httpContent = json.getString("content");
+            String httpResponse = json.has("response") ?
+                    json.getString("response") : null;
 
             // handle array of header
             JSONArray headerJSONArr = json.getJSONArray("headers");
@@ -204,11 +283,85 @@ public class XDNHttpRequest extends XDNRequest {
             HttpContent reqContent = new DefaultHttpContent(
                     Unpooled.copiedBuffer(httpContent, StandardCharsets.ISO_8859_1));
             String serviceName = XDNHttpRequest.inferServiceName(req);
-            return new XDNHttpRequest(serviceName, req, reqContent);
+            XDNHttpRequest xdnHttpRequest = new XDNHttpRequest(serviceName, req, reqContent);
+
+            // handle response, if any
+            if (httpResponse != null) {
+                xdnHttpRequest.httpResponse = deserializedHttpResponse(httpResponse);
+            }
+
+            return xdnHttpRequest;
         } catch (JSONException e) {
-            e.printStackTrace();
-            return null;
+            throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public ClientRequest getResponse() {
+        return this;
+    }
+
+    public static class TestXdnHttpRequest {
+        @Test
+        public void TestXdnHttpRequestSerializationDeserialization() {
+            XDNHttpRequest dummyXDNHttpRequest = createDummyTestRequest();
+
+            // the created XDNRequest from string should equal to the
+            // original XDNRequest being used to generate the string.
+            XDNHttpRequest deserializedXDNRequest = XDNHttpRequest.createFromString(
+                    dummyXDNHttpRequest.toString());
+            System.out.println(dummyXDNHttpRequest);
+            System.out.println(deserializedXDNRequest);
+            assert deserializedXDNRequest != null : "deserialized XDNRequest is null";
+            assert Objects.equals(
+                    dummyXDNHttpRequest,
+                    deserializedXDNRequest) : "deserialized XDNRequest is different";
+        }
+
+        @Test
+        public void TestXdnHttpRequestSetResponse() {
+            XDNHttpRequest dummyXDNHttpRequest = createDummyTestRequest();
+            dummyXDNHttpRequest.setHttpResponse(createDummyTestResponse());
+
+            Request requestWithResponse = dummyXDNHttpRequest.getResponse();
+            assert requestWithResponse.equals(dummyXDNHttpRequest) :
+                    "response must be embedded into the request";
+        }
+
+        public static XDNHttpRequest createDummyTestRequest() {
+            String serviceName = "dummyServiceName";
+            HttpRequest dummyHttpRequest = new DefaultHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.POST,
+                    "/?name=alice-book-catalog&qval=qwerty",
+                    new DefaultHttpHeaders()
+                            .add("header-1", "value-1")
+                            .add("header-1", "value-2")
+                            .add("header-1", "value-3")
+                            .add("header-a", "value-a")
+                            .add("header-b", "value-b")
+                            .add("Random-1", "a,b,c")
+                            .add("Random-2", "a:b:c")
+                            .add("XDN", serviceName)
+                            .add("Random-Char", "=,;:\"'`")
+                            .add("Content-Type", "multipart/mixed; boundary=gc0p4Jq0MYt08"));
+            HttpContent dummyHttpContent = new DefaultHttpContent(
+                    Unpooled.copiedBuffer("somestringcontent".getBytes(StandardCharsets.UTF_8)));
+
+            return new XDNHttpRequest(
+                    serviceName, dummyHttpRequest, dummyHttpContent);
+        }
+
+        private HttpResponse createDummyTestResponse() {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            sw.write("http request is successfully executed\n");
+            return new DefaultFullHttpResponse(
+                    HttpVersion.HTTP_1_1,
+                    HttpResponseStatus.OK,
+                    Unpooled.copiedBuffer(sw.toString().getBytes()));
+        }
+
     }
 
 }

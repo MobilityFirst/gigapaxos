@@ -41,6 +41,7 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                                            NodeIDType myID,
                                            Stringifiable<NodeIDType> unstringer,
                                            Messenger<NodeIDType, JSONObject> messenger,
+                                           PaxosManager<NodeIDType> paxosManager,
                                            boolean omitClientMessengerInitialization) {
         super(app, messenger);
 
@@ -55,6 +56,7 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                 (BackupableApplication) app,
                 unstringer,
                 messenger,
+                paxosManager,
                 omitClientMessengerInitialization
         );
 
@@ -72,7 +74,14 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                                            NodeIDType myID,
                                            Stringifiable<NodeIDType> unstringer,
                                            Messenger<NodeIDType, JSONObject> messenger) {
-        this(app, myID, unstringer, messenger, false);
+        this(
+                app,
+                myID,
+                unstringer,
+                messenger,
+                null,
+                false
+        );
     }
 
     @Override
@@ -84,6 +93,10 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
     public boolean coordinateRequest(Request request, ExecutedCallback callback)
             throws IOException, RequestParseException {
         ExecutedCallback chainedCallback = callback;
+
+        System.out.printf(">>> %s:PBRCoordinator - coordinateRequest %s %s\n\n",
+                getMyID(), request.getClass().getSimpleName(),
+                request instanceof ReplicableClientRequest rcr ? rcr.getRequest().getClass().getSimpleName() : "null");
 
         // if packet comes from client (i.e., ReplicableClientRequest), wrap the
         // containing request with RequestPacket, and re-chain the callback.
@@ -98,6 +111,8 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                         appRequest.toString().getBytes(StandardCharsets.ISO_8859_1));
                 chainedCallback = (executedRequestPacket, handled) -> {
                     assert executedRequestPacket instanceof RequestPacket;
+                    System.out.printf(">> %s:PBRCoordinator client request is executed :)\n",
+                            getMyID());
                     RequestPacket response = (RequestPacket) executedRequestPacket;
                     callback.executed(response.getResponse(), handled);
                 };

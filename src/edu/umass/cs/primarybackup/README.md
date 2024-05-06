@@ -57,13 +57,13 @@ below coordination layer.
 
 Assumption about the underlying Paxos Logging Library:
 - The library implements MultiPaxos, agreement over multiple values in a sequential log.
-- The library provides interface to `propose(Value)`
-- Once a proposed `Value` is decided, the library will notify the library's user: the Primary Backup Manager.
-- `Notify(Value)`: Notifications of the agreed upon `Values` comes in-order of the `Value` in the log.
+- The library provides interface to `propose_i(Value)`
+- Once a proposed `Value` is (executed), the library will notify the proposer `i`: the Primary Backup Manager.
+- `Execute(Value)`: Notifications of the agreed upon `Values` comes in-order of the `Value` in the log.
 - The library runs in the same Node as the Node for the Primary Backup Manager, eliminating network round-trip for 
   the library's user to access the library.
 - The library provides `isCoordinator()` that hint whether the current node is the Paxos' coordinator or not.
-- The library provides `restartFromLastCheckpoint()` that resending all the `Notify(Value)` received so far. 
+- The library provides `restartFromLastCheckpoint()` that resending all the `Execute(Value)` received so far. 
 
 Assumption about the application `app` that run over Primary Backup:
 - `app.execute(r)`: atomically executing a request, which potentially changing the underlying application's state.
@@ -91,6 +91,8 @@ Important state stored in each node:
 Upon startup (i.e., replica group creation):
 ```
 - currentRole <- `BACKUP`
+- currentPrimaryEpoch <- {0, null}
+- pendingRequests <- null
 - If isCoordinator():
      zeroPrimaryEpoch <- {0, myNodeID}
      propose(StartPrimaryEpoch{zeroPrimaryEpoch})
@@ -108,7 +110,7 @@ Upon receiving `Notify(StartPrimaryEpoch{e})`:
 -    restartFromLastCheckpoint()
 -    return
 - 
-- currentPrimaryEpoch <- e
+- currentPrimaryEpoch <- e          // TODO: need to be moved?
 - If isMyNodeEpoch(e):              // primary-candidate becomes primary
      currentRole <- `PRIMARY`
      for r in pendingRequests:
@@ -121,7 +123,7 @@ Upon receiving `Notify(StartPrimaryEpoch{e})`:
 Upon receiving Request `r` from client:
 ```
 - If currentRole = `BACKUP`:
-     forward r to PRIMARY, if known.
+     forward r to PRIMARY, if known.        // TODO: specify the primary node
      return
 - If currentRole = `PRIMARY_CANDIDATE`:
      pendingRequests.put(r)

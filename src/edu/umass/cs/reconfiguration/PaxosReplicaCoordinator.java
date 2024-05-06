@@ -102,7 +102,11 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 		assert (niot instanceof JSONMessenger);
 		this.paxosManager.setOutOfOrderLimit(outOfOrderLimit);
 	}
-	
+
+	public PaxosManager<NodeIDType> getPaxosManager() {
+		return paxosManager;
+	}
+
 	protected PaxosReplicaCoordinator<NodeIDType> setOutOfOrderLimit(int limit) {
 		this.paxosManager.setOutOfOrderLimit(limit);
 		return this;

@@ -7,7 +7,7 @@ import java.util.Objects;
 public class TestXDNHttpForwardRequest {
     @Test
     public void TestXDNHttpForwardRequestSerializationDeserialization() {
-        XDNHttpRequest httpRequest = TestXDNHttpRequest.createDummyRequest();
+        XDNHttpRequest httpRequest = XDNHttpRequest.TestXdnHttpRequest.createDummyTestRequest();
         String entryNodeID = "ar0";
         XDNHttpForwardRequest forwardRequest = new XDNHttpForwardRequest(
                 httpRequest, entryNodeID);

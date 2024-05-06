@@ -12,6 +12,7 @@ import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 import edu.umass.cs.reconfiguration.PaxosReplicaCoordinator;
 import edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator;
+import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.xdn.request.XDNRequestType;
 import edu.umass.cs.xdn.service.ServiceProperty;
@@ -56,7 +57,7 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
                                  NodeIDType myID,
                                  Stringifiable<NodeIDType> unstringer,
                                  Messenger<NodeIDType, JSONObject> messenger) {
-        super(app);
+        super(app, messenger);
 
         System.out.printf(">> XDNReplicaCoordinator - init at node %s\n",
                 myID);
@@ -69,10 +70,13 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
         this.myNodeID = myID.toString();
 
         // initialize all the wrapped coordinators
-        this.paxosCoordinator = new PaxosReplicaCoordinator<NodeIDType>(
-                app, myID, unstringer, messenger);
-        this.primaryBackupCoordinator = new PrimaryBackupReplicaCoordinator<NodeIDType>(
-                app, myID, unstringer, messenger, true);
+        PrimaryBackupManager.setupPaxosConfiguration();
+        PaxosReplicaCoordinator<NodeIDType> paxosReplicaCoordinator =
+                new PaxosReplicaCoordinator<>(app, myID, unstringer, messenger);
+        this.paxosCoordinator = paxosReplicaCoordinator;
+        this.primaryBackupCoordinator =
+                new PrimaryBackupReplicaCoordinator<>(app, myID, unstringer, messenger,
+                        paxosReplicaCoordinator.getPaxosManager(), true);
         this.chainReplicationCoordinator = null;
 
         // initialize empty service -> coordinator mapping
@@ -98,7 +102,14 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
         System.out.printf(">> %s:XDNReplicaCoordinator - coordinateRequest request=%s payload=%s\n",
                 myNodeID, request.getClass().getSimpleName(), request.toString());
 
-        return false;
+        var serviceName = request.getServiceName();
+        var coordinator = this.serviceCoordinator.get(serviceName);
+        if (coordinator == null) {
+            throw new RuntimeException("unknown coordinator for " + serviceName);
+        }
+        ReplicableClientRequest gpRequest = ReplicableClientRequest.wrap(request);
+        gpRequest.setClientAddress(messenger.getListeningSocketAddress());
+        return coordinator.coordinateRequest(gpRequest, callback);
     }
 
     @Override
@@ -107,14 +118,14 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
                                       String state,
                                       Set<NodeIDType> nodes) {
         System.out.printf(">> %s:XDNReplicaCoordinator - createReplicaGroup name=%s, epoch=%d, state=%s, nodes=%s\n",
-                myNodeID, serviceName, epoch, serviceName, nodes);
+                myNodeID, serviceName, epoch, state, nodes);
 
         if (serviceName.equals(PaxosConfig.getDefaultServiceName()) ||
                 serviceName.equals(AbstractReconfiguratorDB.RecordNames.AR_AR_NODES.toString()) ||
                 serviceName.equals(AbstractReconfiguratorDB.RecordNames.AR_RC_NODES.toString())) {
             boolean isSuccess = this.paxosCoordinator.createReplicaGroup(serviceName, epoch, state, nodes);
             assert isSuccess : "failed to create default services";
-            this.serviceCoordinator.put(serviceName, paxosCoordinator);
+            this.serviceCoordinator.put(serviceName, this.paxosCoordinator);
             return true;
         }
 
@@ -128,15 +139,20 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
     private boolean initializeReplicaGroup(String serviceName,
                                            String initialState,
                                            Set<NodeIDType> nodes) {
+        System.out.printf(">> %s:XDNReplicaCoordinator - initializeReplicaGroup name=%s, state=%s, nodes=%s\n",
+                myNodeID, serviceName, initialState, nodes);
+
         String validInitialStatePrefix = "xdn:init:";
         assert initialState.startsWith(validInitialStatePrefix) : "incorrect initial state prefix";
         String serviceProperties = initialState.substring(validInitialStatePrefix.length());
         var coordinator = inferCoordinatorByProperties(serviceProperties);
         assert coordinator != null :
-                "we dont know what coordinator to be used for the specified service";
+                "XDN does not know what coordinator to be used for the specified service";
 
+        boolean isSuccess = coordinator.createReplicaGroup(serviceName, 0, initialState, nodes);
+        assert isSuccess : "failed to initialize service";
         this.serviceCoordinator.put(serviceName, coordinator);
-        return coordinator.createReplicaGroup(serviceName, 0, initialState, nodes);
+        return true;
     }
 
     private AbstractReplicaCoordinator<NodeIDType> inferCoordinatorByProperties(String prop) {
