@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -128,7 +129,7 @@ public class RsyncStateDiffRecorder extends AbstractStateDiffRecorder {
         }
 
         // convert the compressed stateDiff to String
-        return Base64.getEncoder().encodeToString(compressedStateDiff);
+        return new String(compressedStateDiff, StandardCharsets.ISO_8859_1);
     }
 
     @Override
@@ -139,7 +140,7 @@ public class RsyncStateDiffRecorder extends AbstractStateDiffRecorder {
         Shell.runCommand("rm -rf " + targetDiffFile);
 
         // convert stateDiff from String back to byte[], then decompress
-        byte[] compressedStateDiff = Base64.getDecoder().decode(encodedState);
+        byte[] compressedStateDiff = encodedState.getBytes(StandardCharsets.ISO_8859_1);
         byte[] stateDiff = null;
         try {
             ByteArrayOutputStream os = new ByteArrayOutputStream();

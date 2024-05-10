@@ -11,6 +11,10 @@ import java.util.zip.InflaterOutputStream;
 
 public class SerializationDeserializationTest {
 
+    // TODO: compare general compression between these libraries:
+    //  - https://github.com/airlift/aircompressor
+    //  - https://mvnrepository.com/artifact/org.apache.commons/commons-compress
+
     public static void main(String[] args) {
         // generate random 12KB data
         byte[] data = new byte[12000];
