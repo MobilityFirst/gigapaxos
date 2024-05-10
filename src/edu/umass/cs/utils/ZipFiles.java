@@ -32,7 +32,6 @@ public class ZipFiles {
             FileOutputStream fos = new FileOutputStream(zipDirName);
             ZipOutputStream zos = new ZipOutputStream(fos);
             for (String filePath : files) {
-                System.out.println("Zipping " + filePath);
                 // for ZipEntry we need to keep only relative file path,
                 // so we used substring on absolute path
                 ZipEntry ze = new ZipEntry(
@@ -90,7 +89,6 @@ public class ZipFiles {
             while(ze != null){
                 String fileName = ze.getName();
                 File newFile = new File(destDir + File.separator + fileName);
-                System.out.println("Unzipping to "+newFile.getAbsolutePath());
                 //create directories for sub directories in zip
                 new File(newFile.getParent()).mkdirs();
                 FileOutputStream fos = new FileOutputStream(newFile);
