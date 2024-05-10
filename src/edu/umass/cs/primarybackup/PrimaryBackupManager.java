@@ -727,8 +727,8 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
     }
 
     public Set<NodeIDType> getReplicaGroup(String groupName) {
-        System.out.printf(">> %s:PBManager getReplicaGroup - %s\n",
-                myNodeID, groupName);
+        // System.out.printf(">> %s:PBManager getReplicaGroup - %s\n",
+        //        myNodeID, groupName);
         return this.paxosManager.getReplicaGroup(groupName);
     }
 

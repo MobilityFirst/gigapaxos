@@ -66,7 +66,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     private PrimaryBackupManager<String> primaryBackupManagerPtr;
 
-    private final static RecorderType recorderType = RecorderType.ZIP;
+    private final static RecorderType recorderType = RecorderType.RSYNC;
     private AbstractStateDiffRecorder stateDiffRecorder;
 
     public XDNGigapaxosApp(String[] args) {
@@ -587,6 +587,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         String stateDirMountSource = stateDiffRecorder.getTargetDirectory(serviceName);
         String stateDirMountTarget = property.getStatefulComponentDirectory();
 
+        stateDiffRecorder.preInitialization(serviceName);
+
         // actually start the service, run each component as container, in the same order as they
         // are specified in the declared service property.
         idx = 0;
@@ -616,7 +618,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             System.err.println("WARNING: non-deterministic service can generate different " +
                     "initial state");
         }
-        stateDiffRecorder.initialize(serviceName);
+        stateDiffRecorder.postInitialization(serviceName);
 
         // store all the service metadata
         services.put(serviceName, service);

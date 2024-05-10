@@ -12,7 +12,9 @@ public abstract class AbstractStateDiffRecorder {
 
     abstract public String getTargetDirectory(String serviceName);
 
-    abstract public boolean initialize(String serviceName);
+    abstract public boolean preInitialization(String serviceName);
+
+    abstract public boolean postInitialization(String serviceName);
 
     abstract public String captureStateDiff(String serviceName);
 

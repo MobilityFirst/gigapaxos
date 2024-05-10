@@ -61,7 +61,12 @@ public class RsyncStateDiffRecorder extends AbstractStateDiffRecorder {
 
     @Override
     public String getTargetDirectory(String serviceName) {
-        String targetDir = baseMountDirPath + serviceName + "/";
+        return baseMountDirPath + serviceName + "/";
+    }
+
+    @Override
+    public boolean preInitialization(String serviceName) {
+        String targetDir = this.getTargetDirectory(serviceName);
 
         // create target mnt dir, if not exist
         // e.g., /tmp/xdn/state/rsync/node1/mnt/service1/
@@ -72,11 +77,11 @@ public class RsyncStateDiffRecorder extends AbstractStateDiffRecorder {
             throw new RuntimeException(e);
         }
 
-        return targetDir;
+        return true;
     }
 
     @Override
-    public boolean initialize(String serviceName) {
+    public boolean postInitialization(String serviceName) {
         String targetSourceDir = baseMountDirPath + serviceName + "/";
         String targetDestDir = baseSnapshotDirPath + serviceName + "/";
         String targetDiffFile = baseDiffDirPath + serviceName + ".diff";

@@ -60,10 +60,15 @@ public class ZipStateDiffRecorder extends AbstractStateDiffRecorder {
 
     @Override
     public String getTargetDirectory(String serviceName) {
-        String targetDir = baseMountDirPath + serviceName + "/";
+        return baseMountDirPath + serviceName + "/";
+    }
+
+    @Override
+    public boolean preInitialization(String serviceName) {
+        String targetDir = this.getTargetDirectory(serviceName);
 
         // create target mnt dir, if not exist
-        // e.g., /tmp/xdn/state/zip/node1/mnt/service1/
+        // e.g., /tmp/xdn/state/rsync/node1/mnt/service1/
         try {
             Shell.runCommand("rm -rf " + targetDir);
             Files.createDirectory(Paths.get(targetDir));
@@ -71,11 +76,11 @@ public class ZipStateDiffRecorder extends AbstractStateDiffRecorder {
             throw new RuntimeException(e);
         }
 
-        return targetDir;
+        return true;
     }
 
     @Override
-    public boolean initialize(String serviceName) {
+    public boolean postInitialization(String serviceName) {
         // do nothing
         return true;
     }
