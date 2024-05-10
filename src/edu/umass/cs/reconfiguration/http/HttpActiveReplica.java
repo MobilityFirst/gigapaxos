@@ -697,7 +697,6 @@ public class HttpActiveReplica {
                     throw new RuntimeException(exceptionMessage);
                 }
 
-                System.out.println(">>> HttpActiveReplica - executed callback");
                 HttpResponse httpResponse = xdnRequest.getHttpResponse();
                 boolean isKeepAlive = HttpUtil.isKeepAlive(request.getHttpRequest());
                 if (httpResponse != null) {

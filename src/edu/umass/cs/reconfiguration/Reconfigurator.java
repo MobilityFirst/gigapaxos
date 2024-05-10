@@ -605,8 +605,6 @@ public class Reconfigurator<NodeIDType> implements
 		}
 		// else I am responsible for handling this (possibly forwarded) request
 
-		System.out.println(">>>>>>>>>> reconfigurator createServiceName " + create.toString());
-
 		/* Commit initial "reconfiguration" intent. If the record can be created
 		 * at all default actives, this operation will succeed, and fail
 		 * otherwise; in either case, the reconfigurators will have an

@@ -168,7 +168,8 @@ public class PaxosReplicaCoordinator<NodeIDType> extends
 				proposee,
 				log.isLoggable(level) ? this.getReplicaGroup(paxosGroupID)
 						: null });
-		System.out.println(">>>>>>>>>>>>>>>>>>>> app? " + this.app.getClass().getSimpleName());
+		// System.out.printf(">>> %s:PaxosReplicaCoordinator - coordinate request %s proposee=%s app=%s\n\n",
+		//		messenger.getMyID(), request.getRequestType().toString(), proposee, app.getClass().getSimpleName());
 		return proposee != null;
 	}
 

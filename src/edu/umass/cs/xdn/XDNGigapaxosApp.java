@@ -13,10 +13,12 @@ import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.ZipFiles;
+import edu.umass.cs.xdn.recorder.*;
 import edu.umass.cs.xdn.request.*;
 import edu.umass.cs.xdn.service.ServiceComponent;
 import edu.umass.cs.xdn.service.ServiceInstance;
 import edu.umass.cs.xdn.service.ServiceProperty;
+import edu.umass.cs.xdn.utils.Shell;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 import org.json.JSONException;
@@ -46,7 +48,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     private final String FUSELOG_BIN_PATH = "/users/fadhil/fuse/fuselog";
     private final String FUSELOG_APPLY_BIN_PATH = "/users/fadhil/fuse/apply";
 
-    private String activeReplicaID;
+    private final String nodeID;
 
     private HashMap<String, Integer> activeServicePorts;
 
@@ -62,10 +64,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     private final HashMap<String, Boolean> isServiceActive;
     private final HttpClient serviceClient = HttpClient.newHttpClient();
 
-    private PrimaryBackupManager<String> primaryBackupManager;
+    private PrimaryBackupManager<String> primaryBackupManagerPtr;
+
+    private final static RecorderType recorderType = RecorderType.RSYNC;
+    private AbstractStateDiffRecorder stateDiffRecorder;
 
     public XDNGigapaxosApp(String[] args) {
-        activeReplicaID = args[args.length - 1].toLowerCase();
+        System.out.println(">> XDNGigapaxosApp initialization ...");
+
+        nodeID = args[args.length - 1].toLowerCase();
         activeServicePorts = new HashMap<>();
         services = new ConcurrentHashMap<>();
         currentEpoch = new ConcurrentHashMap<>();
@@ -84,15 +91,52 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             assert fuselogBinary.exists() && fuselogApplyBinary.exists();
         }
 
+        switch (this.recorderType) {
+            case RSYNC:
+                this.stateDiffRecorder = new RsyncStateDiffRecorder(nodeID);
+                break;
+            case ZIP:
+                this.stateDiffRecorder = new ZipStateDiffRecorder(nodeID);
+                break;
+            case FUSELOG:
+                this.stateDiffRecorder = new FuselogStateDiffRecorder(nodeID);
+                break;
+            default:
+                throw new RuntimeException("unknown stateDiff recorder " + this.recorderType);
+        }
+
+    }
+
+    // TODO: complete this implementation
+    public static boolean checkSystemRequirements() throws Exception {
+        boolean isDockerAvailable = isDockerAvailable();
+        if (!isDockerAvailable) {
+            String exceptionMessage = """
+                    docker is unavailable for xdn, common reasons include:\s
+                    (1) docker is not yet installed,
+                    (2) docker needs to be accessed with sudo,
+                    (3) docker daemon is not yet started.""";
+            throw new RuntimeException(exceptionMessage);
+        }
+
+        return true;
+    }
+
+    public static boolean isDockerAvailable() {
+        String cmd = "docker version";
+        int exitCode = Shell.runCommand(cmd);
+        return exitCode == 0;
     }
 
     protected void setPrimaryBackupManager(PrimaryBackupManager<String> pbManager) {
-        this.primaryBackupManager = pbManager;
+        assert pbManager != null : "the provided PrimaryBackupManger can not be null";
+        this.primaryBackupManagerPtr = pbManager;
     }
 
     @Override
     public boolean execute(Request request) {
-        System.out.println(">> " + this.activeReplicaID + " XDNApp execution:   " + request.getClass().getSimpleName());
+        // System.out.printf(">> %s:XDNGigapaxosApp execution %s\n",
+        //        this.nodeID, request.getClass().getSimpleName());
         String serviceName = request.getServiceName();
 
         if (request instanceof HttpActiveReplicaRequest harRequest) {
@@ -124,37 +168,20 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             return forwardHttpRequestToContainerizedService(xdnRequest);
         }
 
-        System.out.println("Error: executing unknown request type " +
-                request.getClass().getSimpleName());
-
-        return true;
+        String exceptionMessage = String.format("%s:XDNGigapaxosApp executing unknown request %s",
+                this.nodeID, request.getClass().getSimpleName());
+        throw new RuntimeException(exceptionMessage);
     }
 
     private boolean handlePrimaryBackupPacket(PrimaryBackupPacket packet) {
-        assert this.primaryBackupManager != null :
-                "PrimaryBackupManager must be set first for XDNGigapaxosApp";
-        return this.primaryBackupManager.handlePrimaryBackupPacket(packet, null);
-    }
-
-    private boolean handleStartEpochPacket(StartEpochPacket startPacket) {
-        PrimaryEpoch startEpoch = startPacket.getStartingEpoch();
-        String serviceName = startPacket.getServiceName();
-        PrimaryEpoch currentEpoch = this.currentEpoch.get(serviceName);
-
-        if (currentEpoch == null) {
-            this.currentEpoch.put(serviceName, startEpoch);
-            currentEpoch = startEpoch;
-        }
-
-        if (currentEpoch.compareTo(startEpoch) < 0) {
-            this.currentEpoch.put(serviceName, startEpoch);
-        }
-
-        return true;
+        assert this.primaryBackupManagerPtr != null :
+                "PrimaryBackupManager must be set first for XDNGigapaxosApp" +
+                        "via setPrimaryBackupManager()";
+        return this.primaryBackupManagerPtr.handlePrimaryBackupPacket(packet, null);
     }
 
     private void deactivate(String serviceName) {
-        System.out.println(">> " + activeReplicaID + " deactivate...");
+        System.out.println(">> " + nodeID + " deactivate...");
 
         try {
             // without FUSE (i.e., using Zip archive, we need the service container to be running
@@ -177,7 +204,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             }
 
             // unmount filesystem
-            String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+            String containerName = String.format("%s.%s.xdn.io", serviceName, this.nodeID);
             String stateDirPath = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
             String unmountCommand = String.format("umount %s", stateDirPath);
             int errCode = runShellCommand(unmountCommand, false);
@@ -192,7 +219,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private void activate(String serviceName) {
-        System.out.println(">> " + activeReplicaID + " activate...");
+        System.out.println(">> " + nodeID + " activate...");
 
         // without FUSE (i.e., using Zip archive, we need the service container to be running
         if (!IS_USE_FUSE) {
@@ -200,7 +227,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // mount the filesystem
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.nodeID);
         String stateDirPath = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
         String fsSocketDir = "/tmp/xdn/fuselog/socket/";
         String fsSocketFile = String.format("%s%s.sock", fsSocketDir, containerName);
@@ -265,10 +292,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     public boolean restore(String name, String state) {
         System.out.println("BookCatalogApp - restore name=" + name + " state=" + state);
 
-        // A corner case when name is empty, which fundamentally should not happen.
+        // A corner case when name is empty, which fundamentally must not happen.
         if (name == null || name.isEmpty()) {
-            System.err.println("restore(.) is called with empty service name");
-            return false;
+            String exceptionMessage = String.format("%s:XDNGigapaxosApp's restore(.) is called " +
+                    "with empty service name", this.nodeID);
+            throw new RuntimeException(exceptionMessage);
         }
 
         // Case-1: gigapaxos started meta service with name == XDNGigaPaxosApp0 and state == {}
@@ -281,28 +309,29 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         // Note that in gigapaxos, initialization is a special case of restore
         // with state == initialState. In XDN, the initialState is always started with "xdn:init:".
         // Example of the initState is "xdn:init:bookcatalog:8000:linearizable:true:/app/data",
-        if (state != null && state.startsWith("xdn:init:")) {
-            isServiceActive.put(name, true);
-            return initContainerizedService2(name, state);
+        if (state != null && state.startsWith(ServiceProperty.XDN_INITIAL_STATE_PREFIX)) {
+            boolean isServiceInitialized = initContainerizedService2(name, state);
+            if (isServiceInitialized) isServiceActive.put(name, true);
+            return isServiceInitialized;
         }
 
         // Case-3: the actual restore, i.e., initialize service in new epoch (>0) with state
         // obtained from the latest checkpoint (possibly from different active replica).
-        if (state != null && state.startsWith("xdn:checkpoint:")) {
+        if (state != null && state.startsWith(ServiceProperty.XDN_CHECKPOINT_PREFIX)) {
             // TODO: implement me
-            System.err.println("unimplemented! restore(.) with latest checkpointed state");
-            return false;
+            throw new RuntimeException("unimplemented! restore(.) with latest checkpoint state");
         }
 
         // Unknown cases, should not be triggered
-        System.err.println("unknown restore case, name=" + name + " state=" + state);
-        return false;
+        String exceptionMessage = String.format("unknown case for %s:XDNGigapaxosApp's restore(.)" +
+                " with name=%s state=%s", this.nodeID, name, state);
+        throw new RuntimeException(exceptionMessage);
     }
 
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
-        System.out.printf(">>> %s:XDNGigapaxosApp-createFromString string=%s\n",
-                activeReplicaID, stringified);
+        // System.out.printf(">>> %s:XDNGigapaxosApp-createFromString string=%s\n",
+        //        nodeID, stringified);
 
         // case-1: handle all xdn requests with prefix "xdn:"
         if (stringified.startsWith(XDNRequest.SERIALIZED_PREFIX)) {
@@ -364,8 +393,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             return r;
         }
 
-        Exception e = new RuntimeException(
-                "Invalid serialized format for xdn request");
+        Exception e = new RuntimeException("Invalid serialized format for xdn request");
         throw new RequestParseException(e);
     }
 
@@ -481,7 +509,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         prop.mappedPort = publicPort;
 
         // create docker network, via command line
-        String networkName = String.format("net::%s:%s", activeReplicaID, prop.serviceName);
+        String networkName = String.format("net::%s:%s", nodeID, prop.serviceName);
         int exitCode = createDockerNetwork(networkName);
         if (exitCode != 0) {
             return false;
@@ -510,7 +538,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      * @return false if failed to initialize the service.
      */
     private boolean initContainerizedService2(String serviceName, String initialState) {
-        String validInitialStatePrefix = "xdn:init:";
+        String validInitialStatePrefix = ServiceProperty.XDN_INITIAL_STATE_PREFIX;
 
         // validate the initial state
         if (!initialState.startsWith(validInitialStatePrefix)) {
@@ -519,7 +547,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         // decode the initial state, containing the service property
         ServiceProperty property = null;
-        String networkName = String.format("net::%s:%s", activeReplicaID, serviceName);
+        String networkName = String.format("net::%s:%s", nodeID, serviceName);
         int allocatedPort = getRandomPort();
         try {
             initialState = initialState.substring(validInitialStatePrefix.length());
@@ -533,7 +561,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         int idx = 0;
         for (ServiceComponent c : property.getComponents()) {
             String containerName = String.format("%d.%s.%s.xdn.io",
-                    idx, serviceName, activeReplicaID);
+                    idx, serviceName, nodeID);
             containerNames.add(containerName);
             idx++;
         }
@@ -556,11 +584,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // TODO: prepare statediff directory, if required
-        String fuseMountSource = null;
-        String fuseMountTarget = null;
+        String stateDirMountSource = stateDiffRecorder.getTargetDirectory(serviceName);
+        String stateDirMountTarget = property.getStatefulComponentDirectory();
 
-        // actually start the service, run each component as container,
-        // in the same order as they are specified.
+        // actually start the service, run each component as container, in the same order as they
+        // are specified in the declared service property.
         idx = 0;
         for (ServiceComponent c : property.getComponents()) {
             boolean isSuccess = startContainer(
@@ -571,8 +599,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                     c.getExposedPort(),
                     c.getEntryPort(),
                     c.isEntryComponent() ? allocatedPort : null,
-                    IS_USE_FUSE ? fuseMountSource : null,
-                    IS_USE_FUSE ? fuseMountTarget : null,
+                    c.isStateful() ? stateDirMountSource : null,
+                    c.isStateful() ? stateDirMountTarget : null,
                     c.getEnvironmentVariables());
             if (!isSuccess) {
                 throw new RuntimeException("failed to start container for component " +
@@ -581,6 +609,14 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
             idx++;
         }
+
+        // TODO: need to handle non-deterministic initialization,
+        //  e.g., a node that initialize a filename with current time or random number.
+        if (!property.isDeterministic()) {
+            System.err.println("WARNING: non-deterministic service can generate different " +
+                    "initial state");
+        }
+        stateDiffRecorder.initialize(serviceName);
 
         // store all the service metadata
         services.put(serviceName, service);
@@ -603,7 +639,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         String containerName = String.format("%s.%s.xdn.io",
-                properties.serviceName, this.activeReplicaID);
+                properties.serviceName, this.nodeID);
         String startCommand = String.format("docker run -d --name=%s --network=%s --publish=%d:%d %s",
                 containerName, networkName, properties.mappedPort, properties.exposedPort,
                 properties.dockerImages.get(0));
@@ -618,7 +654,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     private boolean startContainerWithFSMount(XDNServiceProperties properties, String networkName) {
         String containerName = String.format("%s.%s.xdn.io",
-                properties.serviceName, this.activeReplicaID);
+                properties.serviceName, this.nodeID);
 
         // remove previous directory, if exist
         String stateDirPath = String.format("/tmp/xdn/fuselog/state/%s/", containerName);
@@ -700,7 +736,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private boolean stopContainer(String serviceName) {
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.nodeID);
         String stopCommand = String.format("docker container stop %s", containerName);
 
         int exitCode = runShellCommand(stopCommand, false);
@@ -713,7 +749,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
     private boolean removeContainer(String serviceName) {
-        String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+        String containerName = String.format("%s.%s.xdn.io", serviceName, this.nodeID);
         String removeCommand = String.format("docker container rm %s", containerName);
 
         int exitCode = runShellCommand(removeCommand, false);
@@ -744,7 +780,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // gather the required service properties
-        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, activeReplicaID);
+        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, nodeID);
         String statediffDirPath = String.format("/tmp/xdn/statediff/%s", serviceStatediffName);
         String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", serviceStatediffName);
 
@@ -783,7 +819,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         try {
             byte[] statediffBytes = Files.readAllBytes(Path.of(statediffZipPath));
             return String.format("xdn:statediff:%s:%s",
-                    this.activeReplicaID,
+                    this.nodeID,
                     new String(statediffBytes, StandardCharsets.ISO_8859_1));
         } catch (IOException e) {
             e.printStackTrace();
@@ -820,7 +856,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             System.out.println("complete reading statediff ...");
 
             return String.format("xdn:statediff:%s:%s",
-                    this.activeReplicaID,
+                    this.nodeID,
                     new String(statediffBuffer.array(), StandardCharsets.ISO_8859_1));
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -829,8 +865,10 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     private void createXDNStatediffDirIfNotExist() {
         try {
-            String statediffDirPath = "/tmp/xdn";
-            Files.createDirectories(Paths.get(statediffDirPath));
+            String xdnDirPath = "/tmp/xdn";
+            String xdnStateDirPath = "/tmp/xdn/state";
+            Files.createDirectories(Paths.get(xdnDirPath));
+            Files.createDirectories(Paths.get(xdnStateDirPath));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -852,108 +890,134 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      *             Begin implementation methods for BackupableApplication interface               *
      *********************************************************************************************/
 
+    private static final String XDN_STATE_DIFF_PREFIX = "xdn:sd:";
+
     @Override
     public String captureStatediff(String serviceName) {
+        String stateDiff = stateDiffRecorder.captureStateDiff(serviceName);
+        return XDN_STATE_DIFF_PREFIX + stateDiff;
 
-        if (IS_USE_FUSE) {
-            throw new RuntimeException("unimplemented :(");
-            // XDNServiceProperties prop = serviceProperties.get(serviceName);
-            // assert prop != null;
-            // return captureStatediffWithFuse(prop);
-        }
-
-        return copyContainerDirectory(serviceName);
+//        if (IS_USE_FUSE) {
+//            throw new RuntimeException("unimplemented :(");
+//            // XDNServiceProperties prop = serviceProperties.get(serviceName);
+//            // assert prop != null;
+//            // return captureStatediffWithFuse(prop);
+//        }
+//
+//        return copyContainerDirectory(serviceName);
     }
 
     @Override
     public boolean applyStatediff(String serviceName, String statediff) {
-        System.out.println(">>>>>> applying statediff: " + serviceName);
 
         ServiceInstance service = services.get(serviceName);
         if (service == null) {
             throw new RuntimeException("unknown service " + serviceName);
         }
 
-        // validate the statediff
-        if (statediff == null || !statediff.startsWith("xdn:statediff:")) {
-            System.out.println("invalid XDN statediff format, ignoring it");
+        // validate the stateDiff
+        if (statediff == null || !statediff.startsWith(XDN_STATE_DIFF_PREFIX)) {
+            System.err.println("invalid XDN statediff format, ignoring it");
             return false;
         }
 
-        // get the primary ID, ignore if I'm the primary
-        String suffix = statediff.substring("xdn:statediff:".length());
-        int primaryIDEndIdx = suffix.indexOf(":");
-        String primaryID = suffix.substring(0, primaryIDEndIdx);
-        if (primaryID.equals(activeReplicaID)) {
-            System.out.println(">> I'm the coordinator, ignoring statediff. coordinatorID="
-                    + primaryID + " myID=" + activeReplicaID);
-            return true;
-        }
-        String statediffString = suffix.substring(primaryIDEndIdx + 1);
-
-        if (IS_USE_FUSE) {
-            // FIXME: support multicontainer in FUSE
-            if (isServiceActive.get(serviceName) != null && isServiceActive.get(serviceName)) {
-                deactivate(serviceName);
-                isServiceActive.put(serviceName, false);
-            }
-            return applyStatediffWithFuse(serviceName, statediffString);
+        // apply the stateDiff
+        String stateDiffContent = statediff.substring(XDN_STATE_DIFF_PREFIX.length());
+        boolean isApplySuccess = stateDiffRecorder.applyStateDiff(serviceName, stateDiffContent);
+        if (!isApplySuccess) {
+            throw new RuntimeException("failed to apply stateDiff");
         }
 
-        // gather the required service properties
-        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, activeReplicaID);
-        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", serviceStatediffName);
-        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", serviceStatediffName);
-
-        // remove previous statediff archive, if any
-        int exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
-        if (exitCode != 0) {
-            return false;
-        }
-
-        // convert the String statediff back to archive
-        try (FileOutputStream fos = new FileOutputStream(statediffZipPath)) {
-            fos.write(statediffString.getBytes(StandardCharsets.ISO_8859_1));
-            fos.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-
-        // remove previous statediff, if any
-        exitCode = runShellCommand(String.format("rm -rf %s", statediffDirPath), false);
-        if (exitCode != 0) {
-            return false;
-        }
-
-        // unarchive the statediff
-        ZipFiles.unzip(statediffZipPath, statediffDirPath);
-
-        // copy back the statediff into the service container
-        String copyCommand = String.format("docker cp %s %s:%s",
-                statediffDirPath + "/.", service.statefulContainer, service.stateDirectory);
-        exitCode = runShellCommand(copyCommand, false);
-        if (exitCode != 0) {
-            return false;
-        }
-
-        // restart the service container
-        // TODO: may need to restart all containers own by this service
+        // restart the container
         String restartCommand = String.format("docker container restart %s", service.statefulContainer);
-        exitCode = runShellCommand(restartCommand, false);
+        int exitCode = runShellCommand(restartCommand, true);
         if (exitCode != 0) {
             return false;
         }
 
         return true;
+//
+//        // get the primary ID, ignore if I'm the primary
+//        String suffix = statediff.substring("xdn:statediff:".length());
+//        int primaryIDEndIdx = suffix.indexOf(":");
+//        String primaryID = suffix.substring(0, primaryIDEndIdx);
+//        if (primaryID.equals(nodeID)) {
+//            System.out.println(">> I'm the coordinator, ignoring statediff. coordinatorID="
+//                    + primaryID + " myID=" + nodeID);
+//            return true;
+//        }
+//        String statediffString = suffix.substring(primaryIDEndIdx + 1);
+//
+//        return this.applyStatediff2(serviceName, statediffString);
+//
+//        if (IS_USE_FUSE) {
+//            // FIXME: support multicontainer in FUSE
+//            if (isServiceActive.get(serviceName) != null && isServiceActive.get(serviceName)) {
+//                deactivate(serviceName);
+//                isServiceActive.put(serviceName, false);
+//            }
+//            return applyStatediffWithFuse(serviceName, statediffString);
+//        }
+//
+//        // gather the required service properties
+//        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, nodeID);
+//        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", serviceStatediffName);
+//        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", serviceStatediffName);
+//
+//        // remove previous statediff archive, if any
+//        int exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
+//        if (exitCode != 0) {
+//            return false;
+//        }
+//
+//        // convert the String statediff back to archive
+//        try (FileOutputStream fos = new FileOutputStream(statediffZipPath)) {
+//            fos.write(statediffString.getBytes(StandardCharsets.ISO_8859_1));
+//            fos.flush();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//            return false;
+//        }
+//
+//        // remove previous statediff, if any
+//        exitCode = runShellCommand(String.format("rm -rf %s", statediffDirPath), false);
+//        if (exitCode != 0) {
+//            return false;
+//        }
+//
+//        // unarchive the statediff
+//        ZipFiles.unzip(statediffZipPath, statediffDirPath);
+//
+//        // copy back the statediff into the service container
+//        String copyCommand = String.format("docker cp %s %s:%s",
+//                statediffDirPath + "/.", service.statefulContainer, service.stateDirectory);
+//        exitCode = runShellCommand(copyCommand, false);
+//        if (exitCode != 0) {
+//            return false;
+//        }
+//
+//        // restart the service container
+//        // TODO: may need to restart all containers own by this service
+//        String restartCommand = String.format("docker container restart %s", service.statefulContainer);
+//        exitCode = runShellCommand(restartCommand, false);
+//        if (exitCode != 0) {
+//            return false;
+//        }
+//
+//        return true;
     }
+
+    public boolean applyStatediff2(String serviceName, String statediff) {
+        return true;
+    }
+
 
     private boolean applyStatediffWithFuse(String serviceName, String statediff) {
         // TODO: when applying statediff the service need to be stopped/paused, the filesystem need to be stopped.
 
         try {
             // gather the required service properties
-            String containerName = String.format("%s.%s.xdn.io", serviceName, this.activeReplicaID);
+            String containerName = String.format("%s.%s.xdn.io", serviceName, this.nodeID);
 
             // store statediff into an external file
             runShellCommand("mkdir -p /tmp/xdn/fuselog/statediff/", false);
@@ -1136,10 +1200,11 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             envSubCmd = sb.toString();
         }
 
-        String startCommand = String.format("docker run -d --name=%s --hostname=%s --network=%s %s %s %s %s %s",
-                containerName, hostName, networkName, publishPortSubCmd, exposePortSubCmd,
-                mountSubCmd, envSubCmd, imageName);
-        int exitCode = runShellCommand(startCommand, false);
+        String startCommand =
+                String.format("docker run -d --name=%s --hostname=%s --network=%s %s %s %s %s %s",
+                        containerName, hostName, networkName, publishPortSubCmd, exposePortSubCmd,
+                        mountSubCmd, envSubCmd, imageName);
+        int exitCode = Shell.runCommand(startCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to start container");
             return false;
@@ -1150,7 +1215,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     private boolean forwardHttpRequestToContainerizedService(XDNHttpRequest xdnRequest) {
         String serviceName = xdnRequest.getServiceName();
-        System.out.println(">> is service active: " + isServiceActive.get(serviceName));
         if (isServiceActive.get(serviceName) != null && !isServiceActive.get(serviceName)) {
             activate(serviceName);
             isServiceActive.put(serviceName, true);
@@ -1163,7 +1227,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 return false;
             }
 
-            System.out.println(">> " + activeReplicaID + " forwarding request to service ...");
             // forward request to the containerized service, and get the http response
             HttpResponse<byte[]> response = serviceClient.send(httpRequest,
                     HttpResponse.BodyHandlers.ofByteArray());
@@ -1173,7 +1236,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                     createNettyHttpResponse(response);
 
             // store the response in the xdn request, later to be returned to the end client.
-            System.out.println(">> " + activeReplicaID + " storing response " + nettyHttpResponse);
+            // System.out.println(">> " + nodeID + " storing response " + nettyHttpResponse);
             xdnRequest.setHttpResponse(nettyHttpResponse);
             return true;
         } catch (Exception e) {
@@ -1275,60 +1338,13 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     }
 
 
-    private int runShellCommand(String command) {
-        return runShellCommand(command, true);
-    }
-
     private int runShellCommand(String command, boolean isSilent) {
-        return runShellCommand(command, isSilent, null);
+        return Shell.runCommand(command, isSilent, null);
     }
 
     private int runShellCommand(String command, boolean isSilent,
                                 Map<String, String> environmentVariables) {
-        try {
-            // prepare to start the command
-            ProcessBuilder pb = new ProcessBuilder(command.split("\\s+"));
-            if (isSilent) {
-                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-            }
-
-            if (environmentVariables != null) {
-                Map<String, String> processEnv = pb.environment();
-                processEnv.putAll(environmentVariables);
-            }
-
-            if (!isSilent) {
-                System.out.println("command: " + command);
-                if (environmentVariables != null) {
-                    System.out.println(environmentVariables.toString());
-                }
-            }
-
-            // run the command as a new OS process
-            Process process = pb.start();
-
-            // print out the output in stderr, if needed
-            if (!isSilent) {
-                InputStream errInputStream = process.getErrorStream();
-                BufferedReader errBufferedReader = new BufferedReader(
-                        new InputStreamReader(errInputStream));
-                String line;
-                while ((line = errBufferedReader.readLine()) != null) {
-                    System.out.println(line);
-                }
-            }
-
-            int exitCode = process.waitFor();
-
-            if (!isSilent) {
-                System.out.println("exit code: " + exitCode);
-            }
-
-            return exitCode;
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        return Shell.runCommand(command, isSilent, environmentVariables);
     }
 
 

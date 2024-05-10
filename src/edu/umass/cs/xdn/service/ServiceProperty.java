@@ -9,8 +9,15 @@ import org.junit.runner.RunWith;
 
 import java.util.*;
 
+
+// TODO: handle stateless service
+
 @RunWith(Enclosed.class)
 public class ServiceProperty {
+
+    public static String XDN_INITIAL_STATE_PREFIX = "xdn:init:";
+    public static String XDN_CHECKPOINT_PREFIX = "xdn:checkpoint:";
+
     private final String serviceName;
     private final boolean isDeterministic;
 
@@ -351,6 +358,23 @@ public class ServiceProperty {
 
     public String getStateDirectory() {
         return stateDirectory;
+    }
+
+    public String getStatefulComponentDirectory() {
+        if (this.getStatefulComponent() == null) {
+            return null;
+        }
+        if (this.stateDirectory == null || this.stateDirectory.isEmpty()) {
+            return null;
+        }
+
+        String[] componentStateDir = this.stateDirectory.split(":");
+        assert componentStateDir.length <= 2 : "invalid stateDirectory provided";
+        if (componentStateDir.length != 2) {
+            return this.stateDirectory;
+        }
+
+        return componentStateDir[1];
     }
 
     public ConsistencyModel getConsistencyModel() {

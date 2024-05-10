@@ -98,9 +98,9 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
             throws IOException, RequestParseException {
         ExecutedCallback chainedCallback = callback;
 
-        System.out.printf(">>> %s:PBRCoordinator - coordinateRequest %s %s\n\n",
-                getMyID(), request.getClass().getSimpleName(),
-                request instanceof ReplicableClientRequest rcr ? rcr.getRequest().getClass().getSimpleName() : "null");
+        // System.out.printf(">>> %s:PBRCoordinator - coordinateRequest %s %s\n\n",
+        //        getMyID(), request.getClass().getSimpleName(),
+        //        request instanceof ReplicableClientRequest rcr ? rcr.getRequest().getClass().getSimpleName() : "null");
 
         // if packet comes from client (i.e., ReplicableClientRequest), wrap the
         // containing request with RequestPacket, and re-chain the callback.
@@ -115,8 +115,6 @@ public class PrimaryBackupReplicaCoordinator<NodeIDType>
                         appRequest.toString().getBytes(StandardCharsets.ISO_8859_1));
                 chainedCallback = (executedRequestPacket, handled) -> {
                     assert executedRequestPacket instanceof RequestPacket;
-                    System.out.printf(">> %s:PBRCoordinator client request is executed :)\n",
-                            getMyID());
                     RequestPacket response = (RequestPacket) executedRequestPacket;
                     callback.executed(response.getResponse(), handled);
                 };

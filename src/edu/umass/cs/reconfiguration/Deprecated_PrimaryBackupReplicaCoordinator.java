@@ -118,7 +118,6 @@ public class Deprecated_PrimaryBackupReplicaCoordinator<NodeIDType>
 
     @Override
     public Set<IntegerPacketType> getRequestTypes() {
-        System.out.println(">> PrimaryBackupReplicaCoordinator - getRequestTypes");
         return requestTypes;
     }
 

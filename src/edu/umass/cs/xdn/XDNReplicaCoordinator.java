@@ -59,8 +59,7 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
                                  Messenger<NodeIDType, JSONObject> messenger) {
         super(app, messenger);
 
-        System.out.printf(">> XDNReplicaCoordinator - init at node %s\n",
-                myID);
+        System.out.printf(">> XDNReplicaCoordinator - init at node %s\n", myID);
 
         assert app.getClass().getSimpleName().equals(XDNGigapaxosApp.class.getSimpleName()) :
                 "XDNReplicaCoordinator must be used with XDNGigapaxosApp";
@@ -68,6 +67,13 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
                 "XDNReplicaCoordinator must use String as the NodeIDType";
 
         this.myNodeID = myID.toString();
+
+        try {
+            if (!XDNGigapaxosApp.checkSystemRequirements())
+                throw new AssertionError("system requirement is unsatisfied");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // initialize all the wrapped coordinators
         PrimaryBackupManager.setupPaxosConfiguration();
@@ -96,24 +102,21 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
 
     @Override
     public Set<IntegerPacketType> getRequestTypes() {
-        System.out.printf(">> %s:XDNReplicaCoordinator - getRequestType\n", myNodeID);
         return requestTypes;
     }
 
     @Override
     public boolean coordinateRequest(Request request, ExecutedCallback callback)
             throws IOException, RequestParseException {
-        System.out.printf(">> %s:XDNReplicaCoordinator - coordinateRequest request=%s payload=%s\n",
-                myNodeID, request.getClass().getSimpleName(), request.toString());
+        // System.out.printf(">> %s:XDNReplicaCoordinator - coordinateRequest request=%s payload=%s\n",
+        //        myNodeID, request.getClass().getSimpleName(), request.toString());
 
         var serviceName = request.getServiceName();
         var coordinator = this.serviceCoordinator.get(serviceName);
         if (coordinator == null) {
             throw new RuntimeException("unknown coordinator for " + serviceName);
-        } else {
-            System.out.printf(">> %s:XDNReplicaCoordinator handling request for %s with coordinator=%s\n",
-                    myNodeID, serviceName, coordinator.getClass().getSimpleName());
         }
+
         ReplicableClientRequest gpRequest = ReplicableClientRequest.wrap(request);
         gpRequest.setClientAddress(messenger.getListeningSocketAddress());
         return coordinator.coordinateRequest(gpRequest, callback);
@@ -203,8 +206,6 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
 
     @Override
     public Set<NodeIDType> getReplicaGroup(String serviceName) {
-        System.out.printf(">> %s:XDNReplicaCoordinator - getReplicaGroup name=%s\n",
-                myNodeID, serviceName);
         var coordinator = this.serviceCoordinator.get(serviceName);
         if (coordinator == null) {
             return null;
