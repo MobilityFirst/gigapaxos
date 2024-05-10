@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Base64;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterOutputStream;
 

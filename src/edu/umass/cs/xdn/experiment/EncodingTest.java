@@ -1,7 +1,6 @@
 package edu.umass.cs.xdn.experiment;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
 
