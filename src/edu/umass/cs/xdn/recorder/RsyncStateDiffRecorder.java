@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Base64;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterOutputStream;
 
@@ -128,7 +129,7 @@ public class RsyncStateDiffRecorder extends AbstractStateDiffRecorder {
         }
 
         // convert the compressed stateDiff to String
-        return new String(compressedStateDiff, StandardCharsets.ISO_8859_1);
+        return Base64.getEncoder().encodeToString(compressedStateDiff);
     }
 
     @Override
@@ -139,7 +140,7 @@ public class RsyncStateDiffRecorder extends AbstractStateDiffRecorder {
         Shell.runCommand("rm -rf " + targetDiffFile);
 
         // convert stateDiff from String back to byte[], then decompress
-        byte[] compressedStateDiff = encodedState.getBytes(StandardCharsets.ISO_8859_1);
+        byte[] compressedStateDiff = Base64.getDecoder().decode(encodedState);
         byte[] stateDiff = null;
         try {
             ByteArrayOutputStream os = new ByteArrayOutputStream();

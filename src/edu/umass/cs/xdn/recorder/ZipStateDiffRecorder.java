@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Base64;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterOutputStream;
 
@@ -127,7 +128,7 @@ public class ZipStateDiffRecorder extends AbstractStateDiffRecorder {
             throw new RuntimeException(e);
         }
 
-        return new String(compressedStateDiff, StandardCharsets.ISO_8859_1);
+        return Base64.getEncoder().encodeToString(compressedStateDiff);
     }
 
     @Override
@@ -137,7 +138,7 @@ public class ZipStateDiffRecorder extends AbstractStateDiffRecorder {
         String targetZipFile = baseZipDirPath + serviceName + ".zip";
 
         // convert the compressed stateDiff back to byte[]
-        byte[] compressedStateDiff = encodedState.getBytes(StandardCharsets.ISO_8859_1);
+        byte[] compressedStateDiff = Base64.getDecoder().decode(encodedState);
 
         // decompress the stateDiff
         byte[] stateDiff = null;
