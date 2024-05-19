@@ -73,7 +73,7 @@ public class XDNTestFuseClient {
             var e = pb.environment();
             e.put("FUSELOG_STATEDIFF_FILE", FUSELOG_STATEDIFF_FILE);
 
-            // apply the statediff: start the process and capture the outpur
+            // apply the statediff: start the process and capture the output
             Process process = pb.start();
             InputStream errInputStream = process.getErrorStream();
             BufferedReader errBufferedReader = new BufferedReader(new InputStreamReader(errInputStream));

@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication {
 
     private final boolean IS_USE_FUSE = false;
+    private final boolean IS_RESTART_UPON_STATE_DIFF_APPLY = false;
     private final String FUSELOG_BIN_PATH = "/users/fadhil/fuse/fuselog";
     private final String FUSELOG_APPLY_BIN_PATH = "/users/fadhil/fuse/apply";
 
@@ -931,82 +932,15 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // restart the container
-        String restartCommand = String.format("docker container restart %s", service.statefulContainer);
-        int exitCode = runShellCommand(restartCommand, true);
-        if (exitCode != 0) {
-            return false;
+        if (IS_RESTART_UPON_STATE_DIFF_APPLY) {
+            String restartCommand = String.format("docker container restart %s", service.statefulContainer);
+            int exitCode = runShellCommand(restartCommand, true);
+            if (exitCode != 0) {
+                return false;
+            }
         }
 
         return true;
-//
-//        // get the primary ID, ignore if I'm the primary
-//        String suffix = statediff.substring("xdn:statediff:".length());
-//        int primaryIDEndIdx = suffix.indexOf(":");
-//        String primaryID = suffix.substring(0, primaryIDEndIdx);
-//        if (primaryID.equals(nodeID)) {
-//            System.out.println(">> I'm the coordinator, ignoring statediff. coordinatorID="
-//                    + primaryID + " myID=" + nodeID);
-//            return true;
-//        }
-//        String statediffString = suffix.substring(primaryIDEndIdx + 1);
-//
-//        return this.applyStatediff2(serviceName, statediffString);
-//
-//        if (IS_USE_FUSE) {
-//            // FIXME: support multicontainer in FUSE
-//            if (isServiceActive.get(serviceName) != null && isServiceActive.get(serviceName)) {
-//                deactivate(serviceName);
-//                isServiceActive.put(serviceName, false);
-//            }
-//            return applyStatediffWithFuse(serviceName, statediffString);
-//        }
-//
-//        // gather the required service properties
-//        String serviceStatediffName = String.format("%s.%s.xdn.io", serviceName, nodeID);
-//        String statediffDirPath = String.format("/tmp/xdn/statediff/%s", serviceStatediffName);
-//        String statediffZipPath = String.format("/tmp/xdn/zip/%s.zip", serviceStatediffName);
-//
-//        // remove previous statediff archive, if any
-//        int exitCode = runShellCommand(String.format("rm -rf %s", statediffZipPath), false);
-//        if (exitCode != 0) {
-//            return false;
-//        }
-//
-//        // convert the String statediff back to archive
-//        try (FileOutputStream fos = new FileOutputStream(statediffZipPath)) {
-//            fos.write(statediffString.getBytes(StandardCharsets.ISO_8859_1));
-//            fos.flush();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            return false;
-//        }
-//
-//        // remove previous statediff, if any
-//        exitCode = runShellCommand(String.format("rm -rf %s", statediffDirPath), false);
-//        if (exitCode != 0) {
-//            return false;
-//        }
-//
-//        // unarchive the statediff
-//        ZipFiles.unzip(statediffZipPath, statediffDirPath);
-//
-//        // copy back the statediff into the service container
-//        String copyCommand = String.format("docker cp %s %s:%s",
-//                statediffDirPath + "/.", service.statefulContainer, service.stateDirectory);
-//        exitCode = runShellCommand(copyCommand, false);
-//        if (exitCode != 0) {
-//            return false;
-//        }
-//
-//        // restart the service container
-//        // TODO: may need to restart all containers own by this service
-//        String restartCommand = String.format("docker container restart %s", service.statefulContainer);
-//        exitCode = runShellCommand(restartCommand, false);
-//        if (exitCode != 0) {
-//            return false;
-//        }
-//
-//        return true;
     }
 
     public boolean applyStatediff2(String serviceName, String statediff) {
