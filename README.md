@@ -24,11 +24,11 @@ the following system requirements:
 3. Make symbolic link of XDN's binaries to `/usr/bin/`:
     ```
    # xdn's filesystem and its statediff applicator:
-   sudo ln -s ./bin/fuselog /usr/bin/fuselog
-   sudo ln -s ./bin/fuselog-apply /usr/bin/fuselog-apply
+   sudo ln -s "$PWD"/bin/fuselog /usr/bin/fuselog
+   sudo ln -s "$PWD"/bin/fuselog-apply /usr/bin/fuselog-apply
    
    # xdn's cli:
-   sudo ln -s ./bin/xdn /usr/bin/xdn
+   sudo ln -s "$PWD"/bin/xdn /usr/bin/xdn
     ``` 
 
 ## Single machine deployment
@@ -133,16 +133,16 @@ If the machines have different IP address, you need to modify the config file.
 2. Start the server in each machine.
 ```
 # at machine 10.10.1.1:
-./bin/gpServer.sh start -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties AR1
+./bin/gpServer.sh -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties start AR1
 
 # at machine 10.10.1.2:
-./bin/gpServer.sh start -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties AR2
+./bin/gpServer.sh -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties start AR2
 
 # at machine 10.10.1.3:
-./bin/gpServer.sh start -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties AR3
+./bin/gpServer.sh -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties start AR3
 
 # at machine 10.10.1.5:
-./bin/gpServer.sh start -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties RC1
+./bin/gpServer.sh -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties start RC1
 ```
 
 3. asd

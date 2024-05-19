@@ -67,7 +67,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     private PrimaryBackupManager<String> primaryBackupManagerPtr;
 
-    private final static RecorderType recorderType = RecorderType.RSYNC;
+    private final static RecorderType recorderType = RecorderType.FUSELOG;
     private AbstractStateDiffRecorder stateDiffRecorder;
 
     public XDNGigapaxosApp(String[] args) {
