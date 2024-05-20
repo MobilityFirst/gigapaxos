@@ -40,7 +40,7 @@ the following system requirements:
     ```
    Which will start these 4 local servers:
     - 1 reconfigurator at localhost:3000
-    - 3 active replicase at localhost:2000, localhost:2001, and localhost:2002
+    - 3 active replicas at localhost:2000, localhost:2001, and localhost:2002
 
 2. Prepare the containerized service, `tpcc-web`, that we will launch.
     ```
@@ -106,6 +106,8 @@ the following system requirements:
    Then you can access the replicated web service with those host, without XDN custom header:
     ```
    curl -v http://tpcc-web.ar0.xdn.io:2300/
+   curl -v http://tpcc-web.ar1.xdn.io:2301/
+   curl -v http://tpcc-web.ar2.xdn.io:2301/
     ```
 
 > To stop xdn, we need to stop the reconfigurator and active replicas, unmount the filesystem,
