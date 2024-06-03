@@ -13,12 +13,14 @@ import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.utils.ZipFiles;
+import edu.umass.cs.xdn.experiment.GetOSUserGroupID;
 import edu.umass.cs.xdn.recorder.*;
 import edu.umass.cs.xdn.request.*;
 import edu.umass.cs.xdn.service.ServiceComponent;
 import edu.umass.cs.xdn.service.ServiceInstance;
 import edu.umass.cs.xdn.service.ServiceProperty;
 import edu.umass.cs.xdn.utils.Shell;
+import edu.umass.cs.xdn.utils.Utils;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
 import org.json.JSONException;
@@ -725,8 +727,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         // start the docker container
-        String startCommand = String.format("docker run -d --name=%s --network=%s --publish=%d:%d " +
-                        "--mount type=bind,source=%s,target=%s %s",
+        String startCommand = String.format("docker run -d --name=%s --network=%s --publish=%d:%d" +
+                        " --mount type=bind,source=%s,target=%s %s",
                 containerName, networkName, properties.mappedPort, properties.exposedPort,
                 stateDirPath, properties.stateDir, properties.dockerImages.get(0));
         exitCode = runShellCommand(startCommand, false);
@@ -1114,7 +1116,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             publishPortSubCmd = String.format("--publish=%d:%d", publishedPort, publishedPort);
         }
 
-        // Note that exposed port will be ignored if there is published port
+        // Note that the exposed port will be ignored if there is published port
         String exposePortSubCmd = "";
         if (exposedPort != null && publishPortSubCmd.isEmpty()) {
             exposePortSubCmd = String.format("--expose=%d", exposedPort);
@@ -1136,10 +1138,18 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             envSubCmd = sb.toString();
         }
 
+        String userSubCmd = "";
+        int uid = Utils.getUid();
+        int gid = Utils.getGid();
+        if (uid != 0) {
+            userSubCmd = String.format("--user=%d:%d", uid, gid);
+        }
+
         String startCommand =
-                String.format("docker run -d --name=%s --hostname=%s --network=%s %s %s %s %s %s",
+                String.format("docker run -d --name=%s --hostname=%s --network=%s " +
+                                "%s %s %s %s %s %s",
                         containerName, hostName, networkName, publishPortSubCmd, exposePortSubCmd,
-                        mountSubCmd, envSubCmd, imageName);
+                        mountSubCmd, envSubCmd, userSubCmd, imageName);
         int exitCode = Shell.runCommand(startCommand, false);
         if (exitCode != 0) {
             System.err.println("failed to start container");
