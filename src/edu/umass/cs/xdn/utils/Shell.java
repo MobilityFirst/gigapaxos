@@ -1,15 +1,14 @@
 package edu.umass.cs.xdn.utils;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class Shell {
 
     public static int runCommand(String command, boolean isSilent,
-                          Map<String, String> environmentVariables) {
+                                 Map<String, String> environmentVariables) {
         try {
             // prepare to start the command
             ProcessBuilder pb = new ProcessBuilder(command.split("\\s+"));
@@ -35,13 +34,15 @@ public class Shell {
 
             // print out the output in stderr, if needed
             if (!isSilent) {
-                InputStream errInputStream = process.getErrorStream();
-                BufferedReader errBufferedReader = new BufferedReader(
-                        new InputStreamReader(errInputStream));
-                String line;
-                while ((line = errBufferedReader.readLine()) != null) {
-                    System.out.println(line);
-                }
+                InputStream inputStream = process.getInputStream();
+                String output = new String(inputStream.readAllBytes(), StandardCharsets.ISO_8859_1);
+                if (!output.isEmpty())
+                    System.out.println("output:\n" + output);
+
+                InputStream errStream = process.getErrorStream();
+                String err = new String(errStream.readAllBytes(), StandardCharsets.ISO_8859_1);
+                if (!err.isEmpty())
+                    System.out.println("error:\n" + err);
             }
 
             int exitCode = process.waitFor();

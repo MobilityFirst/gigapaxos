@@ -3,7 +3,6 @@ package edu.umass.cs.xdn.recorder;
 import edu.umass.cs.xdn.utils.Shell;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
@@ -147,7 +146,7 @@ public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
 
         // send get command (g) to the filesystem
         try {
-            System.out.println(">> sending command ...");
+            System.out.println(">> sending fuselog command ...");
             socketChannel.write(ByteBuffer.wrap("g".getBytes()));
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -157,14 +156,15 @@ public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
         ByteBuffer sizeBuffer = ByteBuffer.allocate(8);
         sizeBuffer.order(ByteOrder.LITTLE_ENDIAN);
         sizeBuffer.clear();
-        System.out.println(">> reading response ...");
+        System.out.println(">> reading fuselog response ...");
         int numRead = 0;
         try {
             numRead = socketChannel.read(sizeBuffer);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(">> got " + numRead + " " + new String(sizeBuffer.array(), StandardCharsets.UTF_8));
+        System.out.println(">> got " + numRead + "bytes: " + new String(sizeBuffer.array(),
+                StandardCharsets.UTF_8));
         if (numRead < 8) {
             System.err.println("failed to read size of the stateDiff");
             return null;
