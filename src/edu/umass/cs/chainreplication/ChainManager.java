@@ -405,6 +405,7 @@ public class ChainManager<NodeIDType> {
 
     private NodeIDType selectReconfigurator(String chainID) {
         Set<NodeIDType> reconfigurators = this.getReconfigurators();
+        //noinspection unchecked
         return (NodeIDType) Util.selectRandom(reconfigurators);
     }
 

@@ -343,6 +343,8 @@ public class HttpActiveReplica {
             if (msg instanceof HttpRequest) {
                 boolean isXDNRequest = false;
 
+                System.out.println("receiving an HTTP request ...");
+
                 // handle the first condition: contains XDN header
                 HttpRequest httpRequest = (HttpRequest) msg;
                 String xdnHeader = httpRequest.headers().get("XDN");
