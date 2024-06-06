@@ -218,7 +218,7 @@ public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
                 FUSELOG_APPLY_BIN_PATH, targetDir);
         Map<String, String> env = new HashMap<>();
         env.put("FUSELOG_STATEDIFF_FILE", diffFile);
-        int exitCode = Shell.runCommand(cmd, false, env);
+        int exitCode = Shell.runCommand(cmd, true, env);
         assert exitCode == 0 : "failed to apply stateDiff with exit code " + exitCode;
 
         return true;
