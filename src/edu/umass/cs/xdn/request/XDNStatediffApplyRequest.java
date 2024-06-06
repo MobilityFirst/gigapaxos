@@ -50,8 +50,8 @@ public class XDNStatediffApplyRequest extends XDNRequest {
         this.requestID = requestID;
     }
 
-    public PrimaryEpoch getEpoch() {
-        return epoch;
+    public String getEpochString() {
+        return epoch.toString();
     }
 
     public String getStatediff() {

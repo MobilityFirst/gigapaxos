@@ -83,7 +83,7 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
                 new PrimaryBackupReplicaCoordinator<>(app, myID, unstringer, messenger,
                         paxosReplicaCoordinator.getPaxosManager(), true);
         ((XDNGigapaxosApp) app).setPrimaryBackupManager(
-                (PrimaryBackupManager<String>) primaryBackupReplicaCoordinator.getManager());
+                primaryBackupReplicaCoordinator.getManager());
 
         this.primaryBackupCoordinator = primaryBackupReplicaCoordinator;
         this.paxosCoordinator = paxosReplicaCoordinator;

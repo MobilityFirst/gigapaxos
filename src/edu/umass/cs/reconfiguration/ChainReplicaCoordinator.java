@@ -28,6 +28,7 @@ import edu.umass.cs.nio.interfaces.Stringifiable;
 import edu.umass.cs.reconfiguration.interfaces.ReplicaCoordinator;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -42,12 +43,11 @@ public class ChainReplicaCoordinator<NodeIDType>
 
     public ChainReplicaCoordinator(Replicable app, NodeIDType myID,
                                    Stringifiable<NodeIDType> unstringer,
-                                   Messenger<NodeIDType, ?> niot) {
+                                   Messenger<NodeIDType, JSONObject> niot) {
         super(app, niot);
         assert (niot instanceof JSONMessenger);
-        this.chainManager = new ChainManager<>(myID, unstringer,
-                (JSONMessenger<NodeIDType>) niot, this, null,
-                true);
+        this.chainManager = new ChainManager<>(
+                myID, unstringer, niot, this, null, true);
     }
 
     private static Set<IntegerPacketType> requestTypes = null;

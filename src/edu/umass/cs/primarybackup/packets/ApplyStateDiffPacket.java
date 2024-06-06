@@ -18,11 +18,13 @@ public class ApplyStateDiffPacket extends PrimaryBackupPacket {
     public static final String SERIALIZED_PREFIX = "pb:sd:";
 
     private final String serviceName;
-    private final PrimaryEpoch primaryEpoch;
+    private final PrimaryEpoch<?> primaryEpoch;
     private final String stateDiff;
     private final long requestID;
 
-    public ApplyStateDiffPacket(String serviceName, PrimaryEpoch primaryEpoch, String stateDiff) {
+    public ApplyStateDiffPacket(String serviceName,
+                                PrimaryEpoch<?> primaryEpoch,
+                                String stateDiff) {
         assert serviceName != null;
         assert primaryEpoch != null;
         assert stateDiff != null;
@@ -33,7 +35,9 @@ public class ApplyStateDiffPacket extends PrimaryBackupPacket {
         this.requestID = System.currentTimeMillis();
     }
 
-    private ApplyStateDiffPacket(String serviceName, PrimaryEpoch primaryEpoch, String stateDiff,
+    private ApplyStateDiffPacket(String serviceName,
+                                 PrimaryEpoch<?> primaryEpoch,
+                                 String stateDiff,
                                  long requestID) {
         this.serviceName = serviceName;
         this.primaryEpoch = primaryEpoch;
@@ -61,8 +65,8 @@ public class ApplyStateDiffPacket extends PrimaryBackupPacket {
         return true;
     }
 
-    public PrimaryEpoch getPrimaryEpoch() {
-        return primaryEpoch;
+    public String getPrimaryEpochString() {
+        return primaryEpoch.toString();
     }
 
     public String getStateDiff() {
@@ -122,7 +126,7 @@ public class ApplyStateDiffPacket extends PrimaryBackupPacket {
             throw new RuntimeException(e);
         }
     }
-    
+
     public static class TestApplyStateDiffPacket {
         @Test
         public void TestApplyStateDiffPacketSerializationDeserialization() {
@@ -135,7 +139,7 @@ public class ApplyStateDiffPacket extends PrimaryBackupPacket {
 
             ApplyStateDiffPacket p1 = new ApplyStateDiffPacket(serviceName, zero, stateDiffString);
             ApplyStateDiffPacket p2 = ApplyStateDiffPacket.createFromString(p1.toString());
-            
+
             assert p2.equals(p1);
         }
     }

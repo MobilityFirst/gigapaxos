@@ -63,6 +63,7 @@ public class Deprecated_PrimaryBackupReplicaCoordinator<NodeIDType>
     private final PaxosManager<NodeIDType> paxosManager;
     private final Set<IntegerPacketType> requestTypes;
     private final NodeIDType myNodeID;
+    private final Stringifiable<NodeIDType> nodeIDTypeStringifiable;
     private final BackupableApplication backupableApplication;
 
     // per-service metadata
@@ -114,6 +115,7 @@ public class Deprecated_PrimaryBackupReplicaCoordinator<NodeIDType>
 
         // store my node id
         this.myNodeID = myID;
+        this.nodeIDTypeStringifiable = unstringer;
 
     }
 
@@ -342,7 +344,8 @@ public class Deprecated_PrimaryBackupReplicaCoordinator<NodeIDType>
                 request.getServiceName(),
                 primaryRequest.getHttpResponse()
         );
-        NodeIDType entryNodeID = (NodeIDType) forwardRequest.getEntryNodeID();
+        String entryNodeIDStr = forwardRequest.getEntryNodeID();
+        NodeIDType entryNodeID = nodeIDTypeStringifiable.valueOf(entryNodeIDStr);
         System.out.println(">> " + myNodeID + " sending response back to " + entryNodeID);
         GenericMessagingTask<NodeIDType, ?> responseMessage = new GenericMessagingTask<>(
                 entryNodeID, response);

@@ -31,14 +31,15 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
     private final boolean ENABLE_INTERNAL_REDIRECT_PRIMARY = true;
 
     private final NodeIDType myNodeID;
+    private final Stringifiable<NodeIDType> nodeIDTypeStringifiable;
     private final PaxosManager<NodeIDType> paxosManager;
     private final Replicable paxosMiddlewareApp;
     private final Replicable replicableApp;
     private final BackupableApplication backupableApp;
 
-    private final Map<String, PrimaryEpoch> currentPrimaryEpoch;
+    private final Map<String, PrimaryEpoch<NodeIDType>> currentPrimaryEpoch;
     private final Map<String, Role> currentRole;
-    private final Map<String, String> currentPrimary;
+    private final Map<String, NodeIDType> currentPrimary;
 
     private final Messenger<NodeIDType, ?> messenger;
 
@@ -63,6 +64,7 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                 equals(backupableApp.getClass().getSimpleName());
 
         this.myNodeID = nodeID;
+        this.nodeIDTypeStringifiable = unstringer;
         this.currentPrimaryEpoch = new ConcurrentHashMap<>();
         this.currentRole = new ConcurrentHashMap<>();
         this.currentPrimary = new ConcurrentHashMap<>();
@@ -301,7 +303,7 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
 
         // get the current primary for the serviceName
         String serviceName = packet.getServiceName();
-        String currentPrimaryIDStr = currentPrimary.get(serviceName);
+        NodeIDType currentPrimaryIDStr = currentPrimary.get(serviceName);
         if (currentPrimaryIDStr == null) {
             throw new RuntimeException("Unknown primary ID");
             // TODO: potential fix would be to ask the current Paxos' coordinator to be the Primary
@@ -374,9 +376,10 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                             rp.getRequestID(),
                             requestWithResponse.getResponse().toString().
                                     getBytes(StandardCharsets.ISO_8859_1));
+                    String entryNodeIDStr = forwardedRequestPacket.getEntryNodeID();
+                    NodeIDType entryNodeID = nodeIDTypeStringifiable.valueOf(entryNodeIDStr);
                     GenericMessagingTask<NodeIDType, ResponsePacket> m =
-                            new GenericMessagingTask<>(
-                                    (NodeIDType) forwardedRequestPacket.getEntryNodeID(), resp);
+                            new GenericMessagingTask<>(entryNodeID, resp);
                     try {
                         messenger.send(m);
                     } catch (IOException | JSONException e) {
@@ -450,10 +453,8 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                     myNodeID, groupName);
             return true;
         }
-        PrimaryEpoch newEpoch = new PrimaryEpoch(
-                myNodeID.toString(),
-                curEpoch.counter + 1
-        );
+        PrimaryEpoch<NodeIDType> newEpoch = new PrimaryEpoch<NodeIDType>(
+                myNodeID, curEpoch.counter + 1);
 
         this.paxosManager.tryToBePaxosCoordinator(groupName); // could still be fail
         this.currentRole.put(groupName, Role.PRIMARY_CANDIDATE);
@@ -466,7 +467,7 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                     System.out.printf("\n\n>> %s I'M THE PRIMARY NOW FOR %s!!\n\n",
                             myNodeID, groupName);
                     currentRole.put(groupName, Role.PRIMARY);
-                    currentPrimary.put(groupName, myNodeID.toString());
+                    currentPrimary.put(groupName, myNodeID);
                     processOutstandingRequests();
 
                     callback.executed(packet, isHandled);
@@ -478,8 +479,9 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
     // executeApplyStateDiffPacket is being called by execute() in the PaxosMiddlewareApp
     private boolean executeApplyStateDiffPacket(ApplyStateDiffPacket packet) {
         String groupName = packet.getServiceName();
-        PrimaryEpoch primaryEpoch = packet.getPrimaryEpoch();
-        PrimaryEpoch currentEpoch = this.currentPrimaryEpoch.get(groupName);
+        String primaryEpochStr = packet.getPrimaryEpochString();
+        PrimaryEpoch<NodeIDType> primaryEpoch = new PrimaryEpoch<>(primaryEpochStr);
+        PrimaryEpoch<NodeIDType> currentEpoch = this.currentPrimaryEpoch.get(groupName);
         Role myCurrentRole = this.currentRole.get(groupName);
 
         // System.out.printf(">>> %s:PaxosMiddlewareApp:executeStateDiff role=%s myEpoch=%s epoch=%s stateDiff=%s\n",
@@ -542,11 +544,13 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
     // executeStartEpochPacket is being called by execute() in the PaxosMiddlewareApp
     private boolean executeStartEpochPacket(StartEpochPacket packet) {
         System.out.printf(">>> %s:PrimaryBackupManager:executeStartEpoch epoch=%s\n",
-                myNodeID, packet.getStartingEpoch());
+                myNodeID, packet.getStartingEpochString());
         String groupName = packet.getServiceName();
-        PrimaryEpoch newPrimaryEpoch = packet.getStartingEpoch();
-        PrimaryEpoch currentEpoch = this.currentPrimaryEpoch.get(groupName);
-        String newPrimaryID = newPrimaryEpoch.nodeID;
+        String newPrimaryEpochStr = packet.getStartingEpochString();
+        PrimaryEpoch<NodeIDType> newPrimaryEpoch = new PrimaryEpoch<>(newPrimaryEpochStr);
+        PrimaryEpoch<NodeIDType> currentEpoch = this.currentPrimaryEpoch.get(groupName);
+        String newPrimaryIDStr = newPrimaryEpoch.nodeID;
+        NodeIDType newPrimaryID = nodeIDTypeStringifiable.valueOf(newPrimaryIDStr);
 
         // update my current epoch, if its unknown
         if (currentEpoch == null) {
@@ -682,7 +686,7 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
 
         if (paxosCoordinatorID.equals(myNodeID)) {
             System.out.printf(">> %s Initializing primary epoch for %s\n", myNodeID, groupName);
-            PrimaryEpoch zero = new PrimaryEpoch(myNodeID.toString(), 0);
+            PrimaryEpoch<NodeIDType> zero = new PrimaryEpoch<>(myNodeID, 0);
             this.currentRole.put(groupName, Role.PRIMARY_CANDIDATE);
             this.currentPrimaryEpoch.put(groupName, zero);
             StartEpochPacket startPacket = new StartEpochPacket(groupName, zero);
@@ -693,7 +697,7 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                         System.out.printf("\n\n>> %s I'M THE PRIMARY NOW FOR %s!!\n\n",
                                 myNodeID, groupName);
                         currentRole.put(groupName, Role.PRIMARY);
-                        currentPrimary.put(groupName, paxosCoordinatorID.toString());
+                        currentPrimary.put(groupName, paxosCoordinatorID);
                         currentPrimaryEpoch.put(groupName, zero);
                         processOutstandingRequests();
                     }

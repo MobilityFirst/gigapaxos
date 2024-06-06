@@ -275,7 +275,7 @@ public class TESTReconfigurationConfig {
 	 * @param nodeID
 	 */
 	public synchronized static void recover(int nodeID) {
-		TESTReconfigurationConfig.failedNodes.remove(new Integer(nodeID));
+		TESTReconfigurationConfig.failedNodes.remove(nodeID);
 	}
 
 	/**

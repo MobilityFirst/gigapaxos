@@ -15,9 +15,9 @@ public class StartEpochPacket extends PrimaryBackupPacket {
 
     public static final String SERIALIZED_PREFIX = "pb:se:";
     private final String serviceName;
-    private final PrimaryEpoch startingEpoch;
+    private final PrimaryEpoch<?> startingEpoch;
 
-    public StartEpochPacket(String serviceName, PrimaryEpoch epoch) {
+    public StartEpochPacket(String serviceName, PrimaryEpoch<?> epoch) {
         this.serviceName = serviceName;
         this.startingEpoch = epoch;
     }
@@ -32,8 +32,8 @@ public class StartEpochPacket extends PrimaryBackupPacket {
         return serviceName;
     }
 
-    public PrimaryEpoch getStartingEpoch() {
-        return startingEpoch;
+    public String getStartingEpochString() {
+        return startingEpoch.toString();
     }
 
     @Override

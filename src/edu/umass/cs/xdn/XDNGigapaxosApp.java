@@ -62,12 +62,12 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
     // private ConcurrentHashMap<String, XDNServiceProperties> serviceProperties;
 
     private final ConcurrentHashMap<String, ServiceInstance> services;
-    private final ConcurrentHashMap<String, PrimaryEpoch> currentEpoch;
+    private final ConcurrentHashMap<String, PrimaryEpoch<String>> currentEpoch;
     private final HashMap<String, SocketChannel> fsSocketConnection;
     private final HashMap<String, Boolean> isServiceActive;
     private final HttpClient serviceClient = HttpClient.newHttpClient();
 
-    private PrimaryBackupManager<String> primaryBackupManagerPtr;
+    private PrimaryBackupManager<?> primaryBackupManagerPtr;
 
     private final static RecorderType recorderType = RecorderType.FUSELOG;
     private AbstractStateDiffRecorder stateDiffRecorder;
@@ -131,7 +131,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         return exitCode == 0;
     }
 
-    protected void setPrimaryBackupManager(PrimaryBackupManager<String> pbManager) {
+    protected void setPrimaryBackupManager(PrimaryBackupManager<?> pbManager) {
         assert pbManager != null : "the provided PrimaryBackupManger can not be null";
         this.primaryBackupManagerPtr = pbManager;
     }
@@ -153,8 +153,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
         if (request instanceof XDNStatediffApplyRequest xdnRequest) {
             // TODO: move this epoch validation into another method
-            PrimaryEpoch currentEpoch = this.currentEpoch.get(serviceName);
-            PrimaryEpoch statediffEpoch = xdnRequest.getEpoch();
+            PrimaryEpoch<String> currentEpoch = this.currentEpoch.get(serviceName);
+            String statediffEpochStr = xdnRequest.getEpochString();
+            PrimaryEpoch<String> statediffEpoch = new PrimaryEpoch<>(statediffEpochStr);
             if (currentEpoch == null) {
                 this.currentEpoch.put(serviceName, statediffEpoch);
                 currentEpoch = statediffEpoch;
