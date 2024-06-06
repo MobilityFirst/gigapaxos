@@ -115,10 +115,9 @@
                  destdir="${build.dir}/doc"
                  additionalparam="-Xdoclint:none">
             <classpath refid="classpath.base"/>
-            <!--      <link href="http://java.sun.com/javase/6/docs/api/"/>-->
         </javadoc>
-        <mkdir dir="${dist.dir}/doc"/>
-        <copy todir="${dist.dir}/doc">
+        <mkdir dir="docs/javadoc/${dist.dir}"/>
+        <copy todir="docs/javadoc/${dist.dir}">
             <fileset dir="${build.dir}/doc" includes="**"/>
         </copy>
     </target>
