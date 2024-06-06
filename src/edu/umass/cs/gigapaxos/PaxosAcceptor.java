@@ -704,7 +704,7 @@ protected static enum STATES {
 
 			for (String arg : arguments) {
 				if (arg.matches("-Xmx[0-9]*M")) {
-					vmsize = new Integer(arg.replaceAll("-Xmx", "").replaceAll(
+					vmsize = Integer.parseInt(arg.replaceAll("-Xmx", "").replaceAll(
 							"M", ""));
 				}
 			}

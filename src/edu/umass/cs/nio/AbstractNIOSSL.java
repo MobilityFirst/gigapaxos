@@ -440,7 +440,7 @@ public abstract class AbstractNIOSSL implements Runnable {
 		if (version.startsWith("1.8")) {
 			// Java 8
 			try {
-				Class c = Class.forName("sun.misc.Cleaner");
+				Class<?> c = Class.forName("sun.misc.Cleaner");
 
 				/* java 9 apparently may not support sun.nio.ch.DirectBuffer; if so,
 				 * just comment the line below. The code will default to using the
@@ -475,12 +475,12 @@ public abstract class AbstractNIOSSL implements Runnable {
 		} else {
 			// Java 9+
 			try {
-				Class c = Class.forName("java.lang.ref.Cleaner");
+				Class<?> c = Class.forName("java.lang.ref.Cleaner");
 
 				Method meth = c.getMethod("create");
 				// a static method to create a cleaner
 				cleaner = meth.invoke(null);
-				Class clazz = Class.forName("java.lang.ref.Cleaner.Cleanable");
+				Class<?> clazz = Class.forName("java.lang.ref.Cleaner.Cleanable");
 				meth = c.getMethod("register", Object.class, Runnable.class);
 				Object cleanable = meth.invoke(cleaner, bbuf, new Runnable(){
 					@Override

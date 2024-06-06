@@ -52,8 +52,8 @@ public class Ballot implements Comparable<Ballot> {
 
 	public Ballot(String s) {
 		String[] tokens = s.split(":");
-		this.ballotNumber = new Integer(tokens[0]);
-		this.coordinatorID = new Integer(tokens[1]);
+		this.ballotNumber = Integer.parseInt(tokens[0]);
+		this.coordinatorID = Integer.parseInt(tokens[1]);
 	}
 
 	@Override

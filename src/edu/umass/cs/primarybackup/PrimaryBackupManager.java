@@ -374,9 +374,9 @@ public class PrimaryBackupManager<NodeIDType> implements AppRequestParser {
                             rp.getRequestID(),
                             requestWithResponse.getResponse().toString().
                                     getBytes(StandardCharsets.ISO_8859_1));
-                    GenericMessagingTask<NodeIDType, ResponsePacket> m = new GenericMessagingTask<>(
-                            (NodeIDType) forwardedRequestPacket.getEntryNodeID(),
-                            resp);
+                    GenericMessagingTask<NodeIDType, ResponsePacket> m =
+                            new GenericMessagingTask<>(
+                                    (NodeIDType) forwardedRequestPacket.getEntryNodeID(), resp);
                     try {
                         messenger.send(m);
                     } catch (IOException | JSONException e) {

@@ -275,6 +275,16 @@ public class Util {
 		return randomNode;
 	}
 
+	public static <T> T selectRandomGeneric(Collection<T> set) {
+		int random = (int) (Math.random() * set.size());
+		Iterator<T> iterator = set.iterator();
+		T randomMember = null;
+		for (int i = 0; i <= random && iterator.hasNext(); i++) {
+			randomMember = iterator.next();
+		}
+		return randomMember;
+	}
+
 	public static InetSocketAddress getInetSocketAddressFromString(String s) {
 		// remove anything upto and including the first slash
 		// handles this: "10.0.1.50/10.0.1.50:24404"

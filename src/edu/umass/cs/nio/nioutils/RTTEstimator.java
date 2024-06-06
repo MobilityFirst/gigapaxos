@@ -254,7 +254,7 @@ public class RTTEstimator {
 	 */
 	public static void closest(InetSocketAddress sender,
 			Map<InetAddress, Long> nearestMap) {
-		closest.put(new Integer(addrToPrefixInt(sender.getAddress())),
+		closest.put(addrToPrefixInt(sender.getAddress()),
 				new LinkedHashSet<InetAddress>(nearestMap.keySet()));
 	}
 

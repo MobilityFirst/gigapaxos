@@ -568,7 +568,7 @@ public class TESTPaxosConfig {
 	 * @param nodeID
 	 */
 	public synchronized static void recover(int nodeID) {
-		TESTPaxosConfig.failedNodes.remove(new Integer(nodeID));
+		TESTPaxosConfig.failedNodes.remove(nodeID);
 	}
 
 	/**

@@ -405,8 +405,7 @@ public class ChainManager<NodeIDType> {
 
     private NodeIDType selectReconfigurator(String chainID) {
         Set<NodeIDType> reconfigurators = this.getReconfigurators();
-        //noinspection unchecked
-        return (NodeIDType) Util.selectRandom(reconfigurators);
+        return Util.selectRandomGeneric(reconfigurators);
     }
 
     private Set<NodeIDType> getReconfigurators(){
@@ -418,16 +417,14 @@ public class ChainManager<NodeIDType> {
      * @param cp
      * @param nodeID
      */
-    private void sendRequest(ChainPacket cp,
-                             int nodeID){
-        GenericMessagingTask<NodeIDType,?> gTask = null;
+    private void sendRequest(ChainPacket cp, int nodeID) {
+        GenericMessagingTask<NodeIDType,ChainPacket> gTask = null;
         try {
             // forward to nodeID
-            gTask = new GenericMessagingTask(this.integerMap.get(nodeID),
-                    cp);
+            gTask = new GenericMessagingTask<>(this.integerMap.get(nodeID), cp);
             this.messenger.send(gTask);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.log(Level.WARNING, "Unable to send request: " + e.getMessage());
         }
     }
 

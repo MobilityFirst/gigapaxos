@@ -47,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @param <NodeIDType>
  */
+@Deprecated
 public class Deprecated_PrimaryBackupReplicaCoordinator<NodeIDType>
         extends AbstractReplicaCoordinator<NodeIDType> {
 
