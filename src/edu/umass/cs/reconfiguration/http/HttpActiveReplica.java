@@ -87,9 +87,11 @@ public class HttpActiveReplica {
 
     private final static int DEFAULT_HTTP_PORT = 8080;
 
-    private final static String DEFAULT_HTTP_ADDR = "localhost";
+    private final static String DEFAULT_HTTP_ADDR = "0.0.0.0";
 
     private final static String HTTP_ADDR_ENV_KEY = "HTTPADDR";
+
+    public final static String XDN_HOST_DOMAIN = "xdnapp.com";
 
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
@@ -123,10 +125,6 @@ public class HttpActiveReplica {
                              InetSocketAddress sockAddr, boolean ssl)
             throws CertificateException, SSLException, InterruptedException {
 
-//        if (sockAddr.getPort() == 2300) {
-//            sockAddr = new InetSocketAddress(sockAddr.getAddress(), 80);
-//        }
-
         // Configure SSL.
         final SslContext sslCtx;
         if (ssl) {
@@ -152,16 +150,16 @@ public class HttpActiveReplica {
                     );
 
             if (sockAddr == null) {
-
                 String addr = DEFAULT_HTTP_ADDR;
-                int port = DEFAULT_HTTP_PORT;
-
                 if (System.getProperty(HTTP_ADDR_ENV_KEY) != null) {
                     addr = System.getProperty(HTTP_ADDR_ENV_KEY);
                 }
-                sockAddr = new InetSocketAddress(addr, port);
+                sockAddr = new InetSocketAddress(addr, DEFAULT_HTTP_PORT);
             }
 
+            // Note that we always use the DEFAULT_HTTP_ADDR (0.0.0.0) so that we can listen
+            // incoming Http requests from all interfaces, including non-localhost ones.
+            sockAddr = new InetSocketAddress(DEFAULT_HTTP_ADDR, sockAddr.getPort());
             channel = b.bind(sockAddr).sync().channel();
 
             log.log(Level.INFO, "HttpActiveReplica is ready on {0}", new Object[]{sockAddr});
@@ -338,7 +336,7 @@ public class HttpActiveReplica {
 
             // redirect handling to xdn, if either of these two conditions are met:
             // (1) the HttpRequest contains non-empty XDN header, or
-            // (2) the HttpRequest contains Host header ending in "xdn.io".
+            // (2) the HttpRequest contains Host header ending in "xdnapp.com".
             // Note that "Host" header is required since HTTP 1.1
             if (msg instanceof HttpRequest) {
                 boolean isXDNRequest = false;
@@ -352,12 +350,12 @@ public class HttpActiveReplica {
                     isXDNRequest = true;
                 }
 
-                // handle the second condition: Host ending with "xdn.io"
+                // handle the second condition: Host ending with "xdnapp.com"
                 String requestHost = httpRequest.headers().get(HttpHeaderNames.HOST);
                 if (requestHost != null) {
                     String[] hostPort = requestHost.split(":");
                     String host = hostPort[0];
-                    if (host.endsWith("xdn.io")) {
+                    if (host.endsWith(XDN_HOST_DOMAIN)) {
                         isXDNRequest = true;
                     }
                 }

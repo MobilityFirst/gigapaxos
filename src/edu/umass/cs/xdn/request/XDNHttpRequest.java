@@ -54,7 +54,7 @@ public class XDNHttpRequest extends XDNRequest implements ClientRequest {
     // The service's name is encoded in the request header.
     // For example, the service name is 'hello' for these cases:
     // - request with "XDN: hello" in the header.
-    // - request with "Host: hello.abc.xdn.io:80" in the header.
+    // - request with "Host: hello.xdnapp.com:80" in the header.
     // return null if service's name cannot be inferred
     public static String inferServiceName(HttpRequest httpRequest) {
         assert httpRequest != null;
@@ -65,7 +65,7 @@ public class XDNHttpRequest extends XDNRequest implements ClientRequest {
             return xdnHeader;
         }
 
-        // case-2: encoded in the required Host header (e.g., Host: alice-book-catalog.xdn.io)
+        // case-2: encoded in the required Host header (e.g., Host: alice-book-catalog.xdnapp.com)
         String hostStr = httpRequest.headers().get(HttpHeaderNames.HOST);
         if (hostStr == null || hostStr.isEmpty()) {
             return null;
