@@ -198,8 +198,6 @@ public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
         String diffFile = this.baseDiffDirPath + serviceName + ".diff";
         String targetDir = baseMountDirPath + serviceName + "/";
 
-        System.out.println(">> stateDiff: " + encodedState);
-
         // store stateDiff into an external file
         byte[] stateDiff;
         try {
@@ -214,11 +212,9 @@ public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
         }
 
         // preparing the shell command to apply stateDiff
-        String cmd = String.format("%s %s",
-                FUSELOG_APPLY_BIN_PATH, targetDir);
-        Map<String, String> env = new HashMap<>();
-        env.put("FUSELOG_STATEDIFF_FILE", diffFile);
-        int exitCode = Shell.runCommand(cmd, true, env);
+        String cmd = String.format("%s %s --silent --statediff=%s",
+                FUSELOG_APPLY_BIN_PATH, targetDir, diffFile);
+        int exitCode = Shell.runCommand(cmd, true);
         assert exitCode == 0 : "failed to apply stateDiff with exit code " + exitCode;
 
         return true;
