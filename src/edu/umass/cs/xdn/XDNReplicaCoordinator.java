@@ -12,6 +12,7 @@ import edu.umass.cs.reconfiguration.AbstractReconfiguratorDB;
 import edu.umass.cs.reconfiguration.AbstractReplicaCoordinator;
 import edu.umass.cs.reconfiguration.PaxosReplicaCoordinator;
 import edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator;
+import edu.umass.cs.reconfiguration.interfaces.InitialStateValidator;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import edu.umass.cs.xdn.request.XDNRequestType;
@@ -48,6 +49,10 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
     //  - monotonic reads
     //  - monotonic writes
 
+    // TODO: use the initial state validator, and implement graceful
+    //  replica group creation failure
+    private final InitialStateValidator initialStateValidator;
+
     // mapping between service name to the service's coordination manager
     private final Map<String, AbstractReplicaCoordinator<NodeIDType>> serviceCoordinator;
 
@@ -73,6 +78,13 @@ public class XDNReplicaCoordinator<NodeIDType> extends AbstractReplicaCoordinato
                 throw new AssertionError("system requirement is unsatisfied");
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+
+        // set the initial state validator, if implemented by the app
+        if (app instanceof InitialStateValidator isv) {
+            this.initialStateValidator = isv;
+        } else {
+            this.initialStateValidator = null;
         }
 
         // initialize all the wrapped coordinators

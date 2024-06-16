@@ -157,9 +157,11 @@ public class HttpActiveReplica {
                 sockAddr = new InetSocketAddress(addr, DEFAULT_HTTP_PORT);
             }
 
-            // Note that we always use the DEFAULT_HTTP_ADDR (0.0.0.0) so that we can listen
-            // incoming Http requests from all interfaces, including non-localhost ones.
-            sockAddr = new InetSocketAddress(DEFAULT_HTTP_ADDR, sockAddr.getPort());
+            // Note that we always use the DEFAULT_HTTP_ADDR (0.0.0.0) if the loop-back address
+            // (e.g., 127.0.0.1 or localhost) is used so that we can listen incoming Http requests
+            // from all interfaces, including non-localhost ones.
+            if (sockAddr.getAddress().isLoopbackAddress())
+                sockAddr = new InetSocketAddress(DEFAULT_HTTP_ADDR, sockAddr.getPort());
             channel = b.bind(sockAddr).sync().channel();
 
             log.log(Level.INFO, "HttpActiveReplica is ready on {0}", new Object[]{sockAddr});

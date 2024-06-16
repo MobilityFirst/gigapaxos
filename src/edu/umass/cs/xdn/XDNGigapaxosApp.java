@@ -9,6 +9,7 @@ import edu.umass.cs.primarybackup.PrimaryEpoch;
 import edu.umass.cs.primarybackup.interfaces.BackupableApplication;
 import edu.umass.cs.primarybackup.packets.*;
 import edu.umass.cs.reconfiguration.http.HttpActiveReplicaRequest;
+import edu.umass.cs.reconfiguration.interfaces.InitialStateValidator;
 import edu.umass.cs.reconfiguration.interfaces.Reconfigurable;
 import edu.umass.cs.reconfiguration.interfaces.ReconfigurableRequest;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
@@ -44,7 +45,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication {
+public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication,
+        InitialStateValidator {
 
     private final boolean IS_USE_FUSE = false;
     private final boolean IS_RESTART_UPON_STATE_DIFF_APPLY = false;
@@ -986,6 +988,48 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
      *             End of implementation methods for BackupableApplication interface              *
      *********************************************************************************************/
 
+    @Override
+    public void validateInitialState(String initialState) throws InvalidInitialStateException {
+        String validInitialStatePrefix = ServiceProperty.XDN_INITIAL_STATE_PREFIX;
+
+        // validate the prefix of the initialState
+        if (!initialState.startsWith(validInitialStatePrefix)) {
+            throw new InvalidInitialStateException(
+                    "Invalid prefix for the initial state, expecting " + validInitialStatePrefix);
+        }
+
+        // try to decode the initialState (without prefix), containing the service property encoded
+        // as JSON data
+        initialState = initialState.substring(validInitialStatePrefix.length());
+        ServiceProperty property = null;
+        try {
+            property = ServiceProperty.createFromJSONString(initialState);
+        } catch (JSONException e) {
+            throw new InvalidInitialStateException(
+                    "Invalid initial state, expecting valid JSON data. Error: " + e.getMessage());
+        }
+
+        // try to validate all the provided container image names
+        Set<String> containerNames = new HashSet<>();
+        for (ServiceComponent c : property.getComponents()) {
+            containerNames.add(c.getImageName());
+        }
+        for (String imageName : containerNames) {
+            String command = String.format("docker pull %s:latest", imageName);
+            int errCode = Shell.runCommand(command, true);
+            if (errCode != 0) {
+                String exceptionMessage = String.format(
+                        "Unknown container image with name '%s'. Ensure the image is accessible " +
+                                "at Docker Hub, our default container registry. An example of " +
+                                "container available from Docker Hub is " +
+                                "'fadhilkurnia/xdn-bookcatalog'. You can also use container from " +
+                                "other registries (e.g., ghcr.io, quay.io, etc)."
+                        , imageName);
+                throw new InvalidInitialStateException(exceptionMessage);
+            }
+        }
+    }
+
 
     /**********************************************************************************************
      *                  Begin implementation methods for Replicable interface                     *
@@ -1147,7 +1191,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         }
 
         String startCommand =
-                String.format("docker run -d --name=%s --hostname=%s --network=%s " +
+                String.format("docker run --rm -d --name=%s --hostname=%s --network=%s " +
                                 "%s %s %s %s %s %s",
                         containerName, hostName, networkName, publishPortSubCmd, exposePortSubCmd,
                         mountSubCmd, envSubCmd, userSubCmd, imageName);

@@ -206,6 +206,13 @@ public class HttpReconfigurator {
 					.childHandler(
 							new HTTPReconfiguratorInitializer(sslCtx, rcf));
 
+			// Note that we always use the DEFAULT_HTTP_ADDR (0.0.0.0) if the loop-back address
+			// (e.g., 127.0.0.1 or localhost) is used so that we can listen incoming Http requests
+			// from all interfaces, including non-localhost ones.
+			if (sockAddr.getAddress().isLoopbackAddress()) {
+				sockAddr = new InetSocketAddress("0.0.0.0", sockAddr.getPort());
+			}
+
 			channel = b.bind(sockAddr).sync().channel();
 			instances.add(this);
 			log.log(Level.INFO, "{0} ready", new Object[] { this });
