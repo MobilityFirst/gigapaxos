@@ -1,29 +1,30 @@
 package edu.umass.cs.gigapaxos.examples.checkpointrestore;
 
+import edu.umass.cs.gigapaxos.PaxosConfig;
 import edu.umass.cs.gigapaxos.interfaces.Replicable;
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.paxospackets.RequestPacket;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
+import edu.umass.cs.utils.Config;
 import org.json.JSONObject;
 
 import java.sql.*;
 import java.util.*;
 
-public class TextEditorDBStateApp implements Replicable {
+public class StringAppenderDBStateApp implements Replicable {
 
-    private final String POSTGRES_CONNECTION_URL = "jdbc:postgresql://localhost:5432/postgres";
-    private final String POSTGRES_USERNAME = "postgres";
     protected Connection connection = null;
     protected String tableName = "";
 
-    public TextEditorDBStateApp(String[] args) {
+    public StringAppenderDBStateApp(String[] args) {
         super();
+        Properties properties = PaxosConfig.getAsProperties();
         try {
             this.tableName = "text_" + args[0];
             connection = DriverManager
-                    .getConnection(POSTGRES_CONNECTION_URL,
-                            POSTGRES_USERNAME, "");
+                    .getConnection(properties.getProperty("POSTGRES_CONNECTION_URL"),
+                            properties.getProperty("POSTGRES_USERNAME"), properties.getProperty("POSTGRES_PASSWORD"));
             prepareDatabase();
 
         } catch (Exception e) {
@@ -113,15 +114,18 @@ public class TextEditorDBStateApp implements Replicable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        System.out.println("Checkpoint created");
         return new JSONObject(Map.of("tableName", this.tableName, "data", insertStatement)).toString();
     }
 
     @Override
     public boolean restore(String name, String state) {
-        if ("{}".equals(state)) {
+        if (state == null || state.equals(Config.getGlobalString(PaxosConfig.PC
+                .DEFAULT_NAME_INITIAL_STATE))) {
             return true;
         }
         try {
+            System.out.println("Restoring using the last saved checkpoint");
             JSONObject jsonObject = new JSONObject(state);
             String tableName = jsonObject.getString("tableName");
             String insertQuery = jsonObject.getString("data");

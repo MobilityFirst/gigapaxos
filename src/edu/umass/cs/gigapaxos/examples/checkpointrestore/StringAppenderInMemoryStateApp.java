@@ -12,11 +12,11 @@ import org.json.JSONObject;
 
 import java.util.Set;
 
-public class TextEditorInMemoryStateApp implements Replicable {
+public class StringAppenderInMemoryStateApp implements Replicable {
 
     protected String text;
 
-    public TextEditorInMemoryStateApp() {
+    public StringAppenderInMemoryStateApp() {
         super();
         this.text = "";
         // TODO: setup connection to the data store and keyspace
@@ -59,6 +59,7 @@ public class TextEditorInMemoryStateApp implements Replicable {
 
     @Override
     public String checkpoint(String name) {
+        System.out.println("Checkpoint created");
         return this.text;
     }
 
@@ -68,6 +69,7 @@ public class TextEditorInMemoryStateApp implements Replicable {
                 .DEFAULT_NAME_INITIAL_STATE))) {
             this.text = "";
         } else {
+            System.out.println("Restoring using the last saved checkpoint");
             this.text = state;
         }
         return true;

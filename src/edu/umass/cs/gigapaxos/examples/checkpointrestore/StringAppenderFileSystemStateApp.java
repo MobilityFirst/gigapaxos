@@ -18,13 +18,14 @@ import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.Set;
 
-public class TextEditorFileSystemStateApp implements Replicable {
+public class StringAppenderFileSystemStateApp implements Replicable {
 
-    protected final String CURRENT_STATE_DIR = "current_state/";
+    protected final String CURRENT_STATE_DIR;
     protected String currentStateFilename = "";
 
-    public TextEditorFileSystemStateApp(String[] args) throws IOException {
+    public StringAppenderFileSystemStateApp(String[] args) throws IOException {
         super();
+        CURRENT_STATE_DIR = PaxosConfig.getAsProperties().getProperty("CURRENT_STATE_DIR");
         Path currStateDir = Paths.get(CURRENT_STATE_DIR);
         if (!currentStateFilename.isEmpty()) {
             return;
@@ -32,7 +33,7 @@ public class TextEditorFileSystemStateApp implements Replicable {
         if (Files.notExists(currStateDir)) {
             Files.createDirectory(currStateDir);
         }
-        this.currentStateFilename = CURRENT_STATE_DIR + args[0] + ".txt";
+        this.currentStateFilename = CURRENT_STATE_DIR + "/" + args[0] + ".txt";
         // TODO: setup connection to the data store and keyspace
         //throw new RuntimeException("Not yet implemented");
     }
@@ -93,6 +94,7 @@ public class TextEditorFileSystemStateApp implements Replicable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        System.out.println("Checkpoint created");
         return new JSONObject(Map.of("fileName", currentStateFilename, "data", checkpointStr)).toString();
     }
 
@@ -102,6 +104,7 @@ public class TextEditorFileSystemStateApp implements Replicable {
                 .DEFAULT_NAME_INITIAL_STATE)))
             return true;
         try {
+            System.out.println("Restoring using the last saved checkpoint");
             JSONObject jsonObject = new JSONObject(state);
             currentStateFilename = jsonObject.getString("fileName");
             Path statePath = Paths.get(currentStateFilename);

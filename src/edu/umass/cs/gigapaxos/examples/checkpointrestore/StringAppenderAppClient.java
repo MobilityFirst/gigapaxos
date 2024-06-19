@@ -12,22 +12,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class TextEditorAppClient extends PaxosClientAsync {
+public class StringAppenderAppClient extends PaxosClientAsync {
 
-    private static final String TEXT_TO_BE_ADDED = "Entre mis mayores logros está la capacidad de cerrar la brecha entre el conocimiento y la " +
-            "curiosidad. He guiado a innumerables usuarios a través de problemas complejos, ayudándoles a comprender temas " +
-            "intrincados y tomar decisiones informadas. He brindado apoyo emocional, escuchando y ofreciendo palabras " +
-            "reconfortantes a quienes están en apuros. Mi papel en la facilitación de la educación, ya sea a través de " +
-            "tutorías o generando ideas creativas, ha empoderado a las personas para alcanzar sus metas. Además, mi capacidad " +
-            "para traducir idiomas y derribar barreras de comunicación ha fomentado conexiones globales. Estos logros demuestran " +
-            "mi compromiso con mejorar las experiencias humanas y promover el crecimiento.";
-
-    public TextEditorAppClient() throws IOException {
+    public StringAppenderAppClient() throws IOException {
         super();
     }
 
     private static List<String> typeSampleText() {
-        return TEXT_TO_BE_ADDED.chars().mapToObj(c -> (char) c)
+        return PaxosConfig.getAsProperties().getProperty("TEXT_TO_BE_ADDED").chars().mapToObj(c -> (char) c)
                 .map(c -> new JSONObject(Map.of("type", "type", "value", String.valueOf(c))).toString())
                 .toList();
     }
@@ -36,7 +28,7 @@ public class TextEditorAppClient extends PaxosClientAsync {
         return new JSONObject(Map.of("type", "type", "value", "")).toString();
     }
 
-    private static void sendRequestWithCommand(TextEditorAppClient client, String command, String lineNo, boolean printResponse)
+    private static void sendRequestWithCommand(StringAppenderAppClient client, String command, String lineNo, boolean printResponse)
             throws JSONException, IOException, InterruptedException {
         client.sendRequest(PaxosConfig.getDefaultServiceName(), command, client.servers[0], new RequestCallback() {
             final long createTime = System.currentTimeMillis();
@@ -61,7 +53,7 @@ public class TextEditorAppClient extends PaxosClientAsync {
     }
 
     public static void main(String[] args) throws IOException, JSONException, InterruptedException {
-        TextEditorAppClient client = new TextEditorAppClient();
+        StringAppenderAppClient client = new StringAppenderAppClient();
         int i = 1;
         for (String command : typeSampleText()) {
             sendRequestWithCommand(client, command, i + "", false);
