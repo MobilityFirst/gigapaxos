@@ -30,7 +30,7 @@ public class StringAppenderAppClient extends PaxosClientAsync {
 
     private static void sendRequestWithCommand(StringAppenderAppClient client, String command, String lineNo, boolean printResponse)
             throws JSONException, IOException, InterruptedException {
-        client.sendRequest(PaxosConfig.getDefaultServiceName(), command, client.servers[0], new RequestCallback() {
+        client.sendRequest(PaxosConfig.getDefaultServiceName(), command, new RequestCallback() {
             final long createTime = System.currentTimeMillis();
 
             @Override
