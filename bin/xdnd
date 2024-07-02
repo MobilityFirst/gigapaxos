@@ -5,12 +5,6 @@
 SSH_KEY_LOC=/Users/fikurnia/.ssh/cloudlab2
 SSH_USERNAME=fadhil
 
-MACHINES=(
-  "130.127.134.101"
-  "130.127.134.79"
-  "130.127.134.100"
-)
-
 # ensure to throw error for undefined variables.
 set -u
 
@@ -242,7 +236,7 @@ function upload_binaries() {
   local ssh_key=$2;
   local username=$3;
   local git_url="https://github.com/fadhilkurnia/gigapaxos.git";
-  local git_branch="fadhil-dev-refactor-pb";
+  local git_branch="fadhil-dist-deploy";
 
   # TODO: implement me, copy from current source instead of pulling from github
   echo "Getting the XDN binaries from Github ..."
