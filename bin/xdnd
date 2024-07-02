@@ -247,6 +247,10 @@ function upload_binaries() {
   CMD+=("rm -rf xdn")
   CMD+=("git clone $git_url xdn > /dev/null")
   CMD+=("cd xdn && git checkout $git_branch > /dev/null && ant jar")
+  CMD+=("sudo unlink /usr/local/bin/fuselog && sudo rm -rf /usr/local/bin/fuselog")
+  CMD+=("sudo unlink /usr/local/bin/fuselog-apply && sudo rm -rf /usr/local/bin/fuselog-apply")
+  CMD+=('sudo ln -s $HOME/xdn/bin/fuselog /usr/local/bin/fuselog')
+  CMD+=('sudo ln -s $HOME/xdn/bin/fuselog-apply /usr/local/bin/fuselog-apply')
   for i in "${!CMD[@]}"; do
     cmd=${CMD[$i]}
     ssh -o StrictHostKeyChecking=no -i $ssh_key $username@$node "$cmd" 2>&1 > /dev/null

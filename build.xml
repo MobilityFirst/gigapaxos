@@ -42,7 +42,7 @@
 
     <target name="compile" depends="init, buildnumber" description="compile java files">
         <javac srcdir="${src.dir}" destdir="${build.classes.dir}" debug="true" debuglevel="lines,vars,source"
-               includeantruntime="false" source="21" target="21">
+               includeantruntime="false" release="21">
             <compilerarg value="-Xlint:unchecked"/>
             <!-- <compilerarg value="-Xlint:deprecation"/> -->
             <classpath refid="classpath.base"/>

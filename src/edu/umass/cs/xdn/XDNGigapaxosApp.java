@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication,
         InitialStateValidator {
 
-    private final boolean IS_USE_FUSE = false;
+    private final boolean IS_USE_FUSE = true;
     private final boolean IS_RESTART_UPON_STATE_DIFF_APPLY = false;
     private final String FUSELOG_BIN_PATH = "/users/fadhil/fuse/fuselog";
     private final String FUSELOG_APPLY_BIN_PATH = "/users/fadhil/fuse/apply";
@@ -88,7 +88,9 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             // validate the operating system as currently FUSE is only supported on Linux
             String osName = System.getProperty("os.name");
             if (!osName.equalsIgnoreCase("linux")) {
-                throw new RuntimeException("Error: FUSE can only be used in Linux");
+                String errMessage = "Error: FUSE can only be used in Linux";
+                System.out.println(errMessage);
+                throw new RuntimeException(errMessage);
             }
 
             var fuselogBinary = new File(FUSELOG_BIN_PATH);
@@ -96,7 +98,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
             assert fuselogBinary.exists() && fuselogApplyBinary.exists();
         }
 
-        switch (this.recorderType) {
+        switch (recorderType) {
             case RSYNC:
                 this.stateDiffRecorder = new RsyncStateDiffRecorder(nodeID);
                 break;
@@ -107,7 +109,8 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 this.stateDiffRecorder = new FuselogStateDiffRecorder(nodeID);
                 break;
             default:
-                throw new RuntimeException("unknown stateDiff recorder " + this.recorderType);
+                String errMessage = "unknown stateDiff recorder " + recorderType.toString();
+                throw new RuntimeException(errMessage);
         }
 
     }

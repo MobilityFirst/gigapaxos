@@ -21,8 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
 
-    private static final String FUSELOG_BIN_PATH = "/usr/bin/fuselog";
-    private static final String FUSELOG_APPLY_BIN_PATH = "/usr/bin/fuselog-apply";
+    private static final String FUSELOG_BIN_PATH = "/usr/local/bin/fuselog";
+    private static final String FUSELOG_APPLY_BIN_PATH = "/usr/local/bin/fuselog-apply";
 
     private static final String defaultWorkingBasePath = "/tmp/xdn/state/fuselog/";
 
@@ -42,13 +42,21 @@ public class FuselogStateDiffRecorder extends AbstractStateDiffRecorder {
 
     public FuselogStateDiffRecorder(String nodeID) {
         super(nodeID, defaultWorkingBasePath + nodeID + "/");
+        System.out.println(">>> initializing fuse statediff recorder");
 
         // make sure that fuselog and fuselog-apply are exist
         File fuselog = new File(FUSELOG_BIN_PATH);
-        assert fuselog.exists() : "fuselog binary does not exist at " + FUSELOG_BIN_PATH;
+        if (!fuselog.exists()) {
+            String errMessage = "fuselog binary does not exist at " + FUSELOG_BIN_PATH;
+            System.out.println("ERROR: " + errMessage);
+            throw new RuntimeException(errMessage);
+        }
         File fuselogApplicator = new File(FUSELOG_APPLY_BIN_PATH);
-        assert fuselogApplicator.exists() : "fuselog-apply binary does not exist at " +
-                FUSELOG_APPLY_BIN_PATH;
+        if (!fuselogApplicator.exists()) {
+            String errMessage = "fuselog-apply binary does not exist at " + FUSELOG_APPLY_BIN_PATH;
+            System.out.println("ERROR: " + errMessage);
+            throw new RuntimeException(errMessage);
+        }
 
         // create working mount dir, if not exist
         // e.g., /tmp/xdn/state/fuselog/node1/mnt/
