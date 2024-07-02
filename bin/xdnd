@@ -1,0 +1,363 @@
+#!/bin/bash
+# xdnd - xdn daemon shell script
+# Script to start xdn node as either Reconfigurator (RC) or Active Replica (AR).
+
+SSH_KEY_LOC=/Users/fikurnia/.ssh/cloudlab2
+SSH_USERNAME=fadhil
+
+MACHINES=(
+  "130.127.134.101"
+  "130.127.134.79"
+  "130.127.134.100"
+)
+
+# ensure to throw error for undefined variables.
+set -u
+
+function do_system_check() {
+  echo "The following systems/dependencies are required to run XDN."
+  echo " - Linux 5.15 or newer with x86-64 architecture"
+  echo " - libfuse3"
+  echo " - Java 21+"
+  echo " - Docker 26+, accessible without 'sudo'"
+  echo ""
+  echo "Checking those requirements are satisfied or not ..."
+  echo "Error! unimplemented."
+}
+
+function do_distributed_initialization() {
+  echo "Initializing all the machines from the provided config ..."
+
+  # get config from parameters, if any.
+  local DEFAULT_CONFIG="./conf/gigapaxos.properties"
+  local CONFIG=$DEFAULT_CONFIG
+  for ARG in "$@"; do
+    case $ARG in
+    -config=*)
+      CONFIG="${ARG#*=}"
+      ;;
+    esac
+  done
+
+  # check if the file exist
+  if [ ! -f "$CONFIG" ]; then
+    echo "Config file '$CONFIG' can not be found!"
+    exit 1
+  fi
+
+  # extract unique IPs from the config file
+  local unique_ips=()
+  while IFS= read -r line; do
+    if [[ $line =~ ^(active|reconfigurator)\. ]]; then
+      ip=$(echo "$line" | awk -F'[=:]' '{print $2}')
+      if [[ ! " ${unique_ips[*]-} " =~ " ${ip} " ]]; then
+        unique_ips+=("$ip")
+      fi
+    fi
+  done <"$CONFIG"
+
+  # get the ssh key from args
+  local SSH_KEY=""
+  for ARG in "$@"; do
+    case $ARG in
+    -ssh-key=*)
+      SSH_KEY="${ARG#*=}"
+      ;;
+    esac
+  done
+  if [ -z "$SSH_KEY" ]; then
+    echo "Please specify the ssh key with '-ssh-key=<location>' argument."
+    exit 1
+  fi
+
+  # get the username from args
+  local USERNAME=""
+  for ARG in "$@"; do
+    case $ARG in
+    -username=*)
+      USERNAME="${ARG#*=}"
+      ;;
+    esac
+  done
+  if [ -z "$USERNAME" ]; then
+    echo "Please specify the username with '-username=<name>' argument."
+    exit 1
+  fi
+
+  # Print out the unique IPs, ssh-key, and username
+  echo " - config file : ${CONFIG}"
+  echo " - ssh key     : ${SSH_KEY}"
+  echo " - username    : ${USERNAME}"
+  echo " - machine IPs :"
+  for ip in "${unique_ips[@]}"; do
+    echo "   - $ip"
+  done
+  echo ""
+
+  # go over all the machines to install the dependencies
+  # and put the xdn source code into the machines.
+  for machine in "${unique_ips[@]}"; do
+    install_dependencies $machine $SSH_KEY $USERNAME
+    upload_binaries $machine $SSH_KEY $USERNAME
+  done
+
+  exit 0
+
+  # generate config in all the machines, based on the
+  # listed machines in the $MACHINES variable.
+  #  for machine in "${MACHINES[@]}"; do
+  #    generate_config $machine
+  #  done
+
+  # TODO: start the service
+}
+
+function do_start_ar_instance() {
+  echo "unimplemented"
+}
+
+function do_start_rc_instance() {
+  # get config from parameters, if any.
+  local DEFAULT_CONFIG="./conf/gigapaxos.properties"
+  local CONFIG=$DEFAULT_CONFIG
+  # Parse options using getopts
+  for ARG in "$@"; do
+    case $ARG in
+    -config=*)
+      CONFIG="${ARG#*=}"
+      ;;
+    esac
+  done
+
+  # get instance name, the last parameter.
+  local INSTANCE_NAME="${@: -1}"
+
+  # get host from the config file.
+  local DEFAULT_HOST="0.0.0.0"
+  local DEFAULT_PORT="3000"
+  local HOST=$DEFAULT_HOST
+  local PORT=$DEFAULT_PORT
+
+  echo "..."
+  echo " Starting a control plane instance"
+  echo "  - config file   : $CONFIG"
+  echo "  - instance name : $INSTANCE_NAME"
+  echo "  - host address  : $HOST:$PORT"
+}
+
+function do_start_instance() {
+  local STARTED_INSTANCE_TYPE=$2
+  case "$STARTED_INSTANCE_TYPE" in
+  "control-plane")
+    echo "starting a control plane instance ..."
+    do_start_rc_instance "$@"
+    ;;
+  "machine")
+    echo "starting an active instance ..."
+    do_start_rc_instance "$@"
+    ;;
+  *)
+    echo "starting an active instance ..."
+    do_start_rc_instance "$@"
+    ;;
+  esac
+}
+
+# install_dependencies installs all the required dependencies for xdn (e.g., docker)
+# arg-1: machine ip address
+# arg-2: ssh-key location
+# arg-3: username for ssh
+function install_dependencies() {
+  local node=$1;
+  local ssh_key=$2;
+  local username=$3;
+  local golang_tar_name="go1.22.4.linux-amd64.tar.gz";
+  local golang_download_url="https://go.dev/dl/go1.22.4.linux-amd64.tar.gz";
+
+  echo "Installing dependencies on machine $node with user '$username' ..."
+
+  CMD=()
+  CMD_DESC=()
+
+  CMD_DESC+=("update apt packages")
+  CMD+=("sudo apt-get update")
+
+  # libfuse3
+  CMD_DESC+=("install libfuse3 for Fuselog")
+  CMD+=("sudo apt-get install -y pkg-config libfuse3-dev")
+
+  # install golang
+  CMD_DESC+=("download golang")
+  CMD+=("wget --quiet --no-clobber $golang_download_url && sudo rm -rf /usr/local/go")
+  CMD_DESC+=("extract golang")
+  CMD+=("sudo tar -C /usr/local -xzf $golang_tar_name")
+  CMD_DESC+=("add golang to PATH var")
+  CMD+=('echo "export PATH=$PATH:/usr/local/go/bin" | sudo tee -a /etc/environment')
+
+  # install docker
+  CMD_DESC+=("install docker - (1) install certificate and curl")
+  CMD+=("sudo apt-get install -y ca-certificates curl")
+  CMD_DESC+=("install docker - (2) install keyrings")
+  CMD+=("sudo install -m 0755 -d /etc/apt/keyrings")
+  CMD_DESC+=("install docker - (3) get gpg keys")
+  CMD+=("sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc")
+  CMD_DESC+=("install docker - (4) change permission for key")
+  CMD+=("sudo chmod a+r /etc/apt/keyrings/docker.asc")
+  CMD_DESC+=("install docker - (5) update apt sources")
+  CMD+=('echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null')
+  CMD_DESC+=("install docker - (6) get docker from the newly registered repo")
+  CMD+=("sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin")
+
+  # make docker accessible without sudo by the used user
+  CMD_DESC+=("install docker - (7) create docker group")
+  CMD+=("sudo groupadd -f docker")
+  CMD_DESC+=("install docker - (8) add user to docker group")
+  CMD+=('sudo usermod -aG docker $USER')
+
+  # install java21
+  CMD_DESC+=("install java21")
+  CMD+=("sudo apt-get install -y openjdk-21-jdk ant")
+
+  for i in "${!CMD_DESC[@]}"; do
+    desc=${CMD_DESC[$i]}
+    cmd=${CMD[$i]}
+    echo "     $desc ..."
+    ssh -o StrictHostKeyChecking=no -i $ssh_key $username@$node "nohup $cmd" 2>&1 >/dev/null
+    return_code=$?
+    ret=$?
+    if [ $return_code -ne 0 ]; then
+      echo " [ERROR] failed to run command '$cmd'."
+    fi
+  done
+  echo ""
+}
+
+# copy_binaries transfer all the required binaries to the remote machines
+# specified in the config file (i.e., gigapaxos.properties)
+# arg-1: machine ip address
+# arg-2: ssh-key location
+# arg-3: username for ssh
+function upload_binaries() {
+  local node=$1
+  local ssh_key=$2;
+  local username=$3;
+  local git_url="https://github.com/fadhilkurnia/gigapaxos.git";
+  local git_branch="fadhil-dev-refactor-pb";
+
+  # TODO: implement me, copy from current source instead of pulling from github
+  echo "Getting the XDN binaries from Github ..."
+  # bin/fuselog
+  # bin/fuselog-apply
+
+  CMD=()
+  CMD+=("rm -rf xdn")
+  CMD+=("git clone $git_url xdn > /dev/null")
+  CMD+=("cd xdn && git checkout $git_branch > /dev/null && ant jar")
+  for i in "${!CMD[@]}"; do
+    cmd=${CMD[$i]}
+    ssh -o StrictHostKeyChecking=no -i $ssh_key $username@$node "$cmd" 2>&1 > /dev/null
+    return_code=$?
+    ret=$?
+    if [ $return_code -ne 0 ]; then
+      echo " [ERROR] failed to run command '$cmd'."
+    fi
+  done
+  echo ""
+}
+
+# arg-1: machine ip address
+function generate_config() {
+  node=$1
+
+  echo "generating config for machine $node"
+  echo "unimplemented :("
+}
+
+function print_usage() {
+  echo "Usage: xdnd [actions]"
+  echo ""
+  echo " Available commands are listed below."
+  echo " To initialize all the machines, installing required dependencies:"
+  echo "   xdnd dist-init -config=gigapaxos.properties -ssh-key=/ssh/key -username=user"
+  echo ""
+  echo " To start a reconfigurator instance:"
+  echo "   xdnd start control-plane -config=gigapaxos.properties RC0"
+  echo ""
+  echo " To start an active replica instance from the initialized machine:"
+  echo "   xdnd start machine -config=gigapaxos.properties AR0"
+  echo "   xdnd start -config=gigapaxos.properties AR0"
+  echo ""
+  echo " To start an active replica and make it join existing xdn deployment:"
+  echo "   xdnd start -join=10.10.10.10 -host=11.11.11.11 AR10"
+}
+
+# checks if a string is in the list
+function is_in_list() {
+  local item="$1"
+  shift
+  local list=("$@")
+
+  for element in "${list[@]}"; do
+    if [[ "$element" == "$item" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# main() is the main entrypoint of this shell script that validates the actions
+# (i.e., start, check, dist-launch, help), then handle the action accordingly.
+function main() {
+
+  # validate the program name, which must be 'xdnd'.
+  local PROGRAM_NAME=$(basename "$0")
+  if [[ "$PROGRAM_NAME" != "xdnd" ]]; then
+    echo "Invalid program name. Must be 'xdnd'."
+    exit 1
+  fi
+
+  # check the number of parameter.
+  if [ "$#" -eq 0 ]; then
+    echo "No action is provided."
+    echo "Valid actions are: start, check, dist-init, help."
+    echo ""
+    print_usage
+    exit 1
+  fi
+
+  # parse the second param, i.e., the action.
+  local SECOND_PARAM=$1
+  local VALID_ACTIONS=("dist-init" "start" "help" "check")
+  if ! is_in_list "$SECOND_PARAM" "${VALID_ACTIONS[@]}"; then
+    echo "Action '$SECOND_PARAM' is not a valid actions."
+    echo "Valid actions are: start, check, dist-init, help."
+    echo ""
+    print_usage
+    exit 1
+  fi
+  local ACTION=$SECOND_PARAM
+
+  case "$ACTION" in
+  "dist-init")
+    do_distributed_initialization "$@"
+    ;;
+  "start")
+    echo "starting an instance ..."
+    do_start_instance "$@"
+    ;;
+  "check")
+    do_system_check
+    ;;
+  "help")
+    print_usage
+    ;;
+  *)
+    echo "Invalid action. Valid actions are: start, check, dist-init, help."
+    exit 1
+    ;;
+  esac
+  exit 0
+}
+
+# the starting point of this shell script
+main "$@"
