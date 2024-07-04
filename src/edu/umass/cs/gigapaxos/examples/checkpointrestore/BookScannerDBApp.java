@@ -9,12 +9,14 @@ import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.reconfigurationutils.RequestParseException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.sql.*;
-import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
@@ -122,11 +124,16 @@ public class BookScannerDBApp implements Replicable {
                     Files.createFile(Paths.get(this.restoreFilename));
                 }
                 LargeCheckpointer.restoreCheckpointHandle(state, this.restoreFilename);
-                List<String> insertQueries = Files.readAllLines(Paths.get(this.restoreFilename));
                 connection.createStatement().executeUpdate(String.format("TRUNCATE %s;", this.tableName));
-                for (String insertQuery : insertQueries) {
-                    connection.createStatement().executeUpdate(insertQuery);
+
+                File file = new File(this.restoreFilename);
+                FileReader fr = new FileReader(file);
+                BufferedReader br = new BufferedReader(fr);
+                String line;
+                while ((line = br.readLine()) != null) {
+                    connection.createStatement().executeUpdate(line);
                 }
+                fr.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -136,22 +143,11 @@ public class BookScannerDBApp implements Replicable {
 
     @Override
     public Request getRequest(String stringified) throws RequestParseException {
-        /*System.out.println("In get request of app");
-        RequestPacket paxosPacket = null;
-        try {
-            paxosPacket = new RequestPacket(new JSONObject(stringified));
-        } catch (JSONException je) {
-            ReconfigurationConfig.getLogger().info(
-                    "Unable to parse request " + stringified);
-            throw new RequestParseException(je);
-        }
-        return paxosPacket;*/
         return null;
     }
 
     @Override
     public Set<IntegerPacketType> getRequestTypes() {
         return null;
-        //return new HashSet<IntegerPacketType>(Arrays.asList(PaxosPacket.PaxosPacketType.values()));
     }
 }

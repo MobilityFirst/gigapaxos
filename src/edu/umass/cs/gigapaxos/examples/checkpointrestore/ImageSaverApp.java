@@ -22,7 +22,7 @@ public class ImageSaverApp implements Replicable {
 
     public ImageSaverApp(String[] args) {
         super();
-        this.fileName = Paths.get(PaxosConfig.getAsProperties().getProperty("savedPool") + "image_" + args[0] + ".jpg");
+        this.fileName = Paths.get(PaxosConfig.getAsProperties().getProperty("savedImagesPool") + "image_" + args[0] + ".jpg");
     }
 
     @Override
@@ -53,7 +53,6 @@ public class ImageSaverApp implements Replicable {
 
         try {
             byte[] image = Files.readAllBytes(this.fileName);
-            System.out.println("Checkpoint created");
             return new String(image, StandardCharsets.ISO_8859_1);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -67,7 +66,6 @@ public class ImageSaverApp implements Replicable {
             return true;
         }
         try {
-            System.out.println("Restoring using the last saved checkpoint");
             byte[] image = state.getBytes(StandardCharsets.ISO_8859_1);
             Files.write(this.fileName, image);
             return true;
@@ -85,6 +83,6 @@ public class ImageSaverApp implements Replicable {
 
     @Override
     public Set<IntegerPacketType> getRequestTypes() {
-        return Set.of();
+        return null;
     }
 }

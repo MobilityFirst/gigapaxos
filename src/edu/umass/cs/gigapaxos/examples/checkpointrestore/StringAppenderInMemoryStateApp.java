@@ -59,7 +59,6 @@ public class StringAppenderInMemoryStateApp implements Replicable {
 
     @Override
     public String checkpoint(String name) {
-        System.out.println("Checkpoint created");
         return this.text;
     }
 
@@ -69,7 +68,6 @@ public class StringAppenderInMemoryStateApp implements Replicable {
                 .DEFAULT_NAME_INITIAL_STATE))) {
             this.text = "";
         } else {
-            System.out.println("Restoring using the last saved checkpoint");
             this.text = state;
         }
         return true;

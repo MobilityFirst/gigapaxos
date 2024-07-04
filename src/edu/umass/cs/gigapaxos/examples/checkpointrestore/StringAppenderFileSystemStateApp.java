@@ -94,7 +94,6 @@ public class StringAppenderFileSystemStateApp implements Replicable {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        System.out.println("Checkpoint created");
         return new JSONObject(Map.of("fileName", currentStateFilename, "data", checkpointStr)).toString();
     }
 
@@ -104,7 +103,6 @@ public class StringAppenderFileSystemStateApp implements Replicable {
                 .DEFAULT_NAME_INITIAL_STATE)))
             return true;
         try {
-            System.out.println("Restoring using the last saved checkpoint");
             JSONObject jsonObject = new JSONObject(state);
             currentStateFilename = jsonObject.getString("fileName");
             Path statePath = Paths.get(currentStateFilename);

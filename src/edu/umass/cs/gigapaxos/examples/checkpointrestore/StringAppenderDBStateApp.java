@@ -114,7 +114,6 @@ public class StringAppenderDBStateApp implements Replicable {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        System.out.println("Checkpoint created");
         return new JSONObject(Map.of("tableName", this.tableName, "data", insertStatement)).toString();
     }
 
@@ -125,7 +124,6 @@ public class StringAppenderDBStateApp implements Replicable {
             return true;
         }
         try {
-            System.out.println("Restoring using the last saved checkpoint");
             JSONObject jsonObject = new JSONObject(state);
             String tableName = jsonObject.getString("tableName");
             String insertQuery = jsonObject.getString("data");
