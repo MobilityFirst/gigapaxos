@@ -92,10 +92,6 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
                 System.out.println(errMessage);
                 throw new RuntimeException(errMessage);
             }
-
-            var fuselogBinary = new File(FUSELOG_BIN_PATH);
-            var fuselogApplyBinary = new File(FUSELOG_APPLY_BIN_PATH);
-            assert fuselogBinary.exists() && fuselogApplyBinary.exists();
         }
 
         switch (recorderType) {
