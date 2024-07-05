@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableApplication,
         InitialStateValidator {
 
-    private final boolean IS_USE_FUSE = true;
+    private boolean IS_USE_FUSE = true;
     private final boolean IS_RESTART_UPON_STATE_DIFF_APPLY = false;
     private final String FUSELOG_BIN_PATH = "/users/fadhil/fuse/fuselog";
     private final String FUSELOG_APPLY_BIN_PATH = "/users/fadhil/fuse/apply";
@@ -71,7 +71,7 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
 
     private PrimaryBackupManager<?> primaryBackupManagerPtr;
 
-    private final static RecorderType recorderType = RecorderType.FUSELOG;
+    private static RecorderType recorderType = RecorderType.FUSELOG;
     private AbstractStateDiffRecorder stateDiffRecorder;
 
     public XDNGigapaxosApp(String[] args) {
@@ -84,13 +84,14 @@ public class XDNGigapaxosApp implements Replicable, Reconfigurable, BackupableAp
         fsSocketConnection = new HashMap<>();
         isServiceActive = new HashMap<>();
 
-        if (IS_USE_FUSE) {
+        if (IS_USE_FUSE || recorderType.equals(RecorderType.FUSELOG)) {
             // validate the operating system as currently FUSE is only supported on Linux
             String osName = System.getProperty("os.name");
             if (!osName.equalsIgnoreCase("linux")) {
-                String errMessage = "Error: FUSE can only be used in Linux";
-                System.out.println(errMessage);
-                throw new RuntimeException(errMessage);
+                String errMsg = "[WARNING] FUSE can only be used in Linux. Failing back to rsync.";
+                System.out.println(errMsg);
+                IS_USE_FUSE = false;
+                recorderType = RecorderType.RSYNC;
             }
         }
 
