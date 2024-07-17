@@ -391,7 +391,8 @@ DEFAULT_REMOTE_JVMARGS="$COMMON_JVMARGS \
 $REMOTE_SSL_KEYFILES \
 -Djava.util.logging.config.file=$(get_simple_name $LOG_PROPERTIES) \
 -Dlog4j.configuration=$(get_simple_name $LOG4J_PROPERTIES) \
--DgigapaxosConfig=$(get_simple_name $DEFAULT_GP_PROPERTIES)"
+-DgigapaxosConfig=$(get_simple_name $DEFAULT_GP_PROPERTIES) \
+-Djdk.httpclient.allowRestrictedHeaders=connection,content-length,host"
 
 REMOTE_JVMARGS="$SUPPLIED_JVMARGS $DEFAULT_REMOTE_JVMARGS"
 
@@ -458,7 +459,7 @@ function start_server {
       edu.umass.cs.reconfiguration.ReconfigurableNode \
       $APP_ARGS $server \""
     
-    $SSH $username@$address "cd $INSTALL_PATH; nohup \
+    $SSH $username@$address "cd $INSTALL_PATH; sudo \
       $JAVA $DEBUG_ARGS $REMOTE_JVMARGS \
       -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
       edu.umass.cs.reconfiguration.ReconfigurableNode \
@@ -502,7 +503,7 @@ function stop_servers {
         echo $SSH $username@$address "\"kill -9 \`ps -ef|\
           grep \"$KILL_TARGET\"|grep -v grep|awk \
           '{print \$2}'\` 2>/dev/null\""
-        $SSH $username@$address "kill -9 \`ps -ef|\
+        $SSH $username@$address "sudo kill -9 \`sudo ps -ef|\
           grep \"$KILL_TARGET\"|grep -v grep|awk \
           '{print \$2}'\` 2>/dev/null"
       fi
@@ -524,7 +525,7 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
     esac
   fi
   # else go ahead and force clear
-  docker ps -aq | xargs docker stop | xargs docker rm
+  docker ps -aq | xargs -r docker stop | xargs -r docker rm
           stop_servers
           for server in $servers; do
             get_address_port $server
@@ -536,7 +537,7 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
               $JAVA $JVMARGS \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
                 clear $server
-      
+
             else
               # remote clear
               echo "Clearing state on remote server $server"
@@ -545,11 +546,20 @@ if [[ ! -z `echo "$@"|grep "clear[ ]*all"` ]]; then
                 -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
                 clear $server \""
-              $SSH $username@$address "cd $INSTALL_PATH; nohup \
+              $SSH $username@$address "cd $INSTALL_PATH; sudo \
                 $JAVA $REMOTE_JVMARGS \
                 -cp \`ls jars/*|awk '{printf \$0\":\"}'\` \
                 edu.umass.cs.reconfiguration.ReconfigurableNode \
                 clear $server "&
+
+              # remove all docker container instances
+              $SSH $username@$address "docker ps -aq | xargs -r docker stop | xargs -r docker rm";
+
+              # unmount all filesystem
+              local cmd='sudo df | grep xdn/state/fuselog | awk '\''{print $6}'\'' | xargs -r sudo umount';
+              $SSH $username@$address "$cmd";
+
+              $SSH $username@$address "sudo rm -rf /tmp/xdn";
     
               fi
             done;

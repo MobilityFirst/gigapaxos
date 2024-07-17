@@ -213,6 +213,10 @@ public class HttpReconfigurator {
 				sockAddr = new InetSocketAddress("0.0.0.0", sockAddr.getPort());
 			}
 
+			// FIXME: a quick hack to make RC listens to all interface, enabling a nameserver
+			//  to contact with the RC using localhost or 127.0.0.1.
+			sockAddr = new InetSocketAddress("0.0.0.0", sockAddr.getPort());
+
 			channel = b.bind(sockAddr).sync().channel();
 			instances.add(this);
 			log.log(Level.INFO, "{0} ready", new Object[] { this });

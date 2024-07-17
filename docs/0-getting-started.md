@@ -1,6 +1,6 @@
 # Getting started with XDN
 
-## Preparation
+## Dependencies
 
 
 

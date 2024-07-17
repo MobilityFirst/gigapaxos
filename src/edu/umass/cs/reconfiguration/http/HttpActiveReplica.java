@@ -162,6 +162,9 @@ public class HttpActiveReplica {
             // from all interfaces, including non-localhost ones.
             if (sockAddr.getAddress().isLoopbackAddress())
                 sockAddr = new InetSocketAddress(DEFAULT_HTTP_ADDR, sockAddr.getPort());
+
+            // FIXME: quick hack to make it listen to port 80
+            sockAddr = new InetSocketAddress(sockAddr.getAddress(), 80);
             channel = b.bind(sockAddr).sync().channel();
 
             log.log(Level.INFO, "HttpActiveReplica is ready on {0}", new Object[]{sockAddr});

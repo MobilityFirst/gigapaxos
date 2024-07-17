@@ -175,6 +175,8 @@ function install_dependencies() {
 
   CMD_DESC+=("update apt packages")
   CMD+=("sudo apt-get update")
+  CMD_DESC+=("install dialog frontend")
+  CMD+=("sudo apt-get install dialog apt-utils -y")
 
   # libfuse3
   CMD_DESC+=("install libfuse3 for Fuselog")
@@ -251,6 +253,7 @@ function upload_binaries() {
   CMD+=("sudo unlink /usr/local/bin/fuselog-apply && sudo rm -rf /usr/local/bin/fuselog-apply")
   CMD+=('sudo ln -s $HOME/xdn/bin/fuselog /usr/local/bin/fuselog')
   CMD+=('sudo ln -s $HOME/xdn/bin/fuselog-apply /usr/local/bin/fuselog-apply')
+  CMD+=("sudo sed -i 's/#user_allow_other/user_allow_other/g' /etc/fuse.conf")
   for i in "${!CMD[@]}"; do
     cmd=${CMD[$i]}
     ssh -o StrictHostKeyChecking=no -i $ssh_key $username@$node "$cmd" 2>&1 > /dev/null

@@ -15,7 +15,7 @@ the following system requirements:
     ```
    git pull https://github.com/fadhilkurnia/gigapaxos.git
    cd gigapaxos
-   git checkout fadhil-dev-refactor-pb
+   git checkout fadhil-dist-deploy
     ```
 2. Compile XDN source code:
     ```
@@ -146,6 +146,3 @@ If the machines have different IP address, you need to modify the config file.
 # at machine 10.10.1.5:
 ./bin/gpServer.sh -DgigapaxosConfig=conf/gigapaxos.cloudlab.properties start RC1
 ```
-
-3. asd
-
