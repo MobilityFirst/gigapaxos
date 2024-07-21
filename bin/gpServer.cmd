@@ -53,10 +53,6 @@ pushd %BINDIR%\..
 set HEAD=%CD%
 popd
 
-rem echo BINFILE=%BINFILE%
-rem echo BINDIR=%BINDIR%
-rem echo HEAD=%HEAD%
-
 set FILESET=
 
 for %%F in ("%HEAD%\jars\*.jar" "%HEAD%\jars\*.class") do (
@@ -68,7 +64,6 @@ for %%F in ("%HEAD%\jars\*.jar" "%HEAD%\jars\*.class") do (
 )
 
 set FILESET=%FILESET:~1%
-rem echo FILESET=%FILESET%
 
 set "DEFAULT_GP_CLASSPATH="
 for %%F in (%FILESET%) do (
@@ -76,7 +71,6 @@ for %%F in (%FILESET%) do (
 )
 set "DEFAULT_GP_CLASSPATH=!DEFAULT_GP_CLASSPATH:~1!"
 
-rem echo DEFAULT_GP_CLASSPATH=%DEFAULT_GP_CLASSPATH%
 set "DEV_MODE=1"
 set "ENABLE_ASSERTS="
 if "%DEV_MODE%"=="1" (
@@ -90,9 +84,6 @@ if "%DEV_MODE%"=="1" (
 )
 
 set "CLASSPATH=%DEFAULT_GP_CLASSPATH%"
-
-rem echo DEFAULT_GP_CLASSPATH=%DEFAULT_GP_CLASSPATH%
-rem echo CLASSPATH=%CLASSPATH%
 
 set CONF=conf
 set CONFDIR=%HEAD%\%CONF%
@@ -121,11 +112,6 @@ set "DEFAULT_TRUSTSTORE=trustStore.jks"
 call :SET_DEFAULT_CONF %DEFAULT_TRUSTSTORE%
 set TRUSTSTORE=%retval%
 
-rem echo %LOG_PROPERTIES%
-rem echo %LOG4J_PROPERTIES%
-rem echo %GP_PROPERTIES%
-rem echo %KEYSTORE%
-rem echo %TRUSTSTORE%
 set VERBOSE=2
 set "JAVA=java"
 set "ACTIVE=active"
@@ -268,11 +254,9 @@ for /f "tokens=* delims= " %%C in ("!APP!") do set "APP=%%C"
 if "%APP%"=="" (
   set "APP=edu.umass.cs.reconfiguration.examples.noopsimple.NoopApp"
 )
-@REM echo APP=%APP%
 
 for %%I in (%APP:.= %) do set "INSTALL_PATH=%%~nxI"
 
-@REM echo INSTALL_PATH=%INSTALL_PATH%
 
 set curr_ind=0
 for %%A in (%args%) do (
@@ -326,14 +310,10 @@ if "%arg_pos_2%"=="all" (
     )
     set "servers=!servers:~1!"
 )
-@REM echo actives=%actives%
-@REM echo reconfigurators=%reconfigurators%
 echo servers=[%servers%]
 
 call :get_file_list %*
-@REM echo conf_transferrables=%conf_transferrables%
 call :trim_file_list "%conf_transferrables%"
-@REM echo conf_transferrables=%conf_transferrables%
 
 set "SSH=ssh -x -o StrictHostKeyChecking=no"
 set "RSYNC_PATH=mkdir -p %INSTALL_PATH% %INSTALL_PATH%\%CONF%"
@@ -363,7 +343,6 @@ call :append_to_ln_cmd %LOG_PROPERTIES% %DEFAULT_LOG_PROPERTIES%
 call :append_to_ln_cmd %LOG4J_PROPERTIES% %DEFAULT_LOG4J_PROPERTIES%
 call :append_to_ln_cmd %APP_RESOURCES% %DEFAULT_APP_RESOURCES% true
 
-@REM echo LINK_CMD=%LINK_CMD%
 
 set "LOCAL_SSL_KEYFILES=-Djavax.net.ssl.keyStore=%KEYSTORE% -Djavax.net.ssl.trustStore=%TRUSTSTORE%"
 set keyStoreSimpleName=
@@ -394,22 +373,6 @@ set "DEFAULT_REMOTE_JVMARGS=%COMMON_JVMARGS% %REMOTE_SSL_KEYFILES% -Djava.util.l
 
 set "REMOTE_JVMARGS=%SUPPLIED_JVMARGS% %DEFAULT_REMOTE_JVMARGS%"
 
-@REM echo LOCAL_SSL_KEYFILES=%LOCAL_SSL_KEYFILES%
-@REM echo keyStoreSimpleName=%keyStoreSimpleName%
-@REM echo trustStoreSimpleName=%trustStoreSimpleName%
-@REM echo REMOTE_SSL_KEYFILES=%REMOTE_SSL_KEYFILES%
-@REM echo .
-@REM echo COMMON_JVMARGS=%COMMON_JVMARGS%
-@REM echo .
-@REM echo DEFAULT_JVMARGS=%DEFAULT_JVMARGS%
-@REM echo .
-@REM echo JVMARGS=%JVMARGS%
-@REM echo .
-@REM echo logPropSimpleName=%logPropSimpleName%
-@REM echo log4jPropSimpleName=%log4jPropSimpleName%
-@REM echo defGpSimpleName=%defGpSimpleName%
-@REM echo DEFAULT_REMOTE_JVMARGS=%DEFAULT_REMOTE_JVMARGS%
-@REM echo REMOTE_JVMARGS=%REMOTE_JVMARGS%
 
 
 if "%arg_pos_1%" == "start" (
@@ -447,30 +410,21 @@ goto :EOF
 
 :get_file_list
 set cmdline_args=%*
-rem echo cmdline_args=%cmdline_args%
 set "jar_files=%CLASSPATH:;= %"
-rem echo jar_files=%jar_files%
 call :get_value "javax.net.ssl.keyStore" "!cmdline_args:"=""!" "%KEYSTORE%"
 set KEYSTORE=%value%
-rem echo KEYSTORE=%KEYSTORE%
 call :get_value "javax.net.ssl.keyStorePassword" "!cmdline_args:"=""!" "%DEFAULT_KEYSTORE_PASSWORD%"
 set keyStorePassword=%value%
-rem echo keyStorePassword=%keyStorePassword%
 call :get_value "javax.net.ssl.trustStore" "!cmdline_args:"=""!" "%TRUSTSTORE%"
 set TRUSTSTORE=%value%
-rem echo TRUSTSTORE=%TRUSTSTORE%
 call :get_value "javax.net.ssl.trustStorePassword" "!cmdline_args:"=""!" "%DEFAULT_TRUSTSTORE_PASSWORD%"
 set trustStorePassword=%value%
-rem echo trustStorePassword=%trustStorePassword%
 call :get_value "java.util.logging.config.file" "!cmdline_args:"=""!" "%LOG_PROPERTIES%"
 set LOG_PROPERTIES=%value%
-rem echo LOG_PROPERTIES=%LOG_PROPERTIES%
 call :get_value "log4j.configuration" "!cmdline_args:"=""!" "%LOG4J_PROPERTIES%"
 set LOG4J_PROPERTIES=%value%
-rem echo LOG4J_PROPERTIES=%LOG4J_PROPERTIES%
 
 set "conf_transferrables=%GP_PROPERTIES% %KEYSTORE% %TRUSTSTORE% %LOG_PROPERTIES% %LOG4J_PROPERTIES% %APP_RESOURCES%"
-rem echo conf_transferrables=%conf_transferrables%
 call :print 3 "transferrables=%jar_files% %conf_transferrables%"
 goto :EOF
 
@@ -484,9 +438,6 @@ goto :EOF
 set "key=%~1"
 set "cmdline_args=%~2"
 set "default_value_container=%~3"
-rem echo key=%key%
-rem echo cmdline_args=!cmdline_args!
-rem echo default_value_container=%default_value_container%
 set "record="
 set "value="
 set "cmdline_args=!cmdline_args:""="!"
@@ -535,7 +486,6 @@ goto :EOF
 :print
 set level=%~1
 set "msg=%~2"
-@REM echo hereh
 if %VERBOSE% geq %level% (
     set i=0
 
@@ -568,14 +518,8 @@ goto :EOF
 set src_file=%~1
 set default=%~2
 set unlink_first=%~3
-@REM echo unlink_first=%unlink_first%
 for %%I in ("%src_file%") do set "simple=%%~nxI"
 for %%I in ("%default%") do set "simple_default=%%~nxI"
-
-@REM echo src_file=%src_file%
-@REM echo simple=%simple%
-@REM echo default=%default%
-@REM echo simple_default=%simple_default%
 
 call :get_simple_name %default%
 set "link_target=%INSTALL_PATH%\%res%"
@@ -607,22 +551,14 @@ goto :EOF
 
 :clear_all
 echo %* | findstr /r /C:"clear[ ]*all" >nul
-@REM echo First line done
-@REM echo !errorlevel!
 if not errorlevel 1 (
-    @REM echo second line done
     echo %* | findstr /r /C:"forceclear[ ]*all" >nul
-    @REM echo scan completed
-    @REM echo !errorlevel!
     if "!errorlevel!" == "1" (
-        @REM echo yes here we are 
         set /p yn="Are you sure you want to wipe out all paxos state? "
-        @REM echo yn_9=!yn:~0,1!
         if "!yn:~0,1!"=="y" set "resp=T"
         if "!yn:~0,1!"=="Y" set "resp=T"
         if "!yn:~0,1!"=="n" set "resp=F"
         if "!yn:~0,1!"=="N" set "resp=F"
-        @REM echo resp=!resp!
         if "!resp!"=="F" (
             exit /b 0
         )
@@ -630,7 +566,6 @@ if not errorlevel 1 (
             echo Please answer yes or no.
             exit /b 0
         )
-        @REM echo Nahi pahuche
     )
     call :stop_servers
     for %%A in (%servers%) do (
@@ -670,26 +605,19 @@ if not "%servers%" == "" (
         echo [%APP%]
     )
     for %%A in (%servers%) do (
-        @REM echo starting server....... %%A
         call :start_server %%A
-        @REM echo done.....
     )
     if not "%non_local%" == "" (
-        @REM echo here....
         if %VERBOSE% gtr 0 (
             echo Ignoring non-local server^(s^) " %non_local%"
         )
     )
 )
-@REM echo done.....
-@REM echo done....
 goto :EOF
 
 :start_server
 set server=%~1
-@REM echo entered start_server.......
 call :get_address_port %server%
-@REM echo get_address_port paar kr lia 
 set "DEBUG_ARGS="
 if "%DEBUG_MODE%" == "true" (
     set "DEBUG_ARGS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=%DEBUG_PORT%"
@@ -698,20 +626,13 @@ if "%DEBUG_MODE%" == "true" (
     ) 
     set DEBUG_PORT+=1
 )
-@REM echo debug completed,,,,,
-@REM echo %ifconfig_cmd%
-@REM %ifconfig_cmd%
-@REM echo %address%
 %ifconfig_cmd% | findstr /c:"%address%" >nul
 if not errorlevel 1 (
-    @REM echo VERBOSE=%VERBOSE%
     if "%VERBOSE%" == "2" (
-        @REM echo VERBOSE=%VERBOSE%
         echo %JAVA% %DEBUG_ARGS% %JVMARGS% edu.umass.cs.reconfiguration.ReconfigurableNode %server%
     )
     start /B %JAVA% %DEBUG_ARGS% %JVMARGS% edu.umass.cs.reconfiguration.ReconfigurableNode %server%
 ) else (
-    @REM echo in else
     set "non_local=%server%=%addressport% %non_local%"
     echo Starting remote server %server%
     call :print 1 "Transferring jar files %jar_files% to %address%:%INSTALL_PATH%"
@@ -723,21 +644,15 @@ if not errorlevel 1 (
     start /B %SSH% %username%@%address% "cd %INSTALL_PATH%; nohup %JAVA% %DEBUG_ARGS% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode %APP_ARGS% %server% " 
 
 )
-@REM echo non_local=%non_local%
 
 goto :EOF
 
 :stop_servers
 set "pids="
 set "foundservers="
-@REM echo servers=%servers%
 for %%A in (%servers%) do (
     call :get_address_port %%A
-    @REM echo address=%address%
     set "server=%%A"
-    @REM echo server=!server!
-    @REM set "KILL_TARGET=ReconfigurableNode .*%%A"
-    @REM echo KILL_TARGET=%KILL_TARGET%
     %ifconfig_cmd% | findstr /c:"%address%" >nul
     if not errorlevel 0 (
         echo Stopping remote server %server%
@@ -745,11 +660,8 @@ for %%A in (%servers%) do (
         start /B %SSH% %username%@%address% "kill -9 \`ps -ef|grep \""%KILL_TARGET%\""|grep -v grep|awk '{print \$2}'\` 2>/dev/null"
     ) else (
         set "pid="
-        @REM echo here here
-        @REM echo !server!
         for /f "tokens=2 delims==" %%i in ('wmic process where "name='java.exe' and CommandLine like '%%!server!%%'" get ProcessId /format:list') do (
             set "pid=%%i"
-            @REM echo found with pid :: !pid!
         )
         if not "!pid!" == "" (
             set "foundservers=!server!^(!pid!^) !foundservers!"
@@ -757,12 +669,9 @@ for %%A in (%servers%) do (
         )
     )
 )
-@REM echo foundservers=%foundservers%
-@REM echo pids=%pids%###
 if not "%pids%" == "" (
     echo killing "%foundservers%"
     for %%i in (%pids%) do (
-        @REM wmic process where "ProcessId like '%%i'" call terminate 1>nul 2>&1
         taskkill /PID %%i /F 1>nul 2>&1
     )
 )
@@ -805,7 +714,6 @@ set "address="
 for /f "delims=:" %%B in ("!addressport!") do (
     set "address=%%B"
 )
-@REM echo %address%
 set "ifconfig_cmd=netsh interface ip show config"
 goto :EOF
 
