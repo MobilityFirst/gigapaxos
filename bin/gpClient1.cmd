@@ -73,27 +73,30 @@ set "SSL_OPTIONS= -Djavax.net.ssl.keyStorePassword=qwerty -Djavax.net.ssl.keySto
 set ARGS_EXCEPT_CLASSPATH=
 
 for %%A in (%*) do (
-  if "%%A"=="-cp" (
+  set "arg=%%~A"
+  if "!arg!"=="-cp" (
     set skip_next=1
-  ) else if "%%A"=="-classpath" (
+  ) else if "!arg!"=="-classpath" (
       set skip_next=1
   ) else if defined skip_next (
       set skip_next=
   ) else (
-      set "ARGS_EXCEPT_CLASSPATH_DEBUG=!ARGS_EXCEPT_CLASSPATH_DEBUG! %%A"
+      set "ARGS_EXCEPT_CLASSPATH=!ARGS_EXCEPT_CLASSPATH! %%A"
   )
 )
 
 set "ARGS_EXCEPT_CLASSPATH=!ARGS_EXCEPT_CLASSPATH:~1!"
+rem echo ARGS_EXCEPT_CLASSPATH=%ARGS_EXCEPT_CLASSPATH%
 
 set CLASSPATH_SUPPLIED=
 for %%A in (%*) do (
-  if "%%A"=="-cp" (
+  set "arg=%%~A"
+  if "!arg!"=="-cp" (
     set skip_next=1
   ) else if "%%A"=="-classpath" (
       set skip_next=1
   ) else if defined skip_next (
-      set CLASSPATH_SUPPLIED=%%A
+      set "CLASSPATH_SUPPLIED=!arg!"
   )
 )
 
@@ -101,6 +104,7 @@ if not "%CLASSPATH_SUPPLIED%"=="" (
     set CLASSPATH=%CLASSPATH_SUPPLIED%;%CLASSPATH%
 )
 
+rem echo CLASSPATH=%CLASSPATH%
 set DEFAULT_CLIENT_ARGS=
 for %%A in (%*) do (
     set "arg=%%~A"
