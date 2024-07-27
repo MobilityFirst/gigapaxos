@@ -1,15 +1,11 @@
-# Getting started with XDN
+# Deploying your own XDN cluster
 
-## Dependencies
-
-
-
-## Single-machine deployment
 
 ## Distributed deployment
 ### Using an existing XDN Provider
 
-### Being an XDN Provider
+
+### Becoming an XDN Provider
 
 # Replicate Blackbox Service with Existing XDN Provider
 
