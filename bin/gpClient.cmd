@@ -86,7 +86,6 @@ for %%A in (%*) do (
 )
 
 set "ARGS_EXCEPT_CLASSPATH=!ARGS_EXCEPT_CLASSPATH:~1!"
-rem echo ARGS_EXCEPT_CLASSPATH=%ARGS_EXCEPT_CLASSPATH%
 
 set CLASSPATH_SUPPLIED=
 for %%A in (%*) do (
@@ -104,7 +103,6 @@ if not "%CLASSPATH_SUPPLIED%"=="" (
     set CLASSPATH=%CLASSPATH_SUPPLIED%;%CLASSPATH%
 )
 
-rem echo CLASSPATH=%CLASSPATH%
 set DEFAULT_CLIENT_ARGS=
 for %%A in (%*) do (
     set "arg=%%~A"
@@ -154,10 +152,12 @@ set "JVM_APP_ARGS=%DEFAULT_JVMARGS% !ARGS_EXCEPT_CLASSPATH_!"
 set "APP="
 for /f "usebackq tokens=*" %%A in ("%GP_PROPERTIES%") do (
   set "line=%%A"
-  echo !line! | findstr /r /c:"^[ \t]*APPLICATION=" >nul
-  if not errorlevel 1 (
-    for /f "tokens=2 delims==" %%B in ("!line!") do (
+  if not "!line:~0,1!" == "#" (
+    echo !line! | findstr /r /c:"^[ \t]*APPLICATION=" >nul
+    if not errorlevel 1 (
+      for /f "tokens=2 delims==" %%B in ("!line!") do (
         set "APP=%%B"
+      )
     )
   )
 )

@@ -33,9 +33,9 @@ if not defined found (
     echo     %SCRIPT_FILENAME% start all
     echo     %SCRIPT_FILENAME% stop AR1 RC1
     echo     %SCRIPT_FILENAME% stop all
-    echo     %SCRIPT_FILENAME% -DgigapaxosConfig=\path\to\gigapaxos.properties start all
-    echo     %SCRIPT_FILENAME% -cp myjars1.jar:myjars2.jar -DgigapaxosConfig=\path\to\gigapaxos.properties -D%APP_RESOURCES_KEY%=\path\to\app\resources\dir\ -D%APP_ARGS_KEY%="-opt1=val1 -flag2 -str3=\"quoted arg example\" -n 50" -%DEBUG_KEY% start all 
-    echo  Note: -%DEBUG_KEY% option is insecure and should only be used during testing and development. 
+    echo     %SCRIPT_FILENAME% "-DgigapaxosConfig=\path\to\gigapaxos.properties" start all
+    echo     %SCRIPT_FILENAME% -cp myjars1.jar;myjars2.jar "-DgigapaxosConfig=\path\to\gigapaxos.properties" "-D%APP_RESOURCES_KEY%=\path\to\app\resources\dir\" "-D%APP_ARGS_KEY%=""-opt1=val1 -flag2 -str3=\""quoted arg example\"" -n 50"" " -%DEBUG_KEY% start all
+    echo  Note: -%DEBUG_KEY% option is insecure and should only be used during testing and development.
     exit /b 0
 )
 
@@ -48,6 +48,8 @@ if "%BINFILE%"=="" (
 for %%I in ("%BINFILE%") do set BINDIR=%%~dpI
 
 set BINDIR=%BINDIR:~0,-1%
+
+call "%BINDIR%"\gpEnv.cmd
 
 pushd %BINDIR%\..
 set HEAD=%CD%
@@ -114,8 +116,8 @@ set TRUSTSTORE=%retval%
 
 set VERBOSE=2
 set "JAVA=java"
-set "ACTIVE=active"
-set "RECONFIGURATOR=reconfigurator"
+set "ACTIVE_KEYWORD=active"
+set "RECONFIGURATOR_KEYWORD=reconfigurator"
 set "DEFAULT_APP_RESOURCES=app_resources"
 set "DEFAULT_KEYSTORE_PASSWORD=qwerty"
 set "DEFAULT_TRUSTSTORE_PASSWORD=qwerty"
@@ -210,7 +212,7 @@ for %%A in (%*) do (
         if "!arg!"=="restart" set "res=T"
         if "!arg!"=="clear" set "res=T"
         if "!arg!"=="forceclear" set "res=T"
-        
+
         if "!res!"=="T" (
             set i=1
             for %%A in (%*) do (
@@ -242,10 +244,12 @@ for %%I in ("%APP_RESOURCES%") do set "APP_RESOURCES_SIMPLE=%%~nxI"
 set "APP="
 for /f "usebackq tokens=*" %%A in ("%GP_PROPERTIES%") do (
   set "line=%%A"
-  echo !line! | findstr /r /c:"^[ \t]*APPLICATION=" >nul
-  if not errorlevel 1 (
-    for /f "tokens=2 delims==" %%B in ("!line!") do (
-        set "APP=%%B"
+  if not "!line:~0,1!" == "#" (
+    echo !line! | findstr /r /c:"^[ \t]*APPLICATION=" >nul
+    if not errorlevel 1 (
+        for /f "tokens=2 delims==" %%B in ("!line!") do (
+            set "APP=%%B"
+        )
     )
   )
 )
@@ -278,21 +282,21 @@ set "servers="
 if "%arg_pos_2%"=="all" (
     for /f "usebackq tokens=*" %%A in ("%GP_PROPERTIES%") do (
         set "line=%%A"
-        if "!line:~0,1!" neq "#" ( 
-            echo !line! | findstr /r /c:"^[ \t]*%RECONFIGURATOR%" >nul
+        if "!line:~0,1!" neq "#" (
+            echo !line! | findstr /r /c:"^[ \t]*%RECONFIGURATOR_KEYWORD%" >nul
             if not errorlevel 1 (
                 set "line2=!line:~15!"
                 for /f "delims==" %%B in ("!line2!") do (
                     set "reconfigurator=%%B"
-                    set "reconfigurators=!reconfigurators! !reconfigurator!" 
+                    set "reconfigurators=!reconfigurators! !reconfigurator!"
                 )
             )
-            echo !line! | findstr /r /c:"^[ \t]*%ACTIVE%" >nul
+            echo !line! | findstr /r /c:"^[ \t]*%ACTIVE_KEYWORD%" >nul
             if not errorlevel 1 (
                 set "line3=!line:~7!"
                 for /f "delims==" %%B in ("!line3!") do (
                     set "active=%%B"
-                    set "actives=!actives! !active!" 
+                    set "actives=!actives! !active!"
                 )
             )
         )
@@ -315,14 +319,32 @@ echo servers=[%servers%]
 call :get_file_list %*
 call :trim_file_list "%conf_transferrables%"
 
-set "SSH=ssh -x -o StrictHostKeyChecking=no"
-set "RSYNC_PATH=mkdir -p %INSTALL_PATH% %INSTALL_PATH%\%CONF%"
-set "RSYNC=rsync --force -aL "
+set "conf_transferrables_cygwin="
+for %%A in (%conf_transferrables%) do (
+    set "currFile=%%~A"
+    set "win_path=!currFile:\=/!"
+    if "!win_path:~1,1!"==":" (
+        set "drive=!win_path:~0,1!"
+        set "path_rest=!win_path:~2!"
+        set "cyg_path=/cygdrive/!drive!!path_rest!"
+    ) else (
+        set "cyg_path=!win_path!"
+    )
+    set "conf_transferrables_cygwin=!conf_transferrables_cygwin! !cyg_path!"
+)
+set "conf_transferrables_cygwin=%conf_transferrables_cygwin:~1%"
+
+
+
+set "SSH=ssh -x -o StrictHostKeyChecking=no -i %SSH_KEY%"
+set "RSYNC_PATH=mkdir -p %INSTALL_PATH% %INSTALL_PATH%/%CONF% %INSTALL_PATH%/jars"
+set "RSYNC=""%RSYNC_COMMAND%"" --force -aL"
+set "RSYNC_SSH_INFO='%SSH_LOC%' -x -o StrictHostKeyChecking=no -i %SSH_KEY%"
 
 set "username="
 for /f "usebackq tokens=*" %%A in ("%GP_PROPERTIES%") do (
     set "line=%%A"
-    if "!line:~0,1!" neq "#" ( 
+    if "!line:~0,1!" neq "#" (
         echo !line! | findstr /r /c:"^[ \t]*USERNAME=" >nul
         if not errorlevel 1 (
             for /f "tokens=2 delims==" %%B in ("!line!") do (
@@ -372,7 +394,8 @@ set defGpSimpleName=%res%
 set "DEFAULT_REMOTE_JVMARGS=%COMMON_JVMARGS% %REMOTE_SSL_KEYFILES% -Djava.util.logging.config.file=%logPropSimpleName% -Dlog4j.configuration=%log4jPropSimpleName% -DgigapaxosConfig=%defGpSimpleName%"
 
 set "REMOTE_JVMARGS=%SUPPLIED_JVMARGS% %DEFAULT_REMOTE_JVMARGS%"
-
+set "REMOTE_JVMARGS=%REMOTE_JVMARGS:\=/%"
+set "REMOTE_JVMARGS=%REMOTE_JVMARGS:"=%"
 
 
 if "%arg_pos_1%" == "start" (
@@ -411,6 +434,21 @@ goto :EOF
 :get_file_list
 set cmdline_args=%*
 set "jar_files=%CLASSPATH:;= %"
+set "jar_files_cygwin="
+for %%A in (%jar_files%) do (
+    set "currFile=%%~A"
+    set "win_path=!currFile:\=/!"
+    if "!win_path:~1,1!"==":" (
+        set "drive=!win_path:~0,1!"
+        set "path_rest=!win_path:~2!"
+        set "cyg_path=/cygdrive/!drive!!path_rest!"
+    ) else (
+        set "cyg_path=!win_path!"
+    )
+    set "jar_files_cygwin=!jar_files_cygwin! !cyg_path!"
+)
+set "jar_files_cygwin=%jar_files_cygwin:~1%"
+
 call :get_value "javax.net.ssl.keyStore" "!cmdline_args:"=""!" "%KEYSTORE%"
 set KEYSTORE=%value%
 call :get_value "javax.net.ssl.keyStorePassword" "!cmdline_args:"=""!" "%DEFAULT_KEYSTORE_PASSWORD%"
@@ -491,7 +529,7 @@ if %VERBOSE% geq %level% (
 
     :loop
     <nul set /p= :
-    set i+=1
+    set /A i+=1
     if %i% lss %level% goto :loop
 
     echo %msg%
@@ -538,7 +576,7 @@ if not "%unlink_first%"=="" (
         del "%link_target%"
     )
     set "cur_link=if exist %link_target% (fsutil reparsepoint query %link_target% >nul 2>&1 & if not errorlevel 1 (del %link_target%)) & %cur_link%"
-) 
+)
 
 if exist %src_file% if not "%simple%" == "%simple_default%" (
     if "%LINK_CMD%"=="" (
@@ -570,14 +608,14 @@ if not errorlevel 1 (
     call :stop_servers
     for %%A in (%servers%) do (
         call :get_address_port %%A
-        %ifconfig_cmd% | find "%address%" >nul 2>&1
+        call !ifconfig_cmd! | find "!address!" >nul 2>&1
         if not errorlevel 1 (
             call :print 3 "%JAVA% %JVMARGS% edu.umass.cs.reconfiguration.ReconfigurableNode clear %%A"
             start /B %JAVA% %JVMARGS% edu.umass.cs.reconfiguration.ReconfigurableNode clear %%A
         ) else (
-            echo Clearing state on remote server %server%
-            call :print 2 "%SSH% %username%@%address% \""cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode clear %server% \"" "
-            start /B %SSH% %username%@%address% "cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode clear %server% "
+            echo Clearing state on remote server %%A
+            @REM call :print 2 "%SSH% %username%@%address% \""cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode clear %server% \"" "
+            start /B %SSH% -i %SSH_KEY% %username%@%address% "cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp `ls jars/*|awk '{printf \$0\"":\""}'` edu.umass.cs.reconfiguration.ReconfigurableNode clear %%A "
         )
     )
 ) else (
@@ -623,7 +661,7 @@ if "%DEBUG_MODE%" == "true" (
     set "DEBUG_ARGS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=%DEBUG_PORT%"
     if %VERBOSE%==2 (
         echo Debug: %server% at %address%:%DEBUG_PORT%
-    ) 
+    )
     set DEBUG_PORT+=1
 )
 %ifconfig_cmd% | findstr /c:"%address%" >nul
@@ -635,13 +673,13 @@ if not errorlevel 1 (
 ) else (
     set "non_local=%server%=%addressport% %non_local%"
     echo Starting remote server %server%
-    call :print 1 "Transferring jar files %jar_files% to %address%:%INSTALL_PATH%"
-    call :print 2 "%RSYNC% --rsync-path=\""%RSYNC_PATH% && rsync\"" %jar_files% %username%@%address%:%INSTALL_PATH%/jars/ %RSYNC% --rsync-path=""%RSYNC_PATH% && rsync"" %jar_files% %username%@%address%:%INSTALL_PATH%/jars/ "
+    call :print 1 "Transferring jar files %jar_files% to ""%address%:%INSTALL_PATH%"" "
+    @REM call :print 2 "%RSYNC% --rsync-path=""%RSYNC_PATH% and rsync"" --rsh=""%RSYNC_SSH_INFO%"" %jar_files% %username%@%address%:%INSTALL_PATH%/jars/ "
+    %RSYNC% --rsync-path="%RSYNC_PATH% && rsync" --rsh="%RSYNC_SSH_INFO%" %jar_files_cygwin% %username%@%address%:%INSTALL_PATH%/jars/ 2>nul
     call :rsync_symlink %address%
 
-    call :print 2 "start /B %SSH% %username%@%address% \""cd %INSTALL_PATH%; nohup %JAVA% %DEBUG_ARGS% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode %APP_ARGS% %server% \"" "
-    
-    start /B %SSH% %username%@%address% "cd %INSTALL_PATH%; nohup %JAVA% %DEBUG_ARGS% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode %APP_ARGS% %server% " 
+    @REM call :print 2 "start /B %SSH% %username%@%address% \""cd %INSTALL_PATH%; nohup %JAVA% %DEBUG_ARGS% %REMOTE_JVMARGS% -cp \`ls jars/*\|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode %APP_ARGS% %server% \"" "
+    start /B %SSH% %username%@%address% "cd %INSTALL_PATH%; nohup %JAVA% %DEBUG_ARGS% %REMOTE_JVMARGS% -cp `ls jars/*|awk '{printf \$0\"":\""}'` edu.umass.cs.reconfiguration.ReconfigurableNode %APP_ARGS% %server% "
 
 )
 
@@ -653,20 +691,23 @@ set "foundservers="
 for %%A in (%servers%) do (
     call :get_address_port %%A
     set "server=%%A"
-    %ifconfig_cmd% | findstr /c:"%address%" >nul
-    if not errorlevel 0 (
-        echo Stopping remote server %server%
-        echo %SSH% %username%@%address% "kill -9 \`ps -ef|grep \""%KILL_TARGET%\""|grep -v grep|awk '{print \$2}'\` 2>/dev/null\"""
-        start /B %SSH% %username%@%address% "kill -9 \`ps -ef|grep \""%KILL_TARGET%\""|grep -v grep|awk '{print \$2}'\` 2>/dev/null"
-    ) else (
+    set "KILL_TARGET=ReconfigurableNode .*%%A"
+    call !ifconfig_cmd! | findstr /c:"!address!" >nul
+    if not errorlevel 1 (
         set "pid="
-        for /f "tokens=2 delims==" %%i in ('wmic process where "name='java.exe' and CommandLine like '%%!server!%%'" get ProcessId /format:list') do (
+        wmic process where "name='java.exe' and CommandLine like '%%!server!%%'" get ProcessId /format:list 2>nul | find "ProcessId=" > temp.txt
+        for /f "tokens=2 delims==" %%i in (temp.txt) do (
             set "pid=%%i"
         )
+        del temp.txt
         if not "!pid!" == "" (
             set "foundservers=!server!^(!pid!^) !foundservers!"
             set "pids=!pids! !pid!"
         )
+    ) else (
+        echo Stopping remote server %%A
+        @REM echo %SSH% %username%@!address! "kill -9 `ps -ef|grep \""%KILL_TARGET%\""|grep -v grep|awk '{print \$2}'` 2>/dev/null\"""
+        start /B %SSH% %username%@!address! "kill -9 `ps -ef|grep \""!KILL_TARGET!\""|grep -v grep|awk '{print \$2}'` 2>/dev/null"
     )
 )
 if not "%pids%" == "" (
@@ -680,8 +721,8 @@ goto :EOF
 :rsync_symlink
 set "address=%~1"
 call :print 1 "Transferring conf files to %address%:%INSTALL_PATH%"
-call :print 2 "%RSYNC% --rsync-path=\""%RSYNC_PATH% %LINK_CMD% && rsync\"" %conf_transferrables% %username%@%address%:%INSTALL_PATH%/%CONF%/"
-%RSYNC% --rsync-path="%RSYNC_PATH% %LINK_CMD% && rsync" %conf_transferrables% %username%@%address%:%INSTALL_PATH%/%CONF%/ 
+call :print 2 "%RSYNC% --rsync-path=""%RSYNC_PATH% %LINK_CMD% and rsync"" --rsh=""%RSYNC_SSH_INFO%"" %conf_transferrables% %username%@%address%:%INSTALL_PATH%/%CONF%/"
+%RSYNC% --rsync-path="%RSYNC_PATH% %LINK_CMD% && rsync" --rsh="%RSYNC_SSH_INFO%" %conf_transferrables_cygwin% %username%@%address%:%INSTALL_PATH%/%CONF%/ 2>nul
 goto :EOF
 
 :get_address_port
@@ -690,14 +731,14 @@ set "addressport="
 for /f "usebackq tokens=*" %%A in ("%GP_PROPERTIES%") do (
     set "line=%%A"
     if "!line:~0,1!" neq "#" (
-        echo !line! | findstr /r /c:"^[ \t]*%ACTIVE%.%server%=" >nul
+        echo !line! | findstr /r /c:"^[ \t]*%ACTIVE_KEYWORD%.%server%=" >nul
         if not errorlevel 1 (
             for /f "tokens=2 delims==" %%B in ("!line!") do (
                 set "addressport=%%~B"
             )
         )
         if "!addressport!" == "" (
-            echo !line! | findstr /r /c:"^[ \t]*%RECONFIGURATOR%.%server%=" >nul
+            echo !line! | findstr /r /c:"^[ \t]*%RECONFIGURATOR_KEYWORD%.%server%=" >nul
             if not errorlevel 1 (
                 for /f "tokens=2 delims==" %%B in ("!line!") do (
                     set "addressport=%%~B"
@@ -716,7 +757,6 @@ for /f "delims=:" %%B in ("!addressport!") do (
 )
 set "ifconfig_cmd=netsh interface ip show config"
 goto :EOF
-
 
 
 
