@@ -2,11 +2,12 @@
 # xdnd - xdn daemon shell script
 # Script to start xdn node as either Reconfigurator (RC) or Active Replica (AR).
 
-SSH_KEY_LOC=/Users/fikurnia/.ssh/cloudlab2
-SSH_USERNAME=fadhil
-
 # ensure to throw error for undefined variables.
 set -u
+
+# handle perl warning: "perl: warning: Setting locale failed."
+LC_CTYPE=en_US.UTF-8
+LC_ALL=en_US.UTF-8
 
 function do_system_check() {
   echo "The following systems/dependencies are required to run XDN."
@@ -176,11 +177,11 @@ function install_dependencies() {
   CMD_DESC+=("update apt packages")
   CMD+=("sudo apt-get update")
   CMD_DESC+=("install dialog frontend")
-  CMD+=("sudo apt-get install dialog apt-utils -y")
+  CMD+=("sudo DEBIAN_FRONTEND=noninteractive apt-get install dialog apt-utils -y")
 
   # libfuse3
   CMD_DESC+=("install libfuse3 for Fuselog")
-  CMD+=("sudo apt-get install -y pkg-config libfuse3-dev")
+  CMD+=("sudo DEBIAN_FRONTEND=noninteractive apt-get install -y pkg-config libfuse3-dev")
 
   # install golang
   CMD_DESC+=("download golang")
@@ -202,7 +203,7 @@ function install_dependencies() {
   CMD_DESC+=("install docker - (5) update apt sources")
   CMD+=('echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null')
   CMD_DESC+=("install docker - (6) get docker from the newly registered repo")
-  CMD+=("sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin")
+  CMD+=("sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin")
 
   # make docker accessible without sudo by the used user
   CMD_DESC+=("install docker - (7) create docker group")
@@ -212,7 +213,7 @@ function install_dependencies() {
 
   # install java21
   CMD_DESC+=("install java21")
-  CMD+=("sudo apt-get install -y openjdk-21-jdk ant")
+  CMD+=("sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jdk ant")
 
   for i in "${!CMD_DESC[@]}"; do
     desc=${CMD_DESC[$i]}
@@ -249,8 +250,8 @@ function upload_binaries() {
   CMD+=("rm -rf xdn")
   CMD+=("git clone $git_url xdn > /dev/null")
   CMD+=("cd xdn && git checkout $git_branch > /dev/null && ant jar")
-  CMD+=("sudo unlink /usr/local/bin/fuselog && sudo rm -rf /usr/local/bin/fuselog")
-  CMD+=("sudo unlink /usr/local/bin/fuselog-apply && sudo rm -rf /usr/local/bin/fuselog-apply")
+  CMD+=("sudo unlink /usr/local/bin/fuselog 2>&1 > /dev/null && sudo rm -rf /usr/local/bin/fuselog")
+  CMD+=("sudo unlink /usr/local/bin/fuselog-apply 2>&1 > /dev/null && sudo rm -rf /usr/local/bin/fuselog-apply")
   CMD+=('sudo ln -s $HOME/xdn/bin/fuselog /usr/local/bin/fuselog')
   CMD+=('sudo ln -s $HOME/xdn/bin/fuselog-apply /usr/local/bin/fuselog-apply')
   CMD+=("sudo sed -i 's/#user_allow_other/user_allow_other/g' /etc/fuse.conf")

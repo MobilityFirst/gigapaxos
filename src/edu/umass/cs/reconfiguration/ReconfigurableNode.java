@@ -23,7 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 
+import edu.umass.cs.cops.CopsReplicaCoordinator;
 import edu.umass.cs.nio.NIOTransport;
+import edu.umass.cs.nio.interfaces.Stringifiable;
+import edu.umass.cs.pram.PramReplicaCoordinator;
 import edu.umass.cs.xdn.XDNReplicaCoordinator;
 import org.json.JSONObject;
 
@@ -203,20 +206,46 @@ public abstract class ReconfigurableNode<NodeIDType> {
 
         String coordinatorClassName = Config.getGlobalString(
                 ReconfigurationConfig.RC.REPLICA_COORDINATOR_CLASS);
-        if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PaxosReplicaCoordinator"))
-            return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
-                    messenger).setOutOfOrderLimit(Config
-                    .getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
-        else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.ChainAndPaxosReplicaCoordinator"))
-            return null;
-        else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.ChainReplicaCoordinator"))
-            return new ChainReplicaCoordinator<NodeIDType>(app, myID, nodeConfig,
-                    messenger);
-        else if (coordinatorClassName.equals("edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator"))
-            return new PrimaryBackupReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
-        else if (coordinatorClassName.equals("edu.umass.cs.xdn.XDNReplicaCoordinator"))
-            return new XDNReplicaCoordinator<NodeIDType>(app, myID, nodeConfig, messenger);
 
+        Stringifiable<NodeIDType> nodeIDStringifier = null;
+        if (nodeConfig instanceof Stringifiable<NodeIDType> s) {
+            nodeIDStringifier = s;
+        }
+
+        switch (coordinatorClassName) {
+            case "edu.umass.cs.reconfiguration.PaxosReplicaCoordinator" -> {
+                return new PaxosReplicaCoordinator<NodeIDType>(app, myID, nodeIDStringifier,
+                        messenger).setOutOfOrderLimit(Config
+                        .getGlobalInt(ReconfigurationConfig.RC.OUT_OF_ORDER_LIMIT));
+            }
+            case "edu.umass.cs.reconfiguration.ChainAndPaxosReplicaCoordinator" -> {
+                ReconfigurationConfig.getLogger().log(
+                        Level.SEVERE, "Unimplemented ChainAndPaxosReplicaCoordinator");
+            }
+            case "edu.umass.cs.reconfiguration.ChainReplicaCoordinator" -> {
+                return new ChainReplicaCoordinator<NodeIDType>(app, myID, nodeIDStringifier,
+                        messenger);
+            }
+            case "edu.umass.cs.reconfiguration.PrimaryBackupReplicaCoordinator" -> {
+                return new PrimaryBackupReplicaCoordinator<NodeIDType>(
+                        app, myID, nodeIDStringifier, messenger);
+            }
+            case "edu.umass.cs.xdn.XDNReplicaCoordinator" -> {
+                return new XDNReplicaCoordinator<NodeIDType>(
+                        app, myID, nodeIDStringifier, messenger);
+            }
+            case "edu.umass.cs.cops.CopsReplicaCoordinator" -> {
+                return new CopsReplicaCoordinator<NodeIDType>(
+                        app, myID, nodeIDStringifier, messenger);
+            }
+            case "edu.umass.cs.pram.PramReplicaCoordinator" -> {
+                return new PramReplicaCoordinator<NodeIDType>(app, myID, nodeIDStringifier, messenger);
+            }
+        }
+
+        ReconfigurationConfig.getLogger().log(
+                Level.SEVERE, "Unknown replica coordinator class of " + coordinatorClassName);
+        System.exit(-1);
         return null;
 
         // FIXME: instantiating {@link ReplicaCoordinator} with Generic type

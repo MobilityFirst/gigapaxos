@@ -205,7 +205,7 @@ public class MonotonicApp implements Replicable, Reconfigurable, BackupableAppli
         }
 
         this.sequence.clear();
-        String[] numberStrings = state.split("\\.");
+        String[] numberStrings = state.split(",");
         for (String numberStr : numberStrings) {
             String[] numberRaw = numberStr.split(":");
             int timestamp = Integer.parseInt(numberRaw[0]);

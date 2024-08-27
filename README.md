@@ -1,6 +1,27 @@
 # XDN - Replicating Blackbox Stateful Services to Live on the Edge
 
-## Systems requirement
+## Project structure
+```
+xdn/
+├─ bin/                                   // binaries
+├─ cli/                                   // xdn cli for developers
+├─ conf/                                  // configuration
+├─ dns/                                   // nameserver for xdn
+├─ docs/
+├─ lib/
+├─ services/
+├─ src/
+│  ├─ edu.umass.cs
+│  │  ├─ reconfigurator/
+│  │  │  ├─ reconfiguration/
+│  │  │  │  ├─ ReconfigurableNode.java     // the main() method for a Node
+├─ tests/
+├─ build.xml
+├─ LICENSE.txt
+├─ README.md
+```
+
+## System requirements
 We developed and tested XDN on rs630 machines in the CloudLab, generally with
 the following system requirements:
 - Linux 5.15 or newer with x86-64 architecture

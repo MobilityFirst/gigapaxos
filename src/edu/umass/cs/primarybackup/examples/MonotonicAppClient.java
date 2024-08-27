@@ -2,11 +2,8 @@ package edu.umass.cs.primarybackup.examples;
 
 import edu.umass.cs.gigapaxos.interfaces.Request;
 import edu.umass.cs.gigapaxos.interfaces.RequestFuture;
-import edu.umass.cs.nio.SSLDataProcessingWorker;
 import edu.umass.cs.nio.interfaces.IntegerPacketType;
 import edu.umass.cs.reconfiguration.ReconfigurableAppClientAsync;
-import edu.umass.cs.reconfiguration.ReconfigurationConfig;
-import edu.umass.cs.reconfiguration.interfaces.ReconfigurableNodeConfig;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ClientReconfigurationPacket;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.CreateServiceName;
 import edu.umass.cs.reconfiguration.reconfigurationpackets.ReplicableClientRequest;
@@ -15,15 +12,14 @@ import edu.umass.cs.utils.Util;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public class MonotonicAppClient extends ReconfigurableAppClientAsync<MonotonicAppRequest> {
 
     public MonotonicAppClient() throws IOException {
         super();
-        // TODO: confirm the weird value of the default configuration
-        //  super(new HashSet<InetSocketAddress>(List.of(new InetSocketAddress(3000))));
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

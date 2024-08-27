@@ -640,8 +640,10 @@ public class ActiveReplica<NodeIDType> implements ReconfiguratorCallback,
 
 		long entryTime = System.nanoTime();
 		@SuppressWarnings("unchecked")
-		BasicReconfigurationPacket<NodeIDType> rcPacket = incoming instanceof BasicReconfigurationPacket ? (BasicReconfigurationPacket<NodeIDType>) incoming
-				: null;
+		BasicReconfigurationPacket<NodeIDType> rcPacket =
+				(incoming instanceof BasicReconfigurationPacket)
+						? (BasicReconfigurationPacket<NodeIDType>) incoming
+						: null;
 		
 		try {
 			// try handling as reconfiguration packet through protocol task

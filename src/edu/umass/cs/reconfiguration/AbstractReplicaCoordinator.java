@@ -119,12 +119,14 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 
 	/********************* End of abstract methods ***********************************************/
 
-	private static ConcurrentMap<Replicable, AbstractReplicaCoordinator<?>> appCoordMap = new ConcurrentHashMap<Replicable, AbstractReplicaCoordinator<?>>();
+	private static ConcurrentMap<Replicable, AbstractReplicaCoordinator<?>> appCoordMap =
+			new ConcurrentHashMap<Replicable, AbstractReplicaCoordinator<?>>();
 
 	// A replica coordinator is meaningless without an underlying app
 	protected AbstractReplicaCoordinator(Replicable app) {
 		appCoordMap.putIfAbsent(app, this);
-		this.app = app instanceof AbstractReplicaCoordinator ? ((AbstractReplicaCoordinator<?>) app).app
+		this.app = (app instanceof AbstractReplicaCoordinator)
+				? ((AbstractReplicaCoordinator<?>) app).app
 				: new TrivialRepliconfigurable(app);
 
 		this.messenger = null;
@@ -324,8 +326,7 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 			}
 		}
 		Request request = null;
-		if(this.parser!=null && (request = this.parser.getRequest(stringified))
-				!=null)
+		if(this.parser != null && (request = this.parser.getRequest(stringified)) != null)
 			return request;
 		// else
 		return this.app.getRequest(stringified);
@@ -370,13 +371,12 @@ public abstract class AbstractReplicaCoordinator<NodeIDType> implements
 			int inferredRequestType = ByteBuffer.wrap(bytes).getInt();
 			int replicableClientRequestType = ReconfigurationPacket.PacketType.
 					REPLICABLE_CLIENT_REQUEST.getInt();
-			return inferredRequestType == replicableClientRequestType ?
-					(this.app instanceof AppRequestParserBytes ?
-							new ReplicableClientRequest(
-									bytes, header, (AppRequestParserBytes) this.app)
-							: new ReplicableClientRequest(bytes, (AppRequestParser) this.app))
-					: this.app instanceof AppRequestParserBytes ?
-						((AppRequestParserBytes) this.app).getRequest(bytes, header)
+			return (inferredRequestType == replicableClientRequestType)
+					? (this.app instanceof AppRequestParserBytes
+						? new ReplicableClientRequest(bytes, header, this.app)
+						: new ReplicableClientRequest(bytes, this.app))
+					: this.app instanceof AppRequestParserBytes
+						? ((AppRequestParserBytes) this.app).getRequest(bytes, header)
 						: this.app.getRequest(new String(bytes, NIOHeader.CHARSET));
 		} catch (UnsupportedEncodingException e) {
 			throw new RequestParseException(e);

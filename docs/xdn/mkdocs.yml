@@ -1,0 +1,46 @@
+# Project information
+site_name: XDN
+repo_url: https://github.com/fadhilkurnia/xdn
+repo_name: fadhilkurnia/xdn
+site_url: https://xdn.cs.umass.edu/
+site_description: XDN - replicating service at the edge
+site_author: Fadhil I. Kurnia
+copyright: Copyright &copy; 2024 Fadhil I. Kurnia - University of Massachusetts Amherst
+
+# Theme configuration
+theme:
+  name: material
+  logo: 'images/icons8-octopus-100.png'
+  favicon: 'images/icons8-octopus-100.png'
+  palette:
+    primary: light blue
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.footer
+extra:
+  homepage: https://xdn.cs.umass.edu/
+
+# Extensions
+markdown_extensions:
+  - attr_list
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+# Pages and main contents
+nav:
+  - Home: 'index.md'
+  - Getting Started: '1-getting-started.md'
+  - Consistency: '3-flexible-consistency.md'
+  - Service Properties: '5-service-properties.md'
+  - Deployment: '2-become-operator.md'
+  - Architecture: '4-how-xdn-work.md'
