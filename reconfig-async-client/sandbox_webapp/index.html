@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Web App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Reconfigurable Client</h1>
+        <div class="input-group">
+            <input style="text-align: center" type="text" id="requestInput" placeholder="Enter request data" />
+        </div>
+
+        <div style="text-align: center" class="button-group" >
+            <button id="initClientButton" onclick="initClientButtonClick()">Initialize Client</button>
+            <button id="sendRequestButton" disabled onclick="sendRequestButtonClick()">Send Request</button>
+            <button id="closeClientButton" disabled onclick="closeClientButtonClick()">Close Client</button>
+        </div>
+
+        <div id="responseContainer"></div>
+    </div>
+    <script src="script.js"></script>
+<!--    <script src="../dist/reconfig-async-client.js"></script>-->
+    <script src="../src/reconfig-async-client.js"></script>
+</body>
+</html>
