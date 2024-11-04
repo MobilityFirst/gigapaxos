@@ -28,13 +28,13 @@ set "SCRIPT_FILENAME=%parentDir%\%~nx0"
 if not defined found (
     echo Usage: %SCRIPT_FILENAME% [JVMARGS] [-D%APP_RESOURCES_KEY%=APP_RESOURCES_DIR] [-D%APP_ARGS_KEY%="APP_ARGS"] [-%DEBUG_KEY%] ^stop^|^start^|^restart^|^clear^|^forceclear all^|server_names
     echo Examples:
-    echo     %SCRIPT_FILENAME% start AR1
-    echo     %SCRIPT_FILENAME% start AR1 AR2 RC1
-    echo     %SCRIPT_FILENAME% start all
-    echo     %SCRIPT_FILENAME% stop AR1 RC1
-    echo     %SCRIPT_FILENAME% stop all
-    echo     %SCRIPT_FILENAME% "-DgigapaxosConfig=\path\to\gigapaxos.properties" start all
-    echo     %SCRIPT_FILENAME% -cp myjars1.jar;myjars2.jar "-DgigapaxosConfig=\path\to\gigapaxos.properties" "-D%APP_RESOURCES_KEY%=\path\to\app\resources\dir\" "-D%APP_ARGS_KEY%=""-opt1=val1 -flag2 -str3=\""quoted arg example\"" -n 50"" " -%DEBUG_KEY% start all
+    echo     .\%SCRIPT_FILENAME% start AR1
+    echo     .\%SCRIPT_FILENAME% start AR1 AR2 RC1
+    echo     .\%SCRIPT_FILENAME% start all
+    echo     .\%SCRIPT_FILENAME% stop AR1 RC1
+    echo     .\%SCRIPT_FILENAME% stop all
+    echo     .%SCRIPT_FILENAME% "-DgigapaxosConfig=\path\to\gigapaxos.properties" start all
+    echo     .\%SCRIPT_FILENAME% -cp myjars1.jar;myjars2.jar "-DgigapaxosConfig=\path\to\gigapaxos.properties" "-D%APP_RESOURCES_KEY%=\path\to\app\resources\dir\" "-D%APP_ARGS_KEY%=""-opt1=val1 -flag2 -str3=\""quoted arg example\"" -n 50"" " -%DEBUG_KEY% start all
     echo  Note: -%DEBUG_KEY% option is insecure and should only be used during testing and development.
     exit /b 0
 )
@@ -615,7 +615,7 @@ if not errorlevel 1 (
         ) else (
             echo Clearing state on remote server %%A
             @REM call :print 2 "%SSH% %username%@%address% \""cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp \`ls jars/*|awk '{printf \$0\"":\""}'\` edu.umass.cs.reconfiguration.ReconfigurableNode clear %server% \"" "
-            start /B %SSH% -i %SSH_KEY% %username%@%address% "cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp `ls jars/*|awk '{printf \$0\"":\""}'` edu.umass.cs.reconfiguration.ReconfigurableNode clear %%A "
+            start /B %SSH% -i %SSH_KEY% %username%@!address! "cd %INSTALL_PATH%; nohup %JAVA% %REMOTE_JVMARGS% -cp `ls jars/*|awk '{printf \$0\"":\""}'` edu.umass.cs.reconfiguration.ReconfigurableNode clear %%A "
         )
     )
 ) else (

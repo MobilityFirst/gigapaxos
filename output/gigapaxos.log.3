@@ -1,0 +1,96 @@
+2024-11-03 18:59:29 [INFO] AdderRC0:AdderRC0 listening on /127.0.0.1:7000
+2024-11-03 18:59:29 [INFO] MessageNIOTransport:AdderRC0:0 listening on channel sun.nio.ch.ServerSocketChannelImpl[/127.0.0.1:7000] with ssl mode CLEAR
+2024-11-03 18:59:32 [INFO] MLog clients using java 1.4+ standard logging.
+2024-11-03 18:59:32 [INFO] Initializing c3p0-0.9.5 [built 02-January-2015 13:25:04 -0500; debug? true; trace: 10]
+2024-11-03 18:59:32 [INFO] Attempting getDefaultConn() to DB jdbc:derby:/tmp/gigapaxos/reconfiguration_DB/reconfiguration_DBAdderRC0
+2024-11-03 18:59:32 [INFO] Initializing c3p0 pool... com.mchange.v2.c3p0.ComboPooledDataSource [ acquireIncrement -> 3, acquireRetryAttempts -> 30, acquireRetryDelay -> 1000, autoCommitOnClose -> true, automaticTestTable -> null, breakAfterAcquireFailure -> false, checkoutTimeout -> 0, connectionCustomizerClassName -> null, connectionTesterClassName -> com.mchange.v2.c3p0.impl.DefaultConnectionTester, contextClassLoaderSource -> caller, dataSourceName -> 1br94d0b61vtxsp710ith2g|544d57e, debugUnreturnedConnectionStackTraces -> false, description -> null, driverClass -> org.apache.derby.jdbc.EmbeddedDriver, extensions -> {}, factoryClassLocation -> null, forceIgnoreUnresolvedTransactions -> false, forceUseNamedDriverClass -> false, identityToken -> 1br94d0b61vtxsp710ith2g|544d57e, idleConnectionTestPeriod -> 0, initialPoolSize -> 3, jdbcUrl -> jdbc:derby:/tmp/gigapaxos/reconfiguration_DB/reconfiguration_DBAdderRC0, maxAdministrativeTaskTime -> 0, maxConnectionAge -> 0, maxIdleTime -> 0, maxIdleTimeExcessConnections -> 0, maxPoolSize -> 100, maxStatements -> 0, maxStatementsPerConnection -> 0, minPoolSize -> 3, numHelperThreads -> 3, preferredTestQuery -> null, privilegeSpawnedThreads -> false, properties -> {password=******, user=******}, propertyCycle -> 0, statementCacheNumDeferredCloseThreads -> 0, testConnectionOnCheckin -> false, testConnectionOnCheckout -> false, unreturnedConnectionTimeout -> 0, userOverrides -> {}, usesTraditionalReflectiveProxies -> false ]
+2024-11-03 18:59:32 [INFO] Connected to and created database reconfiguration_DBAdderRC0
+2024-11-03 18:59:32 [INFO] Table checkpointAdderRC0 already exists
+2024-11-03 18:59:32 [INFO] Table checkpointAdderRC0 already exists
+2024-11-03 18:59:32 [INFO] Table demandAdderRC0 already exists
+2024-11-03 18:59:32 [INFO] Table nodeconfigAdderRC0 already exists
+2024-11-03 18:59:32 [INFO] DerbyRCDBAdderRC0 created (or exists) tables [checkpointAdderRC0, messagesAdderRC0, demandAdderRC0, nodeconfigAdderRC0]
+2024-11-03 18:59:33 [INFO] DerbyRCDBAdderRC0 proceeding with node config version AdderAR0:/127.0.0.1:6000 AdderAR1:/127.0.0.1:6001 AdderAR2:/127.0.0.1:6002 
+AdderRC0:/127.0.0.1:7000 AdderRC1:/127.0.0.1:7001 AdderRC2:/127.0.0.1:7002 : 
+2024-11-03 18:59:33 [INFO] DerbyRCDBAdderRC0 initializing with RC records in DB = 
+2024-11-03 18:59:33 [INFO] JSONMessengerAdderRC0 starting worker with ssl mode CLEAR
+2024-11-03 18:59:33 [INFO] MessageNIOTransport:null:0 listening on channel sun.nio.ch.ServerSocketChannelImpl[/127.0.0.1:56246] with ssl mode CLEAR
+2024-11-03 18:59:33 [INFO] JournalerAdderRC0 created new log file /tmp/gigapaxos/paxos_logs/paxos_journal.AdderRC0/log.AdderRC0.192f4783b0c
+2024-11-03 18:59:33 [INFO] SQLPaxosLoggerAdderRC0 attempting getCursorConn() to db jdbc:derby:/tmp/gigapaxos/paxos_logs/paxos_dbAdderRC0
+2024-11-03 18:59:33 [INFO] Initializing c3p0 pool... com.mchange.v2.c3p0.ComboPooledDataSource [ acquireIncrement -> 3, acquireRetryAttempts -> 30, acquireRetryDelay -> 1000, autoCommitOnClose -> true, automaticTestTable -> null, breakAfterAcquireFailure -> false, checkoutTimeout -> 0, connectionCustomizerClassName -> null, connectionTesterClassName -> com.mchange.v2.c3p0.impl.DefaultConnectionTester, contextClassLoaderSource -> caller, dataSourceName -> 1br94d0b61vtxsp710ith2g|58e6d4b8, debugUnreturnedConnectionStackTraces -> false, description -> null, driverClass -> org.apache.derby.jdbc.EmbeddedDriver, extensions -> {}, factoryClassLocation -> null, forceIgnoreUnresolvedTransactions -> false, forceUseNamedDriverClass -> false, identityToken -> 1br94d0b61vtxsp710ith2g|58e6d4b8, idleConnectionTestPeriod -> 0, initialPoolSize -> 3, jdbcUrl -> jdbc:derby:/tmp/gigapaxos/paxos_logs/paxos_dbAdderRC0, maxAdministrativeTaskTime -> 0, maxConnectionAge -> 0, maxIdleTime -> 0, maxIdleTimeExcessConnections -> 0, maxPoolSize -> 100, maxStatements -> 0, maxStatementsPerConnection -> 0, minPoolSize -> 3, numHelperThreads -> 3, preferredTestQuery -> null, privilegeSpawnedThreads -> false, properties -> {password=******, user=******}, propertyCycle -> 0, statementCacheNumDeferredCloseThreads -> 0, testConnectionOnCheckin -> false, testConnectionOnCheckout -> false, unreturnedConnectionTimeout -> 0, userOverrides -> {}, usesTraditionalReflectiveProxies -> false ]
+2024-11-03 18:59:33 [INFO] SQLPaxosLoggerAdderRC0 connected to and created database paxos_dbAdderRC0
+2024-11-03 18:59:33 [INFO] Table checkpointAdderRC0 already exists
+2024-11-03 18:59:33 [INFO] Table messagesAdderRC0 already exists
+2024-11-03 18:59:34 [INFO] Table messagesAdderRC0 already exists
+2024-11-03 18:59:34 [INFO] Table pauseAdderRC0 already exists
+2024-11-03 18:59:34 [INFO] Table prev_checkpointAdderRC0 already exists
+2024-11-03 18:59:34 [INFO] Created tables checkpointAdderRC0 and messagesAdderRC0 and pauseAdderRC0
+2024-11-03 18:59:34 [INFO] SQLPaxosLoggerAdderRC0 : CHECKPOINTADDERRC0 : STATE : 32672
+2024-11-03 18:59:34 [INFO] SQLPaxosLoggerAdderRC0 : MESSAGESADDERRC0 : MESSAGE : 5242880
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 beginning to recover checkpoints
+2024-11-03 18:59:34 [INFO] AdderRC0 initialized paxos acceptor AdderRC0:0 with members [1165722509,1165722510,1165722511]; PaxosAcceptor:AdderRC0 null {recovered_state=[{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","Adder[...]N_ACTIVES_CHANGE":"DEFAULT","RC_EPOCH_MAP":[],"NAME":"AdderRC0"}]}
+2024-11-03 18:59:34 [INFO] AdderRC0 initialized paxos acceptor AdderRC1:0 with members [1165722509,1165722510,1165722511]; PaxosAcceptor:AdderRC0 null {recovered_state=[{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","Adder[...]_CHANGE":"REPLICATE_ALL","RC_EPOCH_MAP":[],"NAME":"AR_RC_NODES"}]}
+2024-11-03 18:59:34 [INFO] AdderRC0 initialized paxos coordinator AdderRC2:0 with members [1165722509,1165722510,1165722511]; PaxosAcceptor:AdderRC0 null {recovered_state=[{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","Adder[...]N_ACTIVES_CHANGE":"DEFAULT","RC_EPOCH_MAP":[],"NAME":"AdderRC2"}]}
+2024-11-03 18:59:34 [INFO] AdderRC0 initialized paxos acceptor RC_NODES:0 with members [1165722509,1165722510,1165722511]; PaxosAcceptor:AdderRC0 null {recovered_state=[{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","Adder[...]POCH":0},{"RC_NODE":"AdderRC2","RC_EPOCH":0}],"NAME":"RC_NODES"}]}
+2024-11-03 18:59:34 [INFO] AdderRC0 initialized paxos acceptor AR_NODES:0 with members [1165722509,1165722510,1165722511]; PaxosAcceptor:AdderRC0 null {recovered_state=[{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderAR0","Adder[...]N_ACTIVES_CHANGE":"DEFAULT","RC_EPOCH_MAP":[],"NAME":"AR_NODES"}]}
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 has recovered checkpoints for 5 paxos groups
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 beginning to roll forward logged messages
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 rolled forward 0 messages total across 5 paxos groups
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC0:0:[A:(0:1165722510, 1)] sending SYNC_DECISIONS to recipients: [1165722509 1165722510 ]; Message: null:-1:SYNC_DECISIONS:[1165722511[1, 1]]; maxCommittedSlot = 0; 
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 recovered paxos instance AdderRC0:AdderRC0:0:[A:(0:1165722510, 1)]PaxosAcceptor:AdderRC0; isActive = true 
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC1:0:[A:(0:1165722509, 1)] sending SYNC_DECISIONS to recipients: [1165722509 1165722510 ]; Message: null:-1:SYNC_DECISIONS:[1165722511[1, 1]]; maxCommittedSlot = 0; 
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 recovered paxos instance AdderRC0:AdderRC1:0:[A:(0:1165722509, 1)]PaxosAcceptor:AdderRC0; isActive = true 
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC2:0:[A:(0:1165722511, 1)] sending SYNC_DECISIONS to recipients: [1165722509 1165722510 ]; Message: null:-1:SYNC_DECISIONS:[1165722511[1, 1]]; maxCommittedSlot = 0; 
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 recovered paxos instance AdderRC0:AdderRC2:0:[A:(0:1165722511, 1)]PaxosAcceptor:AdderRC0; isActive = true 
+2024-11-03 18:59:34 [INFO] AdderRC0:RC_NODES:0:[A:(0:1165722509, 1)] sending SYNC_DECISIONS to recipients: [1165722509 1165722510 ]; Message: null:-1:SYNC_DECISIONS:[1165722511[1, 1]]; maxCommittedSlot = 0; 
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 recovered paxos instance AdderRC0:RC_NODES:0:[A:(0:1165722509, 1)]PaxosAcceptor:AdderRC0; isActive = true 
+2024-11-03 18:59:34 [INFO] AdderRC0:AR_NODES:0:[A:(0:1165722510, 1)] sending SYNC_DECISIONS to recipients: [1165722509 1165722510 ]; Message: null:-1:SYNC_DECISIONS:[1165722511[1, 1]]; maxCommittedSlot = 0; 
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 recovered paxos instance AdderRC0:AR_NODES:0:[A:(0:1165722510, 1)]PaxosAcceptor:AdderRC0; isActive = true 
+2024-11-03 18:59:34 [INFO] ------------------PaxosManager:AdderRC0 recovery complete-------------------
+2024-11-03 18:59:34 [INFO] PaxosManager:AdderRC0 creating client messenger at /127.0.0.1:7100; (offset=100)
+2024-11-03 18:59:34 [INFO] MessageNIOTransport:null:0 listening on channel sun.nio.ch.ServerSocketChannelImpl[/127.0.0.1:7100] with ssl mode CLEAR
+2024-11-03 18:59:34 [INFO] RepliconfigurableReconfiguratorDB:AdderRC0 created reconfigurator group AdderRC0 with members [AdderRC0, AdderRC1, AdderRC2]: {"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","AdderRC1","AdderRC2"],"EPOCH":0,"NEW_ACTIVES":["AdderRC0","AdderRC1","AdderRC2"],"RECONFIGURE_UPON_ACTIVES_CHANGE":"DEFAULT","RC_EPOCH_MAP":[],"NAME":"AdderRC0"}
+2024-11-03 18:59:34 [INFO] RepliconfigurableReconfiguratorDB:AdderRC0 created reconfigurator group AdderRC1 with members [AdderRC0, AdderRC1, AdderRC2]: {"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","AdderRC1","AdderRC2"],"EPOCH":0,"NEW_ACTIVES":["AdderRC0","AdderRC1","AdderRC2"],"RECONFIGURE_UPON_ACTIVES_CHANGE":"DEFAULT","RC_EPOCH_MAP":[],"NAME":"AdderRC1"}
+{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderAR0","AdderAR1","AdderAR2"],"EPOCH":0,"NEW_ACTIVES":["AdderAR0","AdderAR1","AdderAR2"],"RECONFIGURE_UPON_ACTIVES_CHANGE":"REPLICATE_ALL","RC_EPOCH_MAP":[],"NAME":"StatefulAdderApp0"}
+{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderAR0","AdderAR1","AdderAR2"],"EPOCH":0,"NEW_ACTIVES":["AdderAR0","AdderAR1","AdderAR2"],"RECONFIGURE_UPON_ACTIVES_CHANGE":"REPLICATE_ALL","RC_EPOCH_MAP":[],"NAME":"AR_AR_NODES"}
+{"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderAR0","AdderAR1","AdderAR2"],"EPOCH":0,"NEW_ACTIVES":["AdderAR0","AdderAR1","AdderAR2"],"RECONFIGURE_UPON_ACTIVES_CHANGE":"REPLICATE_ALL","RC_EPOCH_MAP":[],"NAME":"AR_RC_NODES"}
+2024-11-03 18:59:34 [INFO] RepliconfigurableReconfiguratorDB:AdderRC0 created reconfigurator group AdderRC2 with members [AdderRC0, AdderRC1, AdderRC2]: {"NUM_UNCLEAN":0,"RC_STATE":"READY","ACTIVES":["AdderRC0","AdderRC1","AdderRC2"],"EPOCH":0,"NEW_ACTIVES":["AdderRC0","AdderRC1","AdderRC2"],"RECONFIGURE_UPON_ACTIVES_CHANGE":"DEFAULT","RC_EPOCH_MAP":[],"NAME":"AdderRC2"}
+2024-11-03 18:59:34 [INFO] RepliconfigurableReconfiguratorDB:AdderRC0 after recovery has node config records = 
+AdderRC0 : AdderRC0:0:READY[AdderRC0, AdderRC1, AdderRC2]
+AdderRC1 : AdderRC1:0:READY[AdderRC0, AdderRC1, AdderRC2]
+AdderRC2 : AdderRC2:0:READY[AdderRC0, AdderRC1, AdderRC2]
+RC_NODES : RC_NODES:0:READY[AdderRC0, AdderRC1, AdderRC2]
+AR_NODES : AR_NODES:0:READY[AdderAR0, AdderAR1, AdderAR2]
+2024-11-03 18:59:34 [INFO] RC.AdderRC0 creating  client messenger at /127.0.0.1:7100
+2024-11-03 18:59:34 [INFO] RC.AdderRC0 adding self as demultiplexer to existing  client messenger
+2024-11-03 18:59:34 [INFO] RC.AdderRC0 registering types [DELETE_SERVICE_NAME, CREATE_SERVICE_NAME, REQUEST_ACTIVE_REPLICAS]
+2024-11-03 18:59:34 [INFO] RC.AdderRC0 registering types [CREATE_SERVICE_NAME, ACK_STOP_EPOCH, RECONFIGURE_RC_NODE_CONFIG, DEMAND_REPORT, RC_RECORD_REQUEST, ACK_DROP_EPOCH_FINAL_STATE, HELLO_REQUEST, DELETE_SERVICE_NAME, ACK_START_EPOCH, ECHO_REQUEST, REQUEST_ACTIVE_REPLICAS, RECONFIGURE_ACTIVE_NODE_CONFIG]
+2024-11-03 18:59:34 [INFO] {0} registering types [DELETE_SERVICE_NAME, ACTIVE_REPLICA_ERROR, CREATE_SERVICE_NAME, REPLICABLE_CLIENT_REQUEST, ECHO_REQUEST, REQUEST_ACTIVE_REPLICAS] for TXUtils.GigaPaxosClient
+2024-11-03 18:59:34 [INFO] {0} registering types [RECONFIGURE_RC_NODE_CONFIG, RECONFIGURE_ACTIVE_NODE_CONFIG] for TXUtils.GigaPaxosClient
+2024-11-03 18:59:34 [INFO] TXUtils.GigaPaxosClient registering types [REPLICABLE_CLIENT_REQUEST] for TXUtils.GigaPaxosClient
+2024-11-03 18:59:34 [INFO] MessageNIOTransport:null:0 listening on channel sun.nio.ch.ServerSocketChannelImpl[/[0:0:0:0:0:0:0:0]:56263] with ssl mode CLEAR
+2024-11-03 18:59:34 [INFO] TXUtils.GigaPaxosClient56263 listening on /[0:0:0:0:0:0:0:0]:56263; ssl mode = CLEAR; client port offset = 100
+2024-11-03 18:59:34 [INFO] AR.AdderRC0 maybe creating  client messenger at /127.0.0.1:7100
+2024-11-03 18:59:34 [INFO] AR.AdderRC0 adding self as demultiplexer to existing  client messenger
+2024-11-03 18:59:34 [INFO] AbstractPacketDemultiplexer[4]:AdderRC0-clientFacing registering types [] for AR.AdderRC0
+2024-11-03 18:59:34 [INFO] AbstractPacketDemultiplexer[4]:AdderRC0 registering types [START_EPOCH, DROP_EPOCH_FINAL_STATE, STOP_EPOCH, REPLICABLE_CLIENT_REQUEST, ECHO_REQUEST, HELLO_REQUEST, EPOCH_FINAL_STATE, REQUEST_EPOCH_FINAL_STATE] for AR.AdderRC0
+2024-11-03 18:59:34 [INFO] AdderRC0:/127.0.0.1:7000  server ready (total number of servers=6)
+2024-11-03 18:59:34 [INFO] [id: 0xbaf321d9] REGISTERED
+2024-11-03 18:59:34 [INFO] [id: 0xbaf321d9] BIND: /127.0.0.1:7300
+2024-11-03 18:59:34 [INFO] RC.AdderRC0:HTTP:/127.0.0.1:7300 ready
+2024-11-03 18:59:34 [INFO] [id: 0xbaf321d9, L:/127.0.0.1:7300] ACTIVE
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC1:0:[A:(0:1165722509, 1)] running for coordinator as node 1,165,722,509  seems dead (last pinged 1 secs back)
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC0:0:[A:(0:1165722510, 1)] running for coordinator as node 1,165,722,510  seems dead (last pinged 0 secs back)
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC2:0:[A:(0:1165722511, 1)] running for coordinator as node 1,165,722,511  has not yet initialized its coordinator
+2024-11-03 18:59:34 [INFO] AdderRC0:RC_NODES:0:[A:(0:1165722509, 1)] running for coordinator as node 1,165,722,509  seems dead (last pinged 1 secs back)
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC0:0:[C:(1:1165722511), A:(1:1165722511, 1)] acking AdderRC0:0:PREPARE:[1:1165722511(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC2:0:[C:(1:1165722511), A:(1:1165722511, 1)] acking AdderRC2:0:PREPARE:[1:1165722511(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC1:0:[C:(1:1165722511), A:(1:1165722511, 1)] acking AdderRC1:0:PREPARE:[1:1165722511(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:RC_NODES:0:[C:(1:1165722511), A:(1:1165722511, 1)] acking RC_NODES:0:PREPARE:[1:1165722511(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AR_NODES:0:[A:(0:1165722510, 1)] running for coordinator as node 1,165,722,510  seems dead (last pinged 0 secs back)
+2024-11-03 18:59:34 [INFO] AdderRC0:AR_NODES:0:[C:(1:1165722511), A:(1:1165722511, 1)] acking AR_NODES:0:PREPARE:[1:1165722511(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC0:0:[C:(1:1165722511), A:(1:1165722511, 1)] preempting AdderRC0:0:PREPARE:[1:1165722510(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AR_NODES:0:[C:(1:1165722511), A:(1:1165722511, 1)] preempting AR_NODES:0:PREPARE:[1:1165722510(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC1:0:[C:(1:1165722511), A:(1:1165722511, 1)] preempting AdderRC1:0:PREPARE:[1:1165722510(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:RC_NODES:0:[C:(1:1165722511), A:(1:1165722511, 1)] preempting RC_NODES:0:PREPARE:[1:1165722510(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]
+2024-11-03 18:59:34 [INFO] AdderRC0:AdderRC2:0:[C:(1:1165722511), A:(1:1165722511, 1)] preempting AdderRC2:0:PREPARE:[1:1165722510(1)] with null:-1:PREPARE_REPLY:[1165722511:1:1165722511[]firstSlot=1]

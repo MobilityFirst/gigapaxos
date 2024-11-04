@@ -191,8 +191,8 @@ if "%DEFAULT_CLIENT%"=="" (
 
     :showUsage
     if "%showUsage%"=="true" (
-        echo "Usage: gpClient.sh [JVMARGS] CLIENT_CLASS_NAME"
-        echo "Example: gpClient.sh -cp jars/myclient.jar edu.umass.cs.reconfiguration.examples.NoopAppClient"
+        echo Usage: .\gpClient.cmd [JVMARGS] CLIENT_CLASS_NAME
+        echo Example: .\gpClient.cmd -cp jars\myclient.jar edu.umass.cs.reconfiguration.examples.NoopAppClient
         exit /b
     )
 

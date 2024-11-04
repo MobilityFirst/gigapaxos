@@ -1,4 +1,4 @@
-set "SSH_KEY="
-set "SSH_LOC=D:\DeltaCopy\ssh.exe"
+set "SSH_KEY=C:\Users\priya\Documents\Prateek_Bhindwar\gigapaxos\test2_keypair"
+set "SSH_LOC=C:\DeltaCopy\ssh.exe"
 set "INSTALL_PATH_PREFIX="
-set "RSYNC_COMMAND=D:\DeltaCopy\rsync.exe"
+set "RSYNC_COMMAND=C:\DeltaCopy\rsync.exe"

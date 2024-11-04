@@ -1,0 +1,5 @@
+2024-11-03 18:48:44 [WARNING] Config unable to find file conf\examples\adder.properties; using default values for type class edu.umass.cs.gigapaxos.PaxosConfig$PC
+2024-11-03 18:48:44 [WARNING] Config unable to find file conf\examples\adder.properties; using default values for type class edu.umass.cs.reconfiguration.ReconfigurationConfig$RC
+2024-11-03 18:48:44 [WARNING] GIGAPAXOS_DATA_DIR must be an absolute path; specifying "." is deprecated and discouraged.
+2024-11-03 18:48:44 [WARNING] Config unable to find file conf\examples\adder.properties; using default values for type class edu.umass.cs.gigapaxos.PaxosConfig$PC
+2024-11-03 18:48:44 [WARNING] Config unable to find file conf\examples\adder.properties; using default values for type class edu.umass.cs.gigapaxos.PaxosConfig$PC
