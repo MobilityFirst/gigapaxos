@@ -815,6 +815,25 @@ public class PaxosManager<NodeIDType> {
 			pism.poke(forceSync);
 	}
 
+/**
+ * In order to implement randomization in running for coordinator, we need to
+ * schedule a future event with a random delay, which is done by creating a
+ * no-op "poke" message as everything in the PISM design is event-driven
+ * triggered by the receipt of a message.
+ *
+ * @param pism
+ * @param forceSync
+ * @param delay
+ */
+protected void scheduleSinglePoke(PaxosInstanceStateMachine pism,
+								boolean forceSync, long delay) {
+		this.executor.schedule(new Runnable() {
+			public void run() {
+				syncPaxosInstance(pism, forceSync);
+			}
+		}, delay, TimeUnit.MILLISECONDS);
+	}
+
 	/**
 	 * When a node is being permanently deleted.
 	 * 
