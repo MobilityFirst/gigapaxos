@@ -34,6 +34,8 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+import io.netty.handler.codec.http.cors.CorsConfig;
+import io.netty.handler.codec.http.cors.CorsHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
@@ -277,7 +279,9 @@ public class HttpReconfigurator {
 
 		@Override
 		protected void initChannel(SocketChannel ch) throws Exception {
-			ChannelPipeline p = ch.pipeline();
+            CorsConfig corsConfig = CorsConfig.withAnyOrigin().build();
+
+            ChannelPipeline p = ch.pipeline();
 			if (sslCtx != null)
 				p.addLast(sslCtx.newHandler(ch.alloc()));
 
@@ -287,8 +291,10 @@ public class HttpReconfigurator {
 			p.addLast(new HttpObjectAggregator(1048576));
 
 			p.addLast(new HttpResponseEncoder());
+            p.addLast(new CorsHandler(corsConfig));
 
-			p.addLast(new HTTPReconfiguratorHandler(rcFunctions));
+
+            p.addLast(new HTTPReconfiguratorHandler(rcFunctions));
 
 		}
 	}
