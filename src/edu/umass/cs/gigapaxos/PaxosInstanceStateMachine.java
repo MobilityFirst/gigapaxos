@@ -135,6 +135,9 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	private static final boolean ENABLE_INSTRUMENTATION = Config
 			.getGlobalBoolean(PC.ENABLE_INSTRUMENTATION);
 
+	private static final boolean ENABLE_STARTUP_COORDINATOR_ELECTION = Config.
+			getGlobalBoolean(PC.ENABLE_STARTUP_COORDINATOR_ELECTION);
+
 	private static final boolean instrument() {
 		return ENABLE_INSTRUMENTATION;
 	}
@@ -2152,11 +2155,14 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 				this.paxosState.getSlot(), false);
 	}
 
-private boolean notRunYet() {
+	private boolean notRunYet() {
+		if (!ENABLE_STARTUP_COORDINATOR_ELECTION) {
+			return false;
+		}
 		return this.paxosState.notRunYet();
-}
+	}
 
-private String getBallots() {
+	private String getBallots() {
 		return "["
 				+ (this.coordinator != null ? "C:("
 						+ (this.coordinator != null ? this.coordinator

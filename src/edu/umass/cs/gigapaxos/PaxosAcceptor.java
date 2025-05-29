@@ -76,15 +76,15 @@ public class PaxosAcceptor {
 			.isLoggingEnabled() || SQLPaxosLogger.isJournalingEnabled();
 
 	// active but never run for coordinator yet
-protected boolean notRunYet() {
-	return this.state == (byte)STATES.ACTIVE_1.ordinal();
-}
+	protected boolean notRunYet() {
+		return this.state == (byte)STATES.ACTIVE_1.ordinal();
+	}
 
-protected void setActive2() {
-	this.state = (byte)STATES.ACTIVE_2.ordinal();
-}
+	protected void setActive2() {
+		this.state = (byte)STATES.ACTIVE_2.ordinal();
+	}
 
-protected static enum STATES {
+	protected static enum STATES {
 		RECOVERY,
 		ACTIVE_1, // active, haven't yet run for coordinator
 		ACTIVE_2, // active, have run for coordinator at least once
