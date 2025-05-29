@@ -1,5 +1,6 @@
 # This workflow will test and build a Java project with Ant
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-ant
+# For more information see: 
+# https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-ant
 
 name: Java CI
 
@@ -21,7 +22,7 @@ jobs:
       with:
         java-version: '21'
         distribution: 'oracle'
-    - name: Build jar archive
+    - name: 🏗️ Compiling the source code into a jar archive ...
       run: ant jar
-    - name: Test with Ant
+    - name: 🧪 Running tests with ant ...
       run: ant test
