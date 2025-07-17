@@ -1,12 +1,14 @@
 # This workflow will run linter checks on the codebase.
-
+---
 name: Gigapaxos Linter Workflow
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
+
+permissions: {}
 
 jobs:
   build:
@@ -19,17 +21,16 @@ jobs:
       statuses: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        # super-linter needs the full git history to get the
-        # list of files that changed across commits
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # super-linter needs the full git history to get the
+          # list of files that changed across commits
+          fetch-depth: 0
 
-    - name: Setup linter
-      uses: super-linter/super-linter@v7.4.0
-      env:
-        VALIDATE_ALL_CODEBASE: false
-        # To report GitHub Actions status checks
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+      - name: Setup linter
+        uses: super-linter/super-linter@v7.4.0
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          # To report GitHub Actions status checks
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

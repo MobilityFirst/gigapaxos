@@ -1,28 +1,29 @@
 # This workflow will test and build a Java project with Ant
 # For more information see: 
 # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-ant
-
+---
 name: Gigapaxos Main Test Workflow
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
+
+permissions: {}
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'oracle'
-    - name: 🏗️ Compiling the source code into a jar archive ...
-      run: ant jar
-    - name: 🧪 Running tests with ant ...
-      run: ant test
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'oracle'
+      - name: 🏗️ Compiling the source code into a jar archive ...
+        run: ant jar
+      - name: 🧪 Running tests with ant ...
+        run: ant test
