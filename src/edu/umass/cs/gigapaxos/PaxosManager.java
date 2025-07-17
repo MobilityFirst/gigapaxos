@@ -3536,24 +3536,24 @@ public class PaxosManager<NodeIDType> {
 	}
 
 	public void tryToBePaxosCoordinator(String paxosID) {
-        PaxosInstanceStateMachine pism = this.getInstance(paxosID);
-        if (pism == null) {
-            return;
-        }
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
+		if (pism == null) {
+			return;
+		}
+		
+		pism.tryToBeCoordinator();
+	}
 
-        pism.tryToBeCoordinator();
-    }
+	public void restartFromLastCheckpoint(String paxosID) {
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
+		if (pism == null) {
+			return;
+		}
 
-    public void restartFromLastCheckpoint(String paxosID) {
-        PaxosInstanceStateMachine pism = this.getInstance(paxosID);
-        if (pism == null) {
-            return;
-        }
-
-        this.softCrash(pism);
-        pism = this.getInstance(paxosID);
-        assert pism != null :
-                "failed to restart as pism is failed to be re-created";
-        pism.poke(true);
-    }
+		this.softCrash(pism);
+		pism = this.getInstance(paxosID);
+		assert pism != null : 
+			"failed to restart as pism is failed to be re-created";
+		pism.poke(true);
+	}
 }

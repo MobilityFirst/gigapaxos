@@ -2664,8 +2664,8 @@ private String getBallots() {
 	}
 
 	protected void tryToBeCoordinator() {
-        MessagingTask m = checkRunForCoordinator(true);
-        this.sendMessagingTask(m);
-    }
+		MessagingTask m = checkRunForCoordinator(true);
+		this.sendMessagingTask(m);
+	}
 
 }
