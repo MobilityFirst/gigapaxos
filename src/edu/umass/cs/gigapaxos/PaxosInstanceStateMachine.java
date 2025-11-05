@@ -2658,4 +2658,25 @@ private String getBallots() {
 		return (int) (cpi * (1 - CPI_NOISE) + (Math.abs(paxosID.hashCode()) % cpi)
 				* 2 * CPI_NOISE);
 	}
+
+	/**
+	 * isPaxosCoordinator returns a boolean indicating whether this state
+	 * machine replica is a paxos coordinator or not. This method should
+	 * only be used by PaxosManager.
+	 * @return true if this replica is a paxos coordinator.
+	 */
+	protected boolean isPaxosCoordinator() {
+		return PaxosCoordinator.exists(
+				this.coordinator, this.paxosState.getBallot());
+	}
+
+	/**
+	 * getCurrentPaxosCoordinator returns an integer ID of the current
+	 * perceived coordinator. This method should only be used by PaxosManager.
+	 * @return the integer ID of the currently perceived coordinator.
+	 */
+	protected int getCurrentPaxosCoordinator() {
+		return this.paxosState.getBallotCoord();
+	}
+
 }
