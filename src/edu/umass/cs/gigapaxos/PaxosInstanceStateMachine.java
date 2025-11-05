@@ -2034,6 +2034,22 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 		return this.checkRunForCoordinator(false);
 	}
 
+	/**
+	 * Default coordinator is deterministically selected, not explicitly
+	 * elected, which is safe but can cause suboptimal liveness under
+	 * some failure and recovery scenarios, so the RUN_IF_NOT_RUN_YET option
+	 * forces a node to run for coordinator at least once after recovery.
+	 *
+	 * An example of a scenario where a deterministic coordinator can cause
+	 * liveness problems is as follows: suppose deterministic coordinator in a
+	 * group of 3 nodes happens to be 1 and all three nodes are currently
+	 * crashed. If nodes 2 and 3 now recover, a majority is available but they
+	 * will wait until they recognize the current coordinator as long dead
+	 * before committing any requests.
+	 */
+	static boolean RUN_IF_NOT_RUN_YET =
+			!Config.getGlobalBoolean(PC.BOOTSTRAP_COORD_DETERMINISTIC);
+
 	private MessagingTask checkRunForCoordinator(boolean forceRun) {
 		Ballot curBallot = this.paxosState.getBallot();
 		MessagingTask multicastPrepare = null;
@@ -2153,7 +2169,7 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 	}
 
 private boolean notRunYet() {
-		return this.paxosState.notRunYet();
+		return RUN_IF_NOT_RUN_YET && this.paxosState.notRunYet();
 }
 
 private String getBallots() {
