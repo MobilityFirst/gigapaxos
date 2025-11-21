@@ -3553,4 +3553,26 @@ protected void scheduleSinglePoke(PaxosInstanceStateMachine pism,
 
 		return this.integerMap.get(pism.getCurrentPaxosCoordinator());
 	}
+
+	public void tryToBePaxosCoordinator(String paxosID) {
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
+		if (pism == null) {
+			return;
+		}
+		
+		pism.tryToBeCoordinator();
+	}
+
+	public void restartFromLastCheckpoint(String paxosID) {
+		PaxosInstanceStateMachine pism = this.getInstance(paxosID);
+		if (pism == null) {
+			return;
+		}
+
+		this.softCrash(pism);
+		pism = this.getInstance(paxosID);
+		assert pism != null : 
+			"failed to restart as pism is failed to be re-created";
+		pism.poke(true);
+	}
 }
