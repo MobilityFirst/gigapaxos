@@ -114,6 +114,10 @@ public static boolean isPreemptedFully(PaxosCoordinator c,
 		return false;
 }
 
+protected static Ballot getPendingBallot(PaxosCoordinator c) {
+		return c!=null && !c.isActive() ? c.getBallot() : null;
+}
+
 protected abstract void setNodeSlots(int[] nodeSlots);
 	protected static PaxosCoordinator hotRestore(PaxosCoordinator c, HotRestoreInfo hri) {
 		if (hri.coordBallot == null)

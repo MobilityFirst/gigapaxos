@@ -926,7 +926,9 @@ public class PaxosConfig {
 		 */
 		FORWARD_PREEMPTED_REQUESTS(false),
 
-		BOOTSTRAP_COORD_DETERMINISTIC (true),
+		BOOTSTRAP_COORD_DETERMINISTIC (false),
+
+		RESEND_HIGHER_PREPARE(true),
 
 
 		/**

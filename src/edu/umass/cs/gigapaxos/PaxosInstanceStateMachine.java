@@ -949,16 +949,53 @@ public class PaxosInstanceStateMachine implements Keyable<String>, Pausable {
 								: "acking", prepare.getSummary(),
 						prepareReply.getSummary(log.isLoggable(Level.INFO)) });
 
+		/** If our outstanding prepare is greater, resend it immediately to
+		 * just the sender of this prepare so as to induce a prepareReply.
+		 * This is useful if the sender is a recovering node that missed our
+		 * prepare and is now sending a lower prepare as its bootstrap run
+		 * because we would have missed its prepareReply as well.
+		 *
+		 * Doing this is unnecessary for the purpose of making a lower
+		 * coordinator resign quicker because our prepareReply would do that
+		 * anyway, so there is some redundancy here: our higher prepare could
+		 * also serve as a prepare NACK, but they both exist for historical
+		 * reasons. Technically, it is also possible that our own acceptor
+		 * has not yet received our own higher prepare, so it is possible that
+		 * the prepareReply is an affirmation (possibly with lower ballot
+		 * accepts) even though our coordinator's prepare is higher.
+		 */
+		Ballot myPendingBallot = PaxosCoordinator.getPendingBallot(this.coordinator);
+		PreparePacket myPendingHigherPrepare =
+				myPendingBallot != null && prepare.ballot.compareTo(
+				myPendingBallot) < 0 ? new PreparePacket(myPendingBallot,
+				this.paxosState.getSlot()) : null;
+
+		/** In the unlikely event that prevBallot was lower but became higher
+		 * before paxosState.handlePrepare(.) above, we would be needlessly
+		 * logging a prepare NACK, but that's harmless.
+		 */
 		MessagingTask mtask = prevBallot.compareTo(prepareReply.ballot) < 0 ?
 		// log only if not already logged (if my ballot got upgraded)
 		new LogMessagingTask(prepare.ballot.coordinatorID,
 		// ensures large prepare replies are fragmented
 				PrepareReplyAssembler.fragment(prepareReply,this), prepare)
-				// else just send prepareReply
+				// else just send prepareReply, probably retransmitted prepare
 				: new MessagingTask(prepare.ballot.coordinatorID,
 						PrepareReplyAssembler.fragment(prepareReply, this));
+
+		/* Append pending higher prepare to prepare reply's messaging task
+		but only if it is not a LogMessagingTask, which is because the
+		addMessage method below creates a new MessagingTask, which would
+		break the logging of the prepare being affirmed that is required for
+		safety.
+		 */
+		if (!(mtask instanceof LogMessagingTask) && Config.getGlobalBoolean(
+				PC.RESEND_HIGHER_PREPARE) && myPendingHigherPrepare != null)
+			mtask = MessagingTask.addMessage(mtask, myPendingHigherPrepare);
+
 		for (PaxosPacket pp : mtask.msgs) {
-			assert (((PrepareReplyPacket) pp).getLengthEstimate() < NIOTransport.MAX_PAYLOAD_SIZE) :
+			if(pp instanceof  PrepareReplyPacket)
+				assert (((PrepareReplyPacket) pp).getLengthEstimate() < NIOTransport.MAX_PAYLOAD_SIZE) :
 					Util.suicide(this + " trying to return unfragmented prepare reply of size " +
 							((PrepareReplyPacket) pp).getLengthEstimate() + " : " + pp.getSummary() +
 							"; prevBallot = " + prevBallot);

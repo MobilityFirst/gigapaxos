@@ -20,6 +20,7 @@ package edu.umass.cs.gigapaxos.paxosutil;
 import edu.umass.cs.gigapaxos.paxospackets.PaxosPacket;
 import edu.umass.cs.utils.Util;
 
+
 /**
  * 
  * @author V. Arun
@@ -292,5 +293,19 @@ public class MessagingTask {
 			return combine(mtask.toArray(), array);
 		else
 			return array;
+	}
+
+
+
+	public static MessagingTask addMessage(MessagingTask mtask,
+										   PaxosPacket msg) {
+		if(mtask == null || msg == null)
+			return mtask;
+		PaxosPacket[] msgs = new PaxosPacket[mtask.msgs.length + 1];
+		int i=0;
+		for(;i<mtask.msgs.length; i++)
+			msgs[i] = mtask.msgs[i];
+		msgs[i] = msg;
+		return new MessagingTask(mtask.recipients, msgs);
 	}
 }
